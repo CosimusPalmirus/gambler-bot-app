@@ -8,124 +8,7 @@
 // ══════════════════════════════════════
 //  ANIMATED BACKGROUND — floating BTC & casino symbols
 // ══════════════════════════════════════
-function initBgCanvas(){
-
-  const canvas = document.getElementById('bg-canvas');
-  if(!canvas){ return; }
-  const ctx = canvas.getContext('2d');
-  let W, H, particles=[];
-
-  const ITEMS = [
-    {sym:'₿', color:'255,165,0', size:16},
-    {sym:'₿', color:'255,215,0', size:22},
-    {sym:'₿', color:'255,180,0', size:13},
-    {sym:'₿', color:'200,140,0', size:18},
-    {sym:'♠', color:'57,255,20', size:14},
-    {sym:'♥', color:'239,68,68', size:14},
-    {sym:'♦', color:'239,68,68', size:12},
-    {sym:'♣', color:'57,255,20', size:12},
-    {sym:'7', color:'255,215,0', size:20},
-    {sym:'💎', color:'147,210,255', size:14},
-    {sym:'🎰', color:'200,200,200', size:13},
-  ];
-
-  function resize(){
-    const parent = canvas.parentElement;
-    W = canvas.width  = parent ? parent.offsetWidth  : window.innerWidth;
-    H = canvas.height = parent ? parent.offsetHeight : window.innerHeight;
-  }
-
-  function mkP(){
-    const item = ITEMS[Math.floor(Math.random()*ITEMS.length)];
-    return {
-      x: Math.random()*W,
-      y: H + Math.random()*100,
-      size: item.size * (0.8 + Math.random()*0.9),
-      speed: 0.3 + Math.random()*0.6,
-      drift: (Math.random()-.5)*0.4,
-      alpha: 0.15 + Math.random()*0.35,
-      rot: Math.random()*Math.PI*2,
-      rotSpeed: (Math.random()-.5)*0.018,
-      wobble: Math.random()*Math.PI*2,
-      wobbleSpeed: 0.008 + Math.random()*0.015,
-      sym: item.sym,
-      color: item.color,
-      isBtc: item.sym === '₿',
-    };
-  }
-
-  function init(){
-    particles = [];
-    const count = Math.min(40, Math.floor(W/9));
-    for(let i=0;i<count;i++){
-      const p = mkP();
-      p.y = Math.random()*(H+100) - 50;
-      particles.push(p);
-    }
-  }
-
-  function draw(){
-    ctx.clearRect(0,0,W,H);
-
-    particles.forEach(p=>{
-      p.wobble += p.wobbleSpeed;
-      p.x += p.drift + Math.sin(p.wobble)*0.4;
-      p.y -= p.speed;
-      p.rot += p.rotSpeed;
-
-      // Fade based on vertical position
-      let a = p.alpha;
-      const yRatio = p.y / H;
-      if(yRatio > 0.85) a *= (1-yRatio)/0.15;
-      if(yRatio < 0.1)  a *= yRatio/0.1;
-      if(a <= 0.005){ if(p.y < -30){ Object.assign(p, mkP()); } return; }
-
-      ctx.save();
-      ctx.translate(p.x, p.y);
-      ctx.rotate(p.rot);
-      ctx.globalAlpha = a;
-
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-
-      if(p.isBtc){
-        ctx.font = `bold ${p.size}px Orbitron, monospace`;
-        // Big outer glow
-        ctx.shadowColor = `rgba(${p.color},1)`;
-        ctx.shadowBlur = 20;
-        ctx.fillStyle = `rgba(${p.color},${a})`;
-        ctx.fillText('₿', 0, 0);
-        // Second pass — bright core
-        ctx.shadowBlur = 6;
-        ctx.fillStyle = `rgba(255,245,200,${a * 1.2 > 1 ? 1 : a * 1.2})`;
-        ctx.fillText('₿', 0, 0);
-        ctx.shadowBlur = 0;
-      } else if(p.sym.length === 1){
-        ctx.font = `bold ${p.size}px Exo 2, sans-serif`;
-        ctx.shadowColor = `rgba(${p.color},.6)`;
-        ctx.shadowBlur = 8;
-        ctx.fillStyle = `rgba(${p.color},${a})`;
-        ctx.fillText(p.sym, 0, 0);
-        ctx.shadowBlur = 0;
-      } else {
-        ctx.font = `${p.size}px sans-serif`;
-        ctx.globalAlpha = a * 0.7;
-        ctx.fillText(p.sym, 0, 0);
-      }
-
-      ctx.restore();
-
-      if(p.y < -40) Object.assign(p, mkP());
-    });
-
-    requestAnimationFrame(draw);
-  }
-
-  resize();
-  init();
-  draw();
-  window.addEventListener('resize', ()=>{ resize(); init(); });
-}</script>
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -217,31 +100,42 @@ body::before{content:'';position:fixed;inset:0;z-index:0;
 .ld-txt{font-size:10px;color:var(--gr);letter-spacing:2px;text-transform:uppercase}
 /* HOME */
 /* old hero replaced by hero-epic */
-#bg-canvas{
-  position:absolute;
-  top:0;left:0;width:100%;height:100%;
-  pointer-events:none;
-  z-index:0;
-  opacity:1;
-}
 #home .scroll,#home .hdr,#home .bnav{position:relative;z-index:1;}
 
-.gc[data-g=bj]:active  { border-color:rgba(57,255,20,.5); box-shadow:0 0 16px rgba(57,255,20,.2); }
-.gc[data-g=sl]:active  { border-color:rgba(255,215,0,.5); box-shadow:0 0 16px rgba(255,215,0,.2); }
-.gc[data-g=rl]:active  { border-color:rgba(239,68,68,.5); box-shadow:0 0 16px rgba(239,68,68,.2); }
-.gc[data-g=dc]:active  { border-color:rgba(139,92,246,.5); box-shadow:0 0 16px rgba(139,92,246,.2); }
-.gc[data-g=pk]:active  { border-color:rgba(56,189,248,.5); box-shadow:0 0 16px rgba(56,189,248,.2); }
-.gc[data-g=duel]:active{ border-color:rgba(249,115,22,.5); box-shadow:0 0 16px rgba(249,115,22,.2); }
+.gc[data-g=bj]  { border-color:rgba(57,255,20,.18);  box-shadow:0 4px 16px rgba(0,0,0,.4),0 0 0 1px rgba(57,255,20,.06),inset 0 1px 0 rgba(255,255,255,.03); }
+.gc[data-g=sl]  { border-color:rgba(255,215,0,.18);  box-shadow:0 4px 16px rgba(0,0,0,.4),0 0 0 1px rgba(255,215,0,.06),inset 0 1px 0 rgba(255,255,255,.03); }
+.gc[data-g=rl]  { border-color:rgba(239,68,68,.18);  box-shadow:0 4px 16px rgba(0,0,0,.4),0 0 0 1px rgba(239,68,68,.06),inset 0 1px 0 rgba(255,255,255,.03); }
+.gc[data-g=dc]  { border-color:rgba(139,92,246,.18); box-shadow:0 4px 16px rgba(0,0,0,.4),0 0 0 1px rgba(139,92,246,.06),inset 0 1px 0 rgba(255,255,255,.03); }
+.gc[data-g=pk]  { border-color:rgba(56,189,248,.18); box-shadow:0 4px 16px rgba(0,0,0,.4),0 0 0 1px rgba(56,189,248,.06),inset 0 1px 0 rgba(255,255,255,.03); }
+.gc[data-g=duel]{ border-color:rgba(249,115,22,.18); box-shadow:0 4px 16px rgba(0,0,0,.4),0 0 0 1px rgba(249,115,22,.06),inset 0 1px 0 rgba(255,255,255,.03); }
+.gc[data-g=bj]:active  { transform:scale(.96);border-color:rgba(57,255,20,.6); box-shadow:0 0 20px rgba(57,255,20,.25); }
+.gc[data-g=sl]:active  { transform:scale(.96);border-color:rgba(255,215,0,.6); box-shadow:0 0 20px rgba(255,215,0,.25); }
+.gc[data-g=rl]:active  { transform:scale(.96);border-color:rgba(239,68,68,.6); box-shadow:0 0 20px rgba(239,68,68,.25); }
+.gc[data-g=dc]:active  { transform:scale(.96);border-color:rgba(139,92,246,.6);box-shadow:0 0 20px rgba(139,92,246,.25); }
+.gc[data-g=pk]:active  { transform:scale(.96);border-color:rgba(56,189,248,.6); box-shadow:0 0 20px rgba(56,189,248,.25); }
+.gc[data-g=duel]:active{ transform:scale(.96);border-color:rgba(249,115,22,.6);box-shadow:0 0 20px rgba(249,115,22,.25); }
 
 .srow{display:flex;gap:7px;padding:9px 14px}
-.sc2{flex:1;background:var(--card2);border:1px solid var(--br);border-radius:10px;padding:9px 7px;text-align:center}
+.sc2{flex:1;background:linear-gradient(145deg,rgba(22,27,39,.9),rgba(13,17,23,.9));border:1px solid rgba(57,255,20,.1);border-radius:10px;padding:10px 7px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.3)}
 .sv{font-family:'Orbitron';font-size:13px;font-weight:700;color:var(--gn)}
 .sl{font-size:8px;color:var(--gr);margin-top:2px;text-transform:uppercase;letter-spacing:.4px}
 .sttl{padding:5px 14px 4px;font-family:'Orbitron';font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--gr)}
 .ggrid{display:grid;grid-template-columns:1fr 1fr;gap:9px;padding:0 14px 14px}
-.gc{background:linear-gradient(145deg,rgba(22,27,39,.95),rgba(13,17,23,.95));border:1px solid var(--br);border-radius:13px;padding:13px 10px;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;position:relative;overflow:hidden;transition:all .15s}
+.gc{
+  background:linear-gradient(145deg,rgba(22,27,39,.97),rgba(10,12,18,.97));
+  border:1px solid rgba(57,255,20,.1);
+  border-radius:14px;padding:14px 10px;
+  display:flex;flex-direction:column;align-items:center;gap:7px;
+  cursor:pointer;position:relative;overflow:hidden;transition:all .18s;
+  box-shadow:0 4px 16px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.03);
+}
+.gc::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 80% 60% at 50% 0%,rgba(255,255,255,.04),transparent 70%);
+  pointer-events:none;
+}
 .gc:active{transform:scale(.97)}
-.gc-icon{font-size:33px;line-height:1}
+.gc-icon{font-size:36px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))}
 .gc-name{font-family:'Russo One';font-size:12px;text-align:center}
 .gc[data-g=bj] .gc-name{color:var(--gn)}
 .gc[data-g=sl] .gc-name{color:var(--gold)}
@@ -249,7 +143,7 @@ body::before{content:'';position:fixed;inset:0;z-index:0;
 .gc[data-g=dc] .gc-name{color:var(--pu)}
 .gc[data-g=pk] .gc-name{color:var(--bl)}
 .gc[data-g=duel] .gc-name{color:var(--or)}
-.gc-info{font-size:9px;color:var(--gr);text-align:center}
+.gc-info{font-size:9px;color:#9ca3af;text-align:center;letter-spacing:.3px}
 .gc-badge{position:absolute;top:7px;right:7px;font-size:7px;font-weight:700;letter-spacing:.4px;padding:2px 5px;border-radius:4px}
 .hot{background:rgba(239,68,68,.18);color:var(--rd);border:1px solid rgba(239,68,68,.3)}
 .new2{background:rgba(57,255,20,.12);color:var(--gn);border:1px solid rgba(57,255,20,.25)}
@@ -397,44 +291,28 @@ body::before{content:'';position:fixed;inset:0;z-index:0;
   background:radial-gradient(ellipse 200px 200px at 50% 80px, rgba(0,0,0,.4) 0%, transparent 70%);
 }
 .hero-img{
-  width:140px;height:140px;
+  width:148px;height:148px;
   border-radius:50%;
+  object-fit:cover;
+  object-position:center;
   position:relative;z-index:10;
   display:block !important;
-  filter:drop-shadow(0 0 24px rgba(57,255,20,.7))
-         drop-shadow(0 0 48px rgba(57,255,20,.3))
-         drop-shadow(0 0 80px rgba(57,255,20,.12))
-         brightness(1.08) contrast(1.05);
+  filter:drop-shadow(0 0 20px rgba(57,255,20,.8))
+         drop-shadow(0 0 40px rgba(57,255,20,.4))
+         brightness(1.06);
   animation:hero-float 4s ease-in-out infinite;
-  border:2.5px solid rgba(57,255,20,.5);
-  box-shadow:0 0 0 6px rgba(57,255,20,.06), 0 0 0 14px rgba(57,255,20,.03);
+  border:3px solid rgba(57,255,20,.6);
+  box-shadow:
+    0 0 0 8px rgba(57,255,20,.05),
+    0 0 0 18px rgba(57,255,20,.02),
+    0 8px 32px rgba(0,0,0,.6);
 }
 @keyframes hero-float{
   0%,100%{transform:translateY(0) scale(1); filter:drop-shadow(0 0 30px rgba(57,255,20,.5)) drop-shadow(0 0 60px rgba(57,255,20,.2));}
   50%{transform:translateY(-8px) scale(1.02); filter:drop-shadow(0 0 40px rgba(57,255,20,.8)) drop-shadow(0 0 80px rgba(57,255,20,.35));}
 }
 /* Pulsing glow rings behind logo */
-.hero-glow-ring{
-  position:absolute;top:20px;left:50%;transform:translateX(-50%);
-  width:120px;height:120px;border-radius:50%;
-  border:2px solid rgba(57,255,20,.3);
-  animation:ring-pulse 3s ease-in-out infinite;
-  pointer-events:none;
-}
-.hero-glow-ring-2{
-  width:160px;height:160px;top:0px;
-  border-color:rgba(57,255,20,.15);
-  animation-delay:.5s;animation-duration:3.5s;
-}
-.hero-glow-ring-3{
-  width:200px;height:200px;top:-20px;
-  border-color:rgba(57,255,20,.07);
-  animation-delay:1s;animation-duration:4s;
-}
-@keyframes ring-pulse{
-  0%,100%{transform:translateX(-50%) scale(1);opacity:1}
-  50%{transform:translateX(-50%) scale(1.08);opacity:.4}
-}
+
 .hero-title-block{
   position:relative;z-index:2;
   text-align:center;margin-top:12px;
@@ -559,7 +437,7 @@ setTimeout(function(){
 },3000);
 </script>
 <div id="loading">
-  <img class="ld-logo" src="casino_icon.png" alt="G" onerror="this.style.display='none'">
+  <img class="ld-logo" src="casino_icon.png" alt="G" onerror="this.style.opacity='.1'">
   <div class="ld-bar"><div class="ld-prog" id="ld-prog"></div></div>
   <div class="ld-txt">Loading GAMBLER BOT...</div>
 </div>
@@ -569,9 +447,11 @@ setTimeout(function(){ var p=document.getElementById('ld-prog'); if(p) p.style.w
 </script>
 <div id="app">
 
+<!-- FLOATING BTC BACKGROUND -->
+<div class="btc-bg" id="btc-bg" aria-hidden="true"></div>
+
 <!-- HOME -->
 <div id="home" class="screen active" style="background:rgba(8,9,13,0)">
-  <canvas id="bg-canvas"></canvas>
   <div class="hdr">
     <div class="hdr-logo"><img src="casino_icon.png" alt="G"><span class="hdr-title">GAMBLER BOT</span></div>
     <div style="display:flex;align-items:center;gap:8px">
@@ -582,15 +462,10 @@ setTimeout(function(){ var p=document.getElementById('ld-prog'); if(p) p.style.w
   <div class="scroll">
     <!-- Epic hero banner -->
     <div class="hero-epic">
-      <!-- Background glow rings -->
-      <div class="hero-glow-ring"></div>
-      <div class="hero-glow-ring hero-glow-ring-2"></div>
-      <div class="hero-glow-ring hero-glow-ring-3"></div>
+
       <!-- Logo -->
       <img class="hero-img" src="casino_icon.png" alt="GAMBLER BOT"
-        onerror="this.style.display='none';document.getElementById('hero-fallback').style.display='flex'">
-      <!-- Fallback if image missing -->
-      <div id="hero-fallback" style="display:none;width:130px;height:130px;border-radius:50%;background:radial-gradient(circle,#1a2e1a,#0a0f0a);border:2px solid var(--gn);align-items:center;justify-content:center;font-size:48px;box-shadow:0 0 30px rgba(57,255,20,.5)">₿</div>
+        onerror="this.style.opacity='.3'">
       <!-- Title -->
       <div class="hero-title-block">
         <div class="hero-name">GAMBLER BOT</div>
@@ -610,10 +485,10 @@ setTimeout(function(){ var p=document.getElementById('ld-prog'); if(p) p.style.w
     <div class="sttl">🎮 Choose Your Game</div>
     <div class="ggrid">
       <div class="gc" data-g="bj" onclick="go('bj')"><span class="gc-badge hot">HOT</span><div class="gc-icon">🃏</div><div class="gc-name">BLACKJACK</div><div class="gc-info">Beat dealer ×2.5</div></div>
-      <div class="gc" data-g="sl" onclick="go('sl')"><span class="gc-badge new2">NEW</span><div class="gc-icon">🎰</div><div class="gc-name">SLOTS</div><div class="gc-info">777 Jackpot ×50</div></div>
+      <div class="gc" data-g="sl" onclick="go('sl')"><span class="gc-badge hot">×50</span><div class="gc-icon">🎰</div><div class="gc-name">SLOTS</div><div class="gc-info">777 Jackpot ×50</div></div>
       <div class="gc" data-g="rl" onclick="go('rl')"><div class="gc-icon">🎡</div><div class="gc-name">ROULETTE</div><div class="gc-info">Multi-bet ×36</div></div>
       <div class="gc" data-g="dc" onclick="go('dc')"><div class="gc-icon">🎲</div><div class="gc-name">DICE</div><div class="gc-info">Roll to win ×2</div></div>
-      <div class="gc" data-g="pk" onclick="go('pk')"><div class="gc-icon">🃠</div><div class="gc-name">POKER</div><div class="gc-info">5 Card Draw ×2</div></div>
+      <div class="gc" data-g="pk" onclick="go('pk')"><div class="gc-icon" style="font-size:38px;line-height:1">🂡</div><div class="gc-name">POKER</div><div class="gc-info">5 Card Draw ×2</div></div>
       <div class="gc" data-g="duel" onclick="go('duel')"><span class="gc-badge pvp">PvP</span><div class="gc-icon">⚔️</div><div class="gc-name">DUEL</div><div class="gc-info">1v1 Live 95% pot</div></div>
     </div>
   </div>
@@ -1459,6 +1334,58 @@ function updP(){document.getElementById('pf-nm').textContent=S.name;document.get
 // ════════════════════════════
 //  INIT
 // ════════════════════════════
+
+// ══ FLOATING BTC PARTICLES ══
+(function spawnBtcParticles(){
+  const container = document.getElementById('btc-bg');
+  if(!container) return;
+
+  const SYMS = ['₿','₿','₿','₿','♠','♥','♦','♣','7','💎'];
+  const COLORS = [
+    '#ffd700','#ffb700','#ffa500',  // gold BTC
+    '#39ff14','#22c55e',             // green
+    '#8b5cf6',                       // purple
+    '#ef4444',                       // red hearts/diamonds
+    '#ffffff',                       // white spades/clubs
+  ];
+
+  function mkParticle(){
+    const el = document.createElement('div');
+    el.className = 'btc-p';
+    const sym   = SYMS[Math.floor(Math.random()*SYMS.length)];
+    const color = sym==='₿' ? COLORS[Math.floor(Math.random()*3)] : COLORS[3+Math.floor(Math.random()*4)];
+    const size  = sym==='₿' ? (14+Math.random()*18) : (10+Math.random()*12);
+    const dur   = 8 + Math.random()*14;
+    const delay = Math.random()*16;
+    const left  = Math.random()*100;
+    const rot   = (Math.random()*60-30)+'deg';
+    const sway  = (Math.random()*30-15)+'px';
+    const opa   = sym==='₿' ? (0.25+Math.random()*0.45) : (0.15+Math.random()*0.25);
+
+    el.textContent = sym;
+    el.style.cssText = [
+      'left:'+left+'%',
+      'font-size:'+size+'px',
+      'color:'+color,
+      'text-shadow: 0 0 '+(sym==='₿'?'12px':'6px')+' '+color,
+      'animation-duration:'+dur+'s',
+      'animation-delay:-'+delay+'s',
+      '--rot:'+rot,
+      '--sw:'+sway,
+      'animation:btc-rise '+dur+'s '+(-delay)+'s linear infinite',
+      'opacity:'+opa,
+    ].join(';');
+
+    // Add sway
+    el.style.animationName = 'btc-rise';
+    container.appendChild(el);
+  }
+
+  // Spawn particles
+  const count = Math.min(45, Math.floor(window.innerWidth/8));
+  for(let i=0;i<count;i++) mkParticle();
+})();
+
 // ── INIT (runs as soon as DOM is parsed, no waiting) ──
 function appInit(){
   // 1. Hide loading immediately — no conditions
@@ -1482,8 +1409,6 @@ function appInit(){
   try{ ref(); }catch(e){}
   try{ drawRlWheel(0); }catch(e){}
 
-  // 4. Start canvas animation
-  try{ initBgCanvas(); }catch(e){}
 
   // 5. Fetch BTC rate in background
   fetchRate().then(()=>{ try{ rebCh();ref(); }catch(e){} }).catch(()=>{});
