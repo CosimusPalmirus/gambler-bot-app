@@ -838,6 +838,10 @@ function spawnBTC(){
   }
 }
 
+// ═══ BACKEND ═══
+const BACKEND_URL = 'https://factoid-spinal-dispatch.ngrok-free.app'; // <-- sostituisci con il tuo URL ngrok
+
+const SEVEN_EMOJI=SEVEN_EMOJI; // slot 7 emoji safe reference
 // ═══ TELEGRAM ═══
 const tg=window.Telegram?.WebApp;
 if(tg){tg.ready();tg.expand();tg.setHeaderColor('#08090d');tg.setBackgroundColor('#08090d')}
@@ -985,12 +989,12 @@ function bjEnd(out){const bet=BJ.bet;let won=0,msg='',cls='';
 // ════════════════════════════
 //  🎰 SLOTS
 // ════════════════════════════
-const SL_SYM=['7️⃣','💎','🍒','🔔','⭐','🍋','🍇','🍊','🍉','🍀'],SL_W=[1,2,4,5,6,8,10,12,14,14],SL_M={'7️⃣':50,'💎':20,'🍒':8,'🔔':5,'⭐':4,'🍋':3,'🍇':2,'🍊':1,'🍉':1,'🍀':1};
+const SL_SYM=[SEVEN_EMOJI,'💎','🍒','🔔','⭐','🍋','🍇','🍊','🍉','🍀'],SL_W=[1,2,4,5,6,8,10,12,14,14],SL_M={SEVEN_EMOJI:50,'💎':20,'🍒':8,'🔔':5,'⭐':4,'🍋':3,'🍇':2,'🍊':1,'🍉':1,'🍀':1};
 let slSpin=false;
 function initSl(){buildCh('sl-ch','sl',v=>{document.getElementById('sl-bl').textContent='Bet: '+f2(v);});document.getElementById('sl-bl').textContent='Bet: '+f2(CB.sl);document.getElementById('sl-msg').textContent='';for(let i=0;i<3;i++){const r=document.getElementById('r'+i);r.innerHTML='';for(let j=0;j<20;j++){const d=document.createElement('div');d.className='ri';d.textContent=SL_SYM[Math.floor(Math.random()*SL_SYM.length)];r.appendChild(d);}r.style.transform='translateY(0)';}}
 function slRnd(){let t=SL_W.reduce((a,b)=>a+b,0),r=Math.random()*t;for(let i=0;i<SL_W.length;i++){r-=SL_W[i];if(r<=0)return SL_SYM[i];}return SL_SYM[SL_SYM.length-1];}
 function slAnim(idx,fin,dur){return new Promise(res=>{const reel=document.getElementById('r'+idx);const items=reel.children;items[items.length-1].textContent=fin;const itemH=74,target=-(items.length-1)*itemH;const start=performance.now();function frame(now){const p=Math.min((now-start)/dur,1);const e=1-Math.pow(1-p,3);const spin=p<.7?(now-start)*.9%(itemH*items.length):0;reel.style.transform='translateY('+(p<.7?-spin:e*target)+'px)';if(p<1)requestAnimationFrame(frame);else{reel.style.transform='translateY('+target+'px)';res();}}requestAnimationFrame(frame);});}
-async function spinSlots(){if(slSpin)return;const bet=CB.sl,btcBet=f2b(bet);if(bal()<bet){toast('Insufficient balance!','err');return;}slSpin=true;document.getElementById('btn-spin').disabled=true;document.getElementById('sl-msg').textContent='🎰 Spinning...';document.getElementById('sl-msg').style.color='var(--gr)';S.btc-=btcBet;S.bet+=btcBet;ref();const res=[slRnd(),slRnd(),slRnd()];for(let i=0;i<3;i++){await slAnim(i,res[i],(i+1)*600);await sleep(250);}let won=0,msg='',col='var(--gr)';if(res[0]===res[1]&&res[1]===res[2]){const m=SL_M[res[0]];won=btcBet*m;if(res[0]==='7️⃣'){msg='🎊 JACKPOT! ×50 +'+b2f(won-btcBet);col='var(--gold)';}else{msg='✨ '+res[0]+res[0]+res[0]+' ×'+m+' +'+b2f(won-btcBet);col='var(--gn)';}}else if(res[0]===res[1]||res[1]===res[2]||res[0]===res[2]){won=btcBet*.5;msg='🔸 Two alike! 50% back';col='var(--gold)';}else{msg='😔 No match — try again';col='var(--rd)';}S.btc+=won;S.won+=won;if(won>btcBet)S.wins++;else if(won===0)S.losses++;ref();document.getElementById('sl-msg').textContent=msg;document.getElementById('sl-msg').style.color=col;if(won>btcBet){document.getElementById('sl-bal')?.classList.add('bal-win');setTimeout(()=>document.getElementById('sl-bal')?.classList.remove('bal-win'),800);}
+async function spinSlots(){if(slSpin)return;const bet=CB.sl,btcBet=f2b(bet);if(bal()<bet){toast('Insufficient balance!','err');return;}slSpin=true;document.getElementById('btn-spin').disabled=true;document.getElementById('sl-msg').textContent='🎰 Spinning...';document.getElementById('sl-msg').style.color='var(--gr)';S.btc-=btcBet;S.bet+=btcBet;ref();const res=[slRnd(),slRnd(),slRnd()];for(let i=0;i<3;i++){await slAnim(i,res[i],(i+1)*600);await sleep(250);}let won=0,msg='',col='var(--gr)';if(res[0]===res[1]&&res[1]===res[2]){const m=SL_M[res[0]];won=btcBet*m;if(res[0]===SEVEN_EMOJI||res[0]===SEVEN_EMOJI){msg='🎊 JACKPOT! ×50 +'+b2f(won-btcBet);col='var(--gold)';}else{msg='✨ '+res[0]+res[0]+res[0]+' ×'+m+' +'+b2f(won-btcBet);col='var(--gn)';}}else if(res[0]===res[1]||res[1]===res[2]||res[0]===res[2]){won=btcBet*.5;msg='🔸 Two alike! 50% back';col='var(--gold)';}else{msg='😔 No match — try again';col='var(--rd)';}S.btc+=won;S.won+=won;if(won>btcBet)S.wins++;else if(won===0)S.losses++;ref();document.getElementById('sl-msg').textContent=msg;document.getElementById('sl-msg').style.color=col;if(won>btcBet){document.getElementById('sl-bal')?.classList.add('bal-win');setTimeout(()=>document.getElementById('sl-bal')?.classList.remove('bal-win'),800);}
 if(won>0)toast(msg,'ok');slSpin=false;document.getElementById('btn-spin').disabled=false;}
 
 // ════════════════════════════════════════════════════
@@ -1376,46 +1380,141 @@ const FAKE=['CryptoKing','LuckyAce','BitDealer','Satoshi99','RollMaster','VegasB
 let dMode='cards',dTmr=null,dSec=0;
 function initDuel(){buildCh('duel-ch','duel',v=>{document.getElementById('duel-bl').textContent='Bet: '+f2(v);const e=document.getElementById('duel-bal-err');if(e)e.style.display='none';});document.getElementById('duel-bl').textContent='Bet: '+f2(CB.duel);document.getElementById('duel-setup').style.display='block';document.getElementById('duel-srch').style.display='none';document.getElementById('duel-vs').style.display='none';document.getElementById('btn-dagain').style.display='none';}
 function selD(m){dMode=m;document.querySelectorAll('.dmode').forEach(e=>e.classList.remove('on'));document.querySelector('[data-m="'+m+'"]')?.classList.add('on');}
-function joinDuel(){
+// ── DUEL — Real backend matchmaking ──
+let duelPollTimer = null;
+
+async function joinDuel(){
   const bet = CB.duel;
   if(S.btc<=0 || bal()<bet){
-    const errEl = document.getElementById('duel-bal-err');
-    if(errEl){ errEl.style.display='block'; }
-    toast('Deposit BTC to play duels!','err',3500);
+    const errEl=document.getElementById('duel-bal-err');
+    if(errEl) errEl.style.display='block';
+    toast('Deposit BTC to play!','err',3500);
     return;
   }
-  const errEl = document.getElementById('duel-bal-err');
+  const errEl=document.getElementById('duel-bal-err');
   if(errEl) errEl.style.display='none';
 
   document.getElementById('duel-setup').style.display='none';
   document.getElementById('duel-srch').style.display='block';
   document.getElementById('duel-vs').style.display='none';
   document.getElementById('btn-dagain').style.display='none';
-
   dSec=0;
-  dTmr = setInterval(()=>{
-    dSec++;
-    document.getElementById('d-tmr').textContent = dSec + 's';
-  }, 1000);
+  dTmr=setInterval(()=>{ dSec++; document.getElementById('d-tmr').textContent=dSec+'s'; },1000);
 
-  // Notify bot — real matchmaking happens server-side
-  if(tg) tg.sendData(JSON.stringify({
-    action: 'duel_join',
-    mode: dMode,
-    bet: CB.duel,
-    bet_btc: f2b(CB.duel)
-  }));
+  try {
+    const resp = await fetch(BACKEND_URL+'/duel/join', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        user_id: String(S.userId || Date.now()),
+        username: S.username || 'Player',
+        mode: dMode,
+        bet: bet,
+        telegram_id: S.userId || null,
+      })
+    });
+    const data = await resp.json();
+
+    if(data.status === 'matched'){
+      clearInterval(dTmr);
+      showDuelResult(data);
+    } else if(data.status === 'queued'){
+      // Start polling every 2s
+      duelPollTimer = setInterval(()=>pollDuelStatus(bet), 2000);
+    } else {
+      toast('Error joining queue','err');
+      resetD();
+    }
+  } catch(e){
+    toast('Cannot reach server — check backend!','err',4000);
+    resetD();
+  }
 }
 
-function cancelD(){
+async function pollDuelStatus(bet){
+  try {
+    const resp = await fetch(BACKEND_URL+'/duel/status?user_id='+String(S.userId||'')+'&mode='+dMode);
+    const data = await resp.json();
+    if(data.status === 'done'){
+      clearInterval(duelPollTimer);
+      clearInterval(dTmr);
+      showDuelResult(data);
+    }
+  } catch(e){ /* keep polling */ }
+}
+
+async function cancelD(){
   clearInterval(dTmr);
+  clearInterval(duelPollTimer);
   document.getElementById('duel-srch').style.display='none';
   document.getElementById('duel-setup').style.display='block';
-  if(tg) tg.sendData(JSON.stringify({ action:'duel_cancel', mode:dMode }));
+  try {
+    await fetch(BACKEND_URL+'/duel/cancel',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({user_id:String(S.userId||''),mode:dMode})
+    });
+  } catch(e){}
+}
+
+function showDuelResult(data){
+  const result = data.result || {};
+  const won = data.won !== undefined ? data.won : (result.winner_id === String(S.userId));
+  const prize = result.prize || 0;
+  const bet = CB.duel;
+
+  // Update balance
+  if(won){ S.btc += f2b(prize); S.wins++; }
+  else { S.losses++; }
+  ref();
+
+  // Show vs screen with result
+  document.getElementById('duel-srch').style.display='none';
+  const vs = document.getElementById('duel-vs');
+  vs.style.display='block';
+  document.getElementById('d-n1').textContent = S.name;
+  document.getElementById('d-n2').textContent = result.winner_name || 'Opponent';
+
+  const anim = document.getElementById('d-anim');
+  anim.innerHTML = '<div style="font-size:11px;color:var(--gr);text-align:center;padding:8px">'+
+    (result.detail||'').replace(/
+/g,'<br>')+'</div>';
+
+  const res = document.getElementById('d-res');
+  const trophy = document.getElementById('d-trophy');
+  const txt = document.getElementById('d-rtxt');
+  const sub = document.getElementById('d-rsub');
+
+  if(won){
+    trophy.textContent='🏆'; txt.textContent='YOU WIN!'; txt.style.color='var(--gn)';
+    sub.textContent='+'+f2(prize);
+    // Confetti
+    spawnConf();
+  } else {
+    trophy.textContent='💀'; txt.textContent='YOU LOSE'; txt.style.color='var(--rd)';
+    sub.textContent='-'+f2(bet);
+  }
+  res.style.display='flex';
+  document.getElementById('btn-dagain').style.display='block';
+}
+
+function spawnConf(){
+  const v=document.getElementById('duel-vs');
+  if(!v) return;
+  const cols=['#39ff14','#ffd700','#8b5cf6','#ef4444','#38bdf8'];
+  for(let i=0;i<24;i++){
+    const b=document.createElement('div');
+    b.style.cssText='position:absolute;width:6px;height:6px;border-radius:1px;left:'+
+      Math.random()*100+'%;background:'+cols[Math.floor(Math.random()*cols.length)]+
+      ';animation:cf '+(.8+Math.random()*1.2)+'s '+(Math.random()*.4)+'s linear forwards';
+    v.appendChild(b);
+    b.addEventListener('animationend',()=>b.remove());
+  }
 }
 
 function resetD(){
   clearInterval(dTmr);
+  clearInterval(duelPollTimer);
   document.getElementById('duel-vs').style.display='none';
   document.getElementById('duel-srch').style.display='none';
   document.getElementById('d-res').style.display='none';
