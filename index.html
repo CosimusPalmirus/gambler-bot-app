@@ -4,14 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <title>GAMBLER BOT</title>
-<script src="https://telegram.org/js/telegram-web-app.js">
-// ══════════════════════════════════════
-//  ANIMATED BACKGROUND — floating BTC & casino symbols
-// ══════════════════════════════════════
-
-</script>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;600;700&display=swap" rel="stylesheet">
 <style>
+
 :root{
   --bk:#08090d;--card:#111827;--card2:#161b27;
   --gn:#39ff14;--gold:#ffd700;--gd2:#b8860b;
@@ -461,35 +457,27 @@ body::before{content:'';position:fixed;inset:0;z-index:0;
 #bj .cs{font-size:20px!important}
 #bj .cb{font-size:11px!important}
 
-/* ══ FLOATING BTC ══ */
-.btc-bg{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none;overflow:hidden}
-.btc-p{position:absolute;bottom:-80px;will-change:transform,opacity;user-select:none;font-weight:900;line-height:1;animation:btcRise linear infinite}
-@keyframes btcRise{
-  0%  {transform:translateY(0) rotate(0deg);opacity:0}
-  8%  {opacity:var(--a,0.3)}
+
   90% {opacity:var(--a,0.3)}
   100%{transform:translateY(calc(-100vh - 100px)) rotate(var(--r,15deg));opacity:0}
 }
+
+/* ══ BTC FLOATING ══ */
+#btc-bg{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none;overflow:hidden}
+.bp{position:absolute;bottom:-80px;font-weight:900;font-family:'Orbitron',monospace;animation:bp-up linear infinite;will-change:transform;user-select:none}
+@keyframes bp-up{0%{transform:translateY(0) rotate(0deg);opacity:0}8%{opacity:var(--a)}88%{opacity:var(--a)}100%{transform:translateY(-110vh) rotate(var(--r));opacity:0}}
+
 </style>
 </head>
 <body>
 <!-- LOADING -->
-<script>
-// Emergency fallback: if loading screen still visible after 3s, hide it
-setTimeout(function(){
-  var ld=document.getElementById('loading');
-  if(ld&&ld.style.display!=='none'){ ld.style.opacity='0'; setTimeout(function(){ld.style.display='none';},400); }
-},3000);
-</script>
+
 <div id="loading">
   <img class="ld-logo" src="casino_icon.png" alt="G" onerror="this.style.opacity='.1'">
   <div class="ld-bar"><div class="ld-prog" id="ld-prog"></div></div>
   <div class="ld-txt">Loading GAMBLER BOT...</div>
 </div>
-<script>
-// Animate loading bar immediately
-setTimeout(function(){ var p=document.getElementById('ld-prog'); if(p) p.style.width='100%'; }, 50);
-</script>
+
 <div id="app">
 
 <!-- FLOATING BTC BACKGROUND -->
@@ -822,8 +810,34 @@ setTimeout(function(){ var p=document.getElementById('ld-prog'); if(p) p.style.w
 
 </div><!-- #app -->
 <div id="toast" class="toast"></div>
-
 <script>
+
+/* BTC PARTICLES */
+function spawnBTC(){
+  var bg=document.getElementById('btc-bg');
+  if(!bg)return;
+  var S=['₿','₿','₿','♠','♥','♦','♣','7'];
+  var C=['255,200,0','255,165,0','255,215,0','57,255,20','239,68,68','57,255,20','57,255,20','255,215,0'];
+  var G=[true,true,true,false,false,false,false,false];
+  var n=Math.max(28,Math.floor((window.innerWidth||360)/9));
+  for(var i=0;i<n;i++){
+    var idx=Math.floor(Math.random()*S.length);
+    var el=document.createElement('div');
+    el.className='bp';
+    var sz=(16+Math.random()*16)*(idx<3?1.3:1);
+    var dur=9+Math.random()*14;
+    var del=-(Math.random()*dur);
+    var left=Math.random()*96;
+    var rot=(Math.random()*40-20)+'deg';
+    var a=G[idx]?(0.3+Math.random()*0.45):(0.1+Math.random()*0.18);
+    el.style.cssText='left:'+left+'%;font-size:'+sz+'px;color:rgba('+C[idx]+','+a+');'
+      +(G[idx]?'text-shadow:0 0 10px rgba('+C[idx]+',.8),0 0 24px rgba('+C[idx]+',.35);':'')
+      +'--a:'+a+';--r:'+rot+';animation-duration:'+dur+'s;animation-delay:'+del+'s';
+    el.textContent=S[idx];
+    bg.appendChild(el);
+  }
+}
+
 // ═══ TELEGRAM ═══
 const tg=window.Telegram?.WebApp;
 if(tg){tg.ready();tg.expand();tg.setHeaderColor('#08090d');tg.setBackgroundColor('#08090d')}
@@ -1451,6 +1465,8 @@ function appInit(){
   fetchRate().then(()=>{ try{ rebCh();ref(); }catch(e){} }).catch(()=>{});
 }
 
+spawnBTC();
+
 // Run on DOMContentLoaded OR immediately if already loaded
 if(document.readyState==='loading'){
   document.addEventListener('DOMContentLoaded', appInit);
@@ -1458,42 +1474,8 @@ if(document.readyState==='loading'){
   appInit();
 }
 
-/* ══ BTC PARTICLES ══ */
-(function(){
-  var c=document.getElementById('btc-bg');
-  if(!c){console.log('btc-bg not found');return;}
-  var items=[
-    {s:'₿',col:'255,200,0',sz:20,glow:true},
-    {s:'₿',col:'255,165,0',sz:16,glow:true},
-    {s:'₿',col:'255,215,0',sz:26,glow:true},
-    {s:'♠',col:'57,255,20',sz:15,glow:false},
-    {s:'♥',col:'239,68,68',sz:15,glow:false},
-    {s:'♦',col:'239,68,68',sz:13,glow:false},
-    {s:'♣',col:'57,255,20',sz:13,glow:false},
-    {s:'7',col:'255,215,0',sz:22,glow:false},
-  ];
-  var W=window.innerWidth||360;
-  var n=Math.max(25,Math.floor(W/9));
-  for(var i=0;i<n;i++){
-    var it=items[Math.floor(Math.random()*items.length)];
-    var el=document.createElement('div');
-    el.className='btc-p';
-    var sz=it.sz*(0.7+Math.random()*0.9);
-    var dur=10+Math.random()*15;
-    var delay=-(Math.random()*dur);
-    var left=Math.random()*100;
-    var rot=(Math.random()*50-25)+'deg';
-    var a=it.glow?(0.3+Math.random()*0.5):(0.12+Math.random()*0.2);
-    el.textContent=it.s;
-    el.style.cssText='left:'+left+'%;font-size:'+sz+'px;font-family:Orbitron,monospace;'
-      +'color:rgba('+it.col+','+a+');'
-      +(it.glow?'text-shadow:0 0 12px rgba('+it.col+',.9),0 0 28px rgba('+it.col+',.4);':'')
-      +'--a:'+a+';--r:'+rot+';'
-      +'animation-duration:'+dur+'s;animation-delay:'+delay+'s;';
-    c.appendChild(el);
-  }
-  console.log('BTC particles spawned:',n);
-})();
+
+
 
 </script>
 </body>
