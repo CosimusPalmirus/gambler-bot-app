@@ -30,8 +30,9 @@ function initBgCanvas(){
   ];
 
   function resize(){
-    W = canvas.width  = window.innerWidth;
-    H = canvas.height = window.innerHeight;
+    const parent = canvas.parentElement;
+    W = canvas.width  = parent ? parent.offsetWidth  : window.innerWidth;
+    H = canvas.height = parent ? parent.offsetHeight : window.innerHeight;
   }
 
   function mkP(){
@@ -39,10 +40,10 @@ function initBgCanvas(){
     return {
       x: Math.random()*W,
       y: H + Math.random()*100,
-      size: item.size * (0.7 + Math.random()*0.8),
-      speed: 0.25 + Math.random()*0.55,
-      drift: (Math.random()-.5)*0.35,
-      alpha: 0.06 + Math.random()*0.18,
+      size: item.size * (0.8 + Math.random()*0.9),
+      speed: 0.3 + Math.random()*0.6,
+      drift: (Math.random()-.5)*0.4,
+      alpha: 0.15 + Math.random()*0.35,
       rot: Math.random()*Math.PI*2,
       rotSpeed: (Math.random()-.5)*0.018,
       wobble: Math.random()*Math.PI*2,
@@ -55,7 +56,7 @@ function initBgCanvas(){
 
   function init(){
     particles = [];
-    const count = Math.min(35, Math.floor(W/11));
+    const count = Math.min(40, Math.floor(W/9));
     for(let i=0;i<count;i++){
       const p = mkP();
       p.y = Math.random()*(H+100) - 50;
@@ -84,32 +85,31 @@ function initBgCanvas(){
       ctx.rotate(p.rot);
       ctx.globalAlpha = a;
 
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
       if(p.isBtc){
-        // BTC with glow
         ctx.font = `bold ${p.size}px Orbitron, monospace`;
-        ctx.fillStyle = `rgba(${p.color},1)`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        // Outer glow
-        ctx.shadowColor = `rgba(${p.color},.8)`;
-        ctx.shadowBlur = 12;
+        // Big outer glow
+        ctx.shadowColor = `rgba(${p.color},1)`;
+        ctx.shadowBlur = 20;
+        ctx.fillStyle = `rgba(${p.color},${a})`;
         ctx.fillText('₿', 0, 0);
-        // Inner bright
-        ctx.shadowBlur = 4;
-        ctx.fillStyle = `rgba(255,240,180,${a*2})`;
+        // Second pass — bright core
+        ctx.shadowBlur = 6;
+        ctx.fillStyle = `rgba(255,245,200,${a * 1.2 > 1 ? 1 : a * 1.2})`;
         ctx.fillText('₿', 0, 0);
         ctx.shadowBlur = 0;
       } else if(p.sym.length === 1){
         ctx.font = `bold ${p.size}px Exo 2, sans-serif`;
-        ctx.fillStyle = `rgba(${p.color},1)`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
+        ctx.shadowColor = `rgba(${p.color},.6)`;
+        ctx.shadowBlur = 8;
+        ctx.fillStyle = `rgba(${p.color},${a})`;
         ctx.fillText(p.sym, 0, 0);
+        ctx.shadowBlur = 0;
       } else {
-        // Emoji
         ctx.font = `${p.size}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
+        ctx.globalAlpha = a * 0.7;
         ctx.fillText(p.sym, 0, 0);
       }
 
@@ -138,15 +138,11 @@ function initBgCanvas(){
 html,body{width:100%;height:100%;overflow:hidden;background:var(--bk);font-family:'Exo 2',sans-serif;color:var(--wh);user-select:none}
 body::before{content:'';position:fixed;inset:0;z-index:0;
   background:
-    radial-gradient(ellipse 120% 50% at 50% -5%, rgba(57,255,20,.12) 0%,transparent 50%),
-    radial-gradient(ellipse 70% 60% at 100% 100%, rgba(139,92,246,.09) 0%,transparent 55%),
-    radial-gradient(ellipse 60% 45% at 0% 85%, rgba(255,215,0,.06) 0%,transparent 55%),
-    radial-gradient(ellipse 50% 35% at 85% 15%, rgba(239,68,68,.05) 0%,transparent 50%),
-    radial-gradient(ellipse 40% 30% at 15% 50%, rgba(57,255,20,.03) 0%,transparent 50%);
+    radial-gradient(ellipse 120% 50% at 50% -5%, rgba(57,255,20,.06) 0%,transparent 50%),
+    radial-gradient(ellipse 70% 60% at 100% 100%, rgba(139,92,246,.05) 0%,transparent 55%);
   pointer-events:none}
 
 #app{position:relative;z-index:1;width:100%;height:100%}
-#bg-canvas{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:1}
 .screen{position:absolute;inset:0;display:flex;flex-direction:column;opacity:0;pointer-events:none;transition:opacity .25s;background:transparent}
 .screen.active{opacity:1;pointer-events:all}
 .scroll{overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch}
@@ -217,11 +213,19 @@ body::before{content:'';position:fixed;inset:0;z-index:0;
 .ld-logo{width:88px;height:88px;border-radius:50%;animation:lglow 2s ease-in-out infinite}
 @keyframes lglow{0%,100%{box-shadow:0 0 20px rgba(57,255,20,.4)}50%{box-shadow:0 0 40px rgba(57,255,20,.8)}}
 .ld-bar{width:150px;height:3px;background:#1a1a2e;border-radius:2px;overflow:hidden}
-.ld-prog{height:100%;background:linear-gradient(90deg,var(--gn),var(--gold));animation:ldp 2.2s ease forwards}
-@keyframes ldp{from{width:0}to{width:100%}}
+.ld-prog{height:100%;background:linear-gradient(90deg,var(--gn),var(--gold));width:0;transition:width 1s ease}
 .ld-txt{font-size:10px;color:var(--gr);letter-spacing:2px;text-transform:uppercase}
 /* HOME */
 /* old hero replaced by hero-epic */
+#bg-canvas{
+  position:absolute;
+  top:0;left:0;width:100%;height:100%;
+  pointer-events:none;
+  z-index:0;
+  opacity:1;
+}
+#home .scroll,#home .hdr,#home .bnav{position:relative;z-index:1;}
+
 .gc[data-g=bj]:active  { border-color:rgba(57,255,20,.5); box-shadow:0 0 16px rgba(57,255,20,.2); }
 .gc[data-g=sl]:active  { border-color:rgba(255,215,0,.5); box-shadow:0 0 16px rgba(255,215,0,.2); }
 .gc[data-g=rl]:active  { border-color:rgba(239,68,68,.5); box-shadow:0 0 16px rgba(239,68,68,.2); }
@@ -547,16 +551,27 @@ body::before{content:'';position:fixed;inset:0;z-index:0;
 </head>
 <body>
 <!-- LOADING -->
+<script>
+// Emergency fallback: if loading screen still visible after 3s, hide it
+setTimeout(function(){
+  var ld=document.getElementById('loading');
+  if(ld&&ld.style.display!=='none'){ ld.style.opacity='0'; setTimeout(function(){ld.style.display='none';},400); }
+},3000);
+</script>
 <div id="loading">
   <img class="ld-logo" src="casino_icon.png" alt="G" onerror="this.style.display='none'">
-  <div class="ld-bar"><div class="ld-prog"></div></div>
+  <div class="ld-bar"><div class="ld-prog" id="ld-prog"></div></div>
   <div class="ld-txt">Loading GAMBLER BOT...</div>
 </div>
-<canvas id="bg-canvas"></canvas>
+<script>
+// Animate loading bar immediately
+setTimeout(function(){ var p=document.getElementById('ld-prog'); if(p) p.style.width='100%'; }, 50);
+</script>
 <div id="app">
 
 <!-- HOME -->
 <div id="home" class="screen active" style="background:rgba(8,9,13,0)">
+  <canvas id="bg-canvas"></canvas>
   <div class="hdr">
     <div class="hdr-logo"><img src="casino_icon.png" alt="G"><span class="hdr-title">GAMBLER BOT</span></div>
     <div style="display:flex;align-items:center;gap:8px">
@@ -862,9 +877,14 @@ const BETS=[1,5,10,25,50,100];
 const CB={bj:5,sl:5,rl:5,dc:5,pk:5,duel:5};
 
 async function fetchRate(){
-  try{const r=await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=eur,usd');
-    const d=await r.json();S.rate=S.cur==='EUR'?d.bitcoin.eur:d.bitcoin.usd;}
-  catch(e){S.rate=S.cur==='EUR'?90000:97000;}
+  try{
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),3000);
+    const r=await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=eur,usd',{signal:controller.signal});
+    clearTimeout(timeout);
+    const d=await r.json();
+    S.rate=S.cur==='EUR'?d.bitcoin.eur:d.bitcoin.usd;
+  }catch(e){S.rate=S.cur==='EUR'?90000:97000;}
 }
 function setCur(c){S.cur=c;document.querySelectorAll('.cur-btn').forEach(b=>b.classList.toggle('on',b.textContent===c));fetchRate().then(()=>{ref();rebCh();});}
 const sym=()=>S.cur==='EUR'?'€':'$';
@@ -1439,15 +1459,42 @@ function updP(){document.getElementById('pf-nm').textContent=S.name;document.get
 // ════════════════════════════
 //  INIT
 // ════════════════════════════
-window.addEventListener('load',async()=>{
-  initBgCanvas();
-  setTimeout(()=>document.getElementById('loading').classList.add('out'),2200);
-  await fetchRate();
-  rebCh();
-  if(tg?.initDataUnsafe?.user){const u=tg.initDataUnsafe.user;S.name=u.first_name||'Player';S.username=u.username||'player';S.userId=u.id;if(u.photo_url)document.getElementById('pf-av').src=u.photo_url;}
-  ref();drawRlWheel(0);
-  if(tg)tg.sendData(JSON.stringify({action:'get_balance'}));
-});
+// ── INIT (runs as soon as DOM is parsed, no waiting) ──
+function appInit(){
+  // 1. Hide loading immediately — no conditions
+  const ld=document.getElementById('loading');
+  if(ld){ ld.style.opacity='0'; setTimeout(()=>{ ld.style.display='none'; },500); }
+
+  // 2. Set user info from Telegram
+  try{
+    if(tg?.initDataUnsafe?.user){
+      const u=tg.initDataUnsafe.user;
+      S.name=u.first_name||'Player';
+      S.username=u.username||'player';
+      S.userId=u.id;
+      const av=document.getElementById('pf-av');
+      if(av&&u.photo_url) av.src=u.photo_url;
+    }
+  }catch(e){}
+
+  // 3. Build UI
+  try{ rebCh(); }catch(e){}
+  try{ ref(); }catch(e){}
+  try{ drawRlWheel(0); }catch(e){}
+
+  // 4. Start canvas animation
+  try{ initBgCanvas(); }catch(e){}
+
+  // 5. Fetch BTC rate in background
+  fetchRate().then(()=>{ try{ rebCh();ref(); }catch(e){} }).catch(()=>{});
+}
+
+// Run on DOMContentLoaded OR immediately if already loaded
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded', appInit);
+} else {
+  appInit();
+}
 </script>
 </body>
 </html>
