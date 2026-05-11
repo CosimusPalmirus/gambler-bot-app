@@ -385,6 +385,7 @@ body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradi
     <button class="bj-btn bj-btn-hit" onclick="bjHit()" id="btn-hit">HIT</button>
     <button class="bj-btn bj-btn-stand" onclick="bjStand()">STAND</button>
     <button class="bj-btn bj-btn-double" onclick="bjDbl()" id="btn-dbl">DOUBLE</button>
+    <button class="bj-btn" onclick="bjSplit()" id="btn-split" style="display:none;background:rgba(139,92,246,.2);border:1.5px solid var(--pu);color:var(--pu)">SPLIT</button>
   </div>
   <div class="bj-bet-bar">
     <div class="chips" id="bj-ch"></div>
@@ -828,6 +829,12 @@ function bjDeal() {
       } else {
         document.getElementById('bj-acts').style.display = 'flex';
         var st2 = document.getElementById('bj-status'); if (st2) st2.textContent = 'Hit, Stand or Double?';
+        // Show split button if both cards have same rank
+        var c1 = BJ.player[0], c2 = BJ.player[1];
+        var r1 = c1.replace(/[^A-Z0-9]/gi,'').replace(/[♠♥♦♣]/g,'');
+        var r2 = c2.replace(/[^A-Z0-9]/gi,'').replace(/[♠♥♦♣]/g,'');
+        var splitBtn = document.getElementById('btn-split');
+        if (splitBtn) splitBtn.style.display = (r1 === r2 && bal() >= CB.bj) ? 'flex' : 'none';
       }
     }
   ];
@@ -856,6 +863,30 @@ function bjHit() {
   document.getElementById('btn-dbl').disabled = true;
   if (hv(BJ.player) > 21) { setTimeout(bjEnd, 400, 'bust'); }
   else if (hv(BJ.player) === 21) { setTimeout(bjStand, 600); }
+}
+function bjSplit() {
+  if (!BJ || BJ.split) return;
+  var splitBet = CB.bj;
+  if (bal() < splitBet) { toast('Not enough for split!', 'err'); return; }
+  S.btc -= f2b(splitBet); S.bet += f2b(splitBet); ref();
+  // Split: each hand gets one original card + one new card
+  BJ.split = {
+    hand: [BJ.player[1], BJ.deck.pop()],
+    bet: f2b(splitBet),
+    done: false
+  };
+  BJ.player = [BJ.player[0], BJ.deck.pop()];
+  BJ.splitActive = true;
+  BJ.activeHand = 'main';
+  // Update display
+  var pc = document.getElementById('p-c'); pc.innerHTML = '';
+  BJ.player.forEach(function(c) { pc.appendChild(mkC(c)); });
+  updBj();
+  var st = document.getElementById('bj-status');
+  if (st) st.textContent = 'Split! Play your first hand:';
+  var splitBtn = document.getElementById('btn-split');
+  if (splitBtn) splitBtn.style.display = 'none';
+  toast('Split! Play hand 1 first.', 'ok', 2000);
 }
 function bjDbl() {
   if (bal() < CB.bj) { toast('Not enough for double!', 'err'); return; }
