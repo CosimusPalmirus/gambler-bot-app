@@ -1834,111 +1834,291 @@ function bjEnd(out){
 
 
 /* -- SLOTS -- */
-var SLS=['7','💎','🍒','🔔','★','🍋','🍇','🍊','🍉','🍀'];
-var SLW=[1,2,4,5,6,8,10,12,14,14];
-var SLM={'7':50,'💎':20,'🍒':8,'🔔':5,'★':4,'🍋':3,'🍇':2,'🍊':1,'🍉':1,'🍀':1};
-var slSpin=false,slStop=[false,false,false],slJkp=0.05;
+/* ── SLOTS ── */
+var SLS = ['7','\uD83D\uDC8E','\uD83C\uDF52','\uD83D\uDD14','\u2B50','\uD83C\uDF4B','\uD83C\uDF47','\uD83C\uDF4A','\uD83C\uDF49','\uD83C\uDF40'];
+// weights: rarer = lower number
+var SLW = [1, 2, 4, 5, 6, 8, 10, 12, 14, 14];
+// multipliers (3-of-a-kind payout on bet)
+var SLM = {};
+SLM['7']               = 50;
+SLM['\uD83D\uDC8E']    = 20;
+SLM['\uD83C\uDF52']    = 8;
+SLM['\uD83D\uDD14']    = 5;
+SLM['\u2B50']          = 4;
+SLM['\uD83C\uDF4B']    = 3;
+SLM['\uD83C\uDF47']    = 2;
+SLM['\uD83C\uDF4A']    = 1.5;
+SLM['\uD83C\uDF49']    = 1.5;
+SLM['\uD83C\uDF40']    = 1.5;
 
-function slDrawBg(){
-  var c=document.getElementById('sl-canvas');if(!c)return;
-  c.width=window.innerWidth||380;c.height=window.innerHeight||700;
-  var ctx=c.getContext('2d'),W=c.width,H=c.height;
-  for(var i=0;i<80;i++){var x=Math.random()*W,y=Math.random()*H,r=Math.random()*1.2+0.2,a=Math.random()*0.3+0.05;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle='rgba(255,215,0,'+a+')';ctx.fill();}
-  var vg=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,W*.7);vg.addColorStop(0,'transparent');vg.addColorStop(1,'rgba(0,0,0,.4)');ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);
-}
-function slUpdateJkp(){
-  var eur=(slJkp*S.rate).toFixed(0);
-  var el=document.getElementById('sl-jkp-amount');if(el)el.textContent='\u20AC'+Number(eur).toLocaleString('en');
-  var el2=document.getElementById('sl-jkp-btc');if(el2)el2.textContent=slJkp.toFixed(6)+' BTC';
-}
-function initSl(){
-  slDrawBg();slUpdateJkp();
-  buildCh('sl-ch','sl',function(v){document.getElementById('sl-bl').textContent='Bet: '+f2(v);});
-  document.getElementById('sl-bl').textContent='Bet: '+f2(CB.sl);
-  var msg=document.getElementById('sl-msg');if(msg){msg.textContent='';msg.style.color='var(--gr)';}
-  var ov=document.getElementById('sl-win-overlay');if(ov)ov.classList.remove('show');
-  var pl=document.getElementById('sl-payline');if(pl)pl.classList.remove('win');
-  for(var i=0;i<3;i++){
-    var reel=document.getElementById('r'+i);if(!reel)continue;reel.innerHTML='';
-    for(var j=0;j<24;j++){var d=document.createElement('div');d.className='sl-sym';d.textContent=SLS[Math.floor(Math.random()*SLS.length)];reel.appendChild(d);}
-    reel.style.transform='translateY(0)';
-    var fr=document.getElementById('sl-frame-'+i);if(fr)fr.classList.remove('spinning','landed');
-    var sb=document.getElementById('sl-stop-'+i);if(sb){sb.className='sl-stop';sb.textContent='STOP';}
+var CELL_H = 80;
+var REEL_N = 24;
+var slSpin = false;
+var slJkp  = 0.05;
+
+function slDrawBg() {
+  var c = document.getElementById('sl-canvas'); if (!c) return;
+  c.width = window.innerWidth || 380; c.height = window.innerHeight || 700;
+  var ctx = c.getContext('2d'), W = c.width, H = c.height;
+  var g = ctx.createRadialGradient(W/2, H*.4, 0, W/2, H*.4, W*.8);
+  g.addColorStop(0, 'rgba(40,20,0,.5)'); g.addColorStop(1, 'rgba(0,0,0,.1)');
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+  for (var x=0;x<W;x+=24) for (var y=0;y<H;y+=24) {
+    ctx.beginPath(); ctx.arc(x,y,.7,0,Math.PI*2);
+    ctx.fillStyle='rgba(255,215,0,.04)'; ctx.fill();
   }
 }
-function slRnd(){var t=SLW.reduce(function(a,b){return a+b;},0),r=Math.random()*t;for(var i=0;i<SLW.length;i++){r-=SLW[i];if(r<=0)return SLS[i];}return SLS[SLS.length-1];}
-function slStopReel(idx){
-  if(!slSpin)return;slStop[idx]=true;
-  var btn=document.getElementById('sl-stop-'+idx);
-  if(btn){btn.className='sl-stop locked';btn.textContent='\u2714 LOCKED';}
+
+function slUpdateJkp() {
+  var amt = slJkp * S.rate;
+  var ja = document.getElementById('sl-jkp-amount');
+  var jb = document.getElementById('sl-jkp-btc');
+  if (ja) ja.textContent = '\u20AC' + amt.toLocaleString('en', {maximumFractionDigits:0});
+  if (jb) jb.textContent = slJkp.toFixed(6) + ' BTC';
 }
-function slAnim(idx,fin,dur){
-  return new Promise(function(res){
-    var reel=document.getElementById('r'+idx),frame=document.getElementById('sl-frame-'+idx);
-    if(!reel){res();return;}
-    var items=reel.children;items[items.length-1].textContent=fin;
-    var CELL_H=80;
-    var frameH=(reel.parentElement&&reel.parentElement.offsetHeight>50)?reel.parentElement.offsetHeight:300;
-    var totalH=CELL_H*items.length;
-    var target=-(CELL_H*(items.length-1))+(frameH/2-CELL_H/2);
-    var start=performance.now();slStop[idx]=false;
-    if(frame)frame.classList.add('spinning');
-    var btn=document.getElementById('sl-stop-'+idx);if(btn){btn.className='sl-stop armed';btn.textContent='STOP';}
-    function fr(now){
-      if(!reel)return;var el=now-start,p=Math.min(el/dur,1);
-      if(slStop[idx]||p>=1){
-        var ease=1-Math.pow(1-Math.min(p+.25,1),3),pos=ease*target;
-        reel.style.transform='translateY('+pos+'px)';
-        if(Math.abs(pos-target)<1.5||p>=1){
-          reel.style.transform='translateY('+target+'px)';
-          if(frame){frame.classList.remove('spinning');frame.classList.add('landed');}
-          if(btn){btn.className='sl-stop locked';btn.textContent='\u2714 LOCKED';}
-          res();return;
-        }
-        requestAnimationFrame(fr);return;
+
+function slRnd() {
+  var t = SLW.reduce(function(a,b){return a+b;}, 0), r = Math.random()*t;
+  for (var i = 0; i < SLW.length; i++) { r -= SLW[i]; if (r <= 0) return SLS[i]; }
+  return SLS[SLS.length-1];
+}
+
+function slBuildReel(idx) {
+  var reel = document.getElementById('r'+idx); if (!reel) return;
+  reel.innerHTML = '';
+  for (var j = 0; j < REEL_N; j++) {
+    var d = document.createElement('div');
+    d.className = 'sl-sym';
+    d.textContent = SLS[Math.floor(Math.random() * SLS.length)];
+    reel.appendChild(d);
+  }
+  reel.style.transform = 'translateY(0px)';
+}
+
+function initSl() {
+  slDrawBg(); slUpdateJkp();
+  buildCh('sl-ch','sl', function(v) { document.getElementById('sl-bl').textContent = 'Bet: '+f2(v); });
+  document.getElementById('sl-bl').textContent = 'Bet: '+f2(CB.sl);
+  var msg = document.getElementById('sl-msg'); if (msg) { msg.textContent = ''; msg.style.color = 'var(--gr)'; }
+  var ov = document.getElementById('sl-win-overlay'); if (ov) ov.classList.remove('show');
+  var pl = document.getElementById('sl-payline'); if (pl) pl.classList.remove('win');
+  for (var i = 0; i < 3; i++) {
+    slBuildReel(i);
+    var fr = document.getElementById('sl-frame-'+i); if (fr) fr.classList.remove('spinning','landed');
+    var sb = document.getElementById('sl-stop-'+i); if (sb) { sb.className = 'sl-stop'; sb.textContent = 'STOP'; sb.disabled = true; }
+  }
+  var btn = document.getElementById('btn-spin'); if (btn) btn.disabled = false;
+}
+
+/* ── Core reel animation ──────────────────────────────────────────────
+   Phase 1 (fast): reel spins continuously at fixed speed
+   Phase 2 (ease-out): decelerates to land the target symbol at center
+   Promise resolves once reel is locked. ──────────────────────────────*/
+function slAnimReel(idx, result, delay) {
+  return new Promise(function(resolve) {
+    setTimeout(function() {
+      var reel  = document.getElementById('r'+idx);
+      var frame = document.getElementById('sl-frame-'+idx);
+      var btn   = document.getElementById('sl-stop-'+idx);
+      if (!reel) { resolve(); return; }
+
+      // Place result at a known position: last cell (index REEL_N-1)
+      var items = reel.children;
+      items[REEL_N-1].textContent = result;
+
+      // Geometry
+      var frameH = (frame && frame.offsetHeight > 40) ? frame.offsetHeight : 260;
+      // Target: last item centered in frame
+      // last item top edge = (REEL_N-1)*CELL_H; center = (REEL_N-1)*CELL_H + CELL_H/2
+      // we want: -(translateY) + frameH/2 = lastItemCenter
+      // translateY = -(lastItemCenter - frameH/2)
+      var lastCenter = (REEL_N-1)*CELL_H + CELL_H/2;
+      var target = -(lastCenter - frameH/2);
+
+      if (frame) frame.classList.add('spinning');
+      if (btn) { btn.className = 'sl-stop armed'; btn.textContent = 'STOP'; btn.disabled = false; }
+
+      // Phase 1: fast constant spin
+      var speed    = 18;   // px per frame
+      var totalPx  = REEL_N * CELL_H;
+      var curY     = 0;
+      var stopping = false;
+      var rafId;
+
+      function fastSpin() {
+        if (stopping) { startEaseOut(); return; }
+        curY -= speed;
+        if (curY <= -totalPx) curY += totalPx;  // loop
+        reel.style.transform = 'translateY('+curY+'px)';
+        rafId = requestAnimationFrame(fastSpin);
       }
-      reel.style.transform='translateY(-'+(el*0.9%totalH)+'px)';requestAnimationFrame(fr);
-    }
-    requestAnimationFrame(fr);
+
+      function startEaseOut() {
+        cancelAnimationFrame(rafId);
+        if (frame) frame.classList.remove('spinning');
+        if (btn) { btn.disabled = true; }
+
+        // Find nearest multple-of-totalPx offset that aligns to target
+        // We need to go from curY to target, but target < curY typically
+        // Snap: add enough full cycles to make target numerically reachable below curY
+        var cycles = Math.ceil((curY - target) / totalPx);
+        var from   = curY;
+        var to     = target - cycles * totalPx;
+        // ensure we always spin forward (to < from)
+        while (to > from) to -= totalPx;
+
+        var duration = 600;
+        var startT   = performance.now();
+
+        function easeOut(now) {
+          var p    = Math.min((now - startT) / duration, 1);
+          var ease = 1 - Math.pow(1-p, 3);
+          var pos  = from + (to - from) * ease;
+          reel.style.transform = 'translateY('+pos+'px)';
+          if (p < 1) { requestAnimationFrame(easeOut); return; }
+          // Snap exactly to target (modular)
+          reel.style.transform = 'translateY('+to+'px)';
+          if (frame) { frame.classList.remove('spinning'); frame.classList.add('landed'); }
+          if (btn)   { btn.className = 'sl-stop locked'; btn.textContent = '\u2714 LOCKED'; }
+          resolve();
+        }
+        requestAnimationFrame(easeOut);
+      }
+
+      // Allow manual stop via button
+      if (btn) {
+        btn.onclick = function() {
+          if (!stopping) { stopping = true; }
+        };
+      }
+
+      // Auto-stop after spinDur ms
+      var spinDur = 900 + idx * 400;
+      setTimeout(function() { stopping = true; }, spinDur);
+
+      rafId = requestAnimationFrame(fastSpin);
+    }, delay);
   });
 }
 
-function spinSlots(){
-  if(slSpin)return;var bet=CB.sl,bb=f2b(bet);
-  if(bal()<bet){toast('Saldo insufficiente!','err');return;}
-  slSpin=true;slStop=[false,false,false];
-  document.getElementById('btn-spin').disabled=true;
-  var ov=document.getElementById('sl-win-overlay');if(ov)ov.classList.remove('show');
-  var pl=document.getElementById('sl-payline');if(pl)pl.classList.remove('win');
-  var msg=document.getElementById('sl-msg');if(msg){msg.textContent='Spinning…';msg.style.color='var(--gr)';}
-  for(var si=0;si<3;si++){var f=document.getElementById('sl-frame-'+si);if(f)f.classList.remove('landed');var sb=document.getElementById('sl-stop-'+si);if(sb){sb.className='sl-stop armed';sb.textContent='STOP';}}
-  S.btc-=bb;S.bet+=bb;ref();slJkp+=bb*0.02;slUpdateJkp();
-  var res=[slRnd(),slRnd(),slRnd()],p=Promise.resolve();
-  for(var i=0;i<3;i++){(function(idx){p=p.then(function(){return slAnim(idx,res[idx],(idx+1)*650);}).then(function(){return sleep(150);});})( i);}
-  p.then(function(){
-    var won=0,msg2='',col='',emoji='';
-    if(res[0]===res[1]&&res[1]===res[2]){
-      var m=SLM[res[0]];won=bb*m;
-      if(res[0]==='7'){var jw=slJkp*bb;won+=jw;slJkp=0.001;slUpdateJkp();msg2='JACKPOT! \u00D750 +'+b2f(won-bb);col='var(--gold)';emoji='🌟';toast('🌟 JACKPOT!','ok',4000);}
-      else {msg2=res[0]+res[0]+res[0]+' \u00D7'+m+' +'+b2f(won-bb);col='var(--gn)';emoji='🏆';toast(msg2,'ok',2500);}
-    } else if(res[0]===res[1]||res[1]===res[2]||res[0]===res[2]){
-      won=bb*.5;msg2='Due uguali! 50% back';col='var(--gold)';emoji='🔄';toast(msg2,'inf',2000);
-    } else {msg2='Nessuna combinazione';col='var(--rd)';emoji='🎰';}
-    S.btc+=won;S.won+=won;if(won>bb)S.wins++;else if(won===0)S.losses++;
-    ref();syncBalance(won-bb,bb,won>bb,won===0,'slots');
-    var pl2=document.getElementById('sl-payline');if(pl2&&won>bb)pl2.classList.add('win');
-    var msgEl=document.getElementById('sl-msg');if(msgEl){msgEl.textContent=msg2;msgEl.style.color=col;}
-    if(won>bb){
-      var ov2=document.getElementById('sl-win-overlay'),ea=document.getElementById('sl-win-emoji'),am=document.getElementById('sl-win-amount'),lb=document.getElementById('sl-win-label');
-      if(ea)ea.textContent=emoji;if(am)am.textContent='+'+b2f(won-bb);if(lb)lb.textContent=msg2.split('+')[0].trim();
-      if(ov2){ov2.classList.add('show');setTimeout(function(){ov2.classList.remove('show');},2200);}
+function spinSlots() {
+  if (slSpin) return;
+  var bet = CB.sl, bb = f2b(bet);
+  if (bal() < bet) { toast('Saldo insufficiente!', 'err'); return; }
+
+  // Deduct immediately
+  S.btc -= bb; S.bet += bb; ref();
+  slJkp  += bb * 0.02; slUpdateJkp();
+
+  slSpin = true;
+  var spinBtn = document.getElementById('btn-spin');
+  if (spinBtn) spinBtn.disabled = true;
+  var ov  = document.getElementById('sl-win-overlay'); if (ov)  ov.classList.remove('show');
+  var pl  = document.getElementById('sl-payline');     if (pl)  pl.classList.remove('win');
+  var msg = document.getElementById('sl-msg');
+  if (msg) { msg.textContent = 'Spinning\u2026'; msg.style.color = 'var(--gr)'; }
+
+  // Clear landed states, arm STOP buttons
+  for (var k = 0; k < 3; k++) {
+    var fr = document.getElementById('sl-frame-'+k); if (fr) fr.classList.remove('landed');
+    slBuildReel(k);
+  }
+
+  // Draw 3 results
+  var r0 = slRnd(), r1 = slRnd(), r2 = slRnd();
+
+  // Run reels in parallel (each with staggered auto-stop)
+  var p0 = slAnimReel(0, r0, 0);
+  var p1 = slAnimReel(1, r1, 0);
+  var p2 = slAnimReel(2, r2, 0);
+
+  Promise.all([p0, p1, p2]).then(function() {
+    slShowResult(r0, r1, r2, bb);
+    slSpin = false;
+    if (spinBtn) spinBtn.disabled = false;
+    // Re-disable stop buttons
+    for (var k = 0; k < 3; k++) {
+      var sb = document.getElementById('sl-stop-'+k);
+      if (sb) { sb.disabled = true; sb.className = 'sl-stop'; sb.textContent = 'STOP'; sb.onclick = null; }
     }
-    slSpin=false;document.getElementById('btn-spin').disabled=false;
+  }).catch(function(e) {
+    console.error('Slots error:', e);
+    slSpin = false;
+    if (spinBtn) spinBtn.disabled = false;
+    toast('Errore slot — riprova', 'err');
+    // Refund on error
+    S.btc += bb; ref();
   });
 }
 
+function slShowResult(r0, r1, r2, bb) {
+  var won = 0, msg2 = '', col = '', emoji = '';
 
-/* ── ROULETTE ── */
+  if (r0 === r1 && r1 === r2) {
+    // Triple
+    var m = SLM[r0] || 1;
+    if (r0 === '7') {
+      // Jackpot
+      var jackpotWin = slJkp;
+      won = bb * m + jackpotWin;
+      slJkp = 0.001;
+      slUpdateJkp();
+      msg2  = 'JACKPOT! \u00D750 +' + b2f(won-bb);
+      col   = 'var(--gold)';
+      emoji = '\uD83C\uDF1F';
+      toast('\uD83C\uDF1F JACKPOT! +'+b2f(won-bb), 'ok', 5000);
+    } else {
+      won   = bb * m;
+      msg2  = r0+r0+r0+' \u00D7'+m+' +'+b2f(won-bb);
+      col   = 'var(--gn)';
+      emoji = '\uD83C\uDFC6';
+      toast(msg2, 'ok', 2800);
+    }
+  } else if (r0 === r1 || r1 === r2 || r0 === r2) {
+    // Two alike — 50% back
+    won  = bb * 0.5;
+    msg2 = 'Due uguali \u2014 50% back +' + b2f(won);
+    col  = 'var(--gold)';
+    emoji = '\uD83D\uDD04';
+    toast(msg2, 'inf', 2000);
+  } else {
+    msg2  = 'Nessuna combinazione';
+    col   = 'var(--rd)';
+    emoji = '\uD83C\uDF00';
+    toast(msg2, 'err', 1800);
+  }
+
+  S.btc += won; S.won += won;
+  if (won > bb) S.wins++;
+  else if (won === 0) S.losses++;
+  ref();
+
+  // Sync with backend
+  syncBalance(won - bb, bb, won > bb, won === 0, 'slots');
+
+  // Update UI
+  var pl  = document.getElementById('sl-payline');
+  if (pl) pl.classList.toggle('win', won > bb);
+
+  var msgEl = document.getElementById('sl-msg');
+  if (msgEl) { msgEl.textContent = msg2; msgEl.style.color = col; }
+
+  if (won > bb) {
+    var ov2 = document.getElementById('sl-win-overlay');
+    var ea  = document.getElementById('sl-win-emoji');
+    var am  = document.getElementById('sl-win-amount');
+    var lb  = document.getElementById('sl-win-label');
+    if (ea) ea.textContent = emoji;
+    if (am) am.textContent = '+'+b2f(won-bb);
+    if (lb) lb.textContent = won === bb*50 ? 'JACKPOT!' : '\u00D7'+( SLM[r0]||1);
+    if (ov2) {
+      ov2.classList.add('show');
+      setTimeout(function() { ov2.classList.remove('show'); }, 2600);
+    }
+  }
+}
+
+
 var RL_RED=[1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
 var RL_NUMS=[0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26];
 var rlAngle=0,rlBets=[],rlST='red',rlSN=-1,rlSpin=false,rlS1=-1,rlS2=-1,rlCN=null;
