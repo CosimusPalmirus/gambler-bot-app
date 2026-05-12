@@ -1544,11 +1544,7 @@ body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradi
     <!-- PRIZES TAB -->
     <div class="lt-prizes-panel" id="lt-tab-prizes" style="display:none">
       <div id="lt-prize-cards"></div>
-      <div class="lt-prizes-note">
-        &#128161; Tutti i premi sono <strong>fissi e garantiti</strong> indipendentemente dal numero di partecipanti.<br>
-        &#127381; Il jackpot cresce ad ogni ticket venduto &mdash; 30% di ogni &euro;10 va al pool.<br>
-        &#9200; I premi vengono accreditati automaticamente in BTC dopo ogni estrazione.
-      </div>
+      
     </div>
     <!-- HISTORY TAB -->
     <div class="lt-history-panel" id="lt-tab-history" style="display:none">
@@ -1649,6 +1645,7 @@ body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradi
 </div>
 </div><!-- #app -->
 <div id="toast" class="toast"></div>
+
 <script>
 const BACKEND = 'https://factoid-spinal-dispatch.ngrok-free.dev';
 
@@ -2069,7 +2066,9 @@ function slSpinReel(idx, result, autoStopMs) {
     // Center last cell in frame: translateY = -(last_center - frame_center)
     var target  = -((SL_N-1)*SL_CELL + SL_CELL/2 - fH/2);
 
-    var curY    = 0;
+    // Start from strip's actual position (not 0) to avoid jump
+    var _cur = strip.style.transform || 'translateY(0px)';
+    var curY = parseFloat(_cur.replace('translateY(','')) || 0;
     var stopped = false;
     var rafId;
 
@@ -2644,12 +2643,12 @@ function ltBuildPrizes() {
     var winEur = p.m===6 ? Math.round(winBtc*S.rate) : (p.eur || Math.round(winBtc*S.rate));
     var multStr, subTxt;
     if (p.m===6) {
-      var jEur = Math.round((LT.jackpot||0.00111111)*S.rate);
+      var jEur = Math.round(Math.max(LT.jackpot||0.00111111,0.00111111)*S.rate);
       multStr = 'JACKPOT'; subTxt = 'Pool: €'+jEur+'  —  min garantito €100';
     } else if (p.m===2) {
       multStr = '€10'; subTxt = 'Rimborso del ticket';
     } else {
-      multStr = '€'+p.eur; subTxt = 'Premio fisso — '+winBtc.toFixed(6)+' BTC';
+      multStr = '€'+p.eur; subTxt = 'Premio fisso garantito';
     }
     var card = document.createElement('div');
     card.className = 'lt-prize-card' + (p.m===6?' is-jackpot':'');
@@ -2877,7 +2876,7 @@ function fetchLottoInfo() {
   return fetch(BACKEND + '/lotto/info?user_id=' + uid, HDR)
     .then(function(r) { return r.json(); })
     .then(function(d) {
-      LT.jackpot       = d.jackpot_btc || 0.00111111;
+      LT.jackpot       = Math.max(d.jackpot_btc || 0.00111111, 0.00111111);
       S.lotto_tickets  = d.user_tickets || 0;
       S.lotto_history  = d.history || [];
       LT.myTickets     = d.user_ticket_list || [];
@@ -3158,8 +3157,8 @@ function initLotto() {
 function ltUpdateHeader() {
   var jb = document.getElementById('lt-jkp-btc-old');
   var je = document.getElementById('lt-jkp-eur');
-  if (jb) jb.textContent = LT.jackpot.toFixed(6) + ' BTC';
-  if (je) je.textContent = '\u20AC' + Math.round(LT.jackpot * S.rate).toLocaleString('en');
+  if (jb) jb.textContent = Math.max(LT.jackpot||0.00111111,0.00111111).toFixed(6) + ' BTC';
+  if (je) je.textContent = '\u20AC' + Math.round(Math.max(LT.jackpot||0.00111111,0.00111111) * S.rate).toLocaleString('en');
   var lt = document.getElementById('lt-bal');
   if (lt) lt.textContent = fbal();
   var tc = document.getElementById('lt-ticket-cnt');
