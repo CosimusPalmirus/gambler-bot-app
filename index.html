@@ -1100,6 +1100,56 @@ body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradi
 .pf-lb-pname{flex:1;font-size:12px}.pf-lb-pval{font-family:'Orbitron';font-size:10px;color:var(--gold)}
 .pf-lb-row.is-me{border-color:rgba(57,255,20,.3);background:rgba(57,255,20,.04)}
 
+
+/* ═══ SLOTS REWRITE ═══ */
+/* Remove old conflicting slot rules (override) */
+.sl-jkp-banner,.sl-reels-wrap,.sl-reel-col,.sl-reel-big,.sl-stop-btn,.sl-win-line,.sl-msg,.sl-bet-bar,
+.sl-body,.sl-jkp-hdr,.sl-jkp-beam,.sl-jkp-tag,.sl-jkp-amount,.sl-jkp-sub,.sl-cabinet,
+.sl-screen,.sl-col,.sl-reel-frame,.sl-reel-frame.landed,.sl-reel-top-glow,.sl-reel-bot-glow,
+.sl-reel-center-line,.sl-reel-inner,.sl-sym,.sl-payline,.sl-payline.win,.sl-result-msg,
+.sl-bar,.sl-bar-row,.sl-spin-btn,.sl-win-overlay,.sl-win-emoji,.sl-win-amount,.sl-win-label
+{ all:unset; }
+
+#sl { background:#060204; overflow:hidden; }
+#sl-canvas { position:absolute; inset:0; pointer-events:none; z-index:0; }
+
+/* Reel frame (clipping window) */
+.slrf { flex:1; width:100%; }
+
+/* Reel inner strip */
+.slri { position:absolute; left:0; right:0; top:0; will-change:transform; }
+
+/* Each reel cell */
+.slc {
+  display:flex; align-items:center; justify-content:center;
+  height:80px; font-size:44px; line-height:1;
+  width:100%; box-sizing:border-box;
+  border-bottom:1px solid rgba(255,180,0,.06);
+}
+
+/* Stop button */
+.sl-stop {
+  width:100%; padding:7px 0; border-radius:9px;
+  background:rgba(255,215,0,.07); border:1.5px solid rgba(255,215,0,.22);
+  color:#b8860b; font-family:'Russo One'; font-size:9px; letter-spacing:1.5px;
+  cursor:pointer; text-align:center; transition:all .15s; flex-shrink:0;
+  box-sizing:border-box;
+}
+.sl-stop.armed { border-color:rgba(255,215,0,.7); color:#ffd700; background:rgba(255,215,0,.14); animation:stopPulse .6s ease-in-out infinite; }
+.sl-stop.locked { border-color:rgba(57,255,20,.6); color:var(--gn); background:rgba(57,255,20,.08); animation:none; }
+.sl-stop:disabled,.sl-stop[disabled] { opacity:.25; pointer-events:none; animation:none; }
+@keyframes stopPulse { 0%,100%{box-shadow:0 0 4px rgba(255,215,0,.2)} 50%{box-shadow:0 0 12px rgba(255,215,0,.7)} }
+
+/* Idle spin button */
+@keyframes spinIdle {
+  0%,100%{box-shadow:0 4px 20px rgba(255,215,0,.45),inset 0 1px 0 rgba(255,255,255,.3)}
+  50%{box-shadow:0 4px 32px rgba(255,215,0,.85),0 0 50px rgba(255,215,0,.15),inset 0 1px 0 rgba(255,255,255,.3)}
+}
+#btn-spin:disabled { opacity:.45; animation:none; }
+
+/* Win overlay bounce */
+@keyframes wBounce { from{transform:scale(0) rotate(-20deg)} to{transform:scale(1)} }
+
 </style>
 <body>
 <div id="loading">
@@ -1220,27 +1270,75 @@ body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradi
 
 <!-- SLOTS -->
 <div id="sl" class="screen">
-  <canvas id="sl-canvas"></canvas>
-  <div class="ghdr" style="background:rgba(6,4,0,.95);border-bottom:1px solid rgba(255,215,0,.15);backdrop-filter:blur(12px)">
+  <canvas id="sl-bg" style="position:absolute;inset:0;pointer-events:none;z-index:0"></canvas>
+  <div class="ghdr" style="background:rgba(6,3,0,.96);border-bottom:1px solid rgba(255,200,0,.18);backdrop-filter:blur(12px);position:relative;z-index:2">
     <div class="back" onclick="home()">&#8592;</div>
-    <div style="font-family:'Russo One';font-size:14px;flex:1;background:linear-gradient(135deg,#ffd700,#f59e0b);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:1px">SLOTS</div>
+    <div style="font-family:'Russo One';font-size:14px;flex:1;background:linear-gradient(135deg,#fff7a0,#ffd700,#f59e0b);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:1.5px">SLOTS</div>
     <div style="font-family:'Orbitron';font-size:12px;color:#f59e0b;font-weight:700" id="sl-bal">0.00</div>
   </div>
-  <div class="sl-body">
-    <div class="sl-jkp-hdr"><div class="sl-jkp-beam"></div><div class="sl-jkp-tag">jackpot</div><div class="sl-jkp-amount" id="sl-jkp-amount">&#8364;0.00</div><div class="sl-jkp-sub" id="sl-jkp-btc">0.000000 BTC</div></div>
-    <div class="sl-cabinet" id="sl-cabinet">
-      <div class="sl-screen">
-        <div class="sl-col"><div class="sl-reel-frame" id="sl-frame-0"><div class="sl-reel-top-glow"></div><div class="sl-reel-bot-glow"></div><div class="sl-reel-center-line"></div><div class="sl-reel-inner" id="r0"></div></div><div class="sl-stop" id="sl-stop-0" onclick="slStopReel(0)">STOP</div></div>
-        <div class="sl-col"><div class="sl-reel-frame" id="sl-frame-1"><div class="sl-reel-top-glow"></div><div class="sl-reel-bot-glow"></div><div class="sl-reel-center-line"></div><div class="sl-reel-inner" id="r1"></div></div><div class="sl-stop" id="sl-stop-1" onclick="slStopReel(1)">STOP</div></div>
-        <div class="sl-col"><div class="sl-reel-frame" id="sl-frame-2"><div class="sl-reel-top-glow"></div><div class="sl-reel-bot-glow"></div><div class="sl-reel-center-line"></div><div class="sl-reel-inner" id="r2"></div></div><div class="sl-stop" id="sl-stop-2" onclick="slStopReel(2)">STOP</div></div>
-      </div>
-      <div class="sl-payline" id="sl-payline"></div>
-      <div class="sl-result-msg" id="sl-msg"></div>
-      <div class="sl-win-overlay" id="sl-win-overlay"><div class="sl-win-emoji" id="sl-win-emoji">&#127881;</div><div class="sl-win-amount" id="sl-win-amount"></div><div class="sl-win-label" id="sl-win-label"></div></div>
+  <!-- Body -->
+  <div style="position:relative;z-index:1;flex:1;display:flex;flex-direction:column;overflow:hidden">
+    <!-- Jackpot banner -->
+    <div style="text-align:center;padding:8px 14px 4px;flex-shrink:0;position:relative">
+      <div style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:240px;height:70px;background:radial-gradient(ellipse,rgba(255,200,0,.3),transparent 70%);filter:blur(16px);pointer-events:none;animation:jkpBeam 2.5s ease-in-out infinite"></div>
+      <div style="font-size:7px;letter-spacing:5px;color:#8a6800;text-transform:uppercase;font-family:'Russo One'">&#9830; JACKPOT &#9830;</div>
+      <div style="font-family:'Orbitron';font-size:26px;font-weight:900;background:linear-gradient(135deg,#fff7a0,#ffd700,#f59e0b,#d97706);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.15;animation:jkpGold 3s ease-in-out infinite;filter:drop-shadow(0 0 10px rgba(255,200,0,.5))" id="sl-jkp">&euro;0</div>
+      <div style="font-size:10px;color:#8a6800;font-family:'Orbitron'" id="sl-jkp-b">0.000000 BTC</div>
     </div>
-    <div class="sl-bar"><div class="chips" id="sl-ch"></div><div class="sl-bar-row"><span class="bet-cur" id="sl-bl">Bet: 1.00</span><button class="sl-spin-btn" id="btn-spin" onclick="spinSlots()">&#9654; SPIN</button></div></div>
+    <!-- Cabinet -->
+    <div style="flex:1;display:flex;flex-direction:column;margin:0 10px 6px;background:linear-gradient(160deg,#1c1000,#0e0800,#140b00);border:2px solid #5a3800;border-radius:18px;box-shadow:0 0 50px rgba(255,180,0,.1),inset 0 1px 0 rgba(255,215,0,.15);overflow:hidden;position:relative">
+      <!-- Cabinet glow frame -->
+      <div style="position:absolute;inset:0;border-radius:16px;box-shadow:inset 0 0 40px rgba(0,0,0,.7);pointer-events:none;z-index:1"></div>
+      <!-- Payline indicator -->
+      <div style="position:absolute;top:50%;left:0;right:0;height:3px;transform:translateY(-50%);background:linear-gradient(90deg,transparent 0%,rgba(255,215,0,.6) 15%,rgba(255,215,0,1) 50%,rgba(255,215,0,.6) 85%,transparent 100%);box-shadow:0 0 12px rgba(255,215,0,.8);z-index:3;pointer-events:none"></div>
+      <!-- Reels row -->
+      <div style="flex:1;display:flex;gap:6px;padding:10px 10px 6px;position:relative;z-index:2">
+        <!-- Each reel: a clip window + inner strip -->
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px">
+          <div class="slrf" id="slrf-0" style="flex:1;width:100%;border-radius:10px;overflow:hidden;position:relative;background:#050200;border:1.5px solid #3a2000;box-shadow:inset 0 0 20px rgba(0,0,0,.9)">
+            <div style="position:absolute;top:0;left:0;right:0;height:38%;background:linear-gradient(180deg,rgba(0,0,0,.9),transparent);pointer-events:none;z-index:5"></div>
+            <div style="position:absolute;bottom:0;left:0;right:0;height:38%;background:linear-gradient(0deg,rgba(0,0,0,.9),transparent);pointer-events:none;z-index:5"></div>
+            <div class="slri" id="slri-0" style="position:absolute;left:0;right:0;top:0"></div>
+          </div>
+          <div class="sl-stop" id="sl-stop-0" onclick="slStop(0)">STOP</div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px">
+          <div class="slrf" id="slrf-1" style="flex:1;width:100%;border-radius:10px;overflow:hidden;position:relative;background:#050200;border:1.5px solid #3a2000;box-shadow:inset 0 0 20px rgba(0,0,0,.9)">
+            <div style="position:absolute;top:0;left:0;right:0;height:38%;background:linear-gradient(180deg,rgba(0,0,0,.9),transparent);pointer-events:none;z-index:5"></div>
+            <div style="position:absolute;bottom:0;left:0;right:0;height:38%;background:linear-gradient(0deg,rgba(0,0,0,.9),transparent);pointer-events:none;z-index:5"></div>
+            <div class="slri" id="slri-1" style="position:absolute;left:0;right:0;top:0"></div>
+          </div>
+          <div class="sl-stop" id="sl-stop-1" onclick="slStop(1)">STOP</div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px">
+          <div class="slrf" id="slrf-2" style="flex:1;width:100%;border-radius:10px;overflow:hidden;position:relative;background:#050200;border:1.5px solid #3a2000;box-shadow:inset 0 0 20px rgba(0,0,0,.9)">
+            <div style="position:absolute;top:0;left:0;right:0;height:38%;background:linear-gradient(180deg,rgba(0,0,0,.9),transparent);pointer-events:none;z-index:5"></div>
+            <div style="position:absolute;bottom:0;left:0;right:0;height:38%;background:linear-gradient(0deg,rgba(0,0,0,.9),transparent);pointer-events:none;z-index:5"></div>
+            <div class="slri" id="slri-2" style="position:absolute;left:0;right:0;top:0"></div>
+          </div>
+          <div class="sl-stop" id="sl-stop-2" onclick="slStop(2)">STOP</div>
+        </div>
+      </div>
+      <!-- Result message -->
+      <div id="sl-msg" style="text-align:center;font-family:'Russo One';font-size:14px;min-height:26px;padding:2px 14px 4px;flex-shrink:0;letter-spacing:.5px;transition:all .3s;position:relative;z-index:2"></div>
+      <!-- Win overlay -->
+      <div id="sl-ov" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(6,3,0,.9);backdrop-filter:blur(6px);opacity:0;pointer-events:none;transition:opacity .3s;border-radius:16px;z-index:20">
+        <div id="sl-ov-e" style="font-size:56px;animation:wBounce .6s cubic-bezier(.34,1.56,.64,1)">&#127881;</div>
+        <div id="sl-ov-a" style="font-family:'Orbitron';font-size:26px;font-weight:900;background:linear-gradient(135deg,#fff7a0,#ffd700,#f59e0b);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-top:6px"></div>
+        <div id="sl-ov-l" style="font-size:11px;color:#b8860b;margin-top:4px;font-family:'Russo One';letter-spacing:1px"></div>
+      </div>
+    </div>
+    <!-- Bet bar -->
+    <div style="padding:6px 12px 10px;border-top:1px solid rgba(255,180,0,.1);background:rgba(0,0,0,.4);flex-shrink:0">
+      <div class="chips" id="sl-ch"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
+        <span class="bet-cur" id="sl-bl">Bet: 1.00</span>
+        <button id="btn-spin" onclick="spinSlots()" style="padding:13px 28px;border-radius:13px;border:none;cursor:pointer;font-family:'Russo One';font-size:15px;letter-spacing:2px;background:linear-gradient(135deg,#ffd700,#f59e0b,#d97706);color:#1a0a00;font-weight:900;box-shadow:0 4px 20px rgba(255,215,0,.45),inset 0 1px 0 rgba(255,255,255,.3);transition:all .15s;animation:spinIdle 3s ease-in-out infinite">&#9654; SPIN</button>
+      </div>
+    </div>
   </div>
 </div>
+
 
 <!-- ROULETTE -->
 <div id="rl" class="screen">
@@ -1838,287 +1936,309 @@ function bjEnd(out){
 }
 
 
-/* -- SLOTS -- */
 /* ── SLOTS ── */
-var SLS = ['7','\uD83D\uDC8E','\uD83C\uDF52','\uD83D\uDD14','\u2B50','\uD83C\uDF4B','\uD83C\uDF47','\uD83C\uDF4A','\uD83C\uDF49','\uD83C\uDF40'];
-// weights: rarer = lower number
-var SLW = [1, 2, 4, 5, 6, 8, 10, 12, 14, 14];
-// multipliers (3-of-a-kind payout on bet)
-var SLM = {};
-SLM['7']               = 50;
-SLM['\uD83D\uDC8E']    = 20;
-SLM['\uD83C\uDF52']    = 8;
-SLM['\uD83D\uDD14']    = 5;
-SLM['\u2B50']          = 4;
-SLM['\uD83C\uDF4B']    = 3;
-SLM['\uD83C\uDF47']    = 2;
-SLM['\uD83C\uDF4A']    = 1.5;
-SLM['\uD83C\uDF49']    = 1.5;
-SLM['\uD83C\uDF40']    = 1.5;
 
-var CELL_H = 80;
-var REEL_N = 24;
-var slSpin = false;
-var slJkp  = 0.05;
+// ── Symbols & weights ─────────────────────────────────────────────────
+var SLS = ['7', '\uD83D\uDC8E', '\uD83C\uDF52', '\uD83D\uDD14',
+           '\u2B50', '\uD83C\uDF4B', '\uD83C\uDF47', '\uD83C\uDF4A',
+           '\uD83C\uDF49', '\uD83C\uDF40'];
+//         7      gem    cherry  bell    star   lemon  grape  orange melon clover
+var SLW = [1,     2,     3,      5,      6,     8,     10,    12,    14,   14];
+var SLM = {};   // multipliers (3-of-a-kind)
+SLM['7']              = 50;
+SLM['\uD83D\uDC8E']   = 20;
+SLM['\uD83C\uDF52']   = 10;
+SLM['\uD83D\uDD14']   = 6;
+SLM['\u2B50']         = 4;
+SLM['\uD83C\uDF4B']   = 3;
+SLM['\uD83C\uDF47']   = 2;
+SLM['\uD83C\uDF4A']   = 1.5;
+SLM['\uD83C\uDF49']   = 1.5;
+SLM['\uD83C\uDF40']   = 1.5;
 
+// ── Config ────────────────────────────────────────────────────────────
+var SL_CELL   = 80;    // px per cell
+var SL_N      = 22;    // cells per strip
+var SL_SPEED  = 20;    // px per frame (fast spin)
+
+// ── State ─────────────────────────────────────────────────────────────
+var slJkp       = 0.001;  // BTC jackpot (starts at ~€90)
+var slSpinning  = false;
+var slStopFlags = [false, false, false];
+
+// ── Background particles ──────────────────────────────────────────────
+var slParticles = [];
 function slDrawBg() {
-  var c = document.getElementById('sl-canvas'); if (!c) return;
+  var c = document.getElementById('sl-bg'); if (!c) return;
   c.width = window.innerWidth || 380; c.height = window.innerHeight || 700;
   var ctx = c.getContext('2d'), W = c.width, H = c.height;
-  var g = ctx.createRadialGradient(W/2, H*.4, 0, W/2, H*.4, W*.8);
-  g.addColorStop(0, 'rgba(40,20,0,.5)'); g.addColorStop(1, 'rgba(0,0,0,.1)');
+  // Background gradient
+  var g = ctx.createRadialGradient(W/2, H*.7, 0, W/2, H*.7, W);
+  g.addColorStop(0, 'rgba(80,40,0,.35)'); g.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
-  for (var x=0;x<W;x+=24) for (var y=0;y<H;y+=24) {
-    ctx.beginPath(); ctx.arc(x,y,.7,0,Math.PI*2);
-    ctx.fillStyle='rgba(255,215,0,.04)'; ctx.fill();
+  // Gold dust particles
+  for (var i = 0; i < 80; i++) {
+    var x = Math.random()*W, y = Math.random()*H;
+    var r = Math.random()*1.2+0.2, a = Math.random()*.35+.04;
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2);
+    ctx.fillStyle = 'rgba(255,215,0,'+a+')'; ctx.fill();
   }
 }
 
 function slUpdateJkp() {
-  var amt = slJkp * S.rate;
-  var ja = document.getElementById('sl-jkp-amount');
-  var jb = document.getElementById('sl-jkp-btc');
-  if (ja) ja.textContent = '\u20AC' + amt.toLocaleString('en', {maximumFractionDigits:0});
+  var eur = Math.round(slJkp * S.rate);
+  var je = document.getElementById('sl-jkp');
+  var jb = document.getElementById('sl-jkp-b');
+  if (je) je.textContent = '\u20AC' + eur.toLocaleString('en');
   if (jb) jb.textContent = slJkp.toFixed(6) + ' BTC';
 }
 
+// ── Random symbol (weighted) ──────────────────────────────────────────
 function slRnd() {
-  var t = SLW.reduce(function(a,b){return a+b;}, 0), r = Math.random()*t;
-  for (var i = 0; i < SLW.length; i++) { r -= SLW[i]; if (r <= 0) return SLS[i]; }
+  var total = SLW.reduce(function(a,b){return a+b;}, 0);
+  var r = Math.random() * total;
+  for (var i = 0; i < SLS.length; i++) { r -= SLW[i]; if (r <= 0) return SLS[i]; }
   return SLS[SLS.length-1];
 }
 
-function slBuildReel(idx) {
-  var reel = document.getElementById('r'+idx); if (!reel) return;
-  reel.innerHTML = '';
-  for (var j = 0; j < REEL_N; j++) {
+// ── Build a reel strip (DOM) ──────────────────────────────────────────
+function slBuildStrip(idx) {
+  var strip = document.getElementById('slri-'+idx);
+  if (!strip) return;
+  strip.innerHTML = '';
+  for (var i = 0; i < SL_N; i++) {
     var d = document.createElement('div');
-    d.className = 'sl-sym';
+    d.className = 'slc';
     d.textContent = SLS[Math.floor(Math.random() * SLS.length)];
-    reel.appendChild(d);
+    strip.appendChild(d);
   }
-  reel.style.transform = 'translateY(0px)';
+  strip.style.transform = 'translateY(0px)';
 }
 
-function initSl() {
-  slDrawBg(); slUpdateJkp();
-  buildCh('sl-ch','sl', function(v) { document.getElementById('sl-bl').textContent = 'Bet: '+f2(v); });
-  document.getElementById('sl-bl').textContent = 'Bet: '+f2(CB.sl);
-  var msg = document.getElementById('sl-msg'); if (msg) { msg.textContent = ''; msg.style.color = 'var(--gr)'; }
-  var ov = document.getElementById('sl-win-overlay'); if (ov) ov.classList.remove('show');
-  var pl = document.getElementById('sl-payline'); if (pl) pl.classList.remove('win');
-  for (var i = 0; i < 3; i++) {
-    slBuildReel(i);
-    var fr = document.getElementById('sl-frame-'+i); if (fr) fr.classList.remove('spinning','landed');
-    var sb = document.getElementById('sl-stop-'+i); if (sb) { sb.className = 'sl-stop'; sb.textContent = 'STOP'; sb.disabled = true; }
-  }
-  var btn = document.getElementById('btn-spin'); if (btn) btn.disabled = false;
+// ── Get frame height ──────────────────────────────────────────────────
+function slFrameH(idx) {
+  var frame = document.getElementById('slrf-'+idx);
+  return (frame && frame.offsetHeight > 40) ? frame.offsetHeight : 240;
 }
 
-/* ── Core reel animation ──────────────────────────────────────────────
-   Phase 1 (fast): reel spins continuously at fixed speed
-   Phase 2 (ease-out): decelerates to land the target symbol at center
-   Promise resolves once reel is locked. ──────────────────────────────*/
-function slAnimReel(idx, result, delay) {
+// ── Spin one reel — returns Promise that resolves when locked ─────────
+function slSpinReel(idx, result, autoStopMs) {
   return new Promise(function(resolve) {
-    setTimeout(function() {
-      var reel  = document.getElementById('r'+idx);
-      var frame = document.getElementById('sl-frame-'+idx);
-      var btn   = document.getElementById('sl-stop-'+idx);
-      if (!reel) { resolve(); return; }
+    var strip  = document.getElementById('slri-'+idx);
+    var frame  = document.getElementById('slrf-'+idx);
+    var btn    = document.getElementById('sl-stop-'+idx);
+    if (!strip) { resolve(); return; }
 
-      // Place result at a known position: last cell (index REEL_N-1)
-      var items = reel.children;
-      items[REEL_N-1].textContent = result;
+    // Place result at last cell
+    var cells = strip.children;
+    cells[SL_N-1].textContent = result;
 
-      // Geometry
-      var frameH = (frame && frame.offsetHeight > 40) ? frame.offsetHeight : 260;
-      // Target: last item centered in frame
-      // last item top edge = (REEL_N-1)*CELL_H; center = (REEL_N-1)*CELL_H + CELL_H/2
-      // we want: -(translateY) + frameH/2 = lastItemCenter
-      // translateY = -(lastItemCenter - frameH/2)
-      var lastCenter = (REEL_N-1)*CELL_H + CELL_H/2;
-      var target = -(lastCenter - frameH/2);
+    var fH      = slFrameH(idx);
+    var totalH  = SL_CELL * SL_N;
+    // Center last cell in frame: translateY = -(last_center - frame_center)
+    var target  = -((SL_N-1)*SL_CELL + SL_CELL/2 - fH/2);
 
-      if (frame) frame.classList.add('spinning');
-      if (btn) { btn.className = 'sl-stop armed'; btn.textContent = 'STOP'; btn.disabled = false; }
+    var curY    = 0;
+    var stopped = false;
+    var rafId;
 
-      // Phase 1: fast constant spin
-      var speed    = 18;   // px per frame
-      var totalPx  = REEL_N * CELL_H;
-      var curY     = 0;
-      var stopping = false;
-      var rafId;
+    // Arm stop button
+    if (btn) {
+      btn.disabled = false;
+      btn.className = 'sl-stop armed';
+      btn.onclick = function() { stopped = true; };
+    }
+    // Auto-stop
+    setTimeout(function() { stopped = true; }, autoStopMs);
 
-      function fastSpin() {
-        if (stopping) { startEaseOut(); return; }
-        curY -= speed;
-        if (curY <= -totalPx) curY += totalPx;  // loop
-        reel.style.transform = 'translateY('+curY+'px)';
-        rafId = requestAnimationFrame(fastSpin);
+    // Phase 1: constant fast spin
+    function fastLoop() {
+      if (stopped) { startEase(); return; }
+      curY -= SL_SPEED;
+      if (curY <= -totalH) curY += totalH;
+      strip.style.transform = 'translateY('+curY+'px)';
+      rafId = requestAnimationFrame(fastLoop);
+    }
+
+    // Phase 2: ease-out to target
+    function startEase() {
+      cancelAnimationFrame(rafId);
+      if (btn) btn.className = 'sl-stop';
+
+      // Ensure we spin forward to target:
+      // Find how many full extra cycles we need so to < curY
+      var to = target;
+      while (to > curY) to -= totalH;
+      // Make sure we have at least one visible spin before landing
+      if (curY - to < totalH * 0.5) to -= totalH;
+
+      var from = curY;
+      var dur  = 550;
+      var t0   = performance.now();
+
+      function easeFrame(now) {
+        var p    = Math.min((now - t0) / dur, 1);
+        var ease = 1 - Math.pow(1-p, 3);
+        var pos  = from + (to - from) * ease;
+        strip.style.transform = 'translateY('+pos+'px)';
+        if (p < 1) { requestAnimationFrame(easeFrame); return; }
+        // Snap exact
+        strip.style.transform = 'translateY('+to+'px)';
+        if (frame) frame.style.border = '1.5px solid rgba(255,215,0,.6)';
+        if (btn) { btn.disabled = true; btn.className = 'sl-stop locked'; btn.textContent = '\u2714'; }
+        resolve();
       }
+      requestAnimationFrame(easeFrame);
+    }
 
-      function startEaseOut() {
-        cancelAnimationFrame(rafId);
-        if (frame) frame.classList.remove('spinning');
-        if (btn) { btn.disabled = true; }
-
-        // Find nearest multple-of-totalPx offset that aligns to target
-        // We need to go from curY to target, but target < curY typically
-        // Snap: add enough full cycles to make target numerically reachable below curY
-        var cycles = Math.ceil((curY - target) / totalPx);
-        var from   = curY;
-        var to     = target - cycles * totalPx;
-        // ensure we always spin forward (to < from)
-        while (to > from) to -= totalPx;
-
-        var duration = 600;
-        var startT   = performance.now();
-
-        function easeOut(now) {
-          var p    = Math.min((now - startT) / duration, 1);
-          var ease = 1 - Math.pow(1-p, 3);
-          var pos  = from + (to - from) * ease;
-          reel.style.transform = 'translateY('+pos+'px)';
-          if (p < 1) { requestAnimationFrame(easeOut); return; }
-          // Snap exactly to target (modular)
-          reel.style.transform = 'translateY('+to+'px)';
-          if (frame) { frame.classList.remove('spinning'); frame.classList.add('landed'); }
-          if (btn)   { btn.className = 'sl-stop locked'; btn.textContent = '\u2714 LOCKED'; }
-          resolve();
-        }
-        requestAnimationFrame(easeOut);
-      }
-
-      // Allow manual stop via button
-      if (btn) {
-        btn.onclick = function() {
-          if (!stopping) { stopping = true; }
-        };
-      }
-
-      // Auto-stop after spinDur ms
-      var spinDur = 900 + idx * 400;
-      setTimeout(function() { stopping = true; }, spinDur);
-
-      rafId = requestAnimationFrame(fastSpin);
-    }, delay);
+    rafId = requestAnimationFrame(fastLoop);
   });
 }
 
+// ── Init ──────────────────────────────────────────────────────────────
+function initSl() {
+  slDrawBg();
+  slUpdateJkp();
+  buildCh('sl-ch','sl', function(v) {
+    document.getElementById('sl-bl').textContent = 'Bet: '+f2(v);
+  });
+  document.getElementById('sl-bl').textContent = 'Bet: '+f2(CB.sl);
+  var msg = document.getElementById('sl-msg');
+  if (msg) { msg.textContent = ''; msg.style.color = ''; }
+  var ov = document.getElementById('sl-ov');
+  if (ov) ov.style.opacity = '0';
+  var sp = document.getElementById('btn-spin');
+  if (sp) { sp.disabled = false; }
+  for (var i = 0; i < 3; i++) {
+    slBuildStrip(i);
+    var f = document.getElementById('slrf-'+i);
+    if (f) f.style.border = '1.5px solid #3a2000';
+    var b = document.getElementById('sl-stop-'+i);
+    if (b) { b.disabled = true; b.className = 'sl-stop'; b.textContent = 'STOP'; }
+  }
+  slSpinning = false;
+  slStopFlags = [false, false, false];
+}
+
+// ── Spin ──────────────────────────────────────────────────────────────
 function spinSlots() {
-  if (slSpin) return;
+  if (slSpinning) return;
   var bet = CB.sl, bb = f2b(bet);
   if (bal() < bet) { toast('Saldo insufficiente!', 'err'); return; }
 
-  // Deduct immediately
-  S.btc -= bb; S.bet += bb; ref();
-  slJkp  += bb * 0.02; slUpdateJkp();
+  // Deduct immediately — user sees balance drop
+  S.btc -= bb; S.bet += bb;
+  slJkp  += bb * 0.025;
+  ref(); slUpdateJkp();
 
-  slSpin = true;
-  var spinBtn = document.getElementById('btn-spin');
-  if (spinBtn) spinBtn.disabled = true;
-  var ov  = document.getElementById('sl-win-overlay'); if (ov)  ov.classList.remove('show');
-  var pl  = document.getElementById('sl-payline');     if (pl)  pl.classList.remove('win');
+  slSpinning = true;
+  var sp = document.getElementById('btn-spin');
+  if (sp) sp.disabled = true;
+  var ov = document.getElementById('sl-ov');
+  if (ov) ov.style.opacity = '0';
   var msg = document.getElementById('sl-msg');
-  if (msg) { msg.textContent = 'Spinning\u2026'; msg.style.color = 'var(--gr)'; }
+  if (msg) { msg.textContent = ''; msg.style.color = ''; }
 
-  // Clear landed states, arm STOP buttons
+  // Reset reel borders
   for (var k = 0; k < 3; k++) {
-    var fr = document.getElementById('sl-frame-'+k); if (fr) fr.classList.remove('landed');
-    slBuildReel(k);
+    var rf = document.getElementById('slrf-'+k);
+    if (rf) rf.style.border = '1.5px solid #3a2000';
+    slBuildStrip(k);
   }
 
-  // Draw 3 results
+  // Draw results
   var r0 = slRnd(), r1 = slRnd(), r2 = slRnd();
 
-  // Run reels in parallel (each with staggered auto-stop)
-  var p0 = slAnimReel(0, r0, 0);
-  var p1 = slAnimReel(1, r1, 0);
-  var p2 = slAnimReel(2, r2, 0);
+  // Staggered auto-stop: 900 / 1400 / 1900 ms
+  var p0 = slSpinReel(0, r0, 900);
+  var p1 = slSpinReel(1, r1, 1400);
+  var p2 = slSpinReel(2, r2, 1900);
 
   Promise.all([p0, p1, p2]).then(function() {
-    slShowResult(r0, r1, r2, bb);
-    slSpin = false;
-    if (spinBtn) spinBtn.disabled = false;
-    // Re-disable stop buttons
-    for (var k = 0; k < 3; k++) {
-      var sb = document.getElementById('sl-stop-'+k);
-      if (sb) { sb.disabled = true; sb.className = 'sl-stop'; sb.textContent = 'STOP'; sb.onclick = null; }
-    }
+    slResult(r0, r1, r2, bb);
+    slSpinning = false;
+    if (sp) sp.disabled = false;
   }).catch(function(e) {
-    console.error('Slots error:', e);
-    slSpin = false;
-    if (spinBtn) spinBtn.disabled = false;
-    toast('Errore slot — riprova', 'err');
-    // Refund on error
-    S.btc += bb; ref();
+    console.error('slot error:', e);
+    S.btc += bb; ref(); // refund on error
+    slSpinning = false;
+    if (sp) sp.disabled = false;
+    toast('Errore — riprova', 'err');
   });
 }
 
-function slShowResult(r0, r1, r2, bb) {
-  var won = 0, msg2 = '', col = '', emoji = '';
+// Manual stop button
+function slStop(idx) {
+  var btn = document.getElementById('sl-stop-'+idx);
+  if (btn && !btn.disabled) btn.click();
+}
+
+// ── Show result ───────────────────────────────────────────────────────
+function slResult(r0, r1, r2, bb) {
+  var won = 0, txt = '', col = '', emoji = '';
 
   if (r0 === r1 && r1 === r2) {
-    // Triple
     var m = SLM[r0] || 1;
     if (r0 === '7') {
-      // Jackpot
-      var jackpotWin = slJkp;
-      won = bb * m + jackpotWin;
-      slJkp = 0.001;
-      slUpdateJkp();
-      msg2  = 'JACKPOT! \u00D750 +' + b2f(won-bb);
+      // JACKPOT
+      won   = bb * m + slJkp;
+      txt   = 'JACKPOT! \u00D750 +' + b2f(won-bb);
       col   = 'var(--gold)';
       emoji = '\uD83C\uDF1F';
-      toast('\uD83C\uDF1F JACKPOT! +'+b2f(won-bb), 'ok', 5000);
+      slJkp = 0.001;
+      slUpdateJkp();
+      toast('\uD83C\uDF1F JACKPOT +'+b2f(won-bb), 'ok', 5000);
     } else {
       won   = bb * m;
-      msg2  = r0+r0+r0+' \u00D7'+m+' +'+b2f(won-bb);
+      txt   = r0+r0+r0+' \u00D7'+m+' +'+b2f(won-bb);
       col   = 'var(--gn)';
       emoji = '\uD83C\uDFC6';
-      toast(msg2, 'ok', 2800);
+      toast(txt, 'ok', 3000);
     }
-  } else if (r0 === r1 || r1 === r2 || r0 === r2) {
-    // Two alike — 50% back
-    won  = bb * 0.5;
-    msg2 = 'Due uguali \u2014 50% back +' + b2f(won);
-    col  = 'var(--gold)';
+    // Flash reel borders gold
+    for (var k=0; k<3; k++) {
+      var rf = document.getElementById('slrf-'+k);
+      if (rf) rf.style.border = '1.5px solid rgba(255,215,0,.9)';
+    }
+  } else if (r0===r1 || r1===r2 || r0===r2) {
+    won   = bb * 0.5;
+    txt   = 'Due uguali \u2014 50% back';
+    col   = 'var(--gold)';
     emoji = '\uD83D\uDD04';
-    toast(msg2, 'inf', 2000);
+    toast(txt, 'inf', 2000);
   } else {
-    msg2  = 'Nessuna combinazione';
-    col   = 'var(--rd)';
-    emoji = '\uD83C\uDF00';
-    toast(msg2, 'err', 1800);
+    txt   = 'Nessuna vincita';
+    col   = 'rgba(180,80,80,.8)';
+    emoji = '';
+    toast('Nessuna vincita', 'err', 1500);
   }
 
+  // Update state + backend
   S.btc += won; S.won += won;
   if (won > bb) S.wins++;
   else if (won === 0) S.losses++;
   ref();
-
-  // Sync with backend
   syncBalance(won - bb, bb, won > bb, won === 0, 'slots');
 
-  // Update UI
-  var pl  = document.getElementById('sl-payline');
-  if (pl) pl.classList.toggle('win', won > bb);
-
+  // Message
   var msgEl = document.getElementById('sl-msg');
-  if (msgEl) { msgEl.textContent = msg2; msgEl.style.color = col; }
+  if (msgEl) { msgEl.textContent = txt; msgEl.style.color = col; }
 
+  // Win overlay
   if (won > bb) {
-    var ov2 = document.getElementById('sl-win-overlay');
-    var ea  = document.getElementById('sl-win-emoji');
-    var am  = document.getElementById('sl-win-amount');
-    var lb  = document.getElementById('sl-win-label');
-    if (ea) ea.textContent = emoji;
-    if (am) am.textContent = '+'+b2f(won-bb);
-    if (lb) lb.textContent = won === bb*50 ? 'JACKPOT!' : '\u00D7'+( SLM[r0]||1);
-    if (ov2) {
-      ov2.classList.add('show');
-      setTimeout(function() { ov2.classList.remove('show'); }, 2600);
+    var ov = document.getElementById('sl-ov');
+    var oe = document.getElementById('sl-ov-e');
+    var oa = document.getElementById('sl-ov-a');
+    var ol = document.getElementById('sl-ov-l');
+    if (oe) oe.textContent = emoji;
+    if (oa) oa.textContent = '+'+b2f(won-bb);
+    if (ol) ol.textContent = r0===r1&&r1===r2&&r0==='7' ? 'JACKPOT!' : '\u00D7'+(SLM[r0]||1)+' on bet '+b2f(bb);
+    if (ov) {
+      ov.style.opacity = '1';
+      ov.style.pointerEvents = 'all';
+      setTimeout(function(){
+        if(ov){ov.style.opacity='0';ov.style.pointerEvents='none';}
+      }, 2600);
     }
   }
 }
