@@ -1501,7 +1501,7 @@ body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradi
       <!-- Win preview -->
       <div class="lt-wins-box">
         <div class="lt-section-label">Potenziali vincite</div>
-        <div id="lt-win-rows"></div>
+        <div id="lt-win-rows"></div><div id="lt-win-note" style="font-size:8px;color:#374151;text-align:right;margin:4px 0 0;font-family:'Orbitron'"></div>
       </div>
       <!-- Number grid -->
       <div class="lt-grid-wrap">
@@ -1604,11 +1604,7 @@ body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradi
     <div class="bnav-btn active"><span class="ni">&#127942;</span>Sfide</div>
   </div>
 </div>
-<div class="ch-flash" id="ch-flash"></div>
-
-<div class="ch-flash" id="ch-flash"></div>
-</div><!-- #app -->
-<div id="toast" class="toast"></div><script>
+<div class="ch-flash" id="ch-fla
 const BACKEND = 'https://factoid-spinal-dispatch.ngrok-free.dev';
 
 /* ── BTC PARTICLES ── */
@@ -1973,13 +1969,14 @@ function slDrawBg() {
 }
 
 function slUpdateJkp() {
-  var potEur   = slJkp * S.rate;
-  var betEur   = CB.sl || 0;
-  var totalEur = Math.round(potEur + betEur * 50);
+  var potBtc  = slJkp;
+  var potEur  = Math.round(potBtc * S.rate);
+  var betFiat = CB.sl || 5;
+  var winEur  = Math.round(potEur + betFiat * 50);
   var je = document.getElementById('sl-jkp');
   var jb = document.getElementById('sl-jkp-b');
-  if (je) je.textContent = '€' + totalEur.toLocaleString('en');
-  if (jb) jb.textContent = 'Pot: ' + slJkp.toFixed(6) + ' BTC + ×50 bet';
+  if (je) je.textContent = '€' + winEur.toLocaleString('en');
+  if (jb) jb.textContent = 'Pot €' + potEur + ' + ×50 × puntata (€' + betFiat + ')';
 }
 
 // ── Random symbol (weighted) ──────────────────────────────────────────
@@ -2519,14 +2516,15 @@ function openBot(){if(tg)tg.close();else window.open('https://t.me/Master_Gamble
    ═══════════════════════════════════════ */
 /* -- LOTTO SUPPORT -- */
 var LT = {
-  picks: [], bet: 0.0001, tickets: [], jackpot: 0.001,
-  bets: [0.0001, 0.0005, 0.001, 0.005, 0.01],
+  picks: [], tickets: [], jackpot: 0.00111111,
+  TICKET_BTC: 0.00011111,
+  TICKET_EUR: 10,
   prizes: [
-    { m:6, name:'6/6 JACKPOT', mult:null, minBtc:0.00072,  icon:'🏆' },
-    { m:5, name:'5 su 6',      mult:100,  minBtc:0.00029,  icon:'💎' },
-    { m:4, name:'4 su 6',      mult:20,   minBtc:0.000072, icon:'🥇' },
-    { m:3, name:'3 su 6',      mult:3,    minBtc:0.000029, icon:'🥈' },
-    { m:2, name:'2 su 6',      mult:1,    minBtc:null,     icon:'🔄' },
+    { m:6, name:'6/6 JACKPOT', btc:null,       eur:null, icon:'🏆', note:'jackpot pool' },
+    { m:5, name:'5 su 6',      btc:0.000556,    eur:50,   icon:'💎', note:'premio fisso' },
+    { m:4, name:'4 su 6',      btc:0.000278,    eur:25,   icon:'🥇', note:'premio fisso' },
+    { m:3, name:'3 su 6',      btc:0.000167,    eur:15,   icon:'🥈', note:'premio fisso' },
+    { m:2, name:'2 su 6',      btc:0.00011111, eur:10,   icon:'🔄', note:'rimborso ticket' },
   ]
 };
 
@@ -2546,39 +2544,40 @@ function ltDrawStarfield() {
 }
 
 function ltBuildBets() {
-  var el = document.getElementById('lt-bet-btns'); if (!el) return; el.innerHTML = '';
-  LT.bets.forEach(function(b) {
-    var btn = document.createElement('div');
-    btn.className = 'lt-bet-opt' + (b === LT.bet ? ' sel' : '');
-    var eur = (b*S.rate).toFixed(b>=0.001?0:2);
-    btn.innerHTML = '<span class="lt-bet-btc">' + b + ' BTC</span><span class="lt-bet-fiat">€' + eur + '</span>';
-    btn.onclick = (function(bet) {
-      return function() {
-        LT.bet = bet;
-        document.querySelectorAll('.lt-bet-opt').forEach(function(x){x.classList.remove('sel');});
-        btn.classList.add('sel');
-        ltBuildWinRows(); ltBuildPrizes();
-      };
-    })(b);
-    el.appendChild(btn);
-  });
-  ltBuildWinRows(); ltBuildPrizes();
+  // Fixed ticket price — just show the price
+  var el = document.getElementById('lt-bet-btns');
+  if (el) {
+    el.innerHTML = '';
+    var info = document.createElement('div');
+    info.style.cssText = 'text-align:center;padding:10px;font-family:Orbitron;font-size:13px;color:var(--gold);letter-spacing:1px;border:1px solid rgba(255,215,0,.3);border-radius:12px;background:rgba(255,215,0,.05)';
+    info.innerHTML = '🎫 Ticket: <strong>€10</strong> &nbsp;&mdash;&nbsp; <span style="font-size:10px;color:#6b7280">' + LT.TICKET_BTC + ' BTC</span>';
+    el.appendChild(info);
+  }
+  ltBuildWinRows();
+  ltBuildPrizes();
 }
 
+function ltPrizeBtc(p) {
+  if (p.m === 6) return Math.max(LT.jackpot || 0.00111111, 0.00111111);
+  return p.btc || LT.TICKET_BTC;
+}
 function ltBuildWinRows() {
   var el = document.getElementById('lt-win-rows'); if (!el) return; el.innerHTML = '';
   LT.prizes.forEach(function(p) {
-    var winBtc;
-    if (p.m === 6) { winBtc = (LT.jackpot||0.001) + LT.bet*0.3; }
-    else if (p.mult) { winBtc = Math.max(LT.bet * p.mult, p.minBtc||0); }
-    else { winBtc = LT.bet; }
-    var winEur = (winBtc * S.rate).toFixed(winBtc >= 0.001 ? 0 : 2);
+    var winBtc = ltPrizeBtc(p);
+    var winEur = p.m===6 ? Math.round(winBtc*S.rate) : (p.eur || Math.round(winBtc*S.rate));
+    var note   = p.m===6 ? 'jackpot pool (€'+Math.round((LT.jackpot||0.00111111)*S.rate)+' attuale)' : p.note;
     var row = document.createElement('div'); row.className = 'lt-win-item';
-    row.innerHTML = '<div class="lt-win-left"><span class="lt-win-ico">' + p.icon + '</span>' + p.name + '</div>'
-      + '<div class="lt-win-right"><span class="lt-win-btc">' + winBtc.toFixed(6) + ' BTC</span>'
-      + '<span class="lt-win-eur">€' + winEur + '</span></div>';
+    row.innerHTML =
+      '<div class="lt-win-left"><span class="lt-win-ico">' + p.icon + '</span>' + p.name + '</div>'
+      + '<div class="lt-win-right">'
+      + '<span class="lt-win-btc">' + winBtc.toFixed(6) + ' BTC</span>'
+      + '<span class="lt-win-eur">€' + winEur + ' <span style="font-size:8px;color:#374151">(' + note + ')</span></span>'
+      + '</div>';
     el.appendChild(row);
   });
+  var note = document.getElementById('lt-win-note');
+  if (note) note.textContent = 'Ticket: €10 fisso per tutti';
 }
 
 function ltBuildGrid() {
@@ -2595,37 +2594,27 @@ function ltBuildGrid() {
 
 function ltBuildPrizes() {
   var el = document.getElementById('lt-prize-cards'); if (!el) return; el.innerHTML = '';
-  var jkpMin = 0.000556;  // min jackpot ~€50
   LT.prizes.forEach(function(p) {
-    var winBtc, winEur, subTxt, multStr;
-    if (p.m === 6) {
-      var curJkp = Math.max(LT.jackpot||0.001, jkpMin);
-      winBtc  = curJkp + LT.bet * 0.3;
-      winEur  = Math.round(winBtc * S.rate);
-      var minEur  = Math.round(jkpMin * S.rate);
-      var curEur  = Math.round((LT.jackpot||0.001) * S.rate);
-      subTxt  = 'Min: €' + minEur + ' — Attuale: €' + curEur;
-      multStr = 'JACKPOT';
-    } else if (p.mult) {
-      winBtc  = Math.max(LT.bet * p.mult, p.minBtc || 0);
-      winEur  = Math.round(winBtc * S.rate);
-      var minW = Math.round((p.minBtc||0) * S.rate);
-      subTxt  = '×' + p.mult + ' bet  — min: €' + minW;
-      multStr = '×' + p.mult;
+    var winBtc = ltPrizeBtc(p);
+    var winEur = p.m===6 ? Math.round(winBtc*S.rate) : (p.eur || Math.round(winBtc*S.rate));
+    var multStr, subTxt;
+    if (p.m===6) {
+      var jEur = Math.round((LT.jackpot||0.00111111)*S.rate);
+      multStr = 'JACKPOT'; subTxt = 'Pool: €'+jEur+'  —  min garantito €100';
+    } else if (p.m===2) {
+      multStr = '€10'; subTxt = 'Rimborso del ticket';
     } else {
-      winBtc  = LT.bet; winEur = Math.round(LT.bet * S.rate);
-      subTxt  = 'Rimborso puntata'; multStr = '×1';
+      multStr = '€'+p.eur; subTxt = 'Premio fisso — '+winBtc.toFixed(6)+' BTC';
     }
     var card = document.createElement('div');
     card.className = 'lt-prize-card' + (p.m===6?' is-jackpot':'');
     card.innerHTML =
-      '<div class="lt-pc-icon">' + p.icon + '</div>' +
-      '<div class="lt-pc-info"><div class="lt-pc-name">' + p.name + '</div>' +
-      '<div class="lt-pc-sub">' + subTxt + '</div></div>' +
-      '<div class="lt-pc-mult">' +
-        '<span class="lt-pc-mult-val' + (p.m===6?' jackpot':'') + '">' + multStr + '</span>' +
-        '<span class="lt-pc-mult-eur">€' + winEur + '</span>' +
-      '</div>';
+      '<div class="lt-pc-icon">' + p.icon + '</div>'
+      + '<div class="lt-pc-info"><div class="lt-pc-name">' + p.name + '</div>'
+      + '<div class="lt-pc-sub">' + subTxt + '</div></div>'
+      + '<div class="lt-pc-mult">'
+      + '<span class="lt-pc-mult-val' + (p.m===6?' jackpot':'') + '">' + multStr + '</span>'
+      + '<span class="lt-pc-mult-eur">€' + winEur + '</span></div>';
     el.appendChild(card);
   });
 }
@@ -3131,46 +3120,35 @@ function ltUpdateHeader() {
 
 // ── Lotto confirm — posts to backend ──
 function ltConfirm() {
-  if (LT.picks.length !== 6) { toast('Seleziona 6 numeri!', 'err'); return; }
-  var betFiat = LT.bet * S.rate;
-  if (bal() < betFiat) { toast('Saldo insufficiente!', 'err'); return; }
-  // Disable button during request
+  if (LT.picks.length !== 6) { toast('Seleziona 6 numeri!','err'); return; }
+  var bb = LT.TICKET_BTC;
+  if (S.btc < bb) { toast('Saldo insufficiente! Servono €10','err'); return; }
   var btn = document.getElementById('lt-btn-play');
   if (btn) btn.disabled = true;
   var picks = LT.picks.slice();
-  registerLottoTicket(picks, LT.bet)
+  registerLottoTicket(picks, bb)
     .then(function(d) {
-      LT.tickets.push({ numbers: picks, bet: LT.bet });
-      var ov = document.getElementById('lt-overlay');
-      var ovp = document.getElementById('lt-ov-picks');
-      var ovb = document.getElementById('lt-ov-bet');
-      if (ovp) ovp.textContent = picks.join('  \u2022  ');
-      if (ovb) ovb.textContent = 'Puntata: ' + LT.bet + ' BTC (\u20AC' + betFiat.toFixed(2) + ')';
-      if (ov) { ov.classList.add('show'); setTimeout(function() { ov.classList.remove('show'); }, 2400); }
-      LT.picks = []; ltUpdateDisplay(); ltUpdateHeader();
-      toast('\u2705 Ticket registrato!', 'ok', 2500);
+      LT.tickets.push({ numbers: picks });
+      var ov=document.getElementById('lt-overlay'), ovp=document.getElementById('lt-ov-picks'), ovb=document.getElementById('lt-ov-bet');
+      if (ovp) ovp.textContent = picks.join('  •  ');
+      if (ovb) ovb.textContent = 'Ticket: €10 (' + bb + ' BTC)';
+      if (ov)  { ov.classList.add('show'); setTimeout(function(){ov.classList.remove('show');},2400); }
+      LT.picks=[]; ltUpdateDisplay(); ltUpdateHeader();
+      toast('✅ Ticket registrato!','ok',2500);
     })
-    .catch(function(e) {
-      // Offline fallback: deduct locally
-      var bb = LT.bet;
-      S.btc -= f2b(bb * S.rate); ref();
-      LT.tickets.push({ numbers: picks, bet: LT.bet });
-      S.lotto_tickets++;
-      var ov = document.getElementById('lt-overlay');
-      var ovp = document.getElementById('lt-ov-picks');
-      var ovb = document.getElementById('lt-ov-bet');
-      if (ovp) ovp.textContent = picks.join('  \u2022  ');
-      if (ovb) ovb.textContent = 'Puntata: ' + LT.bet + ' BTC (\u20AC' + betFiat.toFixed(2) + ')';
-      if (ov) { ov.classList.add('show'); setTimeout(function() { ov.classList.remove('show'); }, 2400); }
-      LT.picks = []; ltUpdateDisplay(); ltUpdateHeader();
-      toast('\u2705 Ticket salvato (offline)', 'ok', 2000);
+    .catch(function() {
+      S.btc = Math.max(0, S.btc - bb); S.lotto_tickets = (S.lotto_tickets||0)+1; ref();
+      LT.tickets.push({ numbers: picks });
+      var ov=document.getElementById('lt-overlay'), ovp=document.getElementById('lt-ov-picks'), ovb=document.getElementById('lt-ov-bet');
+      if (ovp) ovp.textContent = picks.join('  •  ');
+      if (ovb) ovb.textContent = 'Ticket: €10 (offline)';
+      if (ov)  { ov.classList.add('show'); setTimeout(function(){ov.classList.remove('show');},2400); }
+      LT.picks=[]; ltUpdateDisplay(); ltUpdateHeader();
+      toast('✅ Ticket (offline)','ok',2000);
     })
-    .finally(function() {
-      ltUpdateDisplay(); // re-enables button if picks === 6
-    });
+    .finally(function(){ ltUpdateDisplay(); });
 }
 
-// ── App init — complete with backend connection ──
 function appInit() {
   // Dismiss loading screen
   var ld = document.getElementById('loading');
@@ -3448,6 +3426,11 @@ function initChallenges() {
   fetchChallenges();
 }
 
+
+function ltShowInfo() {
+  var overlay = document.getElementById('lt-info-overlay');
+  if (overlay) overlay.style.display = overlay.style.display==='flex'?'none':'flex';
+}
 </script>
 </body>
 </html>
