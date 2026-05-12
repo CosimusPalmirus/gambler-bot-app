@@ -2067,35 +2067,34 @@ function slSpinReel(idx, result, autoStopMs) {
     }
 
     // Phase 2: ease-out to target
-    function startEase() {
-      cancelAnimationFrame(rafId);
-      if (btn) btn.className = 'sl-stop';
+    // Phase 2: ease-out to target (last cell centered in frame)
+      function startEase() {
+        cancelAnimationFrame(rafId);
+        if (btn) btn.className = 'sl-stop';
 
-      // Ensure we spin forward to target:
-      // Find how many full extra cycles we need so to < curY
-      var to = target;
-      while (to > curY) to -= totalH;
-      // Make sure we have at least one visible spin before landing
-      if (curY - to < totalH * 0.5) to -= totalH;
+        // curY is in (-totalH, 0] after fast-spin wrapping.
+        // target is in (-totalH, 0] = valid single-strip position.
+        // If curY <= target we've already passed it — add one cycle to come back around.
+        var from = curY;
+        while (from <= target) from += totalH;
+        // Now from > target, ease is forward (from → target, going more negative)
 
-      var from = curY;
-      var dur  = 550;
-      var t0   = performance.now();
+        var dur = 600;
+        var t0  = performance.now();
 
-      function easeFrame(now) {
-        var p    = Math.min((now - t0) / dur, 1);
-        var ease = 1 - Math.pow(1-p, 3);
-        var pos  = from + (to - from) * ease;
-        strip.style.transform = 'translateY('+pos+'px)';
-        if (p < 1) { requestAnimationFrame(easeFrame); return; }
-        // Snap exact
-        strip.style.transform = 'translateY('+to+'px)';
-        if (frame) frame.style.border = '1.5px solid rgba(255,215,0,.6)';
-        if (btn) { btn.disabled = true; btn.className = 'sl-stop locked'; btn.textContent = '\u2714'; }
-        resolve();
+        function easeFrame(now) {
+          var p    = Math.min((now - t0) / dur, 1);
+          var ease = 1 - Math.pow(1-p, 3);
+          var pos  = from + (target - from) * ease;
+          strip.style.transform = 'translateY('+pos+'px)';
+          if (p < 1) { requestAnimationFrame(easeFrame); return; }
+          strip.style.transform = 'translateY('+target+'px)';
+          if (frame) frame.style.border = '1.5px solid rgba(255,215,0,.6)';
+          if (btn) { btn.disabled = true; btn.className = 'sl-stop locked'; btn.textContent = '\u2714'; }
+          resolve();
+        }
+        requestAnimationFrame(easeFrame);
       }
-      requestAnimationFrame(easeFrame);
-    }
 
     rafId = requestAnimationFrame(fastLoop);
   });
