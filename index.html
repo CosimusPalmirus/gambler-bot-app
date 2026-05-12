@@ -622,6 +622,495 @@ body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradi
 .pf-lb-pval{font-family:'Orbitron';font-size:10px;color:var(--gold)}
 .pf-lb-row.is-me{border-color:rgba(57,255,20,.3);background:rgba(57,255,20,.04)}
 
+
+/* ═══════════════════════════════════════════════
+   BLACKJACK PREMIUM REDESIGN
+   ═══════════════════════════════════════════════ */
+#bj {
+  background: #020d06;
+  overflow: hidden;
+}
+#bj-canvas {
+  position: absolute; inset: 0;
+  pointer-events: none; z-index: 0;
+}
+.bj-body {
+  position: relative; z-index: 1; flex: 1;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+
+/* ── Table ── */
+.bj-table {
+  flex: 1; display: flex; flex-direction: column;
+  padding: 10px 12px; gap: 8px; overflow: hidden;
+}
+
+/* ── Zones ── */
+.bj-zone {
+  display: flex; flex-direction: column; gap: 8px;
+  border-radius: 16px; padding: 10px 12px; flex: 1;
+  position: relative; overflow: hidden;
+  transition: box-shadow .4s;
+}
+.bj-zone::before {
+  content: ''; position: absolute; inset: 0; border-radius: 16px;
+  background: linear-gradient(135deg, rgba(255,255,255,.025), transparent 60%);
+  pointer-events: none;
+}
+.bj-dealer-zone {
+  background: linear-gradient(145deg, rgba(40,8,8,.9), rgba(25,5,5,.95));
+  border: 1px solid rgba(239,68,68,.18);
+  box-shadow: inset 0 0 30px rgba(0,0,0,.6);
+}
+.bj-dealer-zone.glow {
+  box-shadow: inset 0 0 30px rgba(0,0,0,.6), 0 0 20px rgba(239,68,68,.2);
+  border-color: rgba(239,68,68,.4);
+}
+.bj-player-zone {
+  background: linear-gradient(145deg, rgba(2,30,14,.9), rgba(2,20,10,.95));
+  border: 1px solid rgba(57,255,20,.12);
+  box-shadow: inset 0 0 30px rgba(0,0,0,.6);
+}
+.bj-player-zone.glow {
+  box-shadow: inset 0 0 30px rgba(0,0,0,.6), 0 0 20px rgba(57,255,20,.2);
+  border-color: rgba(57,255,20,.4);
+}
+
+/* ── Zone labels ── */
+.bj-zone-label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 9px; color: #4b5563; letter-spacing: 2px;
+  text-transform: uppercase; font-family: 'Russo One';
+}
+.bj-zone-label .bj-zone-icon { font-size: 14px; }
+
+/* ── Score badge ── */
+.bj-score {
+  margin-left: auto;
+  font-family: 'Orbitron'; font-size: 13px; font-weight: 900;
+  padding: 2px 12px; border-radius: 20px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.1);
+  color: var(--wh); min-width: 36px; text-align: center;
+  transition: all .3s;
+}
+.bj-score.bust {
+  background: rgba(239,68,68,.2); border-color: rgba(239,68,68,.5);
+  color: var(--rd); animation: scorePulse .5s ease;
+}
+.bj-score.great {
+  background: rgba(255,215,0,.2); border-color: rgba(255,215,0,.5);
+  color: var(--gold);
+}
+.bj-score.good {
+  background: rgba(57,255,20,.1); border-color: rgba(57,255,20,.3);
+  color: var(--gn);
+}
+@keyframes scorePulse { 0%{transform:scale(1)} 40%{transform:scale(1.2)} 100%{transform:scale(1)} }
+
+/* ── Cards area ── */
+.bj-cards {
+  display: flex; gap: 6px; align-items: center;
+  min-height: 78px; overflow-x: auto; scrollbar-width: none; padding: 2px 0;
+  flex-wrap: wrap;
+}
+.bj-cards::-webkit-scrollbar { display: none; }
+
+/* ── Premium cards ── */
+.bj-card {
+  width: 52px; height: 74px; border-radius: 9px; flex-shrink: 0;
+  display: flex; flex-direction: column; justify-content: space-between;
+  padding: 4px 5px;
+  background: linear-gradient(145deg, #fffef8, #f0ede0);
+  border: 1px solid rgba(0,0,0,.15);
+  box-shadow: 0 4px 14px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.8);
+  animation: bjDeal .28s cubic-bezier(.34,1.3,.64,1);
+  position: relative; overflow: hidden;
+}
+.bj-card::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,.4) 0%, transparent 50%);
+  pointer-events: none; border-radius: 8px;
+}
+@keyframes bjDeal { from{opacity:0;transform:translateY(-28px) rotate(-8deg)} to{opacity:1;transform:none} }
+.bj-card.red { color: #c0392b; }
+.bj-card.black { color: #1a1a1a; }
+.bj-card.face-down {
+  background: linear-gradient(145deg, #1a3a5c, #0d1f35);
+  border: 1.5px solid rgba(56,189,248,.4);
+  box-shadow: 0 4px 14px rgba(0,0,0,.8);
+}
+.bj-card.face-down::after { display: none; }
+.bj-card-back-pattern {
+  width: 100%; height: 100%; border-radius: 5px;
+  background: repeating-linear-gradient(45deg, rgba(56,189,248,.15) 0px, rgba(56,189,248,.15) 2px, transparent 2px, transparent 8px),
+              repeating-linear-gradient(-45deg, rgba(56,189,248,.1) 0px, rgba(56,189,248,.1) 2px, transparent 2px, transparent 8px);
+  border: 1px solid rgba(56,189,248,.15);
+}
+.bj-card.flip { animation: bjFlip .45s ease; }
+@keyframes bjFlip { 0%{transform:rotateY(90deg) scale(.8)} 100%{transform:none} }
+.bj-card-rank { font-size: 11px; font-weight: 900; line-height: 1; }
+.bj-card-suit { font-size: 19px; line-height: 1; align-self: center; display: block; }
+.bj-card-rank-b { font-size: 11px; font-weight: 900; align-self: flex-end; transform: rotate(180deg); }
+
+/* ── Center status ── */
+.bj-mid {
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; min-height: 28px; position: relative;
+}
+.bj-status {
+  font-size: 11px; color: #6b7280; text-align: center;
+  font-family: 'Exo 2'; letter-spacing: .5px;
+}
+
+/* ── Result overlay ── */
+.bj-result-overlay {
+  position: absolute; inset: 0; z-index: 30;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  backdrop-filter: blur(8px);
+  opacity: 0; pointer-events: none; transition: opacity .3s;
+  background: rgba(2,8,4,.85);
+}
+.bj-result-overlay.show { opacity: 1; pointer-events: all; }
+.bj-result-emoji { font-size: 54px; animation: rEmoji .5s cubic-bezier(.34,1.56,.64,1); }
+@keyframes rEmoji { from{transform:scale(0) rotate(-30deg)} to{transform:scale(1)} }
+.bj-result-txt {
+  font-family: 'Russo One'; font-size: 20px; letter-spacing: 2px;
+  margin: 8px 0 4px; text-align: center;
+  animation: rTxt .4s cubic-bezier(.34,1.3,.64,1) .1s both;
+}
+@keyframes rTxt { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:none} }
+.bj-result-sub {
+  font-family: 'Orbitron'; font-size: 14px; font-weight: 700;
+  animation: rTxt .4s ease .2s both;
+}
+.bj-result-overlay.win  .bj-result-txt { color: var(--gn); }
+.bj-result-overlay.lose .bj-result-txt { color: var(--rd); }
+.bj-result-overlay.push .bj-result-txt { color: var(--gold); }
+.bj-result-overlay.win  .bj-result-sub { color: var(--gn); }
+.bj-result-overlay.lose .bj-result-sub { color: var(--rd); }
+.bj-result-overlay.push .bj-result-sub { color: var(--gold); }
+
+/* ── Action bar ── */
+.bj-actions {
+  display: flex; gap: 7px; padding: 0 12px 6px; flex-shrink: 0;
+}
+.bj-btn {
+  flex: 1; padding: 14px 6px; border: none; border-radius: 13px;
+  font-family: 'Russo One'; font-size: 13px; cursor: pointer;
+  transition: all .15s; letter-spacing: .5px;
+}
+.bj-btn:active { transform: scale(.96); filter: brightness(.85); }
+.bj-btn:disabled { opacity: .3; pointer-events: none; }
+.bj-btn-hit {
+  background: linear-gradient(135deg, var(--gn), #16a34a);
+  color: var(--bk);
+  box-shadow: 0 4px 16px rgba(57,255,20,.25);
+}
+.bj-btn-stand {
+  background: rgba(239,68,68,.12); color: var(--rd);
+  border: 1.5px solid rgba(239,68,68,.35);
+}
+.bj-btn-double {
+  background: linear-gradient(135deg, var(--gold), #d97706);
+  color: var(--bk);
+  box-shadow: 0 4px 12px rgba(255,215,0,.2);
+}
+.bj-btn-split {
+  background: rgba(139,92,246,.12); color: var(--pu);
+  border: 1.5px solid rgba(139,92,246,.35);
+}
+
+/* ── Bet bar ── */
+.bj-bet-bar {
+  padding: 8px 12px 10px; border-top: 1px solid rgba(57,255,20,.08);
+  background: rgba(0,0,0,.4); flex-shrink: 0;
+}
+.bj-deal-row {
+  display: flex; align-items: center; justify-content: space-between; margin-top: 8px;
+}
+.bj-deal-btn {
+  padding: 12px 26px; border-radius: 13px; border: none; cursor: pointer;
+  font-family: 'Russo One'; font-size: 14px; letter-spacing: 1px;
+  background: linear-gradient(135deg, var(--gn), #16a34a);
+  color: var(--bk); font-weight: 900;
+  box-shadow: 0 4px 18px rgba(57,255,20,.3);
+  transition: all .15s;
+  animation: dealIdle 3s ease-in-out infinite;
+}
+@keyframes dealIdle { 0%,100%{box-shadow:0 4px 18px rgba(57,255,20,.3)} 50%{box-shadow:0 4px 28px rgba(57,255,20,.6)} }
+.bj-deal-btn:active { transform: scale(.96); }
+.bj-deal-btn:disabled { opacity: .4; animation: none; }
+
+/* split indicator */
+.bj-split-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 8px; border-radius: 12px;
+  background: rgba(139,92,246,.15); border: 1px solid rgba(139,92,246,.4);
+  font-size: 9px; color: var(--pu); font-family: 'Russo One';
+  animation: rpop .3s ease;
+}
+
+/* ═══════════════════════════════════════════════
+   POKER PREMIUM REDESIGN
+   ═══════════════════════════════════════════════ */
+#pk { background: #02060f; overflow: hidden; }
+#pk-canvas { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+.pk-body { position: relative; z-index: 1; flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Table */
+.pk-table {
+  flex: 1; display: flex; flex-direction: column; padding: 10px 12px; gap: 8px; overflow: hidden;
+}
+.pk-zone {
+  border-radius: 16px; padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 8px; flex: 1;
+  position: relative; overflow: hidden;
+  transition: box-shadow .4s;
+}
+.pk-zone::before { content: ''; position: absolute; inset: 0; border-radius: 16px; background: linear-gradient(135deg, rgba(255,255,255,.025), transparent 60%); pointer-events: none; }
+.pk-dealer-zone {
+  background: linear-gradient(145deg, rgba(30,5,5,.9), rgba(20,3,3,.95));
+  border: 1px solid rgba(239,68,68,.15);
+}
+.pk-dealer-zone.active { border-color: rgba(239,68,68,.4); box-shadow: 0 0 20px rgba(239,68,68,.12); }
+.pk-player-zone {
+  background: linear-gradient(145deg, rgba(2,12,30,.9), rgba(1,8,20,.95));
+  border: 1px solid rgba(56,189,248,.12);
+}
+.pk-player-zone.active { border-color: rgba(56,189,248,.4); box-shadow: 0 0 20px rgba(56,189,248,.12); }
+
+.pk-zone-lbl { font-size: 9px; color: #4b5563; letter-spacing: 2px; text-transform: uppercase; font-family: 'Russo One'; display: flex; align-items: center; gap: 8px; }
+.pk-zone-hint { font-size: 8px; color: #1f2937; margin-left: auto; }
+.pk-zone.active .pk-zone-hint { color: rgba(56,189,248,.5); }
+
+/* Cards in arc layout */
+.pk-cards {
+  display: flex; align-items: flex-end; justify-content: center;
+  gap: 4px; min-height: 96px; padding: 4px 0 2px;
+}
+.pk-card {
+  width: calc(18% - 3px); max-width: 60px; min-width: 42px;
+  aspect-ratio: .7; border-radius: 9px; flex-shrink: 0;
+  display: flex; flex-direction: column; justify-content: space-between;
+  padding: 3px 4px;
+  background: linear-gradient(145deg, #fffef8, #f0ede0);
+  border: 1px solid rgba(0,0,0,.15);
+  box-shadow: 0 4px 12px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.8);
+  cursor: pointer; transition: transform .2s, box-shadow .2s;
+  position: relative; overflow: hidden;
+  animation: pkDeal .3s cubic-bezier(.34,1.2,.64,1) both;
+  font-size: clamp(8px, 2.4vw, 12px);
+}
+.pk-card::after { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(255,255,255,.4) 0%, transparent 50%); pointer-events: none; border-radius: 8px; }
+@keyframes pkDeal { from{opacity:0;transform:translateY(-24px) rotate(-6deg)} to{opacity:1} }
+.pk-card.red-c { color: #c0392b; }
+.pk-card.black-c { color: #1a1a1a; }
+.pk-card.face-down { background: linear-gradient(145deg, #0f1f38, #071428); border: 1.5px solid rgba(56,189,248,.35); }
+.pk-card.face-down::after { display: none; }
+.pk-card.held {
+  transform: translateY(-14px) !important;
+  box-shadow: 0 0 20px rgba(57,255,20,.8), 0 8px 24px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.8) !important;
+  border: 1.5px solid rgba(57,255,20,.8) !important;
+  z-index: 2;
+}
+.pk-card.held::before { content: 'HOLD'; position: absolute; top: 3px; left: 50%; transform: translateX(-50%); font-size: 6px; font-family: 'Russo One'; letter-spacing: .5px; color: var(--gn); background: rgba(0,20,5,.7); padding: 1px 4px; border-radius: 4px; z-index: 5; }
+.pk-card-r { font-weight: 900; line-height: 1; font-size: inherit; }
+.pk-card-s { font-size: 1.5em; align-self: center; display: block; line-height: 1; }
+.pk-card-rb { font-weight: 900; align-self: flex-end; transform: rotate(180deg); font-size: inherit; }
+.pk-card.flip { animation: pkFlip .4s ease; }
+@keyframes pkFlip { 0%{transform:rotateY(90deg)} 100%{transform:translateY(0)} }
+
+/* Hand name */
+.pk-hand-name {
+  font-family: 'Orbitron'; font-size: 11px; color: var(--gold);
+  min-height: 18px; font-weight: 700; text-align: center;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.pk-hand-badge {
+  padding: 2px 9px; border-radius: 10px;
+  background: rgba(255,215,0,.1); border: 1px solid rgba(255,215,0,.3);
+  font-size: 10px; color: var(--gold); font-family: 'Orbitron';
+  animation: rpop .35s ease;
+}
+
+/* Result overlay */
+.pk-result-overlay {
+  position: absolute; inset: 0; z-index: 30;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  backdrop-filter: blur(10px); background: rgba(2,6,15,.88);
+  opacity: 0; pointer-events: none; transition: opacity .3s;
+}
+.pk-result-overlay.show { opacity: 1; pointer-events: all; }
+.pk-result-emoji { font-size: 52px; animation: rEmoji .5s cubic-bezier(.34,1.56,.64,1); margin-bottom: 6px; }
+.pk-result-txt { font-family: 'Russo One'; font-size: 18px; letter-spacing: 1.5px; margin-bottom: 4px; text-align: center; animation: rTxt .4s ease .1s both; }
+.pk-result-sub { font-family: 'Orbitron'; font-size: 13px; animation: rTxt .4s ease .2s both; }
+.pk-result-overlay.win .pk-result-txt,.pk-result-overlay.win .pk-result-sub { color: var(--gn); }
+.pk-result-overlay.lose .pk-result-txt,.pk-result-overlay.lose .pk-result-sub { color: var(--rd); }
+.pk-result-overlay.push .pk-result-txt,.pk-result-overlay.push .pk-result-sub { color: var(--gold); }
+
+/* Actions */
+.pk-actions { display: flex; gap: 7px; padding: 0 12px 6px; flex-shrink: 0; }
+.pk-btn { flex: 1; padding: 14px; border: none; border-radius: 13px; font-family: 'Russo One'; font-size: 12px; cursor: pointer; transition: all .15s; letter-spacing: .5px; }
+.pk-btn:active { transform: scale(.96); }
+.pk-btn:disabled { opacity: .3; pointer-events: none; }
+.pk-btn-fold { flex: .6; background: rgba(239,68,68,.1); color: var(--rd); border: 1.5px solid rgba(239,68,68,.3); }
+.pk-btn-draw { background: linear-gradient(135deg, var(--bl), #0284c7); color: #fff; box-shadow: 0 4px 16px rgba(56,189,248,.2); }
+.pk-bet-bar { padding: 8px 12px 12px; border-top: 1px solid rgba(56,189,248,.08); background: rgba(0,0,0,.4); flex-shrink: 0; }
+.pk-deal-btn { padding: 12px 24px; border-radius: 13px; border: none; cursor: pointer; font-family: 'Russo One'; font-size: 14px; background: linear-gradient(135deg, var(--bl), #0284c7); color: #fff; box-shadow: 0 4px 16px rgba(56,189,248,.25); transition: all .15s; }
+.pk-deal-btn:active { transform: scale(.96); }
+
+/* ═══════════════════════════════════════════════
+   ROULETTE PREMIUM REDESIGN
+   ═══════════════════════════════════════════════ */
+#rl { background: #090205; overflow: hidden; }
+#rl-canvas-bg { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+.rl-body { position: relative; z-index: 1; flex: 1; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
+.rl-body::-webkit-scrollbar { width: 2px; }
+.rl-body::-webkit-scrollbar-thumb { background: rgba(239,68,68,.3); }
+
+/* ── Wheel section ── */
+.rl-wheel-section {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px 8px; flex-shrink: 0;
+}
+.rl-wheel-wrap { position: relative; flex-shrink: 0; }
+.rl-wheel-outer {
+  width: 170px; height: 170px; border-radius: 50%;
+  border: 3px solid rgba(180,30,30,.6);
+  box-shadow: 0 0 30px rgba(200,20,20,.2), inset 0 0 20px rgba(0,0,0,.8);
+  position: relative; overflow: hidden;
+}
+.rl-wheel-pin {
+  position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
+  width: 0; height: 0;
+  border-left: 8px solid transparent; border-right: 8px solid transparent;
+  border-top: 18px solid #ef4444;
+  filter: drop-shadow(0 2px 4px rgba(239,68,68,.6));
+  z-index: 10;
+}
+.rl-wheel-center {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  width: 28px; height: 28px; border-radius: 50%;
+  background: radial-gradient(circle, #2a1a1a, #0a0505);
+  border: 2px solid rgba(180,30,30,.6); z-index: 5;
+  box-shadow: 0 0 8px rgba(0,0,0,.8);
+}
+/* Result panel */
+.rl-result-panel {
+  flex: 1; display: flex; flex-direction: column; gap: 8px;
+}
+.rl-last-number {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  background: rgba(10,3,8,.9); border: 1px solid rgba(239,68,68,.15);
+  border-radius: 12px;
+}
+.rl-last-ball {
+  width: 42px; height: 42px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Orbitron'; font-size: 14px; font-weight: 900;
+  border: 2px solid rgba(180,30,30,.5);
+  background: rgba(0,0,0,.8);
+  color: #9ca3af; transition: all .4s;
+  flex-shrink: 0;
+}
+.rl-last-ball.red-n { color: var(--rd); border-color: rgba(239,68,68,.6); background: rgba(239,68,68,.08); }
+.rl-last-ball.black-n { color: var(--wh); border-color: rgba(255,255,255,.2); }
+.rl-last-ball.green-n { color: var(--gn); border-color: rgba(57,255,20,.5); background: rgba(57,255,20,.06); }
+.rl-last-info { flex: 1; }
+.rl-last-label { font-size: 8px; color: #4b5563; letter-spacing: 2px; text-transform: uppercase; font-family: 'Russo One'; margin-bottom: 2px; }
+.rl-last-result { font-family: 'Orbitron'; font-size: 11px; color: #6b7280; }
+.rl-bets-mini {
+  padding: 8px 12px; background: rgba(10,3,8,.9);
+  border: 1px solid rgba(239,68,68,.1); border-radius: 12px; flex: 1;
+}
+.rl-bets-mini-ttl { font-size: 8px; color: #4b5563; letter-spacing: 1px; text-transform: uppercase; font-family: 'Russo One'; margin-bottom:5px; }
+.rl-bet-tags { display: flex; flex-wrap: wrap; gap: 3px; min-height: 24px; }
+.rl-bet-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.25);
+  border-radius: 8px; padding: 3px 8px; font-size: 9px; color: var(--rd);
+  cursor: pointer; animation: rpop .25s ease; font-family: 'Orbitron';
+}
+.rl-bet-tag .rl-x { color: #6b7280; font-weight: 700; margin-left: 2px; font-size: 11px; }
+.rl-no-bets-txt { font-size: 10px; color: #1f2937; font-style: italic; }
+.rl-bet-total { display: flex; justify-content: space-between; margin-top: 5px; font-size: 8px; color: #4b5563; }
+.rl-bet-total-val { font-family: 'Orbitron'; font-size: 10px; color: var(--gold); }
+
+/* ── Bet types grid ── */
+.rl-section-lbl { font-size: 8px; color: #4b5563; letter-spacing: 2px; text-transform: uppercase; font-family: 'Russo One'; padding: 6px 14px 4px; flex-shrink: 0; display: flex; align-items: center; gap: 6px; }
+.rl-section-lbl::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg,rgba(239,68,68,.2),transparent); }
+
+.rl-bet-types {
+  display: grid; grid-template-columns: repeat(3,1fr); gap: 5px;
+  padding: 0 14px; flex-shrink: 0;
+}
+.rl-bet-type {
+  padding: 10px 6px; border-radius: 11px; text-align: center;
+  cursor: pointer; border: 1px solid transparent;
+  font-size: 11px; font-weight: 600; transition: all .15s; position: relative;
+}
+.rl-bet-type:active { transform: scale(.96); }
+.rl-bet-type .rbet-p { font-size: 8px; opacity: .5; margin-top: 2px; }
+.rl-bt-r { background: rgba(239,68,68,.07); color: var(--rd); border-color: rgba(239,68,68,.2); }
+.rl-bt-b { background: rgba(30,30,30,.8); color: var(--wh); border-color: #222; }
+.rl-bt-e { background: rgba(57,255,20,.05); color: var(--gn); border-color: rgba(57,255,20,.15); }
+.rl-bt-o { background: rgba(139,92,246,.07); color: var(--pu); border-color: rgba(139,92,246,.2); }
+.rl-bt-l { background: rgba(14,165,233,.07); color: var(--bl); border-color: rgba(14,165,233,.2); }
+.rl-bt-h { background: rgba(249,115,22,.07); color: var(--or); border-color: rgba(249,115,22,.2); }
+.rl-bt-n { background: rgba(255,215,0,.05); color: var(--gold); border-color: rgba(255,215,0,.18); }
+.rl-bt-sp { background: rgba(14,165,233,.07); color: #67e8f9; border-color: rgba(14,165,233,.25); }
+.rl-bt-co { background: rgba(168,85,247,.07); color: #c084fc; border-color: rgba(168,85,247,.25); }
+.rl-bet-type.sel { filter: brightness(1.7); transform: scale(1.04); border-width: 1.5px; box-shadow: 0 0 10px rgba(239,68,68,.15); }
+
+/* Num pickers */
+.rl-num-pick { display: none; flex-direction: column; gap: 6px; padding: 0 14px; flex-shrink: 0; }
+.rl-num-pick.show { display: flex; }
+.rl-num-pick-lbl { font-size: 9px; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; }
+.rl-ngrid { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; }
+.rl-n { width:100%;aspect-ratio:1;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;cursor:pointer;border:1px solid transparent;font-family:'Orbitron'; transition:all .12s; }
+.rl-n-r{background:rgba(239,68,68,.18);color:var(--rd);border-color:rgba(239,68,68,.3)}.rl-n-b{background:rgba(25,25,25,.8);color:var(--wh);border-color:#222}.rl-n-g{background:rgba(57,255,20,.12);color:var(--gn);border-color:rgba(57,255,20,.25)}
+.rl-n.sel{box-shadow:0 0 10px rgba(255,215,0,.5);transform:scale(1.12);border-color:var(--gold)!important;background:rgba(255,215,0,.15)!important;color:var(--gold)!important}
+
+/* Chip row + actions */
+.rl-action-bar {
+  display: flex; gap: 8px; padding: 8px 14px; flex-shrink: 0;
+  border-top: 1px solid rgba(239,68,68,.08); align-items: center;
+  background: rgba(0,0,0,.3);
+}
+.rl-chip-row { display: flex; gap: 4px; flex: 1; overflow-x: auto; scrollbar-width: none; }
+.rl-chip-row::-webkit-scrollbar { display: none; }
+.rl-chip {
+  flex-shrink: 0; padding: 5px 11px; border-radius: 14px;
+  font-size: 11px; font-weight: 700; cursor: pointer;
+  border: 1.5px solid rgba(239,68,68,.2); background: rgba(10,3,8,.9);
+  color: #4b5563; font-family: 'Orbitron'; transition: all .15s;
+}
+.rl-chip.sel { background: var(--rd); color: #fff; border-color: var(--rd); box-shadow: 0 0 10px rgba(239,68,68,.4); }
+.rl-add-btn { flex-shrink: 0; padding: 8px 14px; border-radius: 10px; border: none; cursor: pointer; background: rgba(239,68,68,.15); color: var(--rd); border: 1px solid rgba(239,68,68,.3); font-size: 12px; transition: all .15s; }
+.rl-add-btn:active { transform: scale(.96); }
+
+/* Spin row */
+.rl-spin-row { display: flex; gap: 8px; padding: 0 14px 10px; flex-shrink: 0; }
+.rl-clear-btn { padding: 12px 16px; border-radius: 12px; border: none; cursor: pointer; background: rgba(239,68,68,.06); border: 1px solid rgba(239,68,68,.15); color: var(--rd); font-family: 'Russo One'; font-size: 12px; transition: all .15s; }
+.rl-clear-btn:active { transform: scale(.96); }
+.rl-spin-btn {
+  flex: 1; padding: 14px; border-radius: 12px; border: none; cursor: pointer;
+  font-family: 'Russo One'; font-size: 15px; letter-spacing: 2px;
+  background: linear-gradient(135deg, #c0392b, #ef4444, #c0392b);
+  color: #fff; font-weight: 900;
+  box-shadow: 0 4px 20px rgba(239,68,68,.4);
+  transition: all .15s;
+  animation: rlIdle 3s ease-in-out infinite;
+}
+@keyframes rlIdle { 0%,100%{box-shadow:0 4px 20px rgba(239,68,68,.4)} 50%{box-shadow:0 4px 30px rgba(239,68,68,.7),0 0 40px rgba(239,68,68,.15)} }
+.rl-spin-btn:active { transform: scale(.97); }
+.rl-spin-btn:disabled { opacity: .5; animation: none; }
+
+/* Result box */
+.rl-result-box { margin: 0 14px 10px; padding: 12px 14px; border-radius: 13px; text-align: center; font-family: 'Russo One'; font-size: 15px; animation: rpop .4s cubic-bezier(.34,1.56,.64,1); }
+
 </style>
 <body>
 <div id="loading">
@@ -682,35 +1171,60 @@ body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradi
 
 <!-- BLACKJACK -->
 <div id="bj" class="screen">
-  <div class="bj-header">
+  <canvas id="bj-canvas"></canvas>
+  <div class="ghdr" style="background:rgba(2,10,5,.96);border-bottom:1px solid rgba(57,255,20,.12);backdrop-filter:blur(12px)">
     <div class="back" onclick="home()">&#8592;</div>
-    <div class="bj-title">BLACKJACK</div>
+    <div style="font-family:'Russo One';font-size:14px;flex:1;background:linear-gradient(135deg,var(--gn),#16a34a);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:1px">BLACKJACK</div>
     <div class="game-timer" id="bj-timer">&#9200; 5:00</div>
-    <div class="bj-bal-pill" id="bj-bal">0.00</div>
+    <div style="font-family:'Orbitron';font-size:12px;color:var(--gn);font-weight:700" id="bj-bal">0.00</div>
   </div>
-  <div class="bj-table">
-    <div class="bj-zone bj-dealer-zone">
-      <div class="bj-zone-label"><span>&#127974;</span><span>DEALER</span><span class="bj-score-badge" id="d-sc"></span></div>
-      <div class="bj-cards-wrap" id="d-c"></div>
+  <div class="bj-body">
+    <div class="bj-table">
+      <!-- Dealer zone -->
+      <div class="bj-zone bj-dealer-zone" id="bj-dzone">
+        <div class="bj-zone-label">
+          <span class="bj-zone-icon">&#127974;</span>
+          <span>DEALER</span>
+          <div class="bj-score" id="d-sc"></div>
+        </div>
+        <div class="bj-cards" id="d-c"></div>
+      </div>
+      <!-- Middle -->
+      <div class="bj-mid">
+        <div id="bj-status" class="bj-status">Place your bet and deal</div>
+        <div id="bj-split-ind" style="display:none"></div>
+      </div>
+      <!-- Player zone -->
+      <div class="bj-zone bj-player-zone" id="bj-pzone">
+        <div class="bj-zone-label">
+          <span class="bj-zone-icon">&#127919;</span>
+          <span>YOU</span>
+          <div class="bj-score" id="p-sc"></div>
+        </div>
+        <div class="bj-cards" id="p-c"></div>
+      </div>
     </div>
-    <div class="bj-center">
-      <div id="bj-res" class="bj-result-center" style="display:none"></div>
-      <div id="bj-status" class="bj-status-txt">Place your bet and deal!</div>
+    <!-- Result overlay (covers bj-table) -->
+    <div class="bj-result-overlay" id="bj-overlay">
+      <div class="bj-result-emoji" id="bj-ov-emoji"></div>
+      <div class="bj-result-txt" id="bj-ov-txt"></div>
+      <div class="bj-result-sub" id="bj-ov-sub"></div>
     </div>
-    <div class="bj-zone bj-player-zone">
-      <div class="bj-zone-label"><span>&#127919;</span><span>YOU</span><span class="bj-score-badge" id="p-sc"></span></div>
-      <div class="bj-cards-wrap" id="p-c"></div>
+    <!-- Actions -->
+    <div class="bj-actions" id="bj-acts" style="display:none">
+      <button class="bj-btn bj-btn-hit" onclick="bjHit()" id="btn-hit">HIT</button>
+      <button class="bj-btn bj-btn-stand" onclick="bjStand()">STAND</button>
+      <button class="bj-btn bj-btn-double" onclick="bjDbl()" id="btn-dbl">DOUBLE</button>
+      <button class="bj-btn bj-btn-split" onclick="bjSplit()" id="btn-split" style="display:none">SPLIT</button>
     </div>
-  </div>
-  <div class="bj-actions" id="bj-acts" style="display:none">
-    <button class="bj-btn bj-btn-hit" onclick="bjHit()" id="btn-hit">HIT</button>
-    <button class="bj-btn bj-btn-stand" onclick="bjStand()">STAND</button>
-    <button class="bj-btn bj-btn-double" onclick="bjDbl()" id="btn-dbl">DOUBLE</button>
-    <button class="bj-btn" onclick="bjSplit()" id="btn-split" style="display:none;background:rgba(139,92,246,.2);border:1.5px solid var(--pu);color:var(--pu)">SPLIT</button>
-  </div>
-  <div class="bj-bet-bar">
-    <div class="chips" id="bj-ch"></div>
-    <div class="bj-deal-row"><span class="bet-cur" id="bj-bl">Bet: 1.00</span><button class="btn btn-g" style="padding:9px 22px;font-size:13px" onclick="bjDeal()" id="btn-deal">DEAL</button></div>
+    <!-- Bet bar -->
+    <div class="bj-bet-bar">
+      <div class="chips" id="bj-ch"></div>
+      <div class="bj-deal-row">
+        <span class="bet-cur" id="bj-bl">Bet: 1.00</span>
+        <button class="bj-deal-btn" onclick="bjDeal()" id="btn-deal">DEAL &#9654;</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -752,31 +1266,81 @@ body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradi
 
 <!-- ROULETTE -->
 <div id="rl" class="screen">
-  <div class="ghdr"><div class="back" onclick="home()">&#8592;</div><div class="gtitle" style="color:var(--rd)">ROULETTE</div><div class="gbal" id="rl-bal">0.00</div></div>
-  <div class="scroll">
-    <div style="display:flex;align-items:center;gap:10px;padding:8px 14px">
-      <div class="rl-wh"><div class="w-out"><div class="w-ptr"></div><canvas id="rl-cv" width="166" height="166" style="border-radius:50%"></canvas><div class="w-ctr"></div></div><div style="display:flex;align-items:center;gap:8px"><div class="rl-ball" id="rl-ball">?</div><span style="font-size:11px;color:var(--gr)" id="rl-txt">Spin to play</span></div></div>
-      <div style="flex:1"><div class="rl-bets-summary"><div class="rl-bets-ttl">Bets <span id="rl-bet-count">(0)</span></div><div id="rl-bets-tags"><span class="rl-no-bets">No bets yet</span></div><div class="rl-total-row"><span class="rl-total-lbl">Total:</span><span class="rl-total-val" id="rl-total">0.00</span></div></div></div>
+  <canvas id="rl-canvas-bg"></canvas>
+  <div class="ghdr" style="background:rgba(9,2,5,.96);border-bottom:1px solid rgba(239,68,68,.15);backdrop-filter:blur(12px)">
+    <div class="back" onclick="home()">&#8592;</div>
+    <div style="font-family:'Russo One';font-size:14px;flex:1;background:linear-gradient(135deg,var(--rd),#b91c1c);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:1px">ROULETTE</div>
+    <div style="font-family:'Orbitron';font-size:12px;color:var(--rd);font-weight:700" id="rl-bal">0.00</div>
+  </div>
+  <div class="rl-body">
+    <!-- Wheel + result -->
+    <div class="rl-wheel-section">
+      <div class="rl-wheel-wrap">
+        <div class="rl-wheel-outer">
+          <div class="rl-wheel-pin"></div>
+          <canvas id="rl-cv" width="170" height="170"></canvas>
+          <div class="rl-wheel-center"></div>
+        </div>
+      </div>
+      <div class="rl-result-panel">
+        <div class="rl-last-number">
+          <div class="rl-last-ball" id="rl-ball">?</div>
+          <div class="rl-last-info">
+            <div class="rl-last-label">Last number</div>
+            <div class="rl-last-result" id="rl-txt">Spin to play</div>
+          </div>
+        </div>
+        <div class="rl-bets-mini">
+          <div class="rl-bets-mini-ttl">Active bets <span id="rl-bet-count">(0)</span></div>
+          <div class="rl-bet-tags" id="rl-bets-tags"><span class="rl-no-bets-txt">No bets yet</span></div>
+          <div class="rl-bet-total"><span>Total:</span><span class="rl-bet-total-val" id="rl-total">0.00</span></div>
+        </div>
+      </div>
     </div>
-    <div style="padding:6px 14px 4px;font-size:9px;color:var(--gr);letter-spacing:1px;text-transform:uppercase">Select Bet Type</div>
+    <!-- Bet type selector -->
+    <div class="rl-section-lbl">Select bet type</div>
     <div class="rl-bet-types">
-      <div class="rbet rb-r" data-bt="red" onclick="rlSelType('red')">Red<div class="rbet-p">x2</div></div>
-      <div class="rbet rb-b" data-bt="black" onclick="rlSelType('black')">Black<div class="rbet-p">x2</div></div>
-      <div class="rbet rb-e" data-bt="even" onclick="rlSelType('even')">Even<div class="rbet-p">x2</div></div>
-      <div class="rbet rb-o" data-bt="odd" onclick="rlSelType('odd')">Odd<div class="rbet-p">x2</div></div>
-      <div class="rbet rb-l" data-bt="low" onclick="rlSelType('low')">1-18<div class="rbet-p">x2</div></div>
-      <div class="rbet rb-h" data-bt="high" onclick="rlSelType('high')">19-36<div class="rbet-p">x2</div></div>
-      <div class="rbet rb-n" data-bt="number" onclick="rlSelType('number')">Number<div class="rbet-p">x36</div></div>
-      <div class="rbet rb-sp" data-bt="split" onclick="rlSelType('split')">Split<div class="rbet-p">x18</div></div>
-      <div class="rbet rb-co" data-bt="corner" onclick="rlSelType('corner')">Corner<div class="rbet-p">x9</div></div>
+      <div class="rl-bet-type rl-bt-r" data-bt="red"    onclick="rlSelType('red')">Red<div class="rbet-p">x2</div></div>
+      <div class="rl-bet-type rl-bt-b" data-bt="black"  onclick="rlSelType('black')">Black<div class="rbet-p">x2</div></div>
+      <div class="rl-bet-type rl-bt-e" data-bt="even"   onclick="rlSelType('even')">Even<div class="rbet-p">x2</div></div>
+      <div class="rl-bet-type rl-bt-o" data-bt="odd"    onclick="rlSelType('odd')">Odd<div class="rbet-p">x2</div></div>
+      <div class="rl-bet-type rl-bt-l" data-bt="low"    onclick="rlSelType('low')">1-18<div class="rbet-p">x2</div></div>
+      <div class="rl-bet-type rl-bt-h" data-bt="high"   onclick="rlSelType('high')">19-36<div class="rbet-p">x2</div></div>
+      <div class="rl-bet-type rl-bt-n" data-bt="number" onclick="rlSelType('number')">Number<div class="rbet-p">x36</div></div>
+      <div class="rl-bet-type rl-bt-sp" data-bt="split" onclick="rlSelType('split')">Split<div class="rbet-p">x18</div></div>
+      <div class="rl-bet-type rl-bt-co" data-bt="corner" onclick="rlSelType('corner')">Corner<div class="rbet-p">x9</div></div>
     </div>
-    <div class="rl-num-picker" id="rl-num-picker"><div style="font-size:9px;color:var(--gr);text-transform:uppercase">Pick a number</div><div class="rl-num-grid" id="rl-num-grid"></div></div>
-    <div id="rl-num-confirm" style="display:none;padding:0 14px;font-size:11px;color:var(--wh)">Number: <b id="rl-sel-num" style="color:var(--gold);font-family:Orbitron">-</b></div>
-    <div class="rl-num-picker" id="rl-split-picker"><div style="font-size:9px;color:var(--gr);text-transform:uppercase">Split - pick 1st number</div><div class="rl-num-grid" id="rl-split-grid1"></div><div id="rl-split-step2" style="display:none"><div style="font-size:9px;color:var(--gr);text-transform:uppercase;margin-top:6px">Adjacent to <b id="rl-split-n1-lbl" style="color:var(--gold)">-</b></div><div class="rl-num-grid" id="rl-split-grid2"></div></div></div>
-    <div class="rl-num-picker" id="rl-corner-picker"><div style="font-size:9px;color:var(--gr);text-transform:uppercase">Corner - pick top-left number</div><div class="rl-num-grid" id="rl-corner-grid"></div><div id="rl-corner-preview" style="display:none;margin-top:6px;font-size:10px;color:#c084fc">Corner: <b id="rl-corner-nums" style="font-family:Orbitron"></b></div></div>
-    <div class="rl-action-row"><div class="rl-bet-quick" id="rl-qchips"></div><button class="btn" style="flex-shrink:0;padding:8px 12px;font-size:11px;background:rgba(139,92,246,.15);color:var(--pu);border:1px solid rgba(139,92,246,.3)" onclick="rlAddBet()">+ Add</button></div>
-    <div style="display:flex;gap:8px;padding:0 14px 10px"><button class="btn btn-s" style="flex:0;padding:10px 14px;font-size:12px" onclick="rlClear()">Clear</button><button class="btn btn-r" id="btn-spin-rl" onclick="spinRl()" style="flex:1;padding:10px;font-size:14px;font-family:'Russo One'">SPIN!</button></div>
-    <div id="rl-res" style="display:none;margin:0 14px 14px"></div>
+    <!-- Number pickers (shown when needed) -->
+    <div class="rl-num-pick" id="rl-num-picker">
+      <div class="rl-num-pick-lbl">Pick a number</div>
+      <div class="rl-ngrid" id="rl-num-grid"></div>
+      <div id="rl-num-confirm" style="display:none;font-size:11px;color:var(--wh);margin-top:4px">Selected: <b id="rl-sel-num" style="color:var(--gold);font-family:Orbitron"></b></div>
+    </div>
+    <div class="rl-num-pick" id="rl-split-picker">
+      <div class="rl-num-pick-lbl">Split &#8212; pick 1st number</div>
+      <div class="rl-ngrid" id="rl-split-grid1"></div>
+      <div id="rl-split-step2" style="display:none">
+        <div class="rl-num-pick-lbl" style="margin-top:6px">Adjacent to <b id="rl-split-n1-lbl" style="color:var(--gold)"></b></div>
+        <div class="rl-ngrid" id="rl-split-grid2"></div>
+      </div>
+    </div>
+    <div class="rl-num-pick" id="rl-corner-picker">
+      <div class="rl-num-pick-lbl">Corner &#8212; pick top-left number</div>
+      <div class="rl-ngrid" id="rl-corner-grid"></div>
+      <div id="rl-corner-preview" style="display:none;margin-top:5px;font-size:10px;color:#c084fc">Corner: <b id="rl-corner-nums" style="font-family:Orbitron"></b></div>
+    </div>
+    <!-- Chip row + add -->
+    <div class="rl-action-bar">
+      <div class="rl-chip-row" id="rl-qchips"></div>
+      <button class="rl-add-btn" onclick="rlAddBet()">+ Add</button>
+    </div>
+    <!-- Spin row -->
+    <div class="rl-spin-row">
+      <button class="rl-clear-btn" onclick="rlClear()">Clear</button>
+      <button class="rl-spin-btn" id="btn-spin-rl" onclick="spinRl()">&#9654; SPIN</button>
+    </div>
+    <!-- Result -->
+    <div id="rl-res" style="display:none;margin:0 14px 10px"></div>
   </div>
 </div>
 
@@ -796,24 +1360,47 @@ body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradi
 
 <!-- POKER -->
 <div id="pk" class="screen">
-  <div class="ghdr">
+  <canvas id="pk-canvas"></canvas>
+  <div class="ghdr" style="background:rgba(2,5,15,.96);border-bottom:1px solid rgba(56,189,248,.12);backdrop-filter:blur(12px)">
     <div class="back" onclick="home()">&#8592;</div>
-    <div class="gtitle" style="color:var(--bl)">POKER</div>
+    <div style="font-family:'Russo One';font-size:14px;flex:1;background:linear-gradient(135deg,var(--bl),#0ea5e9);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:1px">POKER</div>
     <div class="game-timer" id="pk-timer">&#9200; 5:00</div>
-    <div class="gbal" id="pk-bal">0.00</div>
+    <div style="font-family:'Orbitron';font-size:12px;color:var(--bl);font-weight:700" id="pk-bal">0.00</div>
   </div>
-  <div class="pk-table">
-    <div class="pk-zone pk-dealer-zone"><div class="pk-zone-lbl">&#129302; DEALER</div><div class="pk-cards" id="pk-dc"></div><div class="pk-hand-name" id="pk-dn"></div></div>
-    <div id="pk-res" class="pk-result-area" style="display:none"></div>
-    <div class="pk-zone pk-player-zone"><div class="pk-zone-lbl">&#127919; YOUR HAND <span style="font-size:9px;color:var(--gr)">(tap to hold)</span></div><div class="pk-cards" id="pk-pc"></div><div class="pk-hand-name" id="pk-pn"></div></div>
-  </div>
-  <div class="pk-actions" id="pk-acts" style="display:none">
-    <button class="btn btn-r" onclick="pkFold()" style="flex:0.6;padding:12px">&#10006; Fold</button>
-    <button class="btn btn-g" onclick="pkDraw()" id="btn-pkd" style="flex:1;padding:12px;font-size:13px">&#9654; Draw &amp; Reveal</button>
-  </div>
-  <div class="pk-bet-bar">
-    <div class="chips" id="pk-ch"></div>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px"><span class="bet-cur" id="pk-bl">Bet: 1.00</span><button class="btn btn-gold" onclick="pkDeal()" id="btn-pkdl" style="padding:10px 22px;font-size:13px">&#9654; DEAL</button></div>
+  <div class="pk-body">
+    <div class="pk-table">
+      <!-- Dealer zone -->
+      <div class="pk-zone pk-dealer-zone" id="pk-dzone">
+        <div class="pk-zone-lbl"><span>&#129302;</span> DEALER</div>
+        <div class="pk-cards" id="pk-dc"></div>
+        <div class="pk-hand-name"><div class="pk-hand-badge" id="pk-dn" style="display:none"></div></div>
+      </div>
+      <!-- Player zone -->
+      <div class="pk-zone pk-player-zone" id="pk-pzone">
+        <div class="pk-zone-lbl"><span>&#127919;</span> YOUR HAND <span class="pk-zone-hint">tap card to hold</span></div>
+        <div class="pk-cards" id="pk-pc"></div>
+        <div class="pk-hand-name"><div class="pk-hand-badge" id="pk-pn" style="display:none"></div></div>
+      </div>
+    </div>
+    <!-- Result overlay -->
+    <div class="pk-result-overlay" id="pk-overlay">
+      <div class="pk-result-emoji" id="pk-ov-emoji"></div>
+      <div class="pk-result-txt" id="pk-ov-txt"></div>
+      <div class="pk-result-sub" id="pk-ov-sub"></div>
+    </div>
+    <!-- Actions -->
+    <div class="pk-actions" id="pk-acts" style="display:none">
+      <button class="pk-btn pk-btn-fold" onclick="pkFold()">&#10006; Fold</button>
+      <button class="pk-btn pk-btn-draw" onclick="pkDraw()" id="btn-pkd">&#9654; Draw &amp; Reveal</button>
+    </div>
+    <!-- Bet bar -->
+    <div class="pk-bet-bar">
+      <div class="chips" id="pk-ch"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
+        <span class="bet-cur" id="pk-bl">Bet: 1.00</span>
+        <button class="pk-deal-btn" onclick="pkDeal()" id="btn-pkdl">&#9654; DEAL</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1098,100 +1685,182 @@ function startTimer(id,sec,onEnd){
 function stopTimer(id){if(_tmr[id]){clearTimeout(_tmr[id]);_tmr[id]=null;}var el=document.getElementById(id);if(el)el.classList.remove('active','urgent');}
 
 /* ── BLACKJACK ── */
+/* ── BLACKJACK ── */
 var BJ=null;
+
+function bjDrawBg(){
+  var c=document.getElementById('bj-canvas');if(!c)return;
+  c.width=window.innerWidth||380;c.height=window.innerHeight||700;
+  var ctx=c.getContext('2d'),W=c.width,H=c.height;
+  var g=ctx.createRadialGradient(W/2,H*.6,0,W/2,H*.6,W*.8);
+  g.addColorStop(0,'rgba(2,40,15,.4)');g.addColorStop(1,'rgba(0,0,0,.1)');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  for(var x=0;x<W;x+=22){for(var y=0;y<H;y+=22){ctx.beginPath();ctx.arc(x,y,1,0,Math.PI*2);ctx.fillStyle='rgba(57,255,20,.03)';ctx.fill();}}
+}
+
+function bjMkCard(c,faceDown,extra){
+  faceDown=faceDown||false;extra=extra||'';
+  var el=document.createElement('div');
+  if(faceDown){
+    el.className='bj-card face-down '+extra;
+    var pat=document.createElement('div');pat.className='bj-card-back-pattern';el.appendChild(pat);
+    return el;
+  }
+  var isRed=['\u2665','\u2666'].indexOf(c.s)>=0;
+  el.className='bj-card '+(isRed?'red-c':'black-c')+' '+extra;
+  el.innerHTML='<div class="bj-card-rank">'+c.r+c.s+'</div><div class="bj-card-suit">'+c.s+'</div><div class="bj-card-rank-b">'+c.r+c.s+'</div>';
+  return el;
+}
+
+function bjShowOverlay(cls,emoji,txt,sub){
+  var ov=document.getElementById('bj-overlay');if(!ov)return;
+  ov.className='bj-result-overlay '+cls+' show';
+  var ee=document.getElementById('bj-ov-emoji');if(ee)ee.textContent=emoji;
+  var tt=document.getElementById('bj-ov-txt');if(tt)tt.textContent=txt;
+  var ss=document.getElementById('bj-ov-sub');if(ss)ss.textContent=sub;
+}
+function bjHideOverlay(){var ov=document.getElementById('bj-overlay');if(ov)ov.classList.remove('show');}
+
+function bjUpdScore(id,val){
+  var el=document.getElementById(id);if(!el)return;
+  if(!val&&val!==0){el.textContent='';el.className='bj-score';return;}
+  el.textContent=val;
+  if(val>21)el.className='bj-score bust';
+  else if(val>=18)el.className='bj-score great';
+  else if(val>=12)el.className='bj-score good';
+  else el.className='bj-score';
+}
+
 function initBj(){
+  bjDrawBg();bjHideOverlay();
   buildCh('bj-ch','bj',function(v){document.getElementById('bj-bl').textContent='Bet: '+f2(v);});
   document.getElementById('bj-bl').textContent='Bet: '+f2(CB.bj);
   document.getElementById('bj-acts').style.display='none';
   document.getElementById('btn-deal').style.display='block';
-  document.getElementById('bj-res').style.display='none';
   document.getElementById('d-c').innerHTML='';document.getElementById('p-c').innerHTML='';
-  var st=document.getElementById('bj-status');if(st){st.textContent='Place your bet and deal!';st.style.display='block';}
-  ['d-sc','p-sc'].forEach(function(id){var el=document.getElementById(id);if(el){el.textContent='';el.className='bj-score-badge';}});
+  bjUpdScore('d-sc',null);bjUpdScore('p-sc',null);
+  var st=document.getElementById('bj-status');if(st){st.textContent='Place your bet and deal';st.style.display='block';}
+  var dz=document.getElementById('bj-dzone'),pz=document.getElementById('bj-pzone');
+  if(dz)dz.classList.remove('glow');if(pz)pz.classList.remove('glow');
+  var si=document.getElementById('bj-split-ind');if(si)si.style.display='none';
 }
+
 function bjDeal(){
   var bet=CB.bj,bb=f2b(bet);if(bal()<bet){toast('Insufficient balance!','err');return;}
-  S.btc-=bb;S.bet+=bb;ref();
+  S.btc-=bb;S.bet+=bb;ref();bjHideOverlay();
   var d=mkdeck();BJ={deck:d,bet:bb,player:[d.pop(),d.pop()],dealer:[d.pop(),d.pop()]};
-  document.getElementById('bj-acts').style.display='none';document.getElementById('btn-deal').style.display='none';
-  document.getElementById('bj-res').style.display='none';document.getElementById('btn-dbl').disabled=false;
-  var dsc=document.getElementById('d-sc');if(dsc){dsc.textContent='?';dsc.className='bj-score-badge';}
-  var psc=document.getElementById('p-sc');if(psc){psc.textContent='';psc.className='bj-score-badge';}
-  var dc=document.getElementById('d-c');dc.innerHTML='';var pc=document.getElementById('p-c');pc.innerHTML='';
+  document.getElementById('bj-acts').style.display='none';
+  document.getElementById('btn-deal').style.display='none';
+  bjUpdScore('d-sc','?');bjUpdScore('p-sc',null);
   var st=document.getElementById('bj-status');if(st)st.textContent='';
+  var dc=document.getElementById('d-c');dc.innerHTML='';
+  var pc=document.getElementById('p-c');pc.innerHTML='';
+  var pz=document.getElementById('bj-pzone');if(pz)pz.classList.add('glow');
+  var dz=document.getElementById('bj-dzone');if(dz)dz.classList.remove('glow');
   var seq=[
-    function(){pc.appendChild(mkC(BJ.player[0]));},
-    function(){dc.appendChild(mkC(null,true));},
-    function(){pc.appendChild(mkC(BJ.player[1]));},
-    function(){dc.appendChild(mkC(null,true));},
+    function(){pc.appendChild(bjMkCard(BJ.player[0]));},
+    function(){dc.appendChild(bjMkCard(null,true));},
+    function(){pc.appendChild(bjMkCard(BJ.player[1]));},
     function(){
-      var fb=dc.children[0];if(fb){var rv=mkC(BJ.dealer[0],false,'rev');dc.replaceChild(rv,fb);}
-      updBjScore();
-      if(hv(BJ.player)===21){if(st)st.textContent='Blackjack!';setTimeout(bjStand,800);}
+      var rv=bjMkCard(BJ.dealer[0],false,'flip');
+      if(dc.children[0])dc.replaceChild(rv,dc.children[0]);else dc.appendChild(rv);
+      dc.appendChild(bjMkCard(null,true));
+    },
+    function(){
+      bjUpdScore('p-sc',hv(BJ.player));
+      if(hv(BJ.player)===21){var st2=document.getElementById('bj-status');if(st2)st2.textContent='Blackjack!';setTimeout(bjStand,700);}
       else{
         document.getElementById('bj-acts').style.display='flex';
-        if(st)st.textContent='Hit, Stand or Double?';
-        startTimer('bj-timer',300,function(){if(!BJ||BJ.over)return;BJ.over=true;stopTimer('bj-timer');if(st)st.textContent='\u23F0 Time up!';document.getElementById('bj-acts').style.display='none';setTimeout(bjStand,500);});
-        var sp=document.getElementById('btn-split');if(sp)sp.style.display=(BJ.player[0].r===BJ.player[1].r&&bal()>=CB.bj)?'flex':'none';
+        var st2=document.getElementById('bj-status');if(st2)st2.textContent='Hit, Stand or Double?';
+        startTimer('bj-timer',300,function(){if(!BJ||BJ.over)return;BJ.over=true;stopTimer('bj-timer');setTimeout(bjStand,300);});
+        var sp=document.getElementById('btn-split');
+        if(sp)sp.style.display=(BJ.player[0].r===BJ.player[1].r&&bal()>=CB.bj)?'flex':'none';
       }
     }
   ];
   seq.forEach(function(fn,i){setTimeout(fn,i*220);});
 }
-function updBjScore(){
-  var ps=hv(BJ.player),el=document.getElementById('p-sc');
-  el.textContent=ps;el.className='bj-score-badge'+(ps>21?' bust':ps===21?' bj21':'');
-}
+
 function bjHit(){
+  if(!BJ||BJ.over)return;
   startTimer('bj-timer',300,null);
-  var nc=BJ.deck.pop();BJ.player.push(nc);document.getElementById('p-c').appendChild(mkC(nc,false,'rev'));
-  updBjScore();document.getElementById('btn-dbl').disabled=true;
-  if(hv(BJ.player)>21)setTimeout(bjEnd,400,'bust');else if(hv(BJ.player)===21)setTimeout(bjStand,600);
+  var nc=BJ.deck.pop();BJ.player.push(nc);
+  document.getElementById('p-c').appendChild(bjMkCard(nc,false,''));
+  var ps=hv(BJ.player);bjUpdScore('p-sc',ps);
+  document.getElementById('btn-dbl').disabled=true;
+  var sp=document.getElementById('btn-split');if(sp)sp.style.display='none';
+  if(ps>21)setTimeout(bjEnd,350,'bust');else if(ps===21)setTimeout(bjStand,500);
 }
+
 function bjSplit(){
   if(!BJ||BJ.split)return;if(bal()<CB.bj){toast('Not enough!','err');return;}
   S.btc-=f2b(CB.bj);S.bet+=f2b(CB.bj);ref();
   BJ.split={hand:[BJ.player[1],BJ.deck.pop()]};BJ.player=[BJ.player[0],BJ.deck.pop()];
-  var pc=document.getElementById('p-c');pc.innerHTML='';BJ.player.forEach(function(c){pc.appendChild(mkC(c));});
-  updBjScore();var st=document.getElementById('bj-status');if(st)st.textContent='Split! Play hand 1:';
+  var pc=document.getElementById('p-c');pc.innerHTML='';
+  BJ.player.forEach(function(c){pc.appendChild(bjMkCard(c));});
+  bjUpdScore('p-sc',hv(BJ.player));
   var sp=document.getElementById('btn-split');if(sp)sp.style.display='none';
-  toast('Split! Play hand 1.','ok',2000);
-}
-function bjDbl(){
-  if(bal()<CB.bj){toast('Not enough!','err');return;}
-  S.btc-=BJ.bet;S.bet+=BJ.bet;BJ.bet*=2;
-  document.getElementById('bj-acts').style.display='none';
-  var nc=BJ.deck.pop();BJ.player.push(nc);document.getElementById('p-c').appendChild(mkC(nc,false,'rev'));
-  var st=document.getElementById('bj-status');if(st)st.textContent='Double Down!';
-  updBjScore();setTimeout(function(){if(hv(BJ.player)>21)bjEnd('bust');else bjStand();},700);
-}
-function bjStand(){
-  stopTimer('bj-timer');document.getElementById('bj-acts').style.display='none';
-  var st=document.getElementById('bj-status');if(st)st.textContent='Dealer revealing...';
-  var dc=document.getElementById('d-c'),hid=dc.children[1];
-  if(hid&&hid.classList.contains('back')){var rv=mkC(BJ.dealer[1],false,'rev');dc.replaceChild(rv,hid);}
-  function ddraw(){
-    if(hv(BJ.dealer)<17){setTimeout(function(){BJ.dealer.push(BJ.deck.pop());dc.appendChild(mkC(BJ.dealer[BJ.dealer.length-1],false,'rev'));var dv=hv(BJ.dealer),del=document.getElementById('d-sc');if(del){del.textContent=dv;del.className='bj-score-badge'+(dv>21?' bust':'');}ddraw();},600);}
-    else{var dv=hv(BJ.dealer),del=document.getElementById('d-sc');if(del){del.textContent=dv;del.className='bj-score-badge'+(dv>21?' bust':'');}
-      var pv=hv(BJ.player);setTimeout(function(){if(pv>21)bjEnd('bust');else if(dv>21||pv>dv)bjEnd('win');else if(pv===dv)bjEnd('push');else bjEnd('lose');},500);}
-  }
-  setTimeout(function(){var dv2=hv(BJ.dealer),del2=document.getElementById('d-sc');if(del2){del2.textContent=dv2;del2.className='bj-score-badge'+(dv2>21?' bust':'');}ddraw();},500);
-}
-function bjEnd(out){
-  stopTimer('bj-timer');BJ.over=true;
-  var bet=BJ.bet,won=0,msg='',cls='',em='';
-  if(out==='win'){var nat=hv(BJ.player)===21&&BJ.player.length===2;won=bet*(nat?2.5:2);cls='rwin';S.wins++;msg=(nat?'BLACKJACK! +':'YOU WIN! +')+b2f(won-bet);em=nat?'\uD83C\uDCB8':'\uD83C\uDFC6';}
-  else if(out==='bust'){msg='BUST! -'+b2f(bet);cls='rlose';S.losses++;em='\uD83D\uDCA5';}
-  else if(out==='lose'){msg='DEALER WINS -'+b2f(bet);cls='rlose';S.losses++;em='\uD83D\uDE14';}
-  else{won=bet;msg='PUSH \u2014 Refunded';cls='rpush';em='\uD83E\uDD1D';}
-  S.btc+=won;S.won+=won;ref();
-  syncBalance(won-bet,bet,out==='win',out==='bust'||out==='lose','blackjack');
-  var r=document.getElementById('bj-res');r.className='bj-result-center '+cls;r.innerHTML='<div style="font-size:32px;margin-bottom:6px">'+em+'</div>'+msg;r.style.display='block';
-  var st=document.getElementById('bj-status');if(st)st.style.display='none';
-  document.getElementById('bj-acts').style.display='none';document.getElementById('btn-deal').style.display='block';
+  var st=document.getElementById('bj-status');if(st)st.textContent='Split! Play hand 1:';
+  var si=document.getElementById('bj-split-ind');
+  if(si){si.style.display='flex';si.innerHTML='<div class="bj-split-pill">&#9986; SPLIT ACTIVE</div>';}
+  toast('Split active!','ok',1800);
 }
 
-/* ── SLOTS ── */
+function bjDbl(){
+  if(!BJ||BJ.over||bal()<CB.bj){toast('Not enough!','err');return;}
+  S.btc-=BJ.bet;S.bet+=BJ.bet;BJ.bet*=2;
+  document.getElementById('bj-acts').style.display='none';
+  var nc=BJ.deck.pop();BJ.player.push(nc);
+  document.getElementById('p-c').appendChild(bjMkCard(nc,false,''));
+  var st=document.getElementById('bj-status');if(st)st.textContent='Double Down!';
+  bjUpdScore('p-sc',hv(BJ.player));
+  setTimeout(function(){if(hv(BJ.player)>21)bjEnd('bust');else bjStand();},600);
+}
+
+function bjStand(){
+  if(!BJ)return;stopTimer('bj-timer');
+  document.getElementById('bj-acts').style.display='none';
+  var dz=document.getElementById('bj-dzone');if(dz)dz.classList.add('glow');
+  var pz=document.getElementById('bj-pzone');if(pz)pz.classList.remove('glow');
+  var dc=document.getElementById('d-c');
+  var backs=dc.querySelectorAll('.face-down');
+  if(backs.length>0){var rv=bjMkCard(BJ.dealer[1],false,'flip');dc.replaceChild(rv,backs[backs.length-1]);}
+  var st=document.getElementById('bj-status');if(st)st.textContent='Dealer drawing...';
+  function ddraw(){
+    var dv=hv(BJ.dealer);bjUpdScore('d-sc',dv);
+    if(dv<17){setTimeout(function(){BJ.dealer.push(BJ.deck.pop());dc.appendChild(bjMkCard(BJ.dealer[BJ.dealer.length-1],false,''));ddraw();},560);}
+    else{var pv=hv(BJ.player);setTimeout(function(){if(pv>21)bjEnd('bust');else if(dv>21||pv>dv)bjEnd('win');else if(pv===dv)bjEnd('push');else bjEnd('lose');},420);}
+  }
+  setTimeout(function(){bjUpdScore('d-sc',hv(BJ.dealer));ddraw();},420);
+}
+
+function bjEnd(out){
+  stopTimer('bj-timer');BJ.over=true;
+  var bet=BJ.bet,won=0,emoji='',txt='',sub='',cls='';
+  if(out==='win'){
+    var nat=hv(BJ.player)===21&&BJ.player.length===2;
+    won=bet*(nat?2.5:2);cls='win';S.wins++;
+    emoji=nat?'🃏':'🏆';
+    txt=nat?'BLACKJACK!':'YOU WIN';sub='+'+b2f(won-bet);
+  } else if(out==='bust'){cls='lose';S.losses++;
+    emoji='💥';txt='BUST!';sub='-'+b2f(bet);
+  } else if(out==='lose'){cls='lose';S.losses++;
+    emoji='😔';txt='DEALER WINS';sub='-'+b2f(bet);
+  } else {
+    won=bet;cls='push';emoji='🤝';txt='PUSH';sub='Refunded';
+  }
+  S.btc+=won;S.won+=won;ref();
+  syncBalance(won-bet,bet,out==='win',out==='bust'||out==='lose','blackjack');
+  bjShowOverlay(cls,emoji,txt,sub);
+  setTimeout(function(){
+    bjHideOverlay();
+    document.getElementById('btn-deal').style.display='block';
+    var st=document.getElementById('bj-status');if(st){st.textContent='Place your bet and deal';st.style.display='block';}
+    var si=document.getElementById('bj-split-ind');if(si)si.style.display='none';
+  },2200);
+}
+
+
 /* -- SLOTS -- */
 var SLS=['7','💎','🍒','🔔','★','🍋','🍇','🍊','🍉','🍀'];
 var SLW=[1,2,4,5,6,8,10,12,14,14];
@@ -1294,21 +1963,94 @@ function spinSlots(){
 }
 
 
+/* ── ROULETTE ── */
 var RL_RED=[1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
 var RL_NUMS=[0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26];
 var rlAngle=0,rlBets=[],rlST='red',rlSN=-1,rlSpin=false,rlS1=-1,rlS2=-1,rlCN=null;
 var RL_VS=[];(function(){for(var n=1;n<=36;n++){if(n%3!==0)RL_VS.push([n,n+1]);if(n+3<=36)RL_VS.push([n,n+3]);}})();
 var RL_VC=[];(function(){for(var r=0;r<11;r++)for(var c=0;c<2;c++){var tl=r*3+c+1;if(tl+4<=36)RL_VC.push([tl,tl+1,tl+3,tl+4]);}})();
-function initRl(){rlBets=[];rlST='red';rlSN=-1;rlS1=-1;rlS2=-1;rlCN=null;buildRlChips();drawWheel(0);buildNGrid();updRlBets();document.getElementById('rl-res').style.display='none';document.getElementById('rl-txt').textContent='Place bets then spin!';document.getElementById('rl-ball').textContent='?';var sel=document.querySelector('[data-bt="red"]');if(sel)sel.classList.add('on');}
-function buildRlChips(){var c=document.getElementById('rl-qchips');if(!c)return;c.innerHTML='';BETS.forEach(function(a){var ch=document.createElement('div');ch.className='rqc'+(CB.rl===a?' on':'');ch.textContent=sym()+a;ch.onclick=function(){CB.rl=a;document.querySelectorAll('.rqc').forEach(function(x){x.classList.remove('on');});ch.classList.add('on');};c.appendChild(ch);});}
-function buildNGrid(){var g=document.getElementById('rl-num-grid');if(!g)return;g.innerHTML='';var n0=document.createElement('div');n0.className='rnum rnum-g';n0.textContent='0';n0.onclick=function(){rlPN(0);};g.appendChild(n0);for(var n=1;n<=36;n++){var el=document.createElement('div');el.className='rnum '+(RL_RED.indexOf(n)>=0?'rnum-r':'rnum-b');el.textContent=n;el.dataset.n=n;(function(num){el.onclick=function(){rlPN(num);};})(n);g.appendChild(el);}}
-function rlPN(n){rlSN=n;document.querySelectorAll('#rl-num-grid .rnum').forEach(function(el){el.classList.toggle('sel',parseInt(el.dataset.n)===n||(n===0&&el.textContent==='0'));});document.getElementById('rl-sel-num').textContent=n;document.getElementById('rl-num-confirm').style.display='block';}
-function rlSelType(t){rlST=t;document.querySelectorAll('.rbet').forEach(function(b){b.classList.remove('on');});var s=document.querySelector('[data-bt="'+t+'"]');if(s)s.classList.add('on');['rl-num-picker','rl-split-picker','rl-corner-picker'].forEach(function(id){document.getElementById(id).classList.remove('show');});document.getElementById('rl-num-confirm').style.display='none';rlSN=-1;rlS1=-1;rlS2=-1;rlCN=null;if(t==='number')document.getElementById('rl-num-picker').classList.add('show');else if(t==='split'){bSG1();document.getElementById('rl-split-picker').classList.add('show');}else if(t==='corner'){bCG();document.getElementById('rl-corner-picker').classList.add('show');}}
-function bSG1(){var g=document.getElementById('rl-split-grid1');g.innerHTML='';for(var n=0;n<=36;n++){var el=document.createElement('div');el.className='rnum '+(n===0?'rnum-g':RL_RED.indexOf(n)>=0?'rnum-r':'rnum-b');el.textContent=n;(function(num){el.onclick=function(){rlS1=num;bSG2(num);};})(n);g.appendChild(el);}}
-function bSG2(n1){document.getElementById('rl-split-n1-lbl').textContent=n1;document.getElementById('rl-split-step2').style.display='block';var g=document.getElementById('rl-split-grid2');g.innerHTML='';var adj=[];RL_VS.forEach(function(p){if(p[0]===n1)adj.push(p[1]);if(p[1]===n1)adj.push(p[0]);});adj.forEach(function(n2){var el=document.createElement('div');el.className='rnum '+(RL_RED.indexOf(n2)>=0?'rnum-r':'rnum-b');el.textContent=n2;(function(num){el.onclick=function(){rlS2=num;document.querySelectorAll('#rl-split-grid2 .rnum').forEach(function(x){x.classList.remove('sel');});el.classList.add('sel');};})(n2);g.appendChild(el);});}
-function bCG(){var g=document.getElementById('rl-corner-grid');g.innerHTML='';var vt={};RL_VC.forEach(function(c){vt[c[0]]=c;});for(var n=1;n<=36;n++){if(!vt[n])continue;var el=document.createElement('div');el.className='rnum '+(RL_RED.indexOf(n)>=0?'rnum-r':'rnum-b');el.textContent=n;(function(num,corner){el.onclick=function(){rlCN=corner;document.querySelectorAll('#rl-corner-grid .rnum').forEach(function(x){x.classList.remove('sel');});el.classList.add('sel');document.getElementById('rl-corner-preview').style.display='block';document.getElementById('rl-corner-nums').textContent=corner.join(' - ');};})(n,vt[n]);g.appendChild(el);}}
+
+function rlDrawBg(){
+  var c=document.getElementById('rl-canvas-bg');if(!c)return;
+  c.width=window.innerWidth||380;c.height=window.innerHeight||700;
+  var ctx=c.getContext('2d'),W=c.width,H=c.height;
+  var g=ctx.createRadialGradient(W/2,H*.3,0,W/2,H*.3,W*.8);
+  g.addColorStop(0,'rgba(40,5,8,.4)');g.addColorStop(1,'rgba(0,0,0,.1)');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  for(var x=0;x<W;x+=22)for(var y=0;y<H;y+=22){ctx.beginPath();ctx.arc(x,y,.8,0,Math.PI*2);ctx.fillStyle='rgba(239,68,68,.04)';ctx.fill();}
+}
+
+function drawWheel(ang){
+  var cv=document.getElementById('rl-cv');if(!cv)return;
+  var ctx=cv.getContext('2d'),W=cv.width,H=cv.height,cx=W/2,cy=H/2,r=cx-3;
+  var sl=(Math.PI*2)/RL_NUMS.length;
+  ctx.clearRect(0,0,W,H);
+  ctx.beginPath();ctx.arc(cx,cy,r+3,0,Math.PI*2);ctx.fillStyle='#2a0808';ctx.fill();
+  ctx.beginPath();ctx.arc(cx,cy,r+3,0,Math.PI*2);ctx.strokeStyle='rgba(180,30,30,.6)';ctx.lineWidth=2;ctx.stroke();
+  RL_NUMS.forEach(function(n,i){
+    var s=ang+i*sl,e=s+sl;
+    ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,s,e);ctx.closePath();
+    if(n===0)ctx.fillStyle='#166534';else if(RL_RED.indexOf(n)>=0)ctx.fillStyle='#991b1b';else ctx.fillStyle='#111';
+    ctx.fill();ctx.strokeStyle='rgba(0,0,0,.4)';ctx.lineWidth=.5;ctx.stroke();
+    ctx.save();ctx.translate(cx,cy);ctx.rotate(s+sl/2);
+    ctx.fillStyle='rgba(255,255,255,.85)';ctx.font='bold 5.5px Orbitron';ctx.textAlign='right';
+    ctx.fillText(n,r-4,2);ctx.restore();
+  });
+  for(var i=0;i<RL_NUMS.length;i++){var a=ang+i*sl;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+r*Math.cos(a),cy+r*Math.sin(a));ctx.strokeStyle='rgba(180,30,30,.2)';ctx.lineWidth=.5;ctx.stroke();}
+  ctx.beginPath();ctx.arc(cx,cy,14,0,Math.PI*2);
+  var cg=ctx.createRadialGradient(cx,cy,0,cx,cy,14);cg.addColorStop(0,'#3a1010');cg.addColorStop(1,'#0a0303');
+  ctx.fillStyle=cg;ctx.fill();ctx.strokeStyle='rgba(180,30,30,.5)';ctx.lineWidth=1.5;ctx.stroke();
+}
+
+function initRl(){
+  rlDrawBg();
+  rlBets=[];rlST='red';rlSN=-1;rlS1=-1;rlS2=-1;rlCN=null;
+  buildRlChips();drawWheel(0);rlBuildNGrid();rlUpdBets();
+  document.getElementById('rl-res').style.display='none';
+  document.getElementById('rl-txt').textContent='Spin to play';
+  var ball=document.getElementById('rl-ball');if(ball){ball.textContent='?';ball.className='rl-last-ball';}
+  var sel=document.querySelector('[data-bt="red"]');if(sel)sel.classList.add('sel');
+}
+
+function buildRlChips(){
+  var c=document.getElementById('rl-qchips');if(!c)return;c.innerHTML='';
+  BETS.forEach(function(a){
+    var ch=document.createElement('div');ch.className='rl-chip'+(CB.rl===a?' sel':'');ch.textContent=sym()+a;
+    ch.onclick=function(){CB.rl=a;document.querySelectorAll('.rl-chip').forEach(function(x){x.classList.remove('sel');});ch.classList.add('sel');};
+    c.appendChild(ch);
+  });
+}
+
+function rlBuildNGrid(){
+  var g=document.getElementById('rl-num-grid');if(!g)return;g.innerHTML='';
+  var n0=document.createElement('div');n0.className='rl-n rl-n-g';n0.textContent='0';n0.onclick=function(){rlPN(0);};g.appendChild(n0);
+  for(var n=1;n<=36;n++){var el=document.createElement('div');el.className='rl-n '+(RL_RED.indexOf(n)>=0?'rl-n-r':'rl-n-b');el.textContent=n;el.dataset.n=n;(function(num){el.onclick=function(){rlPN(num);};})(n);g.appendChild(el);}
+}
+
+function rlPN(n){
+  rlSN=n;
+  document.querySelectorAll('#rl-num-grid .rl-n').forEach(function(el){el.classList.toggle('sel',parseInt(el.dataset.n)===n||(n===0&&el.textContent==='0'));});
+  document.getElementById('rl-sel-num').textContent=n;document.getElementById('rl-num-confirm').style.display='block';
+}
+
+function rlSelType(t){
+  rlST=t;document.querySelectorAll('.rl-bet-type').forEach(function(b){b.classList.remove('sel');});
+  var sel=document.querySelector('[data-bt="'+t+'"]');if(sel)sel.classList.add('sel');
+  ['rl-num-picker','rl-split-picker','rl-corner-picker'].forEach(function(id){document.getElementById(id).classList.remove('show');});
+  document.getElementById('rl-num-confirm').style.display='none';
+  rlSN=-1;rlS1=-1;rlS2=-1;rlCN=null;
+  if(t==='number')document.getElementById('rl-num-picker').classList.add('show');
+  else if(t==='split'){rlBSG1();document.getElementById('rl-split-picker').classList.add('show');}
+  else if(t==='corner'){rlBCG();document.getElementById('rl-corner-picker').classList.add('show');}
+}
+
+function rlBSG1(){var g=document.getElementById('rl-split-grid1');g.innerHTML='';for(var n=0;n<=36;n++){var el=document.createElement('div');el.className='rl-n '+(n===0?'rl-n-g':RL_RED.indexOf(n)>=0?'rl-n-r':'rl-n-b');el.textContent=n;(function(num){el.onclick=function(){rlS1=num;rlBSG2(num);};})(n);g.appendChild(el);}}
+function rlBSG2(n1){document.getElementById('rl-split-n1-lbl').textContent=n1;document.getElementById('rl-split-step2').style.display='block';var g=document.getElementById('rl-split-grid2');g.innerHTML='';var adj=[];RL_VS.forEach(function(p){if(p[0]===n1)adj.push(p[1]);if(p[1]===n1)adj.push(p[0]);});adj.forEach(function(n2){var el=document.createElement('div');el.className='rl-n '+(RL_RED.indexOf(n2)>=0?'rl-n-r':'rl-n-b');el.textContent=n2;(function(num){el.onclick=function(){rlS2=num;document.querySelectorAll('#rl-split-grid2 .rl-n').forEach(function(x){x.classList.remove('sel');});el.classList.add('sel');};})(n2);g.appendChild(el);});}
+function rlBCG(){var g=document.getElementById('rl-corner-grid');g.innerHTML='';var vt={};RL_VC.forEach(function(c){vt[c[0]]=c;});for(var n=1;n<=36;n++){if(!vt[n])continue;var el=document.createElement('div');el.className='rl-n '+(RL_RED.indexOf(n)>=0?'rl-n-r':'rl-n-b');el.textContent=n;(function(num,corner){el.onclick=function(){rlCN=corner;document.querySelectorAll('#rl-corner-grid .rl-n').forEach(function(x){x.classList.remove('sel');});el.classList.add('sel');document.getElementById('rl-corner-preview').style.display='block';document.getElementById('rl-corner-nums').textContent=corner.join(' - ');};})(n,vt[n]);g.appendChild(el);}}
+
 function rlBL(t){var m={red:'Red',black:'Black',even:'Even',odd:'Odd',low:'1-18',high:'19-36'};if(t==='number')return '#'+rlSN;if(t==='split')return rlS1+'/'+rlS2;if(t==='corner')return rlCN.join('-');return m[t]||t;}
 function rlBM(t){var m={red:2,black:2,even:2,odd:2,low:2,high:2,number:36,split:18,corner:9};return m[t]||2;}
+
 function rlAddBet(){
   var bet=CB.rl,tot=rlBets.reduce(function(s,b){return s+b.amt;},0);
   if(bal()<tot+bet){toast('Insufficient balance!','err');return;}
@@ -1316,42 +2058,49 @@ function rlAddBet(){
   if(rlST==='split'&&(rlS1<0||rlS2<0)){toast('Pick both numbers!','err');return;}
   if(rlST==='corner'&&!rlCN){toast('Pick a corner!','err');return;}
   rlBets.push({type:rlST,num:rlSN,splitNums:rlST==='split'?[rlS1,rlS2]:null,cornerNums:rlST==='corner'?rlCN.slice():null,amt:bet,label:rlBL(rlST),mult:rlBM(rlST)});
-  updRlBets();toast('Added: '+rlBL(rlST)+' '+f2(bet),'ok',1500);
+  rlUpdBets();toast('Added: '+rlBL(rlST)+' '+f2(bet),'ok',1200);
 }
-function rlRemBet(i){rlBets.splice(i,1);updRlBets();}
-function rlClear(){rlBets=[];updRlBets();}
-function updRlBets(){
-  var tags=document.getElementById('rl-bets-tags');document.getElementById('rl-bet-count').textContent='('+rlBets.length+')';document.getElementById('rl-total').textContent=f2(rlBets.reduce(function(s,b){return s+b.amt;},0));
-  if(!rlBets.length){tags.innerHTML='<span class="rl-no-bets">No bets yet</span>';return;}
-  tags.innerHTML='';rlBets.forEach(function(b,i){var tag=document.createElement('span');tag.className='rl-bet-tag';tag.innerHTML=b.label+' <b style="font-family:Orbitron;font-size:9px">'+f2(b.amt)+'</b><span class="rl-x" onclick="rlRemBet('+i+');event.stopPropagation()">x</span>';tags.appendChild(tag);});
+function rlRemBet(i){rlBets.splice(i,1);rlUpdBets();}
+function rlClear(){rlBets=[];rlUpdBets();}
+function rlUpdBets(){
+  var tags=document.getElementById('rl-bets-tags');
+  document.getElementById('rl-bet-count').textContent='('+rlBets.length+')';
+  document.getElementById('rl-total').textContent=f2(rlBets.reduce(function(s,b){return s+b.amt;},0));
+  if(!rlBets.length){tags.innerHTML='<span class="rl-no-bets-txt">No bets yet</span>';return;}
+  tags.innerHTML='';
+  rlBets.forEach(function(b,i){var tag=document.createElement('span');tag.className='rl-bet-tag';tag.innerHTML=b.label+' <b style="font-family:Orbitron;font-size:9px">'+f2(b.amt)+'</b><span class="rl-x" onclick="rlRemBet('+i+');event.stopPropagation()">&times;</span>';tags.appendChild(tag);});
 }
-function drawWheel(ang){
-  var cv=document.getElementById('rl-cv');if(!cv)return;
-  var ctx=cv.getContext('2d'),cx=83,cy=83,r=80,sl=(Math.PI*2)/RL_NUMS.length;
-  ctx.clearRect(0,0,166,166);
-  RL_NUMS.forEach(function(n,i){var s=ang+i*sl,e=s+sl;ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,s,e);ctx.closePath();ctx.fillStyle=n===0?'#16a34a':RL_RED.indexOf(n)>=0?'#b91c1c':'#1a1a1a';ctx.fill();ctx.strokeStyle='#2a2a2a';ctx.lineWidth=.4;ctx.stroke();ctx.save();ctx.translate(cx,cy);ctx.rotate(s+sl/2);ctx.fillStyle='#fff';ctx.font='bold 5.5px Exo 2';ctx.textAlign='right';ctx.fillText(n,r-3,2);ctx.restore();});
-  ctx.beginPath();ctx.arc(cx,cy,12,0,Math.PI*2);ctx.fillStyle='#0d0d14';ctx.fill();ctx.strokeStyle='#444';ctx.lineWidth=2;ctx.stroke();
-}
+
 function spinRl(){
   if(rlSpin)return;if(!rlBets.length){toast('Add at least one bet!','err');return;}
   var tot=rlBets.reduce(function(s,b){return s+b.amt;},0);if(bal()<tot){toast('Insufficient balance!','err');return;}
-  rlSpin=true;document.getElementById('btn-spin-rl').disabled=true;S.btc-=f2b(tot);S.bet+=f2b(tot);ref();
+  rlSpin=true;document.getElementById('btn-spin-rl').disabled=true;
+  S.btc-=f2b(tot);S.bet+=f2b(tot);ref();
   var n=Math.floor(Math.random()*37),extra=5+Math.random()*3;
-  var target=rlAngle+Math.PI*2*extra+(n/37)*Math.PI*2,dur=3400,start=performance.now(),sa=rlAngle;
-  function fr(now){var p=Math.min((now-start)/dur,1),e=1-Math.pow(1-p,4);rlAngle=sa+(target-sa)*e;drawWheel(rlAngle);if(p<1){requestAnimationFrame(fr);return;}
-    var col=n===0?'green':RL_RED.indexOf(n)>=0?'red':'black',par=n===0?null:(n%2===0?'even':'odd'),half=n===0?null:(n<=18?'low':'high');
+  var target=rlAngle+Math.PI*2*extra+(n/37)*Math.PI*2,dur=3600,start=performance.now(),sa=rlAngle;
+  function fr(now){
+    var p=Math.min((now-start)/dur,1),e=1-Math.pow(1-p,4);
+    rlAngle=sa+(target-sa)*e;drawWheel(rlAngle);if(p<1){requestAnimationFrame(fr);return;}
+    var col=n===0?'green':RL_RED.indexOf(n)>=0?'red':'black';
+    var par=n===0?null:(n%2===0?'even':'odd'),half=n===0?null:(n<=18?'low':'high');
     var tw=0,aw=false,lines=[];
-    rlBets.forEach(function(b){var w=(b.type==='red'&&col==='red')||(b.type==='black'&&col==='black')||(b.type==='even'&&par==='even')||(b.type==='odd'&&par==='odd')||(b.type==='low'&&half==='low')||(b.type==='high'&&half==='high')||(b.type==='number'&&b.num===n)||(b.type==='split'&&b.splitNums&&b.splitNums.indexOf(n)>=0)||(b.type==='corner'&&b.cornerNums&&b.cornerNums.indexOf(n)>=0);if(w){tw+=b.amt*b.mult;aw=true;lines.push('WIN: '+b.label+' +'+f2(b.amt*b.mult-b.amt));}else lines.push('LOSE: '+b.label);});
-    S.btc+=f2b(tw);S.won+=f2b(tw);if(aw)S.wins++;else S.losses++;ref();syncBalance(f2b(tw-tot),f2b(tot),aw,!aw,'roulette');
-    var ball=document.getElementById('rl-ball');ball.textContent=n;ball.style.color=col==='red'?'var(--rd)':col==='green'?'var(--gn)':'var(--wh)';
-    var net=tw-tot;document.getElementById('rl-txt').textContent=n+' - '+(net>0?'+'+f2(net):net===0?'Push':f2(net));
-    var res=document.getElementById('rl-res');res.className='res '+(net>0?'rwin':net===0?'rpush':'rlose');res.innerHTML='Rolled: '+n+'<br>'+lines.join('<br>')+'<br>'+(net>0?'WIN +'+f2(net):'LOSE '+f2(net));res.style.display='block';
-    toast(aw?'WIN! +'+f2(tw-tot):'No win',aw?'ok':'err');rlBets=[];updRlBets();rlSpin=false;document.getElementById('btn-spin-rl').disabled=false;
+    rlBets.forEach(function(b){var w=(b.type==='red'&&col==='red')||(b.type==='black'&&col==='black')||(b.type==='even'&&par==='even')||(b.type==='odd'&&par==='odd')||(b.type==='low'&&half==='low')||(b.type==='high'&&half==='high')||(b.type==='number'&&b.num===n)||(b.type==='split'&&b.splitNums&&b.splitNums.indexOf(n)>=0)||(b.type==='corner'&&b.cornerNums&&b.cornerNums.indexOf(n)>=0);if(w){tw+=b.amt*b.mult;aw=true;lines.push('WIN '+b.label+' +'+f2(b.amt*b.mult-b.amt));}else lines.push('LOSE '+b.label);});
+    S.btc+=f2b(tw);S.won+=f2b(tw);if(aw)S.wins++;else S.losses++;
+    ref();syncBalance(f2b(tw-tot),f2b(tot),aw,!aw,'roulette');
+    var ball=document.getElementById('rl-ball');
+    if(ball){ball.textContent=n;ball.className='rl-last-ball '+(col==='red'?'red-n':col==='green'?'green-n':'black-n');}
+    var net=tw-tot;
+    document.getElementById('rl-txt').textContent=n+' ('+(col==='red'?'Red':col==='green'?'Zero':'Black')+') '+(net>0?'WIN +'+f2(net):'LOSE '+f2(net));
+    var res=document.getElementById('rl-res');
+    res.className='rl-result-box '+(net>0?'rwin':net===0?'rpush':'rlose');
+    res.innerHTML='&#127920; '+n+' &mdash; '+(net>0?'WIN +'+f2(net):net===0?'PUSH':'LOSE '+f2(net))+'<br><span style="font-size:10px;color:#6b7280">'+lines.join(' &bull; ')+'</span>';
+    res.style.display='block';
+    toast(aw?'WIN! +'+f2(tw-tot):'No win',aw?'ok':'err');
+    rlBets=[];rlUpdBets();rlSpin=false;document.getElementById('btn-spin-rl').disabled=false;
   }
   requestAnimationFrame(fr);
 }
 
-/* ── DICE ── */
 var DOTS={1:[0,0,0,0,1,0,0,0,0],2:[1,0,0,0,0,0,0,0,1],3:[1,0,0,0,1,0,0,0,1],4:[1,0,1,0,0,0,1,0,1],5:[1,0,1,0,1,0,1,0,1],6:[1,0,1,1,0,1,1,0,1]};
 function rDie(id,v){var dots=document.querySelectorAll('#'+id+' .dot'),pat=DOTS[v]||DOTS[1];dots.forEach(function(d,i){d.className='dot'+(pat[i]?'':' h');});}
 function initDc(){buildCh('dc-ch','dc',function(v){document.getElementById('dc-bl').textContent='Bet: '+f2(v);});document.getElementById('dc-bl').textContent='Bet: '+f2(CB.dc);rDie('pd',1);rDie('hd',1);document.getElementById('pv').textContent='-';document.getElementById('hv').textContent='-';document.getElementById('dc-res').innerHTML='';}
@@ -1376,37 +2125,124 @@ var PH=['High Card','Pair','Two Pair','Three of a Kind','Straight','Flush','Full
 function pkV(c){if(!c)return 0;if(c.r==='A')return 14;if(c.r==='K')return 13;if(c.r==='Q')return 12;if(c.r==='J')return 11;return parseInt(c.r)||0;}
 function evalH(h){var vs=h.map(pkV).sort(function(a,b){return b-a;}),su=h.map(function(c){return c.s;}),cnt={};vs.forEach(function(v){cnt[v]=(cnt[v]||0)+1;});var fr=Object.values(cnt).sort(function(a,b){return b-a;}),bf=Object.entries(cnt).sort(function(a,b){return b[1]-a[1]||+b[0]-+a[0];}).map(function(x){return +x[0];});var fl=new Set(su).size===1,uniq=Array.from(new Set(vs));var st=(uniq.length===5&&uniq[0]-uniq[4]===4)||(uniq.join(',')===('14,5,4,3,2'));if(st&&fl)return[vs[0]===14&&vs[1]===13?9:8,vs];if(fr[0]===4)return[7,bf];if(fr[0]===3&&fr[1]===2)return[6,bf];if(fl)return[5,vs];if(st)return[4,vs];if(fr[0]===3)return[3,bf];if(fr[0]===2&&fr[1]===2)return[2,bf];if(fr[0]===2)return[1,bf];return[0,vs];}
 function cmpH(a,b){if(a[0]!==b[0])return a[0]>b[0]?1:-1;for(var i=0;i<Math.min(a[1].length,b[1].length);i++)if(a[1][i]!==b[1][i])return a[1][i]>b[1][i]?1:-1;return 0;}
-function initPk(){buildCh('pk-ch','pk',function(v){document.getElementById('pk-bl').textContent='Bet: '+f2(v);});document.getElementById('pk-bl').textContent='Bet: '+f2(CB.pk);['pk-dc','pk-pc'].forEach(function(id){document.getElementById(id).innerHTML='';});['pk-dn','pk-pn'].forEach(function(id){document.getElementById(id).textContent='';});document.getElementById('pk-res').style.display='none';document.getElementById('pk-acts').style.display='none';document.getElementById('btn-pkdl').style.display='block';}
+/* ── POKER ── */
+var PH=['High Card','Pair','Two Pair','Three of a Kind','Straight','Flush','Full House','Four of a Kind','Straight Flush','Royal Flush'];
+var PKG=null;
+
+function pkDrawBg(){
+  var c=document.getElementById('pk-canvas');if(!c)return;
+  c.width=window.innerWidth||380;c.height=window.innerHeight||700;
+  var ctx=c.getContext('2d'),W=c.width,H=c.height;
+  var g=ctx.createRadialGradient(W/2,H*.5,0,W/2,H*.5,W*.8);
+  g.addColorStop(0,'rgba(2,15,40,.4)');g.addColorStop(1,'rgba(0,0,0,.1)');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  for(var x=0;x<W;x+=20){for(var y=0;y<H;y+=20){ctx.beginPath();ctx.arc(x,y,.8,0,Math.PI*2);ctx.fillStyle='rgba(56,189,248,.025)';ctx.fill();}}
+}
+
+function pkMkCard(c,faceDown,extra){
+  faceDown=faceDown||false;extra=extra||'';
+  var el=document.createElement('div');
+  if(faceDown){
+    el.className='pk-card face-down '+extra;
+    var pat=document.createElement('div');pat.className='bj-card-back-pattern';el.appendChild(pat);
+    return el;
+  }
+  var isRed=['\u2665','\u2666'].indexOf(c.s)>=0;
+  el.className='pk-card '+(isRed?'red-c':'black-c')+' '+extra;
+  el.innerHTML='<div class="pk-card-r">'+c.r+c.s+'</div><div class="pk-card-s">'+c.s+'</div><div class="pk-card-rb">'+c.r+c.s+'</div>';
+  return el;
+}
+
+function pkShowOverlay(cls,emoji,txt,sub){
+  var ov=document.getElementById('pk-overlay');if(!ov)return;
+  ov.className='pk-result-overlay '+cls+' show';
+  var ee=document.getElementById('pk-ov-emoji');if(ee)ee.textContent=emoji;
+  var tt=document.getElementById('pk-ov-txt');if(tt)tt.textContent=txt;
+  var ss=document.getElementById('pk-ov-sub');if(ss)ss.textContent=sub;
+}
+
+function pkSetHand(id,name){
+  var el=document.getElementById(id);if(!el)return;
+  if(!name){el.style.display='none';return;}
+  el.style.display='flex';el.textContent=name;
+}
+
+function pkV(c){if(!c)return 0;if(c.r==='A')return 14;if(c.r==='K')return 13;if(c.r==='Q')return 12;if(c.r==='J')return 11;return parseInt(c.r)||0;}
+function evalH(h){var vs=h.map(pkV).sort(function(a,b){return b-a;}),su=h.map(function(c){return c.s;}),cnt={};vs.forEach(function(v){cnt[v]=(cnt[v]||0)+1;});var fr=Object.values(cnt).sort(function(a,b){return b-a;}),bf=Object.entries(cnt).sort(function(a,b){return b[1]-a[1]||+b[0]-+a[0];}).map(function(x){return +x[0];});var fl=new Set(su).size===1,uniq=Array.from(new Set(vs));var st=(uniq.length===5&&uniq[0]-uniq[4]===4)||(uniq.join(',')==='14,5,4,3,2');if(st&&fl)return[vs[0]===14&&vs[1]===13?9:8,vs];if(fr[0]===4)return[7,bf];if(fr[0]===3&&fr[1]===2)return[6,bf];if(fl)return[5,vs];if(st)return[4,vs];if(fr[0]===3)return[3,bf];if(fr[0]===2&&fr[1]===2)return[2,bf];if(fr[0]===2)return[1,bf];return[0,vs];}
+function cmpH(a,b){if(a[0]!==b[0])return a[0]>b[0]?1:-1;for(var i=0;i<Math.min(a[1].length,b[1].length);i++)if(a[1][i]!==b[1][i])return a[1][i]>b[1][i]?1:-1;return 0;}
+
+function initPk(){
+  pkDrawBg();
+  buildCh('pk-ch','pk',function(v){document.getElementById('pk-bl').textContent='Bet: '+f2(v);});
+  document.getElementById('pk-bl').textContent='Bet: '+f2(CB.pk);
+  document.getElementById('pk-dc').innerHTML='';document.getElementById('pk-pc').innerHTML='';
+  pkSetHand('pk-dn',null);pkSetHand('pk-pn',null);
+  document.getElementById('pk-acts').style.display='none';
+  document.getElementById('btn-pkdl').style.display='block';
+  var ov=document.getElementById('pk-overlay');if(ov)ov.classList.remove('show');
+  var dz=document.getElementById('pk-dzone'),pz=document.getElementById('pk-pzone');
+  if(dz)dz.classList.remove('active');if(pz)pz.classList.remove('active');
+}
+
 function pkDeal(){
   var bet=CB.pk,bb=f2b(bet);if(bal()<bet){toast('Insufficient balance!','err');return;}
-  S.btc-=bb;S.bet+=bb;ref();var d=mkdeck();PKG={bet:bb,deck:d,player:[],dealer:[],held:[0,0,0,0,0]};
+  S.btc-=bb;S.bet+=bb;ref();
+  var d=mkdeck();PKG={bet:bb,deck:d,player:[],dealer:[],held:[0,0,0,0,0]};
   for(var i=0;i<5;i++){PKG.player.push(d.pop());PKG.dealer.push(d.pop());}
   var pc=document.getElementById('pk-pc');pc.innerHTML='';
-  PKG.player.forEach(function(c,i){var el=mkC(c);el.className+=' pk-c';(function(idx){el.onclick=function(){PKG.held[idx]=PKG.held[idx]?0:1;el.classList.toggle('held');document.getElementById('pk-pn').textContent=PH[evalH(PKG.player)[0]];};})(i);pc.appendChild(el);});
-  var dc=document.getElementById('pk-dc');dc.innerHTML='';for(var j=0;j<5;j++)dc.appendChild(mkC(null,true));
-  document.getElementById('pk-pn').textContent=PH[evalH(PKG.player)[0]];document.getElementById('pk-dn').textContent='?????';
-  document.getElementById('pk-res').style.display='none';document.getElementById('pk-acts').style.display='flex';document.getElementById('btn-pkdl').style.display='none';
-  startTimer('pk-timer',300,function(){if(!PKG)return;stopTimer('pk-timer');toast('\u23F0 Time up!','err',3000);PKG=null;setTimeout(function(){show('pk');initPk();},2500);});
+  PKG.player.forEach(function(c,i){
+    var el=pkMkCard(c);
+    (function(idx){el.onclick=function(){PKG.held[idx]=PKG.held[idx]?0:1;el.classList.toggle('held');pkSetHand('pk-pn',PH[evalH(PKG.player)[0]]);};})(i);
+    pc.appendChild(el);
+  });
+  var dc=document.getElementById('pk-dc');dc.innerHTML='';
+  for(var j=0;j<5;j++)dc.appendChild(pkMkCard(null,true));
+  pkSetHand('pk-pn',PH[evalH(PKG.player)[0]]);pkSetHand('pk-dn',null);
+  var ov=document.getElementById('pk-overlay');if(ov)ov.classList.remove('show');
+  document.getElementById('pk-acts').style.display='flex';
+  document.getElementById('btn-pkdl').style.display='none';
   document.getElementById('btn-pkd').disabled=false;
+  var pz=document.getElementById('pk-pzone');if(pz)pz.classList.add('active');
+  startTimer('pk-timer',300,function(){if(!PKG)return;stopTimer('pk-timer');toast('\u23F0 Time up!','err',3000);PKG=null;setTimeout(function(){show('pk');initPk();},2500);});
 }
+
+function pkRevealDealer(){
+  var dc=document.getElementById('pk-dc');if(!dc||!PKG)return Promise.resolve();
+  dc.innerHTML='';
+  PKG.dealer.forEach(function(){dc.appendChild(pkMkCard(null,true));});
+  var i=0;
+  function rn(){if(i>=PKG.dealer.length)return;setTimeout(function(){var nc=pkMkCard(PKG.dealer[i],false,'flip');if(dc.children[i])dc.replaceChild(nc,dc.children[i]);i++;rn();},450);}
+  return new Promise(function(res){rn();setTimeout(res,450*5+200);});
+}
+
 function pkDraw(){
-  stopTimer('pk-timer');document.getElementById('btn-pkd').disabled=true;
+  if(!PKG)return;stopTimer('pk-timer');document.getElementById('btn-pkd').disabled=true;
   for(var i=0;i<5;i++)if(!PKG.held[i])PKG.player[i]=PKG.deck.pop();
-  var pc=document.getElementById('pk-pc');pc.innerHTML='';PKG.player.forEach(function(c,i){var el=mkC(c,false,PKG.held[i]?'rev pk-c held':'rev pk-c');el.style.opacity=PKG.held[i]?'1':'0.85';pc.appendChild(el);});
-  document.getElementById('pk-pn').textContent=PH[evalH(PKG.player)[0]];
-  revealH('pk-dc',PKG.dealer).then(function(){
-    document.getElementById('pk-dn').textContent=PH[evalH(PKG.dealer)[0]];
-    var pr=evalH(PKG.player),dr=evalH(PKG.dealer),cmp=cmpH(pr,dr),bet=PKG.bet,won=0,msg='',cls='';
-    if(cmp>0){won=bet*2;msg='WIN! '+PH[pr[0]]+' beats '+PH[dr[0]]+' +'+b2f(won-bet);cls='rwin';S.wins++;}
-    else if(cmp===0){won=bet;msg='PUSH - '+PH[pr[0]];cls='rpush';}
-    else{msg=PH[dr[0]]+' beats you -'+b2f(bet);cls='rlose';S.losses++;}
+  var pc=document.getElementById('pk-pc');pc.innerHTML='';
+  PKG.player.forEach(function(c,i){var el=pkMkCard(c,false,'flip');el.style.opacity=PKG.held[i]?'1':'0.9';(function(idx){el.onclick=function(){};})(i);pc.appendChild(el);});
+  pkSetHand('pk-pn',PH[evalH(PKG.player)[0]]);
+  var dz=document.getElementById('pk-dzone');if(dz)dz.classList.add('active');
+  pkRevealDealer().then(function(){
+    pkSetHand('pk-dn',PH[evalH(PKG.dealer)[0]]);
+    var pr=evalH(PKG.player),dr=evalH(PKG.dealer),cmp=cmpH(pr,dr),bet=PKG.bet,won=0;
+    var emoji='',txt='',sub='',cls='';
+    if(cmp>0){won=bet*2;cls='win';S.wins++;emoji='🏆';txt='YOU WIN!';sub=PH[pr[0]]+' beats '+PH[dr[0]]+' +'+b2f(won-bet);}
+    else if(cmp===0){won=bet;cls='push';emoji='🤝';txt='PUSH';sub=PH[pr[0]];}
+    else{cls='lose';S.losses++;emoji='💀';txt='DEALER WINS';sub=PH[dr[0]]+' beats you -'+b2f(bet);}
     S.btc+=won;S.won+=won;ref();syncBalance(won-bet,bet,cmp>0,cmp<0,'poker');
-    var r=document.getElementById('pk-res');r.className='res '+cls;r.textContent=msg;r.style.display='block';document.getElementById('pk-acts').style.display='none';document.getElementById('btn-pkdl').style.display='block';
+    pkShowOverlay(cls,emoji,txt,sub);
+    setTimeout(function(){var ov=document.getElementById('pk-overlay');if(ov)ov.classList.remove('show');document.getElementById('pk-acts').style.display='none';document.getElementById('btn-pkdl').style.display='block';},2300);
   });
 }
-function pkFold(){stopTimer('pk-timer');if(!PKG)return;S.losses++;var r=document.getElementById('pk-res');r.className='res rlose';r.textContent='Folded -'+b2f(PKG.bet);r.style.display='block';document.getElementById('pk-acts').style.display='none';document.getElementById('btn-pkdl').style.display='block';ref();}
 
-/* ── DUEL ── */
+function pkFold(){
+  if(!PKG)return;stopTimer('pk-timer');S.losses++;
+  pkShowOverlay('lose','💀','FOLD','-'+b2f(PKG.bet));
+  ref();
+  setTimeout(function(){var ov=document.getElementById('pk-overlay');if(ov)ov.classList.remove('show');document.getElementById('pk-acts').style.display='none';document.getElementById('btn-pkdl').style.display='block';},2000);
+}
+
+
 function openBot(){if(tg)tg.close();else window.open('https://t.me/Master_Gambler_Bot','_blank');}
 
 /* ═══════════════════════════════════════
