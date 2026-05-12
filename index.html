@@ -255,7 +255,7 @@ body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradi
   color: #7c3aed; text-transform: uppercase; margin-bottom: 6px;
 }
 .lt-jkp-tag::before, .lt-jkp-tag::after { content: '✦'; font-size: 6px; color: #f59e0b; }
-.lt-jkp-btc {
+.lt-jkp-btc-old {
   font-family: 'Orbitron'; font-size: 30px; font-weight: 900;
   background: linear-gradient(135deg, #f59e0b 0%, #ef4444 40%, #c084fc 85%);
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
@@ -1479,7 +1479,7 @@ body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradi
     <div class="lt-jkp-wrap">
       <div class="lt-jkp-halo"></div>
       <div class="lt-jkp-tag">jackpot garantito</div>
-      <div class="lt-jkp-btc" id="lt-jkp-btc">0.001000 BTC</div>
+      <div class="lt-jkp-btc-old" id="lt-jkp-btc-old">0.001000 BTC</div>
       <div class="lt-jkp-eur" id="lt-jkp-eur">&euro;0.00</div>
       <div class="lt-jkp-meta">
         <div class="lt-jkp-meta-item">&#128197; <span class="lt-jkp-meta-val" id="lt-next-draw">Mar &amp; Ven 20:00</span></div>
@@ -1494,17 +1494,35 @@ body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradi
     </div>
     <!-- PLAY TAB -->
     <div class="lt-play" id="lt-tab-play">
-      <!-- Bet selector -->
-      <div>
-        <div class="lt-section-label">Scegli la puntata</div>
-        <div class="lt-bet-grid" id="lt-bet-btns"></div>
+      <!-- Draw timer -->
+      <div style="background:linear-gradient(135deg,rgba(109,40,217,.12),rgba(245,158,11,.06));border:1px solid rgba(109,40,217,.25);border-radius:13px;padding:12px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0">
+        <div style="font-size:24px">&#9201;</div>
+        <div style="flex:1">
+          <div style="font-size:8px;color:#4b2090;font-family:'Russo One';letter-spacing:2px;text-transform:uppercase">Prossima estrazione</div>
+          <div style="font-family:'Orbitron';font-size:18px;font-weight:900;color:#c084fc;letter-spacing:1px" id="lt-draw-timer">--:--:--</div>
+          <div style="font-size:9px;color:#374151;margin-top:1px"><span id="lt-draw-day">Martedì</span> &amp; Venerdì ore 20:00</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:8px;color:#4b2090;font-family:'Russo One'">Jackpot</div>
+          <div style="font-family:'Orbitron';font-size:13px;font-weight:700;color:#f59e0b" id="lt-jkp-eur">&#8364;100</div>
+          <div style="font-size:8px;color:#374151" id="lt-jkp-btc-old">0.001111 BTC</div>
+        </div>
+      </div>
+      <!-- Ticket price info -->
+      <div style="text-align:center;padding:8px;font-family:'Orbitron';font-size:12px;color:var(--gold);letter-spacing:1px;border:1px solid rgba(255,215,0,.2);border-radius:10px;background:rgba(255,215,0,.04)">
+        &#127915; Ticket: <strong>&#8364;10</strong> &nbsp;&mdash;&nbsp; <span style="font-size:9px;color:#6b7280">0.00011111 BTC</span>
       </div>
       <!-- Win preview -->
       <div class="lt-wins-box">
         <div class="lt-section-label">Potenziali vincite</div>
         <div id="lt-win-rows"></div><div id="lt-win-note" style="font-size:8px;color:#374151;text-align:right;margin:4px 0 0;font-family:'Orbitron'"></div>
       </div>
-      <!-- Number grid -->
+      <!-- My tickets -->
+      <div class="lt-wins-box" style="border-color:rgba(109,40,217,.2);background:rgba(6,3,16,.85)">
+        <div class="lt-section-label" style="color:#4b2090">I tuoi ticket questa settimana</div>
+        <div id="lt-my-tickets"></div>
+      </div>
+      <!-- Number grid --><!-- Number grid -->
       <div class="lt-grid-wrap">
         <div class="lt-grid-top">
           <div class="lt-section-label" style="margin-bottom:0">Scegli 6 numeri (1&ndash;90)</div>
@@ -2543,7 +2561,7 @@ function openBot(){if(tg)tg.close();else window.open('https://t.me/Master_Gamble
    ═══════════════════════════════════════ */
 /* -- LOTTO SUPPORT -- */
 var LT = {
-  picks: [], tickets: [], jackpot: 0.00111111,
+  picks: [], tickets: [], jackpot: 0.00111111, myTickets: [],
   TICKET_BTC: 0.00011111,
   TICKET_EUR: 10,
   prizes: [
@@ -2859,23 +2877,23 @@ function fetchLottoInfo() {
   return fetch(BACKEND + '/lotto/info?user_id=' + uid, HDR)
     .then(function(r) { return r.json(); })
     .then(function(d) {
-      LT.jackpot       = d.jackpot_btc || 0.001;
+      LT.jackpot       = d.jackpot_btc || 0.00111111;
       S.lotto_tickets  = d.user_tickets || 0;
       S.lotto_history  = d.history || [];
-      // Update displays
-      var jb = document.getElementById('lt-jkp-btc');
+      LT.myTickets     = d.user_ticket_list || [];
+      var jb = document.getElementById('lt-jkp-btc-old');
       if (jb) jb.textContent = LT.jackpot.toFixed(6) + ' BTC';
       var je = document.getElementById('lt-jkp-eur');
       if (je) je.textContent = '\u20AC' + Math.round(LT.jackpot * S.rate).toLocaleString('en');
       var tc = document.getElementById('lt-ticket-cnt');
-      if (tc) tc.textContent = S.lotto_tickets + ' giocate';
-      // Render history
+      if (tc) tc.textContent = S.lotto_tickets + ' ticket';
       renderLottoHistory();
+      renderMyTickets();
+      ltUpdateDrawTimer();
     })
     .catch(function() {});
 }
 
-// ── Register lotto ticket ──
 function registerLottoTicket(numbers, betBtc) {
   if (!S.userId) {
     // Offline mode: deduct locally
@@ -2896,7 +2914,7 @@ function registerLottoTicket(numbers, betBtc) {
       S.btc = d.btc;
       LT.jackpot = d.jackpot_btc || LT.jackpot;
       S.lotto_tickets = d.user_tickets || S.lotto_tickets + 1;
-      var jb = document.getElementById('lt-jkp-btc');
+      var jb = document.getElementById('lt-jkp-btc-old');
       if (jb) jb.textContent = LT.jackpot.toFixed(6) + ' BTC';
       var je = document.getElementById('lt-jkp-eur');
       if (je) je.textContent = '\u20AC' + Math.round(LT.jackpot * S.rate).toLocaleString('en');
@@ -3131,10 +3149,12 @@ function initLotto() {
     renderLottoHistory();
   });
   ltSwitchTab('play');
+  renderMyTickets();
+  ltUpdateDrawTimer();
 }
 
 function ltUpdateHeader() {
-  var jb = document.getElementById('lt-jkp-btc');
+  var jb = document.getElementById('lt-jkp-btc-old');
   var je = document.getElementById('lt-jkp-eur');
   if (jb) jb.textContent = LT.jackpot.toFixed(6) + ' BTC';
   if (je) je.textContent = '\u20AC' + Math.round(LT.jackpot * S.rate).toLocaleString('en');
@@ -3456,6 +3476,70 @@ function initChallenges() {
 function ltShowInfo() {
   var overlay = document.getElementById('lt-info-overlay');
   if (overlay) overlay.style.display = overlay.style.display==='flex'?'none':'flex';
+}
+
+function renderMyTickets() {
+  var el = document.getElementById('lt-my-tickets'); if (!el) return;
+  var all = (LT.myTickets || []).concat(
+    (LT.tickets || []).map(function(t){ return {numbers: t.numbers, ts: 0, fresh: true}; })
+  );
+  // Deduplicate
+  var seen = {};
+  all = all.filter(function(t){
+    var k = (t.numbers||[]).join(',');
+    if (seen[k]) return false;
+    seen[k] = true; return true;
+  });
+  if (!all.length) {
+    el.innerHTML = '<div style="text-align:center;padding:20px;color:#2d1b4e;font-size:11px">&#127915; Nessun ticket per questa estrazione.<br><span style="font-size:10px;color:#1a0f2e">Scegli 6 numeri e acquista!</span></div>';
+    return;
+  }
+  el.innerHTML = '';
+  all.forEach(function(t, idx) {
+    var nums = t.numbers || [];
+    var card = document.createElement('div');
+    card.style.cssText = 'background:rgba(109,40,217,.08);border:1px solid rgba(109,40,217,.25);border-radius:12px;padding:11px 12px;margin-bottom:7px;position:relative;overflow:hidden';
+    if (t.fresh) card.style.borderColor = 'rgba(245,158,11,.5)';
+    var balls = nums.map(function(n){
+      return '<span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#6d28d9,#7c3aed);font-family:Orbitron;font-size:9px;font-weight:900;color:#faf5ff;box-shadow:0 0 8px rgba(109,40,217,.5);margin:2px">'+n+'</span>';
+    }).join('');
+    card.innerHTML = '<div style="font-size:8px;color:#4b2090;font-family:Russo One;letter-spacing:1px;margin-bottom:6px">&#127915; TICKET #'+(idx+1)+(t.fresh?' <span style="color:#f59e0b">NEW</span>':'')+'</div>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:2px">'+balls+'</div>';
+    el.appendChild(card);
+  });
+}
+
+function ltUpdateDrawTimer() {
+  var el = document.getElementById('lt-draw-timer'); if (!el) return;
+  function tick() {
+    var now = new Date();
+    // Next Tue (2) or Fri (5) at 20:00 Rome (UTC+1 or +2)
+    var utcOffset = 1; // CET (adjust for CEST: 2)
+    var targets = [];
+    for (var d = 0; d <= 7; d++) {
+      var t = new Date(now);
+      t.setDate(t.getDate() + d);
+      if (t.getDay() === 2 || t.getDay() === 5) {
+        t.setHours(20 - utcOffset, 0, 0, 0);
+        if (t > now) { targets.push(t); break; }
+      }
+    }
+    if (!targets.length) { el.textContent = '--:--:--'; return; }
+    var diff = targets[0] - now;
+    var d = Math.floor(diff/86400000);
+    var hh = Math.floor((diff%86400000)/3600000);
+    var mm = Math.floor((diff%3600000)/60000);
+    var ss = Math.floor((diff%60000)/1000);
+    var label = d > 0 ? d+'g '+pad(hh)+':'+pad(mm)+':'+pad(ss) : pad(hh)+':'+pad(mm)+':'+pad(ss);
+    el.textContent = label;
+    var day = targets[0].getDay();
+    var eld = document.getElementById('lt-draw-day');
+    if (eld) eld.textContent = day===2 ? 'Martedì' : 'Venerdì';
+  }
+  function pad(n){ return n<10?'0'+n:n; }
+  tick();
+  if (window._ltTimerInt) clearInterval(window._ltTimerInt);
+  window._ltTimerInt = setInterval(tick, 1000);
 }
 </script>
 </body>
