@@ -324,6 +324,21 @@ body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradi
 .pk-bet-bar{padding:8px 14px 12px;border-top:1px solid rgba(56,189,248,.12);background:rgba(0,0,0,.3);flex-shrink:0}
 /* Hold effect */
 .pk-c.held{transform:translateY(-12px)!important;box-shadow:0 0 18px rgba(57,255,20,.8)!important;border:2px solid var(--gn)!important}
+
+/* ══ GAME TIMER ══ */
+.game-timer{
+  display:none;align-items:center;gap:6px;
+  font-family:'Orbitron';font-size:13px;font-weight:700;
+  padding:4px 10px;border-radius:20px;
+  background:rgba(255,215,0,.1);border:1px solid rgba(255,215,0,.3);
+  color:var(--gold);transition:all .3s;flex-shrink:0;
+}
+.game-timer.urgent{
+  background:rgba(239,68,68,.15);border-color:rgba(239,68,68,.5);
+  color:var(--rd);animation:pulse-timer .8s infinite;
+}
+.game-timer.active{display:flex}
+@keyframes pulse-timer{0%,100%{opacity:1}50%{opacity:.5}}
 </style>
 </head>
 <body>
@@ -525,7 +540,7 @@ body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradi
 </div>
 <!-- POKER -->
 <div id="pk" class="screen">
-  <div class="ghdr"><div class="back" onclick="home()">&#8592;</div><div class="gtitle" style="color:var(--bl)">POKER</div><div class="gbal" id="pk-bal">0.00</div></div>
+  <div class="ghdr"><div class="back" onclick="home()">&#8592;</div><div class="gtitle" style="color:var(--bl)">POKER</div><div class="game-timer" id="pk-timer">⏰ 5:00</div><div class="gbal" id="pk-bal">0.00</div></div>
   <!-- POKER TABLE -->
   <div class="pk-table">
     <!-- DEALER ZONE -->
@@ -796,6 +811,64 @@ function initBj() {
   var dsc = document.getElementById('d-sc'); if (dsc) { dsc.textContent = ''; dsc.className = 'bj-score-badge'; }
   var psc = document.getElementById('p-sc'); if (psc) { psc.textContent = ''; psc.className = 'bj-score-badge'; }
 }
+// ── GAME TIMER SYSTEM ──
+var _timers = {};
+
+function startTimer(id, seconds, onExpire) {
+  stopTimer(id);
+  var el = document.getElementById(id);
+  if (el) { el.classList.add('active'); el.classList.remove('urgent'); }
+  var remaining = seconds;
+  function tick() {
+    if (!_timers[id]) return;
+    remaining--;
+    var m = Math.floor(remaining / 60);
+    var s = remaining % 60;
+    var txt = '⏰ ' + m + ':' + (s < 10 ? '0' : '') + s;
+    if (el) {
+      el.textContent = txt;
+      if (remaining <= 60) el.classList.add('urgent');
+      if (remaining <= 0) {
+        stopTimer(id);
+        if (onExpire) onExpire();
+        return;
+      }
+    }
+    _timers[id] = setTimeout(tick, 1000);
+  }
+  _timers[id] = setTimeout(tick, 1000);
+}
+
+function stopTimer(id) {
+  if (_timers[id]) { clearTimeout(_timers[id]); _timers[id] = null; }
+  var el = document.getElementById(id);
+  if (el) { el.classList.remove('active', 'urgent'); }
+}
+
+function bjTimeout() {
+  if (!BJ || BJ.over) return;
+  BJ.over = true;
+  stopTimer('bj-timer');
+  // Auto-stand — dealer plays
+  var st = document.getElementById('bj-status');
+  if (st) st.textContent = '⏰ Time up — Auto Stand!';
+  document.getElementById('bj-acts').style.display = 'none';
+  setTimeout(bjStand, 500);
+  // Sync loss
+  if (BJ && BJ.bet) syncBalance(-BJ.bet, BJ.bet, false, true, 'blackjack_timeout');
+}
+
+function pkTimeout() {
+  if (!PK) return;
+  stopTimer('pk-timer');
+  toast('⏰ Time up — hand forfeited!', 'err', 3000);
+  // Sync loss
+  if (PK && PK.bet) syncBalance(-PK.bet, PK.bet, false, true, 'poker_timeout');
+  PK = null;
+  // Show menu after delay
+  setTimeout(function() { show('pk'); initPk && initPk(); }, 2500);
+}
+
 function bjDeal() {
   var bet = CB.bj, btcBet = f2b(bet);
   if (bal() < bet) { toast('Insufficient balance!', 'err'); return; }
@@ -831,6 +904,7 @@ function bjDeal() {
       } else {
         document.getElementById('bj-acts').style.display = 'flex';
         var st2 = document.getElementById('bj-status'); if (st2) st2.textContent = 'Hit, Stand or Double?';
+        startTimer('bj-timer', 300, bjTimeout);  // 5 min
         // Show split button if both cards have same rank
         var c1 = BJ.player[0], c2 = BJ.player[1];
         var r1 = c1.replace(/[^A-Z0-9]/gi,'').replace(/[♠♥♦♣]/g,'');
@@ -947,6 +1021,8 @@ function bjStand() {
   }, 500);
 }
 function bjEnd(out) {
+  stopTimer('bj-timer');
+  BJ.over = true;
   var bet = BJ.bet, won = 0, msg = '', cls = '', emoji = '';
   if (out === 'win') {
     won = bet * 2; cls = 'rwin'; S.wins++;
@@ -1402,6 +1478,7 @@ function pkDeal() {
   document.getElementById('pk-res').style.display = 'none';
   document.getElementById('pk-acts').style.display = 'flex';
   document.getElementById('btn-pkdl').style.display = 'none';
+  startTimer('pk-timer', 300, pkTimeout);  // 5 min
   document.getElementById('btn-pkd').disabled = false;
 }
 function pkDraw() {
@@ -1429,6 +1506,7 @@ function pkDraw() {
   });
 }
 function pkFold() {
+  stopTimer('pk-timer');
   if (!PK) return; S.losses++;
   var r = document.getElementById('pk-res'); r.className = 'res rlose'; r.textContent = 'Folded -' + b2f(PK.bet); r.style.display = 'block';
   document.getElementById('pk-acts').style.display = 'none';
