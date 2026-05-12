@@ -98,7 +98,7 @@ body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradi
 .bj-header{display:flex;align-items:center;gap:10px;padding:10px 14px 8px;border-bottom:1px solid rgba(57,255,20,.15);background:rgba(0,0,0,.4);flex-shrink:0}
 .bj-title{font-family:'Russo One';font-size:15px;color:var(--gn);letter-spacing:1px;flex:1}
 .bj-bal-pill{background:rgba(255,215,0,.1);border:1px solid rgba(255,215,0,.3);border-radius:20px;padding:4px 12px;font-family:'Orbitron';font-size:12px;font-weight:700;color:var(--gold)}
-.bj-table{flex:1;display:flex;flex-direction:column;padding:10px 14px;gap:8px;overflow:hidden}
+.bj-table{flex:1;display:flex;flex-direction:column;padding:10px 14px;gap:8px;overflow:hidden;background:radial-gradient(ellipse at 50% 30%,rgba(21,128,61,.18) 0%,transparent 70%)}
 .bj-zone{display:flex;flex-direction:column;gap:8px;border:1px solid rgba(57,255,20,.1);border-radius:16px;padding:10px 12px;flex:1;transition:box-shadow .3s}
 .bj-dealer-zone{border-color:rgba(239,68,68,.15);background:rgba(40,0,0,.25)}
 .bj-player-zone{border-color:rgba(57,255,20,.15);background:rgba(0,40,10,.2)}
@@ -616,7 +616,7 @@ body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradi
 
 /* ── Premium cards ── */
 .bj-card {
-  width: 52px; height: 74px; border-radius: 9px; flex-shrink: 0;
+  width: clamp(44px,12vw,56px); height: clamp(63px,17vw,80px); border-radius: 9px; flex-shrink: 0;
   display: flex; flex-direction: column; justify-content: space-between;
   padding: 4px 5px;
   background: linear-gradient(145deg, #fffef8, #f0ede0);
@@ -648,7 +648,7 @@ body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradi
 .bj-card.flip { animation: bjFlip .45s ease; }
 @keyframes bjFlip { 0%{transform:rotateY(90deg) scale(.8)} 100%{transform:none} }
 .bj-card-rank { font-size: 11px; font-weight: 900; line-height: 1; }
-.bj-card-suit { font-size: 19px; line-height: 1; align-self: center; display: block; }
+.bj-card-suit { font-size: 22px; line-height: 1; align-self: center; display: block; }
 .bj-card-rank-b { font-size: 11px; font-weight: 900; align-self: flex-end; transform: rotate(180deg); }
 
 /* ── Center status ── */
@@ -1187,7 +1187,8 @@ body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradi
 .pf-lb-row.is-me{border-color:rgba(57,255,20,.3);background:rgba(57,255,20,.04)}
 
 .lt-draw-ball.hot{background:linear-gradient(135deg,#f59e0b,#d97706)!important;color:#000!important;box-shadow:0 0 8px rgba(245,158,11,.6)!important}
-</style>
+
+.bj-zone{min-height:96px}</style>
 </head>
 <body>
 <div id="loading">
@@ -1481,8 +1482,8 @@ body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradi
     <div class="lt-jkp-wrap">
       <div class="lt-jkp-halo"></div>
       <div class="lt-jkp-tag">jackpot garantito</div>
-      <div class="lt-jkp-btc-old" id="lt-jkp-btc-old">0.001000 BTC</div>
-      <div class="lt-jkp-eur" id="lt-jkp-eur">&euro;0.00</div>
+      <div class="lt-jkp-btc-old" id="lt-jkp-btc-old2">0.001000 BTC</div>
+      <div class="lt-jkp-eur" id="lt-jkp-eur2">&euro;0.00</div>
       <div class="lt-jkp-meta">
         <div class="lt-jkp-meta-item">&#128197; <span class="lt-jkp-meta-val" id="lt-next-draw">Mar &amp; Ven 20:00</span></div>
         <div class="lt-jkp-meta-item">&#127915; <span class="lt-jkp-meta-val" id="lt-ticket-cnt">0 giocate</span></div>
@@ -2064,10 +2065,9 @@ function slSpinReel(idx, result, autoStopMs) {
     var cells = strip.children;
     cells[SL_N-1].textContent = result;
 
-    var fH      = slFrameH(idx);
     var totalH  = SL_CELL * SL_N;
-    // Center last cell in frame: translateY = -(last_center - frame_center)
-    var target  = -((SL_N-1)*SL_CELL + SL_CELL/2 - fH/2);
+    // fH calculated fresh each time (frame may not have rendered at initSl time)
+    function getFH() { return slFrameH(idx); }
 
     // Start from strip's actual position (not 0) to avoid jump
     var _cur = strip.style.transform || 'translateY(0px)';
@@ -2094,9 +2094,9 @@ function slSpinReel(idx, result, autoStopMs) {
     function startEase() {
       cancelAnimationFrame(rafId);
       if (btn) btn.className = 'sl-stop';
-
-      // Ensure we spin forward to target:
-      // Find how many full extra cycles we need so to < curY
+      // Recalculate target with fresh frame height (rendered by now)
+      var fH = getFH();
+      var target = -((SL_N-1)*SL_CELL + SL_CELL/2 - fH/2);
       var to = target;
       while (to > curY) to -= totalH;
       // Make sure we have at least one visible spin before landing
@@ -2840,9 +2840,21 @@ function syncBalance(delta, bet, won, lost, game) {
     lost: lost,
     game: game
   });
+  var ts = Math.floor(Date.now()/1000);
   fetch(BACKEND + '/update_balance', Object.assign({}, HDR_POST, { body: body }))
     .then(function(r) { return r.json(); })
-    .then(function(d) { if (d.btc !== undefined) { S.btc = d.btc; ref(); } })
+    .then(function(d) {
+      if (d.btc !== undefined) { S.btc = d.btc; ref(); }
+      // Add tx locally so wallet shows it immediately
+      if (delta !== 0) {
+        if (!S.txs) S.txs = [];
+        S.txs.unshift({
+          type: delta>0?'game_win':'game_loss',
+          amount: Math.abs(delta), game: game, ts: ts
+        });
+        if (S.txs.length > 50) S.txs = S.txs.slice(0,50);
+      }
+    })
     .catch(function() {});
 }
 
@@ -3158,10 +3170,15 @@ function initLotto() {
 }
 
 function ltUpdateHeader() {
-  var jb = document.getElementById('lt-jkp-btc-old');
-  var je = document.getElementById('lt-jkp-eur');
-  if (jb) jb.textContent = Math.max(LT.jackpot||0.00111111,0.00111111).toFixed(6) + ' BTC';
-  if (je) je.textContent = '\u20AC' + Math.round(Math.max(LT.jackpot||0.00111111,0.00111111) * S.rate).toLocaleString('en');
+  var MIN_JKP = 0.00111111;
+  var jkp = Math.max(LT.jackpot||MIN_JKP, MIN_JKP);
+  var jkpEur = Math.round(jkp * (S.rate||90000));
+  ['lt-jkp-eur','lt-jkp-eur2'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.textContent='\u20AC'+jkpEur.toLocaleString('en');
+  });
+  ['lt-jkp-btc-old','lt-jkp-btc-old2'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.textContent=jkp.toFixed(6)+' BTC';
+  });
   var lt = document.getElementById('lt-bal');
   if (lt) lt.textContent = fbal();
   var tc = document.getElementById('lt-ticket-cnt');
