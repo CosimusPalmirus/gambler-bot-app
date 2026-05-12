@@ -1,10 +1,121 @@
-<!DOCTYPE html>
+
+        <div class="game-card" onclick="show('lotto');initLotto&&initLotto()">
+          <div class="gc-icon">&#127922;</div>
+          <div class="gc-name">LOTTO</div>
+        </div><!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <title>GAMBLER BOT</title>
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://telegram.org/js/telegram-web-app.js">
+// ── CRYPTO LOTTO ──
+var LT = { picks: [], bet: 0.0001 };
+var LT_BETS = [0.0001, 0.0005, 0.001, 0.005, 0.01];
+var LT_PRIZES = [
+  {m:6, name:'🏆 JACKPOT', mult:'Jackpot',  min:'min ~€50'},
+  {m:5, name:'5 numeri',   mult:'×100',     min:'min ~€20'},
+  {m:4, name:'4 numeri',   mult:'×20',      min:'min ~€5'},
+  {m:3, name:'3 numeri',   mult:'×3',       min:'min ~€2'},
+  {m:2, name:'2 numeri',   mult:'rimborso', min:''},
+];
+
+function initLotto() {
+  LT.picks = [];
+  // Build bet buttons
+  var bb = document.getElementById('lt-bet-btns'); bb.innerHTML = '';
+  LT_BETS.forEach(function(b) {
+    var btn = document.createElement('button');
+    btn.className = 'lt-bet-btn' + (b === LT.bet ? ' active' : '');
+    btn.textContent = b + ' BTC';
+    btn.onclick = function() {
+      LT.bet = b;
+      document.querySelectorAll('.lt-bet-btn').forEach(function(x){x.classList.remove('active');});
+      btn.classList.add('active');
+    };
+    bb.appendChild(btn);
+  });
+  // Build number grid
+  var grid = document.getElementById('lt-grid'); grid.innerHTML = '';
+  for (var i = 1; i <= 90; i++) {
+    (function(n) {
+      var el = document.createElement('div');
+      el.className = 'lt-num'; el.id = 'lt-n-'+n; el.textContent = n;
+      el.onclick = function() { ltToggle(n); };
+      grid.appendChild(el);
+    })(i);
+  }
+  // Build prize table
+  var pt = document.getElementById('lt-prize-table'); pt.innerHTML = '';
+  LT_PRIZES.forEach(function(p) {
+    var row = document.createElement('div'); row.className = 'lt-prize-row';
+    row.innerHTML = '<span class="lt-prize-match">'+p.name+'</span>'
+      + '<div style="text-align:right"><span class="lt-prize-mult">'+p.mult+'</span>'
+      + (p.min ? '<div style="font-size:8px;color:var(--gr)">'+p.min+'</div>' : '')
+      + '</div>';
+    pt.appendChild(row);
+  });
+  ltUpdateDisplay();
+}
+
+function ltTab(tab) {
+  ['play','prizes','history'].forEach(function(t) {
+    document.getElementById('lt-'+t).style.display = t===tab ? 'block' : 'none';
+    document.getElementById('lt-tab-'+t).classList.toggle('active', t===tab);
+  });
+}
+
+function ltToggle(n) {
+  var idx = LT.picks.indexOf(n);
+  if (idx >= 0) {
+    LT.picks.splice(idx,1);
+  } else {
+    if (LT.picks.length >= 6) { toast('Già 6 numeri selezionati!','err'); return; }
+    LT.picks.push(n);
+  }
+  LT.picks.sort(function(a,b){return a-b;});
+  ltUpdateDisplay();
+}
+
+function ltRandom() {
+  LT.picks = [];
+  var pool = [];
+  for (var i=1;i<=90;i++) pool.push(i);
+  for (var i=0;i<6;i++) {
+    var idx = Math.floor(Math.random()*pool.length);
+    LT.picks.push(pool.splice(idx,1)[0]);
+  }
+  LT.picks.sort(function(a,b){return a-b;});
+  ltUpdateDisplay();
+}
+
+function ltUpdateDisplay() {
+  // Update grid
+  for (var i=1;i<=90;i++) {
+    var el = document.getElementById('lt-n-'+i);
+    if (el) el.classList.toggle('picked', LT.picks.indexOf(i)>=0);
+  }
+  // Update selected display
+  var sel = document.getElementById('lt-selected');
+  sel.textContent = LT.picks.length > 0 ? LT.picks.join('  ') : 'Nessun numero selezionato';
+  // Update confirm button
+  var btn = document.getElementById('btn-lt-confirm');
+  btn.disabled = LT.picks.length !== 6;
+}
+
+function ltConfirm() {
+  if (LT.picks.length !== 6) { toast('Seleziona 6 numeri!','err'); return; }
+  if (bal() < LT.bet) { toast('Saldo insufficiente!','err'); return; }
+  S.btc -= f2b(LT.bet); ref();
+  syncBalance(-f2b(LT.bet), f2b(LT.bet), false, false, 'lotto_ticket');
+  toast('✅ Giocata registrata! Numeri: '+LT.picks.join(' '),'ok',3000);
+  LT.picks = [];
+  ltUpdateDisplay();
+  var n = parseInt(document.getElementById('lt-my-tickets').textContent||'0');
+  document.getElementById('lt-my-tickets').textContent = n+1;
+}
+
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;600;700&display=swap" rel="stylesheet">
 <style>
 :root{--bk:#08090d;--card:#111827;--card2:#161b27;--gn:#39ff14;--gold:#ffd700;--gd2:#b8860b;--pu:#8b5cf6;--rd:#ef4444;--bl:#38bdf8;--or:#f97316;--wh:#f0f4f8;--gr:#6b7280;--br:rgba(57,255,20,.12)}
@@ -339,6 +450,32 @@ body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradi
 }
 .game-timer.active{display:flex}
 @keyframes pulse-timer{0%,100%{opacity:1}50%{opacity:.5}}
+
+/* ══ CRYPTO LOTTO ══ */
+#lotto{background:radial-gradient(ellipse 100% 50% at 50% 0%,rgba(180,130,0,.2) 0%,transparent 50%),var(--bk)}
+.lt-body{flex:1;display:flex;flex-direction:column;padding:10px 14px;gap:10px;overflow-y:auto}
+.lt-jackpot{text-align:center;padding:14px;background:rgba(255,215,0,.06);border:1px solid rgba(255,215,0,.2);border-radius:14px}
+.lt-jackpot-val{font-family:'Orbitron';font-size:22px;font-weight:900;color:var(--gold);margin:4px 0 2px}
+.lt-jackpot-eur{font-size:11px;color:var(--gr)}
+.lt-info-bar{display:flex;gap:8px}
+.lt-info-item{flex:1;background:rgba(15,15,25,.6);border:1px solid var(--br);border-radius:10px;padding:8px;text-align:center}
+.lt-info-label{font-size:8px;color:var(--gr);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px}
+.lt-info-val{font-family:'Orbitron';font-size:10px;color:var(--wh);font-weight:700}
+.lt-tabs{display:flex;gap:6px;border-bottom:1px solid var(--br);padding-bottom:8px}
+.lt-tab{flex:1;padding:7px;border-radius:8px;background:transparent;border:1px solid var(--br);color:var(--gr);font-size:11px;cursor:pointer;transition:all .2s}
+.lt-tab.active{background:rgba(255,215,0,.1);border-color:var(--gold);color:var(--gold)}
+.lt-tab-content{flex:1}
+.lt-bet-btns{display:flex;flex-wrap:wrap;gap:6px}
+.lt-bet-btn{padding:6px 10px;border-radius:8px;background:rgba(15,15,25,.6);border:1px solid var(--br);color:var(--gr);font-size:10px;cursor:pointer;transition:all .15s}
+.lt-bet-btn.active{background:rgba(255,215,0,.12);border-color:var(--gold);color:var(--gold)}
+.lt-grid{display:grid;grid-template-columns:repeat(10,1fr);gap:3px;margin-bottom:8px}
+.lt-num{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:6px;font-size:9px;font-weight:700;cursor:pointer;background:rgba(15,15,25,.7);border:1px solid var(--br);color:var(--gr);transition:all .12s;user-select:none}
+.lt-num.picked{background:rgba(255,215,0,.2);border-color:var(--gold);color:var(--gold)}
+.lt-selected{font-family:'Orbitron';font-size:11px;color:var(--gold);text-align:center;min-height:20px;padding:6px;background:rgba(255,215,0,.05);border-radius:8px;border:1px solid rgba(255,215,0,.15)}
+.lt-prize-table{display:flex;flex-direction:column;gap:6px}
+.lt-prize-row{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(15,15,25,.5);border:1px solid var(--br);border-radius:10px}
+.lt-prize-match{font-family:'Russo One';font-size:12px;color:var(--wh)}
+.lt-prize-mult{font-family:'Orbitron';font-size:11px;color:var(--gold)}
 </style>
 </head>
 <body>
@@ -392,7 +529,7 @@ body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradi
 </div>
 <!-- BLACKJACK -->
 <div id="bj" class="screen">
-  <div class="bj-header"><div class="back" onclick="home()">&#8592;</div><div class="bj-title">BLACKJACK</div><div class="bj-bal-pill" id="bj-bal">0.00</div></div>
+  <div class="bj-header"><div class="back" onclick="home()">&#8592;</div><div class="bj-title">BLACKJACK</div><div class="game-timer" id="bj-timer">&#9200; 5:00</div><div class="bj-bal-pill" id="bj-bal">0.00</div></div>
   <div class="bj-table">
     <div class="bj-zone bj-dealer-zone"><div class="bj-zone-label"><span>&#127974;</span><span>DEALER</span><span class="bj-score-badge" id="d-sc"></span></div><div class="bj-cards-wrap" id="d-c"></div></div>
     <div class="bj-center"><div id="bj-res" class="bj-result-center" style="display:none"></div><div id="bj-status" class="bj-status-txt">Place your bet and deal!</div></div>
@@ -598,6 +735,66 @@ body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradi
     <div style="font-size:10px;color:var(--gr)">Real-time multiplayer available in the Telegram bot</div>
   </div>
 </div>
+<!-- LOTTO -->
+<div id="lotto" class="screen">
+  <div class="ghdr"><div class="back" onclick="home()">&#8592;</div><div class="gtitle" style="color:var(--gold)">CRYPTO LOTTO</div><div class="gbal" id="lt-bal">0.00</div></div>
+  <div class="lt-body">
+    <!-- Jackpot banner -->
+    <div class="lt-jackpot">
+      <div style="font-size:9px;color:var(--gr);letter-spacing:2px;text-transform:uppercase">JACKPOT</div>
+      <div class="lt-jackpot-val" id="lt-jackpot">0.001000 BTC</div>
+      <div class="lt-jackpot-eur" id="lt-jackpot-eur">€0.00</div>
+    </div>
+    <!-- Info bar -->
+    <div class="lt-info-bar">
+      <div class="lt-info-item">
+        <div class="lt-info-label">Prossima estrazione</div>
+        <div class="lt-info-val" id="lt-next-draw">Mar/Ven 20:00</div>
+      </div>
+      <div class="lt-info-item">
+        <div class="lt-info-label">Puntata</div>
+        <div class="lt-info-val" id="lt-bet-display">0.0001 BTC</div>
+      </div>
+      <div class="lt-info-item">
+        <div class="lt-info-label">I tuoi ticket</div>
+        <div class="lt-info-val" id="lt-my-tickets">0</div>
+      </div>
+    </div>
+    <!-- Tabs -->
+    <div class="lt-tabs">
+      <button class="lt-tab active" id="lt-tab-play" onclick="ltTab('play')">Gioca</button>
+      <button class="lt-tab" id="lt-tab-prizes" onclick="ltTab('prizes')">Premi</button>
+      <button class="lt-tab" id="lt-tab-history" onclick="ltTab('history')">Storico</button>
+    </div>
+    <!-- Play tab -->
+    <div id="lt-play" class="lt-tab-content">
+      <!-- Bet selector -->
+      <div class="lt-bet-row">
+        <div style="font-size:10px;color:var(--gr);margin-bottom:6px">Scegli puntata:</div>
+        <div class="lt-bet-btns" id="lt-bet-btns"></div>
+      </div>
+      <!-- Number grid -->
+      <div style="font-size:10px;color:var(--gr);margin-bottom:6px">Seleziona 6 numeri (1-90):</div>
+      <div class="lt-grid" id="lt-grid"></div>
+      <!-- Selected numbers display -->
+      <div class="lt-selected" id="lt-selected">Nessun numero selezionato</div>
+      <!-- Action buttons -->
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn" onclick="ltRandom()" style="flex:1;padding:10px;font-size:12px;background:rgba(255,215,0,.1);border-color:var(--gold);color:var(--gold)">&#127922; Casuali</button>
+        <button class="btn btn-gold" onclick="ltConfirm()" id="btn-lt-confirm" style="flex:1;padding:10px;font-size:12px" disabled>&#9989; Conferma</button>
+      </div>
+    </div>
+    <!-- Prizes tab -->
+    <div id="lt-prizes" class="lt-tab-content" style="display:none">
+      <div class="lt-prize-table" id="lt-prize-table"></div>
+    </div>
+    <!-- History tab -->
+    <div id="lt-history" class="lt-tab-content" style="display:none">
+      <div id="lt-history-list" style="font-size:12px;color:var(--gr)">Nessuna estrazione ancora.</div>
+    </div>
+  </div>
+</div>
+
 <!-- WALLET -->
 <div id="wallet" class="screen">
   <div class="hdr"><div style="display:flex;align-items:center;gap:8px"><div class="back" onclick="home()">&#8592;</div><span style="font-family:'Russo One';font-size:14px;color:var(--gold)">WALLET</span></div><div class="hdr-bal"><span class="hdr-bal-lbl">Balance</span><span class="hdr-bal-val" id="w-bh">0.00</span></div></div>
