@@ -3898,7 +3898,7 @@ function ltBuildWinRows() {
   var el = document.getElementById('lt-win-rows'); if (!el) return; el.innerHTML = '';
   LT.prizes.forEach(function(p) {
     var winBtc = ltPrizeBtc(p);
-    var winEur = p.m===6 ? Math.round(winBtc*S.rate) : (p.eur || Math.round(winBtc*S.rate));
+    var winEur = p.m===6 ? Math.max(Math.round(winBtc*(S.rate||90000)), 100) : (p.eur || Math.round(winBtc*(S.rate||90000)));
     var note   = p.m===6 ? 'jackpot pool (€'+Math.round((LT.jackpot||0.00111111)*S.rate)+' attuale)' : p.note;
     var row = document.createElement('div'); row.className = 'lt-win-item';
     row.innerHTML =
@@ -4491,7 +4491,7 @@ var CH_SEASON_DEFS = [
 ];
 
 // ── State ────────────────────────────────────────────────────────────
-var chProgress = {};   // {challenge_id: current_value}
+var chProgress = {};   // populated by fetchChallenges + syncBalance
 var chClaimed  = {};   // {challenge_id: true}
 var chTimerInt = null;
 
@@ -4559,18 +4559,17 @@ function chRenderAll() {
 }
 
 function chRenderWithLocal() {
-  // Build progress from local S state
-  chProgress = {
-    week_wins:    S.wins,
-    week_games:   S.wins+S.losses,
-    week_bj_wins: 0,
-    week_pk_wins: 0,
-    week_rl_red:  0,
-    week_bet_eur: Math.round(S.bet * S.rate),
-    jackpots:     0,
-    total_games:  S.wins+S.losses,
-    net_btc_pct:  Math.round(Math.max(0,(S.won-S.bet)/0.001*100)),
+  // Merge local S state into chProgress (never replace server data)
+  if (!chProgress) chProgress = {};
+  var local = {
+    week_wins:    S.wins   || 0,
+    week_games:   (S.wins||0)+(S.losses||0),
+    week_bet_eur: Math.round((S.bet||0) * (S.rate||90000)),
+    total_games:  (S.wins||0)+(S.losses||0),
   };
+  Object.keys(local).forEach(function(k) {
+    chProgress[k] = Math.max(chProgress[k]||0, local[k]||0);
+  });
   chRenderAll();
 }
 
