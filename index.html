@@ -3079,7 +3079,10 @@ function fbal(){return f2(bal());}
 function sleep(ms){return new Promise(function(r){setTimeout(r,ms);});}
 
 /* ── NAV ── */
+var _CURR_SCREEN = 'home';
 function show(id){
+  if (id === _CURR_SCREEN) return;  // already showing
+  _CURR_SCREEN = id;
   document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
   var el = document.getElementById(id);
   if (!el) { console.error('Screen not found: '+id); return; }
@@ -3089,6 +3092,8 @@ function show(id){
   if(id==='bj')           setTimeout(initBj,20);
   if(id==='rl')           setTimeout(initRl,20);
   if(id==='pk')           setTimeout(initPk,20);
+  if(id==='dc')           setTimeout(function(){try{initDc();}catch(e){}},20);
+  if(id==='duel')         setTimeout(function(){try{if(typeof initDuel==='function')initDuel();}catch(e){}},20);
   if(id==='lotto')        setTimeout(initLotto,20);
   if(id==='challenges')   setTimeout(initChallenges,20);
   if(id==='scratch')      setTimeout(initScratch,20);
@@ -3097,8 +3102,8 @@ function show(id){
   if(id==='wallet')       { loadBalance().then(function(){updW();}); }
   if(id==='profile')      updP();
 }
-function go(g){show(g);}
-function home(){show('home');}
+function go(g){show(g);initG(g);}
+function home(){S._gameActive=false;_CURR_SCREEN='none';show('home');}
 
 function toast(m,t,d){
   t=t||'inf';d=d||2500;
@@ -3159,11 +3164,18 @@ function revealH(id,hand){
   return new Promise(function(res){rn();setTimeout(res,480*hand.length+200);});
 }
 function initG(g){
-  if(g==='bj')initBj();else if(g==='sl')initSl();else if(g==='rl')initRl();
-  else if(g==='dc')initDc();else if(g==='pk')initPk();
-  else if(g==='duel'){}else if(g==='lotto')initLotto();
-  else if(g==='scratch')initScratch();
-  else if(g==='crash')initCrash();
+  try{
+    if(g==='bj')         initBj();
+    else if(g==='sl')    initSl();
+    else if(g==='rl')    initRl();
+    else if(g==='dc')    initDc();
+    else if(g==='pk')    initPk();
+    else if(g==='lotto')       initLotto();
+    else if(g==='scratch')     initScratch();
+    else if(g==='crash')       initCrash();
+    else if(g==='leaderboard') initLeaderboard();
+    else if(g==='challenges')  initChallenges();
+  }catch(e){console.warn('initG error',g,e.message);}
 }
 
 /* ── TIMER ── */
