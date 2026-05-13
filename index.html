@@ -2380,7 +2380,13 @@ body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradi
 
 .lt-draw-ball.hot{background:linear-gradient(135deg,#f59e0b,#d97706)!important;color:#000!important;box-shadow:0 0 8px rgba(245,158,11,.6)!important}
 
-.bj-zone{min-height:96px}</style>
+.bj-zone{min-height:96px}
+/* ── Scratch & Crash game CSS ──────────────────────── */
+.sc-cell-overlay { transition: opacity .2s; }
+.sc-cell-overlay.revealed { opacity:0; }
+#cr-mult { line-height:1; text-align:center; padding:4px 0; }
+.cr-pill { display:inline-block; border-radius:5px; padding:2px 7px; font-family:Orbitron; font-size:10px; }
+</style>
 </head>
 <body>
 <div id="loading">
@@ -2427,16 +2433,29 @@ body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradi
         <span class="gc-lotto-badge">NEW &#10024;</span>
         <div class="gc-icon" style="font-size:44px">&#127922;</div>
         <div class="gc-name">CRYPTO LOTTO</div>
-        <div class="gc-info">Mar &amp; Ven 20:00 &bull; Jackpot min ~&euro;50</div>
+        <div class="gc-info">Mar &amp; Ven 20:00 &bull; Jackpot min ~&euro;100</div>
+      </div>
+      <div class="gc" style="background:linear-gradient(135deg,#1a1200,#2a1c00);border-color:rgba(255,165,0,.3)" onclick="go('scratch')">
+        <span class="gc-badge" style="background:rgba(255,165,0,.2);color:var(--gold);border:1px solid rgba(255,165,0,.4)">NUOVO &#9733;</span>
+        <div class="gc-icon">&#127873;</div>
+        <div class="gc-name">GRATTA &amp; VINCI</div>
+        <div class="gc-info">Gratta &bull; Trova premi &bull; Evita bombe</div>
+      </div>
+      <div class="gc" style="background:linear-gradient(135deg,#1a0000,#2a0808);border-color:rgba(239,68,68,.3)" onclick="go('crash')">
+        <span class="gc-badge" style="background:rgba(239,68,68,.2);color:var(--rd);border:1px solid rgba(239,68,68,.4)">NUOVO &#128640;</span>
+        <div class="gc-icon">&#128640;</div>
+        <div class="gc-name">CRASH</div>
+        <div class="gc-info">Cashout prima del crash</div>
       </div>
     </div>
   </div>
   <div class="bnav">
     <div class="bnav-btn active" onclick="show('home')"><span class="ni">&#127968;</span>Home</div>
     <div class="bnav-btn" onclick="show('wallet')"><span class="ni">&#128179;</span>Wallet</div>
-    <div class="bnav-btn" onclick="show('profile')"><span class="ni">&#128100;</span>Profile</div>
+    <div class="bnav-btn" onclick="show('leaderboard')"><span class="ni">&#127942;</span>Top</div>
     <div class="bnav-btn" onclick="show('challenges')"><span class="ni">&#127942;</span>Sfide</div>
   </div>
+</div>
 </div>
 
 <!-- BLACKJACK -->
@@ -2911,6 +2930,102 @@ body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradi
   </div>
 
 
+
+<!-- SCRATCH CARD GAME -->
+<div id="scratch" class="screen">
+  <div class="ghdr" style="background:rgba(5,6,9,.96);border-bottom:1px solid rgba(255,165,0,.2);backdrop-filter:blur(12px)">
+    <div class="back" onclick="home()">&#8592;</div>
+    <div style="font-family:'Russo One';font-size:14px;flex:1;background:linear-gradient(135deg,#ff9800,#ffd700);-webkit-background-clip:text;-webkit-text-fill-color:transparent">GRATTA &amp; VINCI</div>
+    <div style="font-family:'Orbitron';font-size:11px;color:var(--gold);font-weight:700" id="sc-bal">0.00</div>
+  </div>
+  <div class="scroll" style="padding:12px;display:flex;flex-direction:column;gap:10px;align-items:center">
+    <!-- Bet + info -->
+    <div style="width:100%;display:flex;gap:8px;align-items:center">
+      <div style="flex:1;background:var(--card);border-radius:10px;padding:8px 10px;border:1px solid rgba(255,165,0,.2)">
+        <div style="font-size:9px;color:var(--gr);margin-bottom:3px">PUNTATA</div>
+        <div id="sc-bet-row" style="display:flex;gap:5px;flex-wrap:wrap"></div>
+      </div>
+      <div style="background:var(--card);border-radius:10px;padding:8px 10px;border:1px solid rgba(57,255,20,.15);min-width:90px;text-align:center">
+        <div style="font-size:9px;color:var(--gr)">VINCITA</div>
+        <div id="sc-win-display" style="font-family:Orbitron;font-size:13px;color:var(--gn);font-weight:700">€0.00</div>
+      </div>
+    </div>
+    <!-- Card -->
+    <div id="sc-card" style="width:100%;max-width:340px;background:linear-gradient(135deg,#1a1200,#2a1c00);border:2px solid rgba(255,165,0,.4);border-radius:16px;padding:12px;position:relative">
+      <div style="text-align:center;font-family:'Russo One';font-size:11px;color:var(--gold);letter-spacing:2px;margin-bottom:10px">GAMBLER BOT DELUXE</div>
+      <div id="sc-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px"></div>
+      <div id="sc-bombs-left" style="text-align:center;margin-top:8px;font-size:10px;color:var(--gr)">4 bombe nascoste</div>
+    </div>
+    <!-- Actions -->
+    <div style="display:flex;gap:8px;width:100%;max-width:340px">
+      <button id="sc-cashout-btn" onclick="scCashout()" style="flex:1;background:linear-gradient(135deg,#059669,#065f46);color:#fff;border:none;border-radius:10px;padding:12px;font-family:'Russo One';font-size:13px;cursor:pointer;display:none">INCASSA 💰</button>
+      <button id="sc-new-btn" onclick="scNew()" style="flex:1;background:linear-gradient(135deg,#ff9800,#e65100);color:#fff;border:none;border-radius:10px;padding:12px;font-family:'Russo One';font-size:13px;cursor:pointer">NUOVA CARTA</button>
+    </div>
+    <!-- Instructions -->
+    <div style="font-size:10px;color:var(--gr);text-align:center;max-width:300px;line-height:1.5">
+      Gratta le celle per trovare i premi 💎💰⭐<br>Incassa quando vuoi — la bomba 💣 fa perdere tutto!
+    </div>
+  </div>
+</div>
+
+<!-- CRASH GAME -->
+<div id="crash" class="screen">
+  <div class="ghdr" style="background:rgba(5,6,9,.96);border-bottom:1px solid rgba(239,68,68,.2);backdrop-filter:blur(12px)">
+    <div class="back" onclick="home()">&#8592;</div>
+    <div style="font-family:'Russo One';font-size:14px;flex:1;background:linear-gradient(135deg,#ef4444,#ffd700);-webkit-background-clip:text;-webkit-text-fill-color:transparent">🚀 CRASH</div>
+    <div style="font-family:'Orbitron';font-size:11px;color:var(--rd);font-weight:700" id="cr-bal">0.00</div>
+  </div>
+  <div class="scroll" style="padding:12px;display:flex;flex-direction:column;gap:10px">
+    <!-- Multiplier display -->
+    <div style="position:relative;text-align:center">
+      <div id="cr-mult" style="font-family:'Orbitron';font-size:52px;font-weight:900;color:var(--gn);text-shadow:0 0 30px rgba(57,255,20,.6);transition:color .2s">1.00<span style="font-size:22px">x</span></div>
+      <div id="cr-status" style="font-size:11px;color:var(--gr);letter-spacing:2px">ATTENDI ROUND</div>
+    </div>
+    <!-- Canvas -->
+    <div style="position:relative;border-radius:12px;overflow:hidden;border:1px solid rgba(239,68,68,.2);background:#080b12">
+      <canvas id="cr-canvas" width="360" height="200" style="width:100%;height:auto;display:block"></canvas>
+    </div>
+    <!-- Bet row -->
+    <div style="background:var(--card);border-radius:10px;padding:10px;border:1px solid rgba(239,68,68,.15)">
+      <div style="font-size:9px;color:var(--gr);margin-bottom:6px">PUNTATA</div>
+      <div id="cr-bet-row" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px"></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div style="flex:1;font-family:Orbitron;font-size:11px;color:var(--gr)">
+          Auto cashout: <span id="cr-auto-mult" style="color:var(--gold)">OFF</span>
+        </div>
+        <div style="display:flex;gap:4px">
+          <button onclick="crSetAuto(0)" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:var(--wh);padding:3px 7px;border-radius:6px;font-size:10px;cursor:pointer">OFF</button>
+          <button onclick="crSetAuto(1.5)" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:var(--wh);padding:3px 7px;border-radius:6px;font-size:10px;cursor:pointer">1.5x</button>
+          <button onclick="crSetAuto(2)" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:var(--wh);padding:3px 7px;border-radius:6px;font-size:10px;cursor:pointer">2x</button>
+          <button onclick="crSetAuto(5)" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:var(--wh);padding:3px 7px;border-radius:6px;font-size:10px;cursor:pointer">5x</button>
+        </div>
+      </div>
+    </div>
+    <!-- Action button -->
+    <button id="cr-btn" onclick="crAction()" style="width:100%;padding:14px;border:none;border-radius:12px;font-family:'Russo One';font-size:15px;cursor:pointer;background:linear-gradient(135deg,#059669,#065f46);color:#fff;letter-spacing:1px">SCOMMETTI &amp; ATTENDI</button>
+    <!-- History -->
+    <div style="background:var(--card);border-radius:10px;padding:10px;border:1px solid rgba(255,255,255,.05)">
+      <div style="font-size:9px;color:var(--gr);margin-bottom:6px;letter-spacing:1px">ULTIMI ROUND</div>
+      <div id="cr-history" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+    </div>
+  </div>
+</div>
+
+<!-- LEADERBOARD SCREEN -->
+<div id="leaderboard" class="screen">
+  <div class="ghdr" style="background:rgba(5,6,9,.96);border-bottom:1px solid rgba(255,215,0,.2);backdrop-filter:blur(12px)">
+    <div class="back" onclick="home()">&#8592;</div>
+    <div style="font-family:'Russo One';font-size:14px;flex:1;background:linear-gradient(135deg,var(--gold),#ff9800);-webkit-background-clip:text;-webkit-text-fill-color:transparent">🏆 LEADERBOARD</div>
+    <div style="font-family:'Orbitron';font-size:10px;color:var(--gold)">TOP PLAYERS</div>
+  </div>
+  <div class="scroll" style="padding:12px;display:flex;flex-direction:column;gap:8px">
+    <div id="lb-my-rank" style="display:none;background:linear-gradient(135deg,rgba(255,215,0,.1),rgba(255,165,0,.05));border:1px solid rgba(255,215,0,.3);border-radius:10px;padding:10px;text-align:center;font-size:12px;color:var(--gold)"></div>
+    <div id="lb-list" style="display:flex;flex-direction:column;gap:6px">
+      <div style="text-align:center;color:var(--gr);padding:20px;font-size:12px">Caricamento...</div>
+    </div>
+  </div>
+</div>
+
 </div><!-- btc-bg -->
 </div><!-- #app -->
 <div id="toast" class="toast"></div>
@@ -2968,14 +3083,16 @@ function show(id){
   document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
   document.getElementById(id).classList.add('active');
   ref();
-  if(id==='sl')         setTimeout(initSl,150);
-  if(id==='bj')         setTimeout(initBj,20);
-  if(id==='rl')         setTimeout(initRl,20);
-  if(id==='pk')         setTimeout(initPk,20);
-  if(id==='lotto')      setTimeout(initLotto,20);
-  if(id==='challenges') setTimeout(initChallenges,20);
-  if(id==='wallet')     updW();
-  if(id==='profile')    updP();
+  if(id==='sl')          setTimeout(initSl,150);
+  if(id==='bj')          setTimeout(initBj,20);
+  if(id==='rl')          setTimeout(initRl,20);
+  if(id==='pk')          setTimeout(initPk,20);
+  if(id==='lotto')       setTimeout(initLotto,20);
+  if(id==='challenges')  setTimeout(initChallenges,20);
+  if(id==='scratch')     setTimeout(initScratch,20);
+  if(id==='crash')       setTimeout(initCrash,20);
+  if(id==='wallet')      { loadBalance().then(function(){updW();}); }
+  if(id==='profile')     updP();
 }
 function go(g){show(g);initG(g);}
 function home(){show('home');}
@@ -2988,11 +3105,20 @@ function toast(m,t,d){
 }
 function ref(){
   var v=fbal();
-  ['h-bal','bj-bal','sl-bal','rl-bal','dc-bal','pk-bal','duel-bal','w-bh','lt-bal'].forEach(function(id){var el=document.getElementById(id);if(el)el.textContent=v;});
+  ['h-bal','bj-bal','sl-bal','rl-bal','dc-bal','pk-bal','duel-bal','w-bh','lt-bal','sc-bal','cr-bal'].forEach(function(id){var el=document.getElementById(id);if(el)el.textContent=v;});
   var net=(S.won-S.bet)*S.rate;
   var ne=document.getElementById('s-n');
   if(ne){ne.textContent=(net>=0?'+':'')+f2(Math.abs(net));ne.style.color=net>=0?'var(--gold)':'var(--rd)';}
   var we=document.getElementById('s-w');if(we)we.textContent=S.wins;
+  // Level badge in header
+  var xpT=[0,100,300,600,1000,1500,2200,3200,4500,6500];
+  var lbadge=document.getElementById('h-level-badge');
+  if(lbadge){
+    var lv=0;for(var _j=xpT.length-1;_j>=0;_j--){if((S.xp||0)>=xpT[_j]){lv=_j;break;}}
+    var titleArr=['Rookie','Gambler','Sharp','High Roller','VIP','Hustler','Boss','Mafia Boss','Casino King','LEGEND'];
+    lbadge.textContent='Lv.'+lv+' '+titleArr[lv];
+    lbadge.style.color=lv>=9?'var(--gold)':lv>=7?'#e879f9':lv>=5?'var(--gn)':'var(--gr)';
+  }
   var le=document.getElementById('s-l');if(le)le.textContent=S.losses;
 }
 function buildCh(cid,game,cb){
@@ -3034,6 +3160,8 @@ function initG(g){
   if(g==='bj')initBj();else if(g==='sl')initSl();else if(g==='rl')initRl();
   else if(g==='dc')initDc();else if(g==='pk')initPk();
   else if(g==='duel'){}else if(g==='lotto')initLotto();
+  else if(g==='scratch')initScratch();
+  else if(g==='crash')initCrash();
 }
 
 /* ── TIMER ── */
@@ -4020,8 +4148,8 @@ var ACHIEVEMENTS=[
   {icon:'📈', name:'50%+ WR',    cond:function(s){var t=s.wins+s.losses;return t>0&&(s.wins/t)>=.5;}},
   {icon:'🎯',name:'100 Games',  cond:function(s){return s.wins+s.losses>=100;}},
 ];
-var TITLES=['Newcomer','Gambler','High Roller','VIP','Legend','GOD MODE'];
-var RANK_ICONS=['🏅','🎰','💎','👑','🌟','👼'];
+var TITLES=['Rookie','Gambler','Sharp','High Roller','VIP','Hustler','Boss','Mafia Boss','Casino King','LEGEND'];
+var RANK_ICONS=['🏅','🎰','🃏','💰','👑','😈','🖤','🤿','🔞','💀'];
 
 function pfAnimCounter(el,target,dur){
   if(!el)return;var start=performance.now(),from=0;
@@ -4031,12 +4159,12 @@ function pfAnimCounter(el,target,dur){
 function updP(){
   var pb=document.getElementById('pf-bal');if(pb)pb.textContent=fbal();
   var nm=document.getElementById('pf-nm');if(nm)nm.textContent=S.name;
-  var tot=S.wins+S.losses,lvl=Math.min(Math.floor(S.wins/10)+1,6);
+  var tot=S.wins+S.losses;var xpThresh=[0,100,300,600,1000,1500,2200,3200,4500,6500];var lvl=0;for(var _i=xpThresh.length-1;_i>=0;_i--){if((S.xp||0)>=xpThresh[_i]){lvl=_i;break;}}
   var lv=document.getElementById('pf-lv');if(lv)lv.textContent='Level '+lvl+' \u2014 '+TITLES[lvl-1];
   var rb=document.getElementById('pf-rank-badge');if(rb)rb.textContent=RANK_ICONS[lvl-1];
-  var wil=S.wins%10,xpPct=Math.min((wil/10)*100,100);
+  var curLvlXp=xpThresh[lvl]||0,nxtLvlXp=xpThresh[lvl+1]||xpThresh[lvl]+1000;var wil=(S.xp||0)-curLvlXp,xpRange=nxtLvlXp-curLvlXp,xpPct=Math.min((wil/xpRange)*100,100);
   var xpFill=document.getElementById('pf-xp-fill');if(xpFill)setTimeout(function(){xpFill.style.width=xpPct+'%';},200);
-  var xpTxt=document.getElementById('pf-xp-txt');if(xpTxt)xpTxt.textContent=wil+' / 10 wins';
+  var xpTxt=document.getElementById('pf-xp-txt');if(xpTxt)xpTxt.textContent=(S.xp||0)+' XP — '+(nxtLvlXp-(S.xp||0))+' to next level';
   pfAnimCounter(document.getElementById('p-w'),S.wins,800);
   pfAnimCounter(document.getElementById('p-l'),S.losses,800);
   pfAnimCounter(document.getElementById('p-games'),tot,800);
@@ -4045,18 +4173,36 @@ function updP(){
   if(ne){ne.textContent=(net>=0?'+':'')+f2(Math.abs(net));ne.style.color=net>=0?'var(--gold)':'var(--rd)';}
   var grid=document.getElementById('pf-ach-grid');
   if(grid){grid.innerHTML='';ACHIEVEMENTS.forEach(function(a){var u=a.cond(S);var div=document.createElement('div');div.className='pf-ach '+(u?'unlocked':'locked');div.innerHTML='<div class="pf-ach-icon">'+a.icon+'</div><div class="pf-ach-name">'+a.name+'</div>';grid.appendChild(div);});}
-  var pod=document.getElementById('pf-lb-podium');
-  if(pod){
-    pod.innerHTML='';
-    var players=[{nm:'CryptoKing',val:f2(S.rate*.12),me:false},{nm:S.name,val:fbal(),me:true},{nm:'SatoshiX',val:f2(S.rate*.07),me:false}];
-    var medals=['🥈','🥇','🥉'],order=[1,0,2];
-    order.forEach(function(i){var p=players[i];var div=document.createElement('div');div.className='pf-lb-pod pf-lb-pod-'+(i+1);div.innerHTML='<div class="pf-lb-medal">'+medals[i]+'</div><div class="pf-lb-pod-name">'+p.nm+'</div><div class="pf-lb-pod-val">'+p.val+'</div>';pod.appendChild(div);});
-  }
-  var rows=document.getElementById('pf-lb-rows');
-  if(rows){
-    var lb=[{pos:1,nm:'CryptoKing',val:f2(S.rate*.12),me:false},{pos:2,nm:S.name,val:fbal(),me:true},{pos:3,nm:'SatoshiX',val:f2(S.rate*.07),me:false},{pos:4,nm:'BTCWizard',val:f2(S.rate*.04),me:false}];
-    rows.innerHTML=lb.map(function(r){return '<div class="pf-lb-row'+(r.me?' is-me':'')+'"><div class="pf-lb-pos" style="color:'+(r.pos===1?'var(--gold)':r.pos===2?'#9ca3af':'#b8860b')+'">'+r.pos+'</div><div class="pf-lb-pname">'+r.nm+(r.me?' <span style=\"font-size:8px;color:var(--gn)\">YOU</span>':'')+'</div><div class="pf-lb-pval">'+r.val+'</div></div>';}).join('');
-  }
+  // Load real leaderboard from server
+  fetchLeaderboard().then(function(players){
+    var pod=document.getElementById('pf-lb-podium');
+    if(pod && players.length >= 3){
+      pod.innerHTML='';
+      var medals=['🥈','🥇','🥉'],order=[1,0,2];
+      order.forEach(function(idx){
+        var p=players[idx]||{name:'—',btc:0,is_me:false};
+        var div=document.createElement('div');
+        div.className='pf-lb-pod pf-lb-pod-'+(idx+1);
+        var nm = p.name || 'Player';
+        var val = '€'+Math.round((p.btc||0)*S.rate);
+        div.innerHTML='<div class="pf-lb-medal">'+medals[idx]+'</div><div class="pf-lb-pod-name">'+(p.is_me?'<b>YOU</b>':nm)+'</div><div class="pf-lb-pod-val">'+val+'</div>';
+        pod.appendChild(div);
+      });
+    }
+    var rows=document.getElementById('pf-lb-rows');
+    if(rows){
+      rows.innerHTML=players.map(function(p,i){
+        var isMe=p.is_me;
+        var col=i===0?'var(--gold)':i===1?'#9ca3af':'#b8860b';
+        var nm=p.name||('Player'+(i+1));
+        var val='€'+Math.round((p.btc||0)*S.rate);
+        return '<div class="pf-lb-row'+(isMe?' is-me':'')+'">'
+          +'<div class="pf-lb-pos" style="color:'+col+'">'+(i+1)+'</div>'
+          +'<div class="pf-lb-pname">'+(isMe?'<b>YOU</b>':nm)+'</div>'
+          +'<div class="pf-lb-pval">'+val+'</div></div>';
+      }).join('');
+    }
+  });
 }
 
 
@@ -4109,6 +4255,8 @@ function loadBalance() {
       S.txs         = d.txs  || [];
       S.addr        = d.address || '';
       S.biggest_win = d.biggest_win || 0;
+      S.xp    = d.xp    || 0;
+      S.level = d.level || 0;
       S.total_bet   = d.total_bet || 0;
       if (d.name)     S.name = d.name;
       if (d.username) S.username = d.username;
@@ -4172,6 +4320,10 @@ function syncBalance(delta, bet, won, lost, game) {
       // Refresh challenges screen if open
       var chScreen = document.getElementById('challenges');
       if (chScreen && chScreen.classList.contains('active')) chRenderAll();
+      // Award XP for games
+      var xpAmt = won ? 20 : 8;
+      if (typeof addXP === 'function') addXP(xpAmt, game||'game');
+
     })
     .catch(function(e) {
       S._gameActive = false;
@@ -4747,6 +4899,559 @@ function ltUpdateDrawTimer() {
   if (window._ltTimerInt) clearInterval(window._ltTimerInt);
   window._ltTimerInt = setInterval(tick, 1000);
 }
+
+
+// ═══════════════════════════════════════════════════════════
+// XP & LEVEL SYSTEM
+// ═══════════════════════════════════════════════════════════
+var LEVEL_TITLES = [
+  {lv:0,  xp:0,     icon:'🎮', title:'Rookie'},
+  {lv:1,  xp:100,   icon:'🃏', title:'Card Shark'},
+  {lv:2,  xp:300,   icon:'🎲', title:'Gambler'},
+  {lv:3,  xp:700,   icon:'🔥', title:'High Roller'},
+  {lv:4,  xp:1500,  icon:'💎', title:'Sharp'},
+  {lv:5,  xp:3000,  icon:'🤵', title:'Kingpin'},
+  {lv:6,  xp:6000,  icon:'🕴', title:'Syndicate Boss'},
+  {lv:7,  xp:12000, icon:'🌆', title:'Mafia Don'},
+  {lv:8,  xp:25000, icon:'💰', title:'The House'},
+  {lv:9,  xp:50000, icon:'👑', title:'El Patron'},
+  {lv:10, xp:100000,icon:'🏆', title:'LEGEND'},
+];
+
+function getLevelInfo(xp) {
+  var cur = LEVEL_TITLES[0], next = LEVEL_TITLES[1];
+  for (var i = LEVEL_TITLES.length-1; i >= 0; i--) {
+    if ((xp||0) >= LEVEL_TITLES[i].xp) { cur = LEVEL_TITLES[i]; next = LEVEL_TITLES[i+1]||null; break; }
+  }
+  var xpInLevel = (xp||0) - cur.xp;
+  var xpNeeded  = next ? next.xp - cur.xp : 1;
+  return { level:cur.lv, icon:cur.icon, title:cur.title, pct:Math.min(100, Math.round(xpInLevel/xpNeeded*100)), next:next };
+}
+
+function addXP(amount, reason) {
+  if (!S.userId) return;
+  var old = getLevelInfo(S.xp||0);
+  S.xp = (S.xp||0) + amount;
+  var nw  = getLevelInfo(S.xp);
+  if (nw.level > old.level) {
+    // Level up notification!
+    toast('🎉 Level Up! ' + nw.icon + ' ' + nw.title, 'win');
+    // Show level up overlay
+    var ov = document.getElementById('lvlup-ov');
+    if (ov) {
+      document.getElementById('lvlup-title').textContent = nw.icon + ' ' + nw.title;
+      document.getElementById('lvlup-lv').textContent = 'Level ' + nw.level;
+      ov.style.display = 'flex';
+      setTimeout(function(){ ov.style.display='none'; }, 3500);
+    }
+  }
+  // Persist XP via backend
+  if (S.userId) {
+    fetch(BACKEND+'/update_xp', {method:'POST', headers:HDR.headers||{'Content-Type':'application/json'},
+      body: JSON.stringify({user_id:S.userId, xp: S.xp})}).catch(function(){});
+  }
+  // Update profile if open
+  var pf = document.getElementById('profile');
+  if (pf && pf.classList.contains('active')) updP();
+}
+
+// ═══════════════════════════════════════════════════════════
+// LEADERBOARD
+// ═══════════════════════════════════════════════════════════
+function initLeaderboard() {
+  fetchLeaderboard().then(function(list) {
+    var el = document.getElementById('lb-list');
+    if (!el) return;
+    if (!list || !list.length) {
+      el.innerHTML = '<div style="text-align:center;color:var(--gr);padding:20px">Nessun giocatore ancora</div>';
+      return;
+    }
+    var medals = ['🥇','🥈','🥉'];
+    el.innerHTML = list.map(function(p, i) {
+      var isMe = p.is_me;
+      var lvl  = getLevelInfo(p.xp||0);
+      var medal = medals[i] || (''+('  #'+(i+1))).slice(-3);
+      var rate  = S.rate||90000;
+      var eur   = Math.round((p.btc||0)*rate);
+      return '<div style="background:' + (isMe?'linear-gradient(135deg,rgba(57,255,20,.1),rgba(255,215,0,.05))':'var(--card)') + ';' +
+        'border:1px solid ' + (isMe?'rgba(57,255,20,.3)':'rgba(255,255,255,.06)') + ';' +
+        'border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px">' +
+        '<div style="font-size:18px;min-width:24px;text-align:center">' + medal + '</div>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-size:12px;font-weight:700;color:var(--wh);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (isMe?'⭐ ':'') + (p.name||'Player') + '</div>' +
+          '<div style="font-size:10px;color:var(--gr)">' + lvl.icon + ' ' + lvl.title + ' &bull; ' + (p.wins||0) + 'W ' + (p.losses||0) + 'L</div>' +
+        '</div>' +
+        '<div style="text-align:right">' +
+          '<div style="font-family:Orbitron;font-size:11px;color:var(--gold)">&euro;' + eur.toLocaleString() + '</div>' +
+          '<div style="font-size:9px;color:var(--gr)">' + (p.btc||0).toFixed(4) + ' BTC</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+    // My rank
+    if (S.rank) {
+      var mr = document.getElementById('lb-my-rank');
+      if (mr) { mr.style.display='block'; mr.textContent = 'Il tuo rank: #' + S.rank; }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// SCRATCH CARD GAME
+// ═══════════════════════════════════════════════════════════
+var SC = {
+  bet: 0, betBTC: 0, board: [], revealed: [], won: 0, bombs: 0,
+  active: false, canCashout: false
+};
+
+var SC_SYMBOLS = [
+  {icon:'💎', name:'Diamante',  mult:8.0, w:1},
+  {icon:'💰', name:'Jackpot',   mult:4.0, w:2},
+  {icon:'⭐', name:'Stella',    mult:2.5, w:3},
+  {icon:'🃏', name:'Carta',     mult:1.8, w:4},
+  {icon:'💵', name:'Cash',      mult:1.2, w:5},
+  {icon:'💣', name:'BOMBA',     mult:0,   w:4},
+];
+
+function scBuildBoard() {
+  var cells = [];
+  // 4 bombs always
+  for (var b=0;b<4;b++) cells.push(5); // bomb index
+  // 12 prizes — weighted random
+  var prizePool = [0,1,2,3,4]; // indices excluding bomb
+  var weights   = [1,2,3,4,5];
+  var totalW    = weights.reduce(function(a,b){return a+b;},0);
+  for (var p=0;p<12;p++) {
+    var r = Math.random()*totalW, cum=0;
+    for (var k=0;k<prizePool.length;k++) { cum+=weights[k]; if(r<=cum){cells.push(prizePool[k]);break;} }
+  }
+  // Shuffle
+  for (var i=cells.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var tmp=cells[i];cells[i]=cells[j];cells[j]=tmp;}
+  return cells;
+}
+
+function scGetWin() {
+  var total = 0;
+  SC.revealed.forEach(function(idx) {
+    var sym = SC_SYMBOLS[SC.board[idx]];
+    if (sym.mult > 0) total += SC.betBTC * sym.mult;
+  });
+  return total;
+}
+
+function initScratch() {
+  // Bet buttons
+  var betRow = document.getElementById('sc-bet-row');
+  if (!betRow) return;
+  var bets = [1,2,5,10,20];
+  betRow.innerHTML = bets.map(function(e) {
+    return '<button onclick="scSetBet('+e+')" style="background:rgba(255,165,0,.1);border:1px solid rgba(255,165,0,.3);color:var(--gold);padding:4px 9px;border-radius:6px;font-size:11px;cursor:pointer">&euro;'+e+'</button>';
+  }).join('');
+  SC.bet = 2; SC.betBTC = f2b(2);
+  scRenderGrid();
+  document.getElementById('sc-bal').textContent = fbal();
+}
+
+function scSetBet(eur) {
+  SC.bet = eur; SC.betBTC = f2b(eur);
+  var btns = document.getElementById('sc-bet-row').querySelectorAll('button');
+  btns.forEach(function(b,i) {
+    b.style.background = ([1,2,5,10,20][i]===eur) ? 'rgba(255,165,0,.35)' : 'rgba(255,165,0,.1)';
+  });
+}
+
+function scRenderGrid() {
+  var grid = document.getElementById('sc-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  SC.board.forEach(function(sym, idx) {
+    var revealed = SC.revealed.indexOf(idx) >= 0;
+    var symObj   = SC_SYMBOLS[sym];
+    var isBomb   = symObj.mult === 0;
+    var cell = document.createElement('div');
+    cell.style.cssText = 'position:relative;height:64px;border-radius:8px;overflow:hidden;cursor:pointer;' +
+      'border:1px solid ' + (revealed?(isBomb?'rgba(239,68,68,.6)':'rgba(57,255,20,.4)'):'rgba(255,165,0,.2)') + ';' +
+      'background:' + (revealed?(isBomb?'#2d0000':'#001a00'):'#1a1200') + ';' +
+      'display:flex;align-items:center;justify-content:center;font-size:24px;transition:.3s';
+    if (revealed) {
+      cell.innerHTML = '<div style="text-align:center">' +
+        '<div>' + symObj.icon + '</div>' +
+        '<div style="font-size:8px;font-family:Orbitron;color:' + (isBomb?'var(--rd)':'var(--gn)') + '">' +
+          (isBomb?'BOOM':'x'+symObj.mult) + '</div></div>';
+    } else if (!SC.active) {
+      cell.innerHTML = '<div style="font-size:20px;opacity:.4">🎰</div>';
+    } else {
+      // Scratchable canvas cell
+      cell.dataset.idx = idx;
+      cell.style.cursor = 'crosshair';
+      var inner = document.createElement('div');
+      inner.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:0;';
+      inner.innerHTML = '<div style="text-align:center">' +
+        '<div>' + symObj.icon + '</div>' +
+        '<div style="font-size:8px;font-family:Orbitron;color:' + (isBomb?'var(--rd)':'var(--gn)') + '">' +
+          (isBomb?'BOOM':'x'+symObj.mult) + '</div></div>';
+      var canvas = document.createElement('canvas');
+      canvas.width = 80; canvas.height = 64;
+      canvas.style.cssText = 'position:absolute;inset:0;z-index:1;width:100%;height:100%';
+      var ctx = canvas.getContext('2d');
+      // Gold scratch surface
+      var grad = ctx.createLinearGradient(0,0,80,64);
+      grad.addColorStop(0,'#c8860a'); grad.addColorStop(.5,'#e8a520'); grad.addColorStop(1,'#c8860a');
+      ctx.fillStyle = grad; ctx.fillRect(0,0,80,64);
+      // Star pattern on surface
+      ctx.fillStyle='rgba(255,215,0,.3)';
+      ctx.font='10px serif'; ctx.textAlign='center';
+      ctx.fillText('★★★',40,36);
+      ctx.strokeStyle='rgba(255,255,255,.15)'; ctx.lineWidth=0.5;
+      for(var li=0;li<5;li++){ctx.beginPath();ctx.moveTo(0,li*13);ctx.lineTo(80,li*13+20);ctx.stroke();}
+      canvas.dataset.scratched = '0';
+      var scratchFn = function(cellDiv, cv, ci) {
+        return function(e) {
+          if (!SC.active) return;
+          if (SC.revealed.indexOf(parseInt(ci)) >= 0) return;
+          e.preventDefault();
+          var rect = cv.getBoundingClientRect();
+          var scaleX = cv.width / rect.width;
+          var scaleY = cv.height / rect.height;
+          var pt = e.touches ? e.touches[0] : e;
+          var x = (pt.clientX - rect.left) * scaleX;
+          var y = (pt.clientY - rect.top)  * scaleY;
+          var ctx2 = cv.getContext('2d');
+          ctx2.globalCompositeOperation = 'destination-out';
+          ctx2.beginPath();
+          ctx2.arc(x, y, 14, 0, Math.PI*2);
+          ctx2.fill();
+          // Count cleared pixels
+          var data = ctx2.getImageData(0,0,cv.width,cv.height).data;
+          var cleared=0;
+          for(var pi=3;pi<data.length;pi+=4){if(data[pi]<128)cleared++;}
+          var pct = cleared/(cv.width*cv.height)*100;
+          if (pct > 45) scReveal(parseInt(ci));
+        };
+      }(cell, canvas, idx);
+      canvas.addEventListener('mousemove', function(e){ if(e.buttons&1) scratchFn(e); });
+      canvas.addEventListener('mousedown', scratchFn);
+      canvas.addEventListener('touchmove', scratchFn, {passive:false});
+      canvas.addEventListener('touchstart', scratchFn, {passive:false});
+      cell.appendChild(inner);
+      cell.appendChild(canvas);
+    }
+    grid.appendChild(cell);
+  });
+}
+
+function scNew() {
+  if (S._gameActive) return;
+  if (bal() < SC.bet) { toast('Saldo insufficiente!','err'); return; }
+  SC.board    = scBuildBoard();
+  SC.revealed = [];
+  SC.won      = 0;
+  SC.active   = true;
+  SC.canCashout = false;
+  S._gameActive = true;
+  S.btc -= f2b(SC.bet);
+  S.bet = (S.bet||0) + f2b(SC.bet);
+  ref();
+  document.getElementById('sc-win-display').textContent = '\u20ac0.00';
+  document.getElementById('sc-cashout-btn').style.display = 'none';
+  document.getElementById('sc-new-btn').style.display = 'none';
+  document.getElementById('sc-bombs-left').textContent = '4 bombe nascoste';
+  scRenderGrid();
+}
+
+function scReveal(idx) {
+  if (!SC.active) return;
+  if (SC.revealed.indexOf(idx) >= 0) return;
+  SC.revealed.push(idx);
+  var sym = SC_SYMBOLS[SC.board[idx]];
+  if (sym.mult === 0) {
+    // BOMB! Lose all accumulated
+    SC.active = false; SC.won = 0;
+    scRenderGrid();
+    document.getElementById('sc-win-display').textContent = '\u20ac0.00';
+    document.getElementById('sc-new-btn').style.display = 'block';
+    document.getElementById('sc-cashout-btn').style.display = 'none';
+    document.getElementById('sc-bombs-left').textContent = 'BOMBA! Hai perso! 💣';
+    S._gameActive = false;
+    syncBalance(-f2b(SC.bet), f2b(SC.bet), false, true, 'scratch');
+    addXP(5, 'scratch_play');
+    toast('💣 BOMBA! Perso!', 'err');
+    return;
+  }
+  // Prize!
+  SC.won = scGetWin();
+  SC.canCashout = SC.won > 0;
+  var eurWon = Math.round(SC.won * (S.rate||90000) * 100)/100;
+  document.getElementById('sc-win-display').textContent = '\u20ac' + eurWon.toFixed(2);
+  if (SC.canCashout) document.getElementById('sc-cashout-btn').style.display = 'block';
+  // Auto-reveal all if last safe cell
+  var bombsFound = SC.revealed.filter(function(i){return SC_SYMBOLS[SC.board[i]].mult===0;}).length;
+  document.getElementById('sc-bombs-left').textContent = bombsFound + ' bombe trovate';
+  scRenderGrid();
+  // Add XP for finding prize
+  addXP(3, 'scratch_prize');
+}
+
+function scCashout() {
+  if (!SC.active || SC.won <= 0) return;
+  var winBTC = SC.won;
+  var delta  = winBTC - f2b(SC.bet);
+  SC.active = false;
+  S.btc += winBTC;
+  ref();
+  document.getElementById('sc-cashout-btn').style.display = 'none';
+  document.getElementById('sc-new-btn').style.display = 'block';
+  S._gameActive = false;
+  syncBalance(delta, f2b(SC.bet), delta>0, delta<=0, 'scratch');
+  addXP(delta>0?20:5, 'scratch_cashout');
+  var eur = Math.round(winBTC*(S.rate||90000)*100)/100;
+  if (delta > 0) toast('\U0001f4b0 Incassato \u20ac'+eur.toFixed(2)+'!','win');
+  else toast('\u20ac'+eur.toFixed(2)+' incassato','info');
+}
+
+// ═══════════════════════════════════════════════════════════
+// CRASH GAME
+// ═══════════════════════════════════════════════════════════
+var CR = {
+  state: 'idle',   // idle | betting | flying | crashed
+  mult: 1.0, crashAt: 2.0, bet: 0, betBTC: 0,
+  hasBet: false, cashedOut: false, autoMult: 0,
+  startTime: 0, raf: null,
+  history: [],   // last 10 crash values
+  points: []     // canvas curve points
+};
+
+function crCrashPoint() {
+  // House edge ~5%: E[1/x] = 0.95
+  var r = Math.random();
+  if (r < 0.01) return 1.0; // 1% instant crash
+  return Math.max(1.01, 1 / (r * 0.95));
+}
+
+function initCrash() {
+  var betRow = document.getElementById('cr-bet-row');
+  if (!betRow) return;
+  var bets = [1,2,5,10,20];
+  betRow.innerHTML = bets.map(function(e) {
+    return '<button onclick="crSetBet('+e+')" style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:var(--rd);padding:4px 9px;border-radius:6px;font-size:11px;cursor:pointer">&euro;'+e+'</button>';
+  }).join('');
+  CR.bet = 2; CR.betBTC = f2b(2);
+  crUpdateBtn();
+  crRenderHistory();
+  document.getElementById('cr-bal').textContent = fbal();
+  if (CR.state === 'idle') crStartBetting();
+}
+
+function crSetBet(eur) {
+  if (CR.state !== 'betting' && CR.state !== 'idle') return;
+  CR.bet = eur; CR.betBTC = f2b(eur);
+  var btns = document.getElementById('cr-bet-row').querySelectorAll('button');
+  btns.forEach(function(b,i) {
+    b.style.background = ([1,2,5,10,20][i]===eur) ? 'rgba(239,68,68,.35)' : 'rgba(239,68,68,.1)';
+  });
+}
+
+function crSetAuto(v) {
+  CR.autoMult = v;
+  var el = document.getElementById('cr-auto-mult');
+  if (el) el.textContent = v ? v+'x' : 'OFF';
+}
+
+function crStartBetting() {
+  CR.state = 'betting'; CR.hasBet = false; CR.cashedOut = false;
+  CR.mult = 1.0; CR.crashAt = crCrashPoint(); CR.points = [];
+  var md = document.getElementById('cr-mult');
+  if (md) { md.style.color = 'var(--gn)'; md.innerHTML = '1.00<span style="font-size:22px">x</span>'; }
+  var st = document.getElementById('cr-status');
+  if (st) st.textContent = '\u23f3 PIAZZA LA SCOMMESSA';
+  crUpdateBtn();
+  crDrawCanvas();
+}
+
+function crAction() {
+  if (CR.state === 'betting') {
+    // Place bet
+    if (bal() < CR.bet) { toast('Saldo insufficiente!','err'); return; }
+    if (S._gameActive) return;
+    CR.hasBet = true;
+    CR.cashedOut = false;
+    S._gameActive = true;
+    S.btc -= CR.betBTC; S.bet = (S.bet||0) + CR.betBTC; ref();
+    var st = document.getElementById('cr-status');
+    if (st) st.textContent = '\u2705 SCOMMESSA PIAZZATA — Aspetta il decollo';
+    crUpdateBtn();
+    // Start after short delay
+    setTimeout(crLaunch, 1200);
+  } else if (CR.state === 'flying' && CR.hasBet && !CR.cashedOut) {
+    crCashout();
+  }
+}
+
+function crLaunch() {
+  CR.state = 'flying'; CR.startTime = performance.now(); CR.points = [{x:0,y:0}];
+  var st = document.getElementById('cr-status');
+  if (st) st.textContent = '\U0001f680 VOLA!';
+  crUpdateBtn();
+  crAnimate();
+}
+
+function crAnimate() {
+  if (CR.state !== 'flying') return;
+  var elapsed = (performance.now() - CR.startTime) / 1000; // seconds
+  // Multiplier grows: 1 * e^(0.3*t), fast start, slowing down
+  CR.mult = Math.pow(Math.E, 0.28 * elapsed);
+  // Check auto cashout
+  if (CR.autoMult > 0 && CR.hasBet && !CR.cashedOut && CR.mult >= CR.autoMult) {
+    crCashout(); return;
+  }
+  // Check crash
+  if (CR.mult >= CR.crashAt) {
+    CR.mult = CR.crashAt; crCrash(); return;
+  }
+  // Update display
+  var md = document.getElementById('cr-mult');
+  if (md) md.innerHTML = CR.mult.toFixed(2) + '<span style="font-size:22px">x</span>';
+  crDrawCanvas();
+  CR.raf = requestAnimationFrame(crAnimate);
+}
+
+function crCashout() {
+  if (!CR.hasBet || CR.cashedOut || CR.state !== 'flying') return;
+  CR.cashedOut = true;
+  var winBTC  = CR.betBTC * CR.mult;
+  var delta   = winBTC - CR.betBTC;
+  S.btc += winBTC; ref();
+  S._gameActive = false;
+  syncBalance(delta, CR.betBTC, true, false, 'crash');
+  addXP(25, 'crash_cashout');
+  var eur = Math.round(winBTC*(S.rate||90000));
+  toast('\U0001f680 Cashout ' + CR.mult.toFixed(2)+'x! \u20ac'+eur,'win');
+  var st = document.getElementById('cr-status');
+  if (st) st.textContent = '\U0001f4b0 Cashout @ ' + CR.mult.toFixed(2)+'x!';
+  crUpdateBtn();
+  document.getElementById('cr-btn').style.background = 'linear-gradient(135deg,#059669,#065f46)';
+}
+
+function crCrash() {
+  cancelAnimationFrame(CR.raf);
+  CR.state = 'crashed';
+  CR.history.unshift(CR.crashAt);
+  if (CR.history.length > 12) CR.history.pop();
+  var md = document.getElementById('cr-mult');
+  if (md) { md.style.color='var(--rd)'; md.innerHTML = CR.crashAt.toFixed(2)+'<span style="font-size:22px">x</span>'; }
+  var st = document.getElementById('cr-status');
+  if (st) st.textContent = '\U0001f4a5 CRASHED @ ' + CR.crashAt.toFixed(2)+'x!';
+  if (CR.hasBet && !CR.cashedOut) {
+    S._gameActive = false;
+    syncBalance(-CR.betBTC, CR.betBTC, false, true, 'crash');
+    addXP(5,'crash_loss');
+    toast('\U0001f4a5 Crash @ '+CR.crashAt.toFixed(2)+'x! Perso.','err');
+  }
+  crRenderHistory();
+  crDrawCanvas();
+  // New round after 3 seconds
+  setTimeout(function(){ crStartBetting(); }, 3000);
+}
+
+function crDrawCanvas() {
+  var cv = document.getElementById('cr-canvas');
+  if (!cv) return;
+  var ctx = cv.getContext('2d');
+  var W = cv.width, H = cv.height;
+  ctx.clearRect(0,0,W,H);
+  // Background grid
+  ctx.strokeStyle = 'rgba(255,255,255,.04)'; ctx.lineWidth=1;
+  for(var gx=0;gx<W;gx+=40){ctx.beginPath();ctx.moveTo(gx,0);ctx.lineTo(gx,H);ctx.stroke();}
+  for(var gy=0;gy<H;gy+=40){ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(W,gy);ctx.stroke();}
+  if (CR.state === 'idle' || CR.state === 'betting') return;
+  // Draw curve
+  var elapsed = CR.state==='crashed' ? Math.log(CR.crashAt)/0.28 : (performance.now()-CR.startTime)/1000;
+  var maxT = Math.max(elapsed, 2);
+  var crashed = CR.state === 'crashed';
+  var color = crashed ? '#ef4444' : '#39ff14';
+  // Draw gradient fill under curve
+  ctx.beginPath();
+  ctx.moveTo(0, H);
+  var steps = 60;
+  for(var s=0;s<=steps;s++) {
+    var t = (s/steps)*elapsed;
+    var m = Math.pow(Math.E, 0.28*t);
+    var px = (t/maxT)*W*0.9 + W*0.05;
+    var py = H - Math.min((m-1)/(Math.pow(Math.E,0.28*elapsed)-1+0.001)*H*0.85, H-10);
+    if(s===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+  }
+  ctx.lineTo(W*0.9+W*0.05*(1+elapsed/maxT), H);
+  ctx.closePath();
+  var fill = ctx.createLinearGradient(0,0,0,H);
+  fill.addColorStop(0, crashed?'rgba(239,68,68,.25)':'rgba(57,255,20,.2)');
+  fill.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle=fill; ctx.fill();
+  // Draw curve line
+  ctx.strokeStyle=color; ctx.lineWidth=2.5;
+  ctx.shadowColor=color; ctx.shadowBlur=8;
+  ctx.beginPath();
+  for(var s2=0;s2<=steps;s2++) {
+    var t2=(s2/steps)*elapsed, m2=Math.pow(Math.E,0.28*t2);
+    var px2=(t2/maxT)*W*0.9+W*0.05;
+    var py2=H-Math.min((m2-1)/(Math.pow(Math.E,0.28*elapsed)-1+0.001)*H*0.85,H-10);
+    if(s2===0) ctx.moveTo(px2,py2); else ctx.lineTo(px2,py2);
+  }
+  ctx.stroke(); ctx.shadowBlur=0;
+  // Rocket at tip
+  if (!crashed) {
+    var tipX=(elapsed/maxT)*W*0.9+W*0.05;
+    var tipY=H-Math.min((CR.mult-1)/(CR.mult-1+0.001)*H*0.85,H-10);
+    ctx.font='20px serif'; ctx.textAlign='center';
+    ctx.fillText('\U0001f680', tipX, tipY-8);
+  } else {
+    var tipX2=(elapsed/maxT)*W*0.9+W*0.05;
+    var tipY2=H-Math.min((CR.crashAt-1)/(CR.crashAt-1+0.001)*H*0.85,H-10);
+    ctx.font='20px serif'; ctx.textAlign='center';
+    ctx.fillText('\U0001f4a5', tipX2, tipY2-8);
+  }
+}
+
+function crUpdateBtn() {
+  var btn = document.getElementById('cr-btn');
+  if (!btn) return;
+  if (CR.state === 'betting') {
+    btn.textContent = CR.hasBet ? '\u2705 Scommessa piazzata...' : 'SCOMMETTI';
+    btn.style.background = CR.hasBet ? 'rgba(255,255,255,.05)' : 'linear-gradient(135deg,#059669,#065f46)';
+    btn.disabled = CR.hasBet;
+  } else if (CR.state === 'flying') {
+    if (CR.hasBet && !CR.cashedOut) {
+      btn.textContent = 'CASHOUT @ ' + CR.mult.toFixed(2)+'x \U0001f4b0';
+      btn.style.background = 'linear-gradient(135deg,#d97706,#92400e)';
+      btn.disabled = false;
+    } else {
+      btn.textContent = 'Nessuna scommessa';
+      btn.style.background = 'rgba(255,255,255,.05)';
+      btn.disabled = true;
+    }
+  } else if (CR.state === 'crashed') {
+    btn.textContent = 'Prossimo round...';
+    btn.style.background = 'rgba(255,255,255,.05)';
+    btn.disabled = true;
+  } else {
+    btn.textContent = 'SCOMMETTI & ATTENDI';
+    btn.style.background = 'linear-gradient(135deg,#059669,#065f46)';
+    btn.disabled = false;
+  }
+}
+
+function crRenderHistory() {
+  var el = document.getElementById('cr-history');
+  if (!el) return;
+  el.innerHTML = CR.history.map(function(v) {
+    var col = v < 1.5 ? 'var(--rd)' : v < 3 ? 'var(--or)' : 'var(--gn)';
+    return '<span style="background:rgba(255,255,255,.07);border-radius:5px;padding:2px 7px;font-family:Orbitron;font-size:10px;color:'+col+'">'+v.toFixed(2)+'x</span>';
+  }).join('');
+}
 </script>
+<div id="lvlup-ov" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.85);align-items:center;justify-content:center;flex-direction:column;gap:12px">
+  <div style="font-size:60px" id="lvlup-title">🏆</div>
+  <div style="font-family:'Russo One';font-size:22px;color:var(--gold)">LEVEL UP!</div>
+  <div id="lvlup-lv" style="font-family:Orbitron;font-size:16px;color:var(--gn)">Level 1</div>
+  <div style="font-size:12px;color:var(--gr)">Vai su Profile per vedere il tuo rango</div>
+</div>
 </body>
 </html>
