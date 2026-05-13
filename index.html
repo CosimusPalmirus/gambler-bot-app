@@ -3081,20 +3081,23 @@ function sleep(ms){return new Promise(function(r){setTimeout(r,ms);});}
 /* ── NAV ── */
 function show(id){
   document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
-  document.getElementById(id).classList.add('active');
+  var el = document.getElementById(id);
+  if (!el) { console.error('Screen not found: '+id); return; }
+  el.classList.add('active');
   ref();
-  if(id==='sl')          setTimeout(initSl,150);
-  if(id==='bj')          setTimeout(initBj,20);
-  if(id==='rl')          setTimeout(initRl,20);
-  if(id==='pk')          setTimeout(initPk,20);
-  if(id==='lotto')       setTimeout(initLotto,20);
-  if(id==='challenges')  setTimeout(initChallenges,20);
-  if(id==='scratch')     setTimeout(initScratch,20);
-  if(id==='crash')       setTimeout(initCrash,20);
-  if(id==='wallet')      { loadBalance().then(function(){updW();}); }
-  if(id==='profile')     updP();
+  if(id==='sl')           setTimeout(initSl,150);
+  if(id==='bj')           setTimeout(initBj,20);
+  if(id==='rl')           setTimeout(initRl,20);
+  if(id==='pk')           setTimeout(initPk,20);
+  if(id==='lotto')        setTimeout(initLotto,20);
+  if(id==='challenges')   setTimeout(initChallenges,20);
+  if(id==='scratch')      setTimeout(initScratch,20);
+  if(id==='crash')        setTimeout(initCrash,20);
+  if(id==='leaderboard')  setTimeout(initLeaderboard,20);
+  if(id==='wallet')       { loadBalance().then(function(){updW();}); }
+  if(id==='profile')      updP();
 }
-function go(g){show(g);initG(g);}
+function go(g){show(g);}
 function home(){show('home');}
 
 function toast(m,t,d){
@@ -3111,13 +3114,12 @@ function ref(){
   if(ne){ne.textContent=(net>=0?'+':'')+f2(Math.abs(net));ne.style.color=net>=0?'var(--gold)':'var(--rd)';}
   var we=document.getElementById('s-w');if(we)we.textContent=S.wins;
   // Level badge in header
-  var xpT=[0,100,300,600,1000,1500,2200,3200,4500,6500];
   var lbadge=document.getElementById('h-level-badge');
   if(lbadge){
-    var lv=0;for(var _j=xpT.length-1;_j>=0;_j--){if((S.xp||0)>=xpT[_j]){lv=_j;break;}}
-    var titleArr=['Rookie','Gambler','Sharp','High Roller','VIP','Hustler','Boss','Mafia Boss','Casino King','LEGEND'];
-    lbadge.textContent='Lv.'+lv+' '+titleArr[lv];
-    lbadge.style.color=lv>=9?'var(--gold)':lv>=7?'#e879f9':lv>=5?'var(--gn)':'var(--gr)';
+    var _rli=getLevelInfo(S.xp||0);
+    lbadge.textContent='Lv.'+_rli.level+' '+_rli.icon+' '+_rli.title;
+    var _lc=_rli.level>=10?'var(--gold)':_rli.level>=7?'#e879f9':_rli.level>=4?'var(--gn)':'var(--gr)';
+    lbadge.style.color=_lc;
   }
   var le=document.getElementById('s-l');if(le)le.textContent=S.losses;
 }
@@ -4160,11 +4162,11 @@ function updP(){
   var pb=document.getElementById('pf-bal');if(pb)pb.textContent=fbal();
   var nm=document.getElementById('pf-nm');if(nm)nm.textContent=S.name;
   var tot=S.wins+S.losses;var xpThresh=[0,100,300,600,1000,1500,2200,3200,4500,6500];var lvl=0;for(var _i=xpThresh.length-1;_i>=0;_i--){if((S.xp||0)>=xpThresh[_i]){lvl=_i;break;}}
-  var lv=document.getElementById('pf-lv');if(lv)lv.textContent='Level '+lvl+' \u2014 '+TITLES[lvl-1];
-  var rb=document.getElementById('pf-rank-badge');if(rb)rb.textContent=RANK_ICONS[lvl-1];
-  var curLvlXp=xpThresh[lvl]||0,nxtLvlXp=xpThresh[lvl+1]||xpThresh[lvl]+1000;var wil=(S.xp||0)-curLvlXp,xpRange=nxtLvlXp-curLvlXp,xpPct=Math.min((wil/xpRange)*100,100);
+  var lv=document.getElementById('pf-lv');if(lv)lv.textContent='Level '+lvl+' \u2014 '+_li.icon+' '+_li.title;
+  var rb=document.getElementById('pf-rank-badge');if(rb)rb.textContent=_li.icon||'\U0001f3c5';
+  var xpPct=_li.pct;var wil=(S.xp||0)-(LEVEL_TITLES[lvl]?LEVEL_TITLES[lvl].xp:0);
   var xpFill=document.getElementById('pf-xp-fill');if(xpFill)setTimeout(function(){xpFill.style.width=xpPct+'%';},200);
-  var xpTxt=document.getElementById('pf-xp-txt');if(xpTxt)xpTxt.textContent=(S.xp||0)+' XP — '+(nxtLvlXp-(S.xp||0))+' to next level';
+  var xpTxt=document.getElementById('pf-xp-txt');var _nx=_li.next?_li.next.xp-1:99999;if(xpTxt)xpTxt.textContent=(S.xp||0)+' XP'+(_li.next?' — '+(_nx-(S.xp||0)+1)+' to next':'');
   pfAnimCounter(document.getElementById('p-w'),S.wins,800);
   pfAnimCounter(document.getElementById('p-l'),S.losses,800);
   pfAnimCounter(document.getElementById('p-games'),tot,800);
