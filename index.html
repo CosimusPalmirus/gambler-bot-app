@@ -3115,7 +3115,7 @@ function initBj(){
 
 function bjDeal(){
   var bet=CB.bj,bb=f2b(bet);if(bal()<bet){toast('Insufficient balance!','err');return;}
-  S.btc-=bb;S.bet+=bb;ref();bjHideOverlay();
+  S._gameActive=true; S.btc-=bb;S.bet+=bb;ref();bjHideOverlay();
   var d=mkdeck();BJ={deck:d,bet:bb,player:[d.pop(),d.pop()],dealer:[d.pop(),d.pop()]};
   document.getElementById('bj-acts').style.display='none';
   document.getElementById('btn-deal').style.display='none';
@@ -3218,7 +3218,7 @@ function bjEnd(out){
     won=bet;cls='push';emoji='🤝';txt='PUSH';sub='Refunded';
   }
   S.btc+=won;S.won+=won;ref();
-  syncBalance(won-bet,bet,out==='win',out==='bust'||out==='lose','blackjack');
+  S._gameActive=false; syncBalance(won-bet,bet,out==='win',out==='bust'||out==='lose','blackjack');
   bjShowOverlay(cls,emoji,txt,sub);
   setTimeout(function(){
     bjHideOverlay();
@@ -3539,7 +3539,7 @@ function slResult(r0, r1, r2, bb) {
   if (won > bb) S.wins++;
   else if (won === 0) S.losses++;
   ref();
-  syncBalance(won - bb, bb, won > bb, won === 0, 'slots');
+  S._gameActive=false; syncBalance(won - bb, bb, won > bb, won === 0, 'slots');
 
   // Message
   var msgEl = document.getElementById('sl-msg');
@@ -3677,7 +3677,7 @@ function spinRl(){
   if(rlSpin)return;if(!rlBets.length){toast('Add at least one bet!','err');return;}
   var tot=rlBets.reduce(function(s,b){return s+b.amt;},0);if(bal()<tot){toast('Insufficient balance!','err');return;}
   rlSpin=true;document.getElementById('btn-spin-rl').disabled=true;
-  S.btc-=f2b(tot);S.bet+=f2b(tot);ref();
+  S._gameActive=true; S.btc-=f2b(tot);S.bet+=f2b(tot);ref();
   var n=Math.floor(Math.random()*37),extra=5+Math.random()*3;
   var target=rlAngle+Math.PI*2*extra+(n/37)*Math.PI*2,dur=3600,start=performance.now(),sa=rlAngle;
   function fr(now){
@@ -3688,7 +3688,7 @@ function spinRl(){
     var tw=0,aw=false,lines=[];
     rlBets.forEach(function(b){var w=(b.type==='red'&&col==='red')||(b.type==='black'&&col==='black')||(b.type==='even'&&par==='even')||(b.type==='odd'&&par==='odd')||(b.type==='low'&&half==='low')||(b.type==='high'&&half==='high')||(b.type==='number'&&b.num===n)||(b.type==='split'&&b.splitNums&&b.splitNums.indexOf(n)>=0)||(b.type==='corner'&&b.cornerNums&&b.cornerNums.indexOf(n)>=0);if(w){tw+=b.amt*b.mult;aw=true;lines.push('WIN '+b.label+' +'+f2(b.amt*b.mult-b.amt));}else lines.push('LOSE '+b.label);});
     S.btc+=f2b(tw);S.won+=f2b(tw);if(aw)S.wins++;else S.losses++;
-    ref();syncBalance(f2b(tw-tot),f2b(tot),aw,!aw,'roulette');
+    ref();S._gameActive=false; syncBalance(f2b(tw-tot),f2b(tot),aw,!aw,'roulette');
     var ball=document.getElementById('rl-ball');
     if(ball){ball.textContent=n;ball.className='rl-last-ball '+(col==='red'?'red-n':col==='green'?'green-n':'black-n');}
     var net=tw-tot;
@@ -3714,7 +3714,7 @@ function rollDice(){
   function doRoll(){if(rolls<10){rDie('pd',Math.ceil(Math.random()*6));rDie('hd',Math.ceil(Math.random()*6));rolls++;setTimeout(doRoll,70);}
     else{var pr=Math.ceil(Math.random()*6),hr=Math.ceil(Math.random()*6);rDie('pd',pr);rDie('hd',hr);document.getElementById('pd').classList.remove('roll');document.getElementById('hd').classList.remove('roll');document.getElementById('pv').textContent=pr;document.getElementById('hv').textContent=hr;
       var won=0,msg='',col='';if(pr>hr){won=bb*2;msg='YOU WIN! '+pr+' > '+hr+' +'+b2f(won-bb);col='var(--gn)';S.wins++;}else if(pr===hr){won=bb;msg='PUSH '+pr+' = '+hr;col='var(--gold)';}else{msg='HOUSE WINS '+pr+' < '+hr+' -'+b2f(bb);col='var(--rd)';S.losses++;}
-      S.btc+=won;S.won+=won;ref();syncBalance(won-bb,bb,pr>hr,pr<hr,'dice');
+      S.btc+=won;S.won+=won;ref();S._gameActive=false; syncBalance(won-bb,bb,pr>hr,pr<hr,'dice');
       document.getElementById('dc-res').style.color=col;document.getElementById('dc-res').textContent=msg.split(' ')[0];
       toast(msg,won>bb?'ok':won>0?'inf':'err',2500);document.getElementById('btn-roll').disabled=false;
     }
@@ -3827,7 +3827,7 @@ function pkDraw(){
     if(cmp>0){won=bet*2;cls='win';S.wins++;emoji='🏆';txt='YOU WIN!';sub=PH[pr[0]]+' beats '+PH[dr[0]]+' +'+b2f(won-bet);}
     else if(cmp===0){won=bet;cls='push';emoji='🤝';txt='PUSH';sub=PH[pr[0]];}
     else{cls='lose';S.losses++;emoji='💀';txt='DEALER WINS';sub=PH[dr[0]]+' beats you -'+b2f(bet);}
-    S.btc+=won;S.won+=won;ref();syncBalance(won-bet,bet,cmp>0,cmp<0,'poker');
+    S.btc+=won;S.won+=won;ref();S._gameActive=false; syncBalance(won-bet,bet,cmp>0,cmp<0,'poker');
     pkShowOverlay(cls,emoji,txt,sub);
     setTimeout(function(){var ov=document.getElementById('pk-overlay');if(ov)ov.classList.remove('show');document.getElementById('pk-acts').style.display='none';document.getElementById('btn-pkdl').style.display='block';},2300);
   });
@@ -4101,6 +4101,8 @@ function loadBalance() {
     })
     .then(function(d) {
       if (d.error) { console.warn('Balance error:', d.error); return; }
+      // Don't override balance while a game is active (bet is in flight)
+      if (S._gameActive) return;
       S.btc         = d.btc || 0;
       S.wins        = d.wins || 0;
       S.losses      = d.losses || 0;
@@ -4130,6 +4132,7 @@ function syncBalance(delta, bet, won, lost, game) {
   fetch(BACKEND + '/update_balance', Object.assign({}, HDR_POST, { body: body }))
     .then(function(r) { return r.json(); })
     .then(function(d) {
+      S._gameActive = false;  // game round complete
       // ── Balance update ──────────────────────────────────
       if (d.btc !== undefined) { S.btc = d.btc; ref(); }
 
@@ -4171,8 +4174,24 @@ function syncBalance(delta, bet, won, lost, game) {
       if (chScreen && chScreen.classList.contains('active')) chRenderAll();
     })
     .catch(function(e) {
-      // On failure, reload balance from server
-      loadBalance().then(ref);
+      S._gameActive = false;
+      console.warn('syncBalance failed:', e);
+      // Apply local fallback so challenges still update even without server
+      if (!chProgress) chProgress = {};
+      chProgress.week_games = (chProgress.week_games || 0) + 1;
+      if (won) chProgress.week_wins = (chProgress.week_wins || 0) + 1;
+      if (won && game) {
+        var gk = game.toLowerCase();
+        if (gk==='blackjack'||gk==='bj') chProgress.week_bj_wins=(chProgress.week_bj_wins||0)+1;
+        if (gk==='poker'||gk==='pk')     chProgress.week_pk_wins=(chProgress.week_pk_wins||0)+1;
+        if (gk==='roulette'||gk==='rl')  chProgress.week_rl_wins=(chProgress.week_rl_wins||0)+1;
+        if (gk==='dice'||gk==='dc')      chProgress.week_dc_wins=(chProgress.week_dc_wins||0)+1;
+      }
+      if (game&&(game.toLowerCase()==='slots'||game.toLowerCase()==='sl'))
+        chProgress.week_sl_spins=(chProgress.week_sl_spins||0)+1;
+      if (bet) chProgress.week_bet_eur=(chProgress.week_bet_eur||0)+Math.round(bet*(S.rate||90000));
+      var chScreen = document.getElementById('challenges');
+      if (chScreen && chScreen.classList.contains('active')) chRenderAll();
     });
 }
 
@@ -4519,7 +4538,11 @@ function fetchChallenges() {
   return fetch(BACKEND+'/challenges?user_id='+S.userId, HDR)
     .then(function(r){return r.json();})
     .then(function(d){
-      chProgress = d.progress || {};
+      // Merge: take MAX of server value and local value (never go backwards)
+      var srv = d.progress || {};
+      Object.keys(srv).forEach(function(k) {
+        chProgress[k] = Math.max(chProgress[k]||0, srv[k]||0);
+      });
       chClaimed  = d.claimed  || {};
       S._weekLegendWinner = d.week_legend_winner || null;
       var we = d.week_earned_btc || 0;
