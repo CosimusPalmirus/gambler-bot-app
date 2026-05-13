@@ -3932,7 +3932,7 @@ function ltBuildPrizes() {
     var winEur = p.m===6 ? Math.round(winBtc*S.rate) : (p.eur || Math.round(winBtc*S.rate));
     var multStr, subTxt;
     if (p.m===6) {
-      var jEur = Math.round(Math.max(LT.jackpot||0.00111111,0.00111111)*S.rate);
+      var jEur = Math.max(Math.round(Math.max(LT.jackpot||0.00111111,0.00111111)*(S.rate||90000)), 100);
       multStr = 'JACKPOT'; subTxt = 'Pool: €'+jEur+'  —  min garantito €100';
     } else if (p.m===2) {
       multStr = '€10'; subTxt = 'Rimborso del ticket';
@@ -4130,37 +4130,50 @@ function syncBalance(delta, bet, won, lost, game) {
   fetch(BACKEND + '/update_balance', Object.assign({}, HDR_POST, { body: body }))
     .then(function(r) { return r.json(); })
     .then(function(d) {
+      // ── Balance update ──────────────────────────────────
       if (d.btc !== undefined) { S.btc = d.btc; ref(); }
-      // Add tx locally so wallet shows it immediately
+
+      // ── Add tx locally for instant wallet display ───────
       if (delta !== 0) {
         if (!S.txs) S.txs = [];
-        S.txs.unshift({
-          type: delta>0?'game_win':'game_loss',
-          amount: Math.abs(delta), game: game, ts: ts
-        });
+        S.txs.unshift({ type: delta>0?'game_win':'game_loss',
+                        amount: Math.abs(delta), game: game, ts: ts });
         if (S.txs.length > 50) S.txs = S.txs.slice(0,50);
-        // Refresh wallet if open
         var wScreen = document.getElementById('wallet');
         if (wScreen && wScreen.classList.contains('active')) updW();
       }
-      // Update challenge progress locally
-      if (!chProgress) chProgress = {};
-      chProgress.week_games = (chProgress.week_games || 0) + 1;
-      if (won && game) {
-        var gk = game.toLowerCase();
-        if (gk === 'blackjack' || gk === 'bj') chProgress.week_bj_wins = (chProgress.week_bj_wins || 0)+1;
-        if (gk === 'poker' || gk === 'pk')     chProgress.week_pk_wins = (chProgress.week_pk_wins || 0)+1;
-        if (gk === 'roulette' || gk === 'rl')  chProgress.week_rl_wins = (chProgress.week_rl_wins || 0)+1;
-        if (gk === 'dice' || gk === 'dc')      chProgress.week_dc_wins = (chProgress.week_dc_wins || 0)+1;
-        chProgress.week_wins = (chProgress.week_wins || 0) + 1;
+
+      // ── Update challenges from SERVER response ──────────
+      // Server returns week_progress after every update_balance call
+      if (d.week_progress) {
+        // Merge server data (authoritative) into chProgress
+        if (!chProgress) chProgress = {};
+        var wp = d.week_progress;
+        Object.keys(wp).forEach(function(k) { chProgress[k] = wp[k]; });
+      } else {
+        // Fallback: local increment (server didn't return progress)
+        if (!chProgress) chProgress = {};
+        chProgress.week_games = (chProgress.week_games || 0) + 1;
+        if (won) chProgress.week_wins = (chProgress.week_wins || 0) + 1;
+        if (won && game) {
+          var gk = game.toLowerCase();
+          if (gk==='blackjack'||gk==='bj') chProgress.week_bj_wins=(chProgress.week_bj_wins||0)+1;
+          if (gk==='poker'||gk==='pk')     chProgress.week_pk_wins=(chProgress.week_pk_wins||0)+1;
+          if (gk==='roulette'||gk==='rl')  chProgress.week_rl_wins=(chProgress.week_rl_wins||0)+1;
+          if (gk==='dice'||gk==='dc')      chProgress.week_dc_wins=(chProgress.week_dc_wins||0)+1;
+        }
+        if (game&&(game.toLowerCase()==='slots'||game.toLowerCase()==='sl'))
+          chProgress.week_sl_spins=(chProgress.week_sl_spins||0)+1;
+        if (bet) chProgress.week_bet_eur=(chProgress.week_bet_eur||0)+Math.round(bet*(S.rate||90000));
       }
-      if (game && (game.toLowerCase()==='slots'||game.toLowerCase()==='sl')) chProgress.week_sl_spins=(chProgress.week_sl_spins||0)+1;
-      if (bet) chProgress.week_bet_eur = (chProgress.week_bet_eur||0) + Math.round(bet*(S.rate||90000));
-      // Refresh challenges if open
+      // Refresh challenges screen if open
       var chScreen = document.getElementById('challenges');
       if (chScreen && chScreen.classList.contains('active')) chRenderAll();
     })
-    .catch(function() {});
+    .catch(function(e) {
+      // On failure, reload balance from server
+      loadBalance().then(ref);
+    });
 }
 
 // ── Load deposit address ──
@@ -4322,7 +4335,7 @@ function initLotto() {
 function ltUpdateHeader() {
   var MIN_JKP = 0.00111111;
   var jkp = Math.max(LT.jackpot||MIN_JKP, MIN_JKP);
-  var jkpEur = Math.round(jkp * (S.rate||90000));
+  var jkpEur = Math.max(Math.round(jkp * (S.rate||90000)), 100);
   ['lt-jkp-eur','lt-jkp-eur2'].forEach(function(id){
     var el=document.getElementById(id); if(el) el.textContent='\u20AC'+jkpEur.toLocaleString('en');
   });
