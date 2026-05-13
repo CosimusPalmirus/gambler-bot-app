@@ -60,7 +60,7 @@ body::before{content:'';position:fixed;inset:0;z-index:0;background:radial-gradi
 .pcard.rev{animation:flip .4s ease}
 @keyframes flip{0%{transform:rotateY(90deg)}100%{transform:rotateY(0)}}
 .ct{font-size:10px;line-height:1}.cs{font-size:18px;line-height:1;align-self:center}.cb{font-size:10px;line-height:1;align-self:flex-end;transform:rotate(180deg)}
-#loading{position:absolute;inset:0;z-index:999;background:var(--bk);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;transition:opacity .5s}
+#loading{position:absolute;inset:0;z-index:999;pointer-events:none;background:var(--bk);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;transition:opacity .5s}
 #loading.out{opacity:0;pointer-events:none}
 .ld-logo{width:88px;height:88px;border-radius:50%;animation:lglow 2s ease-in-out infinite}
 @keyframes lglow{0%,100%{box-shadow:0 0 20px rgba(57,255,20,.4)}50%{box-shadow:0 0 40px rgba(57,255,20,.8)}}
@@ -1898,7 +1898,6 @@ function sleep(ms){return new Promise(function(r){setTimeout(r,ms);});}
 /* ── NAV ── */
 var _CURR_SCREEN = 'home';
 function show(id){
-  if (id === _CURR_SCREEN) return;  // already showing
   // Clean up previous screen
   if (_CURR_SCREEN === 'crash' && typeof CR !== 'undefined' && CR.raf) {
     cancelAnimationFrame(CR.raf); CR.raf = null;
@@ -3389,7 +3388,7 @@ function ltConfirm() {
 function appInit() {
   // Dismiss loading screen
   var ld = document.getElementById('loading');
-  if (ld) { ld.style.pointerEvents='none'; ld.style.opacity='0'; setTimeout(function(){ld.style.display='none';},300); }
+  if (ld) { ld.style.display='none'; }
   var lp = document.getElementById('ld-prog');
   if (lp) setTimeout(function() { lp.style.width = '100%'; }, 50);
   // Extract Telegram user
@@ -3421,10 +3420,17 @@ function appInit() {
     });
 }
 
+function safeInit() {
+  try { appInit(); } catch(e) {
+    console.error('appInit error:', e);
+    var ld = document.getElementById('loading');
+    if (ld) ld.style.display = 'none';
+  }
+}
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', appInit);
+  document.addEventListener('DOMContentLoaded', safeInit);
 } else {
-  appInit();
+  safeInit();
 }
 
 
