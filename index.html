@@ -1754,11 +1754,14 @@ body{position:relative;}
 .lotto-banner.big .lotto-icon{font-size:42px;filter:drop-shadow(0 0 16px rgba(255,215,0,.6));}
 .lotto-banner.big .lotto-title{font-size:16px;letter-spacing:2px;}
 .lotto-banner.big .lotto-go{font-size:14px;font-weight:900;}
+
+/* Hide any build stamp */
+.build-stamp, [data-build-stamp]{display:none !important;}
 </style>
 </head>
 <body>
 <!-- BUILD STAMP — verify deployed version. Tap to copy. -->
-<div data-build-stamp style="position:fixed;bottom:62px;right:6px;z-index:9999;font-size:8px;color:rgba(255,215,0,.5);font-family:monospace;background:rgba(0,0,0,.7);padding:2px 6px;border-radius:4px;pointer-events:auto;cursor:pointer;border:1px solid rgba(255,215,0,.2);" onclick="navigator.clipboard&&navigator.clipboard.writeText(this.textContent);this.style.color='#39ff14';">BUILD 20260514-1144</div>
+
 
 
 <div id="app">
@@ -2244,16 +2247,16 @@ body{position:relative;}
 
     <!-- Paytable info -->
     <div style="margin-top:14px;background:rgba(0,0,0,.4);border-radius:10px;padding:10px;border:1px solid rgba(255,215,0,.15);">
-      <div style="font-family:'Russo One',sans-serif;font-size:10px;color:#ffd700;letter-spacing:1.5px;margin-bottom:6px;">💰 PAYOUT BONUS (on top of 2x win)</div>
+      <div style="font-family:'Russo One',sans-serif;font-size:10px;color:#ffd700;letter-spacing:1.5px;margin-bottom:6px;">💰 PAYOUT BONUS (on top of 1.85x base)</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;font-family:'Orbitron',monospace;font-size:9px;color:#a1a1aa;">
-        <div>Royal Flush <b style="color:#39ff14;float:right;">+20x</b></div>
-        <div>Straight Flush <b style="color:#39ff14;float:right;">+10x</b></div>
-        <div>Four of a Kind <b style="color:#39ff14;float:right;">+5x</b></div>
-        <div>Full House <b style="color:#39ff14;float:right;">+2x</b></div>
-        <div>Flush <b style="color:#39ff14;float:right;">+1x</b></div>
-        <div>Straight <b style="color:#39ff14;float:right;">+0.5x</b></div>
-        <div>Three of a Kind <b style="color:#39ff14;float:right;">+0.25x</b></div>
-        <div>Two Pair <b style="color:#39ff14;float:right;">+0.1x</b></div>
+        <div>Royal Flush <b style="color:#39ff14;float:right;">+10x</b></div>
+        <div>Straight Flush <b style="color:#39ff14;float:right;">+5x</b></div>
+        <div>Four of a Kind <b style="color:#39ff14;float:right;">+2.5x</b></div>
+        <div>Full House <b style="color:#39ff14;float:right;">+1x</b></div>
+        <div>Flush <b style="color:#39ff14;float:right;">+0.5x</b></div>
+        <div>Straight <b style="color:#39ff14;float:right;">+0.25x</b></div>
+        <div>Three of a Kind <b style="color:#39ff14;float:right;">+0.1x</b></div>
+        <div>Two Pair <b style="color:#39ff14;float:right;">+0.05x</b></div>
       </div>
     </div>
   </div>
@@ -3703,7 +3706,7 @@ function fetchChallenges(cb){
     return;
   }
   if(lst && !CHALLENGES_ALL.length){
-    lst.innerHTML='<div style="text-align:center;padding:30px;color:var(--txt3);font-size:11px;">\u23F3 Loading quests... <small style="opacity:.5">[build 20260514-0357]</small></div>';
+    lst.innerHTML='<div style="text-align:center;padding:30px;color:var(--txt3);font-size:11px;">\u23F3 Loading quests...</div>';
   }
 
   function buildUrl(path){
@@ -3826,7 +3829,7 @@ function fetchChallenges(cb){
           firstRaw.replace(/</g,'&lt;').replace(/>/g,'&gt;')+
           '</div>';
       }
-      msg+='<br><small style="opacity:.6">[build 20260514-0357]</small>';
+      
       showQuestError(lst,msg);
       if(cb)cb();
       return;
@@ -4296,18 +4299,21 @@ var PK_HAND_NAMES = [
 ];
 // Bonus multiplier on win, applied to total bet (besides 2x base payout)
 // Final payout = totalBet * (2 + bonus). 0 bonus = even money.
+// Bonuses on top of base payout. Combined with base 1.85x (15% house edge).
 var PK_BONUS_MULTI = {
-  9: 20,    // Royal Flush — was 50
-  8: 10,    // Straight Flush — was 20
-  7:  5,    // Four of a Kind — was 10
-  6:  2,    // Full House — was 5
-  5:  1,    // Flush — was 3
-  4:  0.5,  // Straight — was 2
-  3:  0.25, // Three of a Kind — was 1
-  2:  0.1,  // Two Pair — was 0.5
+  9: 10,    // Royal Flush
+  8:  5,    // Straight Flush
+  7:  2.5,  // Four of a Kind
+  6:  1,    // Full House
+  5:  0.5,  // Flush
+  4:  0.25, // Straight
+  3:  0.1,  // Three of a Kind
+  2:  0.05, // Two Pair
   1:  0,    // Pair
   0:  0,    // High Card
 };
+// Base payout multiplier on win. Below 2 = house edge baked into every win.
+var PK_BASE_PAYOUT = 1.85;
 
 function pkBuildDeck(){
   var d=[];
@@ -4610,11 +4616,11 @@ function pkShowdown(){
     var winner, payout=0;
     if(cmp>0){
       winner='player';
-      // Payout: refund of totalBet + win amount based on bonus
+      // Payout: refund of totalBet + win amount based on (base + bonus)
+      // Base 1.85x = 15% house edge on every win
       var bonus=PK_BONUS_MULTI[pHand.rank]||0;
-      // Player wins: gets back totalBet + (totalBet * (1 + bonus))
-      // Net = totalBet * (1 + bonus)
-      payout=PK.totalBet+PK.totalBet*(1+bonus);
+      var multi = (PK_BASE_PAYOUT - 1) + bonus; // 0.85 + bonus
+      payout=PK.totalBet+PK.totalBet*multi;
       winBet(payout,'poker');
     }else if(cmp<0){
       winner='dealer';
