@@ -2193,6 +2193,23 @@ body{position:relative;}
   fill:url(#plBallGrad);
   opacity:.4;
 }
+
+/* SVG slot buckets */
+.pl-slot-rect{
+  transition:filter .25s, transform .25s;
+  transform-origin:center;
+  transform-box:fill-box;
+}
+.pl-slot-rect.win{
+  filter:drop-shadow(0 0 12px currentColor) drop-shadow(0 0 20px currentColor) brightness(1.4);
+  animation:svgSlotWin 1.6s ease-out;
+}
+@keyframes svgSlotWin{
+  0%{transform:scale(1) translateY(0);}
+  20%{transform:scale(1.12) translateY(-6px);}
+  100%{transform:scale(1) translateY(0);}
+}
+.pl-slot-text{pointer-events:none;}
 </style>
 </head>
 <body>
@@ -2926,7 +2943,7 @@ body{position:relative;}
     </div>
     
     <div class="pl-board-wrap">
-      <svg class="pl-board-svg" id="pl-svg" viewBox="0 0 320 360" preserveAspectRatio="xMidYMid meet">
+      <svg class="pl-board-svg" id="pl-svg" viewBox="0 0 320 400" preserveAspectRatio="xMidYMid meet">
         <defs>
           <radialGradient id="pegGrad" cx="35%" cy="35%">
             <stop offset="0%" stop-color="#ffffff"/>
@@ -2963,10 +2980,12 @@ body{position:relative;}
         <g id="pl-pegs"></g>
         <!-- Ball trail -->
         <g id="pl-trail"></g>
+        <!-- Slot buckets inside SVG -->
+        <g id="pl-slots-svg-g"></g>
         <!-- Ball -->
         <circle id="pl-ball" cx="160" cy="-20" r="6" fill="url(#plBallGrad)" filter="url(#ballGlow)" style="opacity:0;"/>
       </svg>
-      <div class="pl-slots-row" id="pl-slots"></div>
+      <div class="pl-slots-row" id="pl-slots" style="display:none;"></div>
     </div>
     
     <div class="pl-bets-grid">
@@ -5735,20 +5754,20 @@ var PL = {
   W: 320,
   H: 360,
   TOP_PAD: 32,
-  BOTTOM_Y: 318,        // floor where ball lands in slot
+  BOTTOM_Y: 320,        // top of slot zone (slots fill 320-380)        // floor where ball lands in slot
   PEG_R: 7,             // BIG pegs
   BALL_R: 7,
   WALL_THICK: 4,
   
-  NUM_PEGS: 38,         // scattered pegs in play area
+  NUM_PEGS: 55,        // more pegs for denser play field         // scattered pegs in play area
   NUM_SLOTS: 7,         // bottom buckets
   
   // Physics
-  GRAVITY: 0.22,
-  BOUNCE: 0.58,
+  GRAVITY: 0.16,        // slower fall
+  BOUNCE: 0.72,         // bouncier
   FRICTION: 0.998,
-  RAND_KICK: 0.4,
-  MAX_VY: 7,
+  RAND_KICK: 0.35,
+  MAX_VY: 5.5,         // capped lower for slower descent
   
   dropPositions: [40, 80, 120, 160, 200, 240, 280],
   
@@ -5778,15 +5797,16 @@ function plMultiColor(m){
 // Generate random peg field using Poisson-disk-style rejection sampling
 function plGenerateRandomPegs(){
   PL.pegs = [];
-  var MIN_DIST = 30;        // min distance between pegs (must allow ball+walls to pass)
+  var MIN_DIST = 26;       // tighter packing        // min distance between pegs (must allow ball+walls to pass)
   var MIN_DIST_SQ = MIN_DIST * MIN_DIST;
+  var MAX_ATTEMPTS_NEW = 3000;  // more attempts for denser layout
   var FIELD_TOP = PL.TOP_PAD + 30;    // first row of pegs starts here
   var FIELD_BOTTOM = PL.BOTTOM_Y - 35;
   var FIELD_LEFT = 18;
   var FIELD_RIGHT = PL.W - 18;
   
   var attempts = 0;
-  var MAX_ATTEMPTS = 1500;
+  var MAX_ATTEMPTS = 3000;
   while(PL.pegs.length < PL.NUM_PEGS && attempts < MAX_ATTEMPTS){
     attempts++;
     var x = FIELD_LEFT + Math.random() * (FIELD_RIGHT - FIELD_LEFT);
@@ -5840,21 +5860,56 @@ function plRenderSlotDividers(){
 }
 
 function plRenderSlots(){
-  var slotsEl = document.getElementById('pl-slots');
-  if(!slotsEl) return;
+  // Draw slots INTO the SVG so they're visually part of the play area
+  var svgG = document.getElementById('pl-slots-svg-g');
+  if(!svgG) return;
   var table = PL.paytables[PL.risk];
-  slotsEl.innerHTML = '';
+  svgG.innerHTML = '';
+  var slotW = PL.W / PL.NUM_SLOTS;
+  var slotY = PL.BOTTOM_Y;  // 320
+  var slotH = 56;            // tall buckets
   for(var i = 0; i < PL.NUM_SLOTS; i++){
     var m = table[i];
     var col = plMultiColor(m);
-    var slot = document.createElement('div');
-    slot.className = 'pl-slot';
-    slot.style.background = 'linear-gradient(180deg, ' + col + ' 0%, ' + col + 'cc 60%, ' + col + '88 100%)';
-    slot.style.color = (m >= 0.4 && m < 2) ? '#000' : '#fff';
-    slot.style.textShadow = (m >= 0.4 && m < 2) ? '0 1px 0 rgba(255,255,255,.3)' : '0 1px 2px rgba(0,0,0,.6)';
-    slot.textContent = m + 'x';
-    slot.id = 'pl-slot-' + i;
-    slotsEl.appendChild(slot);
+    var x = i * slotW;
+    var textColor = (m >= 0.4 && m < 2) ? '#000000' : '#ffffff';
+    // Main bucket rect
+    var rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('x', x + 1.5);
+    rect.setAttribute('y', slotY);
+    rect.setAttribute('width', slotW - 3);
+    rect.setAttribute('height', slotH);
+    rect.setAttribute('fill', col);
+    rect.setAttribute('rx', 5);
+    rect.setAttribute('stroke', 'rgba(255,255,255,0.25)');
+    rect.setAttribute('stroke-width', '1.5');
+    rect.setAttribute('class', 'pl-slot-rect');
+    rect.setAttribute('id', 'pl-slot-rect-' + i);
+    rect.style.color = col;     // for currentColor in glow filter
+    svgG.appendChild(rect);
+    // Inner highlight strip (top)
+    var hl = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    hl.setAttribute('x', x + 4);
+    hl.setAttribute('y', slotY + 3);
+    hl.setAttribute('width', slotW - 8);
+    hl.setAttribute('height', 3);
+    hl.setAttribute('fill', 'rgba(255,255,255,0.35)');
+    hl.setAttribute('rx', 2);
+    svgG.appendChild(hl);
+    // Big multiplier text
+    var text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', x + slotW / 2);
+    text.setAttribute('y', slotY + slotH / 2 + 2);
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('dominant-baseline', 'middle');
+    text.setAttribute('font-family', 'Russo One, sans-serif');
+    text.setAttribute('font-size', '17');
+    text.setAttribute('font-weight', '900');
+    text.setAttribute('fill', textColor);
+    text.setAttribute('class', 'pl-slot-text');
+    text.setAttribute('id', 'pl-slot-text-' + i);
+    text.textContent = m + 'x';
+    svgG.appendChild(text);
   }
 }
 
@@ -5903,8 +5958,7 @@ function plDrop(eur){
   if(PL.inFlight){ toast('Ball still falling','err',1200); return; }
   if(!PL.boardReady){ plBuildBoard(); PL.boardReady = true; }
   if((S.btc * S.rate) < eur){ toast('Insufficient balance','err'); return; }
-  var bet_btc = eur / S.rate;
-  if(!placeBet(bet_btc, 'plinko')) return;
+  if(!placeBet(eur, 'plinko')) return;
   PL.inFlight = true;
   document.getElementById('pl-bal').textContent = '\u20ac' + (S.btc * S.rate).toFixed(2);
   
@@ -5931,10 +5985,10 @@ function plDrop(eur){
     ballEl.style.opacity = '1';
   }
   
-  plPhysicsLoop(eur, bet_btc);
+  plPhysicsLoop(eur);
 }
 
-function plPhysicsLoop(eur, bet_btc){
+function plPhysicsLoop(eur){
   function step(){
     if(!PL.inFlight){ return; }
     var b = PL.ball;
@@ -6010,7 +6064,7 @@ function plPhysicsLoop(eur, bet_btc){
       var slotW = PL.W / PL.NUM_SLOTS;
       var slotIdx = Math.floor(b.x / slotW);
       slotIdx = Math.max(0, Math.min(PL.NUM_SLOTS - 1, slotIdx));
-      plLand(slotIdx, eur, bet_btc);
+      plLand(slotIdx, eur);
       return;
     }
     
@@ -6037,16 +6091,14 @@ function plRenderTrail(){
   }
 }
 
-function plLand(slotIdx, eur, bet_btc){
+function plLand(slotIdx, eur){
   var table = PL.paytables[PL.risk];
   var multi = table[slotIdx];
   var payout_eur = eur * multi;
-  var payout_btc = payout_eur / S.rate;
-  
-  var slotEl = document.getElementById('pl-slot-' + slotIdx);
-  if(slotEl){
-    slotEl.classList.add('win');
-    setTimeout(function(){ slotEl.classList.remove('win'); }, 2000);
+  var rectEl = document.getElementById('pl-slot-rect-' + slotIdx);
+  if(rectEl){
+    rectEl.classList.add('win');
+    setTimeout(function(){ rectEl.classList.remove('win'); }, 2000);
   }
   
   PL.recent.unshift({multi: multi, slot: slotIdx});
@@ -6054,7 +6106,7 @@ function plLand(slotIdx, eur, bet_btc){
   plRenderRecent();
   
   if(multi > 0){
-    winBet(payout_btc, 'plinko');
+    winBet(payout_eur, 'plinko');
     if(multi >= 1){
       var profit = eur * (multi - 1);
       toast('\uD83D\uDD25 ' + multi + 'x! +\u20ac' + profit.toFixed(2), 'ok', 2500);
@@ -6066,7 +6118,7 @@ function plLand(slotIdx, eur, bet_btc){
       toast(multi + 'x \u2014 -\u20ac' + lossEur.toFixed(2), 'err', 1800);
     }
   }else{
-    loseBet(bet_btc, 'plinko');
+    loseBet(eur, 'plinko');
     toast('\uD83D\uDC80 0x \u2014 -\u20ac' + eur, 'err', 1500);
   }
   document.getElementById('pl-bal').textContent = '\u20ac' + (S.btc * S.rate).toFixed(2);
@@ -6247,8 +6299,7 @@ function whSetRisk(risk){
 function whSpin(eur){
   if(WH.spinning){ toast('Wheel still spinning','err',1200); return; }
   if((S.btc * S.rate) < eur){ toast('Insufficient balance','err'); return; }
-  var bet_btc = eur / S.rate;
-  if(!placeBet(bet_btc, 'wheel')) return;
+  if(!placeBet(eur, 'wheel')) return;
   WH.spinning = true;
   document.getElementById('wh-bal').textContent = '\u20ac' + (S.btc * S.rate).toFixed(2);
   
@@ -6285,10 +6336,8 @@ function whSpin(eur){
   // Wait for animation to finish (4s)
   setTimeout(function(){
     var payout_eur = eur * multi;
-    var payout_btc = payout_eur / S.rate;
-    
     if(multi > 0){
-      winBet(payout_btc, 'wheel');
+      winBet(payout_eur, 'wheel');
       var profit = eur * (multi - 1);
       var resultClass = multi >= 10 ? 'jackpot' : 'win';
       document.getElementById('wh-result').innerHTML = 
@@ -6299,7 +6348,7 @@ function whSpin(eur){
         try{tg.HapticFeedback && tg.HapticFeedback.notificationOccurred('success');}catch(e){}
       }
     }else{
-      loseBet(bet_btc, 'wheel');
+      loseBet(eur, 'wheel');
       document.getElementById('wh-result').innerHTML = 
         '<div class="wh-result-multi lose">0x</div>' +
         '<div class="wh-result-amount">-\u20ac' + eur.toFixed(2) + '</div>';
