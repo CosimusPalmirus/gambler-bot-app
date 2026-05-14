@@ -2481,13 +2481,13 @@ body{position:relative;}
       </div>
     </div>
     <div class="section-ttl">📊 LIFETIME STATS</div>
-    <div class="stat-grid">
+    <div class="stat-grid" id="pf-stat-grid" ontouchstart="pfStatsLongPressStart(event)" ontouchend="pfStatsLongPressEnd()" oncontextmenu="event.preventDefault();pfShowDebug();return false;" onmousedown="pfStatsLongPressStart(event)" onmouseup="pfStatsLongPressEnd()" style="cursor:pointer;">
       <div class="stat-card wins"><div class="stat-lbl">WINS</div><div class="stat-val" id="pf-wins">0</div></div>
       <div class="stat-card losses"><div class="stat-lbl">LOSSES</div><div class="stat-val" id="pf-losses">0</div></div>
       <div class="stat-card bet"><div class="stat-lbl">TOTAL BET</div><div class="stat-val" id="pf-bet">€0</div></div>
       <div class="stat-card big"><div class="stat-lbl">BIGGEST WIN</div><div class="stat-val" id="pf-big">€0</div></div>
     </div>
-    <div class="win-rate" id="pf-winrate">Win rate: <b>—</b> • 0 games played</div>
+    <div class="win-rate" id="pf-winrate" style="position:relative;"><small style="position:absolute;top:-12px;right:0;font-size:8px;color:rgba(255,215,0,.4);letter-spacing:.5px;">long-press stats for debug</small>Win rate: <b>—</b> • 0 games played</div>
     <div class="section-ttl">🏅 ACHIEVEMENTS</div>
     <div class="ach-row" id="pf-achievements"></div>
   </div>
@@ -4761,6 +4761,55 @@ function pkUpdateButtons(){
   }
 }
 
+
+// ===== Profile stats long-press debug =====
+var _pfLongPressTimer = null;
+function pfStatsLongPressStart(e){
+  if(_pfLongPressTimer) clearTimeout(_pfLongPressTimer);
+  _pfLongPressTimer = setTimeout(function(){
+    pfShowDebug();
+  }, 1200); // 1.2s long press
+}
+function pfStatsLongPressEnd(){
+  if(_pfLongPressTimer){clearTimeout(_pfLongPressTimer);_pfLongPressTimer=null;}
+}
+function pfShowDebug(){
+  if(!S.userId){toast("Open from Telegram first","err");return;}
+  // Fetch raw debug data and show in a modal
+  var url = BACKEND + '/debug_user?user_id=' + S.userId + '&ngrok-skip-browser-warning=true&_t=' + Date.now();
+  toast("Fetching debug...","ok",1200);
+  fetch(url,{cache:'no-store',mode:'cors',credentials:'omit'})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      var modal = document.createElement('div');
+      modal.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.92);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px);";
+      var content = '<div style="background:#1a1f2e;border:2px solid #ffd700;border-radius:14px;padding:20px;max-width:340px;max-height:80vh;overflow:auto;color:#fff;font-family:\'Orbitron\',monospace;font-size:11px;">';
+      content += '<div style="font-family:\'Russo One\',sans-serif;font-size:16px;color:#ffd700;margin-bottom:14px;letter-spacing:1.5px;">\uD83D\uDD0D RAW DATA DEBUG</div>';
+      content += '<div style="background:rgba(0,0,0,.4);padding:10px;border-radius:8px;line-height:1.6;">';
+      content += 'User ID: <b>'+(d.user_id||"?")+'</b><br>';
+      content += 'Games (W+L): <b>'+(d.games_total||0)+'</b><br>';
+      content += 'BTC balance: <b>'+(d.btc||0).toFixed(8)+'</b><br>';
+      content += '<br><b style="color:#ffd700;">PROBLEM AREA:</b><br>';
+      content += 'total_bet RAW: <span style="color:#ff6b6b;">'+(d.total_bet_RAW||0)+' BTC</span><br>';
+      content += '  \u2192 = \u20ac'+(((d.total_bet_RAW||0)*S.rate).toFixed(2))+' (at current rate)<br>';
+      content += 'biggest_win RAW: <span style="color:#ff6b6b;">'+(d.biggest_win_RAW||0)+' BTC</span><br>';
+      content += '  \u2192 = \u20ac'+(((d.biggest_win_RAW||0)*S.rate).toFixed(2))+'<br>';
+      content += '<br>Avg bet/game: \u20ac'+(d.games_total?((d.total_bet_RAW*S.rate)/d.games_total).toFixed(2):"?")+'<br>';
+      content += '<br>XP: '+(d.xp||0)+'<br>txs count: '+(d.txs_count||0)+'<br>week_data weeks: '+((d.week_data_keys||[]).length)+'<br>';
+      content += '</div>';
+      content += '<div style="margin-top:12px;font-size:10px;color:#a1a1aa;line-height:1.5;">If total_bet/biggest_win seem wrong, you can fix in bot chat:<br>';
+      content += '<code style="background:#000;padding:2px 6px;border-radius:3px;color:#39ff14;">/set_stats '+(d.user_id||"YOURID")+' total_bet 0.005</code><br>';
+      content += '<code style="background:#000;padding:2px 6px;border-radius:3px;color:#39ff14;">/reset_stats '+(d.user_id||"YOURID")+'</code></div>';
+      content += '<button onclick="this.parentNode.parentNode.remove()" style="margin-top:14px;width:100%;padding:11px;background:linear-gradient(145deg,#ffd700,#ff9500);color:#000;border:none;border-radius:8px;font-family:\'Russo One\',sans-serif;letter-spacing:1.5px;font-size:12px;font-weight:700;cursor:pointer;">CLOSE</button>';
+      content += '</div>';
+      modal.innerHTML = content;
+      modal.onclick = function(e){if(e.target===modal)modal.remove();};
+      document.body.appendChild(modal);
+    })
+    .catch(function(e){
+      toast("Debug fetch failed: "+e.message,"err",3000);
+    });
+}
 </script>
 
 </body>
