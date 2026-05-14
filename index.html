@@ -1349,7 +1349,7 @@ body{position:relative;}
 </head>
 <body>
 <!-- BUILD STAMP — verify deployed version. Tap to copy. -->
-<div data-build-stamp style="position:fixed;bottom:62px;right:6px;z-index:9999;font-size:8px;color:rgba(255,215,0,.5);font-family:monospace;background:rgba(0,0,0,.7);padding:2px 6px;border-radius:4px;pointer-events:auto;cursor:pointer;border:1px solid rgba(255,215,0,.2);" onclick="navigator.clipboard&&navigator.clipboard.writeText(this.textContent);this.style.color='#39ff14';">BUILD 20260514-0350</div>
+<div data-build-stamp style="position:fixed;bottom:62px;right:6px;z-index:9999;font-size:8px;color:rgba(255,215,0,.5);font-family:monospace;background:rgba(0,0,0,.7);padding:2px 6px;border-radius:4px;pointer-events:auto;cursor:pointer;border:1px solid rgba(255,215,0,.2);" onclick="navigator.clipboard&&navigator.clipboard.writeText(this.textContent);this.style.color='#39ff14';">BUILD 20260514-0357</div>
 
 
 <div id="app">
@@ -3188,30 +3188,32 @@ function loadLeaderboard(){
 var CHALLENGES_ALL=[];
 function fetchChallenges(cb){
   var lst=document.getElementById('ch-list');
-  console.log('[QUESTS] fetchChallenges start, userId=', S.userId, 'BUILD 20260514-0350');
+  console.log('[QUESTS] fetchChallenges BUILD 20260514-0357 userId=', S.userId);
   if(!S.userId){
     if(lst)lst.innerHTML='<div style="text-align:center;padding:30px;color:var(--txt3);font-size:11px;">Open the mini app from Telegram to see your quests</div>';
     if(cb)cb();
     return;
   }
   if(lst && !CHALLENGES_ALL.length){
-    lst.innerHTML='<div style="text-align:center;padding:30px;color:var(--txt3);font-size:11px;">\u23F3 Loading quests... <small style="opacity:.5">[build 20260514-0350]</small></div>';
+    lst.innerHTML='<div style="text-align:center;padding:30px;color:var(--txt3);font-size:11px;">\u23F3 Loading quests... <small style="opacity:.5">[build 20260514-0357]</small></div>';
   }
 
-  // Try fetch() first, then XMLHttpRequest fallback if fetch fails.
-  // Telegram WebApp on some Android versions has buggy fetch() but working XHR.
-  function tryFetch(url){
-    console.log('[QUESTS] fetch attempt:', url);
+  function buildUrl(path){
+    var sep = path.indexOf('?') >= 0 ? '&' : '?';
+    return BACKEND + path + sep + 'ngrok-skip-browser-warning=true&_t=' + Date.now();
+  }
+
+  // SIMPLE fetch — NO custom headers = NO CORS preflight
+  // Browser's default Accept and the ngrok query param should suffice
+  function tryFetchSimple(url){
+    console.log('[QUESTS] simple fetch:', url);
     return new Promise(function(resolve){
-      var timer=setTimeout(function(){resolve({ok:false, err:'fetch timeout 8s', url:url});},8000);
-      fetch(url+'&_t='+Date.now(),{
-        headers:{'ngrok-skip-browser-warning':'1','Cache-Control':'no-cache','Accept':'application/json'},
-        cache:'no-store', mode:'cors'
-      }).then(function(r){
+      var timer=setTimeout(function(){resolve({ok:false, err:'timeout 8s', url:url});},8000);
+      fetch(url,{cache:'no-store', mode:'cors', credentials:'omit'}).then(function(r){
         clearTimeout(timer);
         return r.text().then(function(t){
-          try{resolve({ok:true, status:r.status, data:JSON.parse(t), url:url});}
-          catch(e){resolve({ok:false, status:r.status, err:'JSON parse fail', raw:t.substring(0,200), url:url});}
+          try{resolve({ok:true, status:r.status, data:JSON.parse(t), url:url, raw:t.substring(0,400)});}
+          catch(e){resolve({ok:false, status:r.status, err:'JSON parse fail', raw:t.substring(0,400), url:url});}
         });
       }).catch(function(e){
         clearTimeout(timer);
@@ -3219,15 +3221,33 @@ function fetchChallenges(cb){
       });
     });
   }
-  function tryXHR(url){
-    console.log('[QUESTS] XHR attempt:', url);
+  // With ngrok-skip header in case query param doesn't work alone
+  function tryFetchWithHeader(url){
+    console.log('[QUESTS] fetch+header:', url);
+    return new Promise(function(resolve){
+      var timer=setTimeout(function(){resolve({ok:false, err:'timeout 8s', url:url});},8000);
+      fetch(url,{
+        headers:{'ngrok-skip-browser-warning':'true'},
+        cache:'no-store', mode:'cors', credentials:'omit'
+      }).then(function(r){
+        clearTimeout(timer);
+        return r.text().then(function(t){
+          try{resolve({ok:true, status:r.status, data:JSON.parse(t), url:url, raw:t.substring(0,400)});}
+          catch(e){resolve({ok:false, status:r.status, err:'JSON parse fail', raw:t.substring(0,400), url:url});}
+        });
+      }).catch(function(e){
+        clearTimeout(timer);
+        resolve({ok:false, err:'fetch:'+(e.message||e), url:url});
+      });
+    });
+  }
+  function tryXHRSimple(url){
+    console.log('[QUESTS] simple XHR:', url);
     return new Promise(function(resolve){
       try{
         var xhr=new XMLHttpRequest();
-        xhr.open('GET', url+'&_t='+Date.now(), true);
-        xhr.setRequestHeader('ngrok-skip-browser-warning','1');
-        xhr.setRequestHeader('Cache-Control','no-cache');
-        xhr.setRequestHeader('Accept','application/json');
+        xhr.open('GET', url, true);
+        // NO custom headers — XHR with no headers shouldn't trigger preflight either
         xhr.timeout=8000;
         xhr.ontimeout=function(){resolve({ok:false, err:'XHR timeout 8s', url:url});};
         xhr.onerror=function(){resolve({ok:false, err:'XHR network error', url:url});};
@@ -3235,9 +3255,9 @@ function fetchChallenges(cb){
           if(xhr.readyState===4){
             try{
               var d=JSON.parse(xhr.responseText);
-              resolve({ok:true, status:xhr.status, data:d, url:url});
+              resolve({ok:true, status:xhr.status, data:d, url:url, raw:xhr.responseText.substring(0,400)});
             }catch(e){
-              resolve({ok:false, status:xhr.status, err:'XHR JSON parse fail', raw:xhr.responseText.substring(0,200), url:url});
+              resolve({ok:false, status:xhr.status, err:'XHR JSON parse fail', raw:xhr.responseText.substring(0,400), url:url});
             }
           }
         };
@@ -3262,49 +3282,51 @@ function fetchChallenges(cb){
     return false;
   }
 
-  // Try in order: fetch /quests_data, fetch /challenges, XHR /quests_data, XHR /challenges
+  // 4 attempts: simple-fetch (no headers, no preflight), then header-fetch, then XHR-simple, then XHR with /challenges
   var attempts = [
-    function(){return tryFetch(BACKEND+'/quests_data?user_id='+S.userId);},
-    function(){return tryFetch(BACKEND+'/challenges?user_id='+S.userId);},
-    function(){return tryXHR(BACKEND+'/quests_data?user_id='+S.userId);},
-    function(){return tryXHR(BACKEND+'/challenges?user_id='+S.userId);},
+    function(){return tryFetchSimple(buildUrl('/quests_data?user_id='+S.userId));},
+    function(){return tryFetchSimple(buildUrl('/challenges?user_id='+S.userId));},
+    function(){return tryXHRSimple(buildUrl('/quests_data?user_id='+S.userId));},
+    function(){return tryFetchWithHeader(buildUrl('/quests_data?user_id='+S.userId));},
   ];
   var errors=[];
   function runNext(i){
     if(i>=attempts.length){
-      // All failed — show diagnostic
       console.error('[QUESTS] ALL 4 attempts failed:', errors);
-      fetch(BACKEND+'/healthcheck',{headers:{'ngrok-skip-browser-warning':'1'},cache:'no-store'})
-        .then(function(r){return r.json();})
-        .then(function(hc){
-          var failing=[];
-          if(hc && hc.checks){
-            Object.keys(hc.checks).forEach(function(k){
-              var c=hc.checks[k];
-              if(c && c.ok===false){failing.push(k+': '+(c.error||'unknown'));}
-            });
-          }
-          var attempts_html = errors.map(function(e){return '\u2022 '+e.url.replace(BACKEND,'').split('?')[0]+': '+(e.err||'?');}).join('<br>');
-          var msg='\u26A0\ufe0f All 4 fetch attempts failed.<br><br>';
-          msg+='<strong>Attempts:</strong><div style="text-align:left;margin:6px 8px;font-size:9px;background:rgba(0,0,0,.4);padding:6px;border-radius:4px;line-height:1.4;">'+attempts_html+'</div>';
-          if(failing.length){
-            msg+='<br><strong>Backend issues:</strong><div style="text-align:left;margin:6px 8px;font-size:9px;background:rgba(0,0,0,.4);padding:6px;border-radius:4px;">'+failing.join('<br>')+'</div>';
-          }else if(hc && hc.status==='ok'){
-            msg+='<br>Backend healthy. Likely <strong>WebView cache</strong> — fully close Telegram and reopen.<br>';
-          }
-          msg+='<br><small style="opacity:.6">[build 20260514-0350]</small>';
-          showQuestError(lst,msg);
-        })
-        .catch(function(){
-          showQuestError(lst,'\u26A0\ufe0f Backend UNREACHABLE.<br>Check backend.py is running.<br><br><small>[build 20260514-0350]</small>');
-        });
+      var firstRaw='';
+      for(var ei=0;ei<errors.length;ei++){
+        if(errors[ei].raw){firstRaw=errors[ei].raw;break;}
+      }
+      var ngrokWarning = firstRaw && (firstRaw.indexOf('ngrok')>=0 || firstRaw.indexOf('You are about to visit')>=0 || firstRaw.indexOf('Visit Site')>=0);
+      var attemptsList = errors.map(function(e,i){
+        var label = e.url.replace(BACKEND,'').split('?')[0];
+        return '<div style="margin:2px 0;">'+(i+1)+'. <strong>'+label+'</strong>: '+(e.err||'?')+(e.status?' (HTTP '+e.status+')':'')+'</div>';
+      }).join('');
+      var msg='\u26A0\ufe0f All attempts failed.<br><br>';
+      msg+='<div style="text-align:left;font-size:10px;margin:6px 0;">'+attemptsList+'</div>';
+      if(ngrokWarning){
+        msg+='<br><strong style="color:#ff9900;">\u26A0\ufe0f ngrok showing browser warning page</strong><br>';
+        msg+='<small>Telegram WebView strips our bypass header. Solutions:</small><br>';
+        msg+='<div style="text-align:left;font-size:9px;background:rgba(0,0,0,.4);padding:6px;margin:4px 0;border-radius:4px;">';
+        msg+='\u2022 Switch backend tunnel to <strong>cloudflared</strong> (no warning page, free)<br>';
+        msg+='\u2022 Upgrade ngrok to a paid plan<br>';
+        msg+='\u2022 Deploy backend to a real domain';
+        msg+='</div>';
+      }
+      if(firstRaw){
+        msg+='<br><strong>Sample response:</strong><div style="text-align:left;font-size:9px;font-family:monospace;background:rgba(0,0,0,.5);padding:6px;border-radius:4px;max-height:140px;overflow:auto;word-break:break-all;color:#fff;">'+
+          firstRaw.replace(/</g,'&lt;').replace(/>/g,'&gt;')+
+          '</div>';
+      }
+      msg+='<br><small style="opacity:.6">[build 20260514-0357]</small>';
+      showQuestError(lst,msg);
       if(cb)cb();
       return;
     }
     attempts[i]().then(function(resp){
-      if(resp.ok && useResult(resp))return; // SUCCESS
+      if(resp.ok && useResult(resp))return;
       errors.push(resp);
-      console.warn('[QUESTS] attempt',i+1,'failed:',resp.err||'no data','for',resp.url);
+      console.warn('[QUESTS] attempt',i+1,'failed:',resp.err||'no data','raw:',(resp.raw||'').substring(0,80));
       runNext(i+1);
     });
   }
