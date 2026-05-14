@@ -5755,11 +5755,11 @@ var PL = {
   BALL_R: 7,
   WALL_THICK: 4,
   
-  NUM_PEGS: 55,        // more pegs for denser play field         // scattered pegs in play area
+  NUM_PEGS: 38,        // balanced count - room for ball to flow
   NUM_SLOTS: 7,         // bottom buckets
   
   // Physics
-  GRAVITY: 0.09,        // very light feather
+  GRAVITY: 0.11,        // light but enough to keep ball moving
   BOUNCE: 0.78,         // very bouncy
   FRICTION: 0.992,       // more air resistance
   RAND_KICK: 0.28,
@@ -5793,7 +5793,7 @@ function plMultiColor(m){
 // Generate random peg field using Poisson-disk-style rejection sampling
 function plGenerateRandomPegs(){
   PL.pegs = [];
-  var MIN_DIST = 26;       // tighter packing        // min distance between pegs (must allow ball+walls to pass)
+  var MIN_DIST = 33;       // generous spacing - ball never gets stuck        // min distance between pegs (must allow ball+walls to pass)
   var MIN_DIST_SQ = MIN_DIST * MIN_DIST;
   var MAX_ATTEMPTS_NEW = 3000;  // more attempts for denser layout
   var FIELD_TOP = PL.TOP_PAD + 16;    // pegs start near top
@@ -6055,6 +6055,18 @@ function plPhysicsLoop(eur){
     PL.trailHistory.push({x:b.x, y:b.y});
     if(PL.trailHistory.length > 14) PL.trailHistory.shift();
     plRenderTrail();
+    
+    // Anti-stuck: if ball moves < 0.4 px/frame for ~30 frames, kick it
+    var speed = Math.abs(b.vx) + Math.abs(b.vy);
+    if(speed < 0.4){
+      PL.stuckFrames = (PL.stuckFrames || 0) + 1;
+      if(PL.stuckFrames > 25){
+        // Give it a downward nudge + random horizontal
+        b.vy += 1.5;
+        b.vx += (Math.random() - 0.5) * 1.2;
+        PL.stuckFrames = 0;
+      }
+    } else { PL.stuckFrames = 0; }
     
     if(b.y >= PL.BOTTOM_Y){
       var slotW = PL.W / PL.NUM_SLOTS;
