@@ -1348,6 +1348,9 @@ body{position:relative;}
 </style>
 </head>
 <body>
+<!-- BUILD STAMP — verify deployed version. Tap to copy. -->
+<div data-build-stamp style="position:fixed;bottom:62px;right:6px;z-index:9999;font-size:8px;color:rgba(255,215,0,.5);font-family:monospace;background:rgba(0,0,0,.7);padding:2px 6px;border-radius:4px;pointer-events:auto;cursor:pointer;border:1px solid rgba(255,215,0,.2);" onclick="navigator.clipboard&&navigator.clipboard.writeText(this.textContent);this.style.color='#39ff14';">BUILD 20260514-0350</div>
+
 
 <div id="app">
 
@@ -3185,79 +3188,95 @@ function loadLeaderboard(){
 var CHALLENGES_ALL=[];
 function fetchChallenges(cb){
   var lst=document.getElementById('ch-list');
-  console.log('[QUESTS] fetchChallenges start, userId=', S.userId);
+  console.log('[QUESTS] fetchChallenges start, userId=', S.userId, 'BUILD 20260514-0350');
   if(!S.userId){
     if(lst)lst.innerHTML='<div style="text-align:center;padding:30px;color:var(--txt3);font-size:11px;">Open the mini app from Telegram to see your quests</div>';
     if(cb)cb();
     return;
   }
   if(lst && !CHALLENGES_ALL.length){
-    lst.innerHTML='<div style="text-align:center;padding:30px;color:var(--txt3);font-size:11px;">\u23F3 Loading quests...</div>';
+    lst.innerHTML='<div style="text-align:center;padding:30px;color:var(--txt3);font-size:11px;">\u23F3 Loading quests... <small style="opacity:.5">[build 20260514-0350]</small></div>';
   }
 
-  // Try /quests_data first (neutral URL), fallback to /challenges if it 404s.
-  // Some proxies/firewalls have blocklists on the word "challenges".
-  function doFetch(url, isLast){
-    console.log('[QUESTS] trying url=', url);
-    var timedOut=false;
-    var timer=setTimeout(function(){
-      timedOut=true;
-      console.error('[QUESTS] timeout 10s for', url);
-      if(isLast) showQuestError(lst,'\u26A0\ufe0f Quest load timed out (10s).<br>Backend may be slow or blocked.');
-      if(cb && isLast)cb();
-    },10000);
-    return fetch(url+'&_t='+Date.now(),{
-      headers:{'ngrok-skip-browser-warning':'1','Cache-Control':'no-cache','Accept':'application/json'},
-      cache:'no-store',
-      mode:'cors'
-    })
-      .then(function(r){
+  // Try fetch() first, then XMLHttpRequest fallback if fetch fails.
+  // Telegram WebApp on some Android versions has buggy fetch() but working XHR.
+  function tryFetch(url){
+    console.log('[QUESTS] fetch attempt:', url);
+    return new Promise(function(resolve){
+      var timer=setTimeout(function(){resolve({ok:false, err:'fetch timeout 8s', url:url});},8000);
+      fetch(url+'&_t='+Date.now(),{
+        headers:{'ngrok-skip-browser-warning':'1','Cache-Control':'no-cache','Accept':'application/json'},
+        cache:'no-store', mode:'cors'
+      }).then(function(r){
         clearTimeout(timer);
-        if(timedOut)return null;
-        console.log('[QUESTS] status', r.status, 'for', url);
         return r.text().then(function(t){
-          try{return {status:r.status, data:JSON.parse(t), url:url};}
-          catch(e){
-            console.error('[QUESTS] JSON parse failed for', url, 'raw:', t.substring(0,300));
-            return {status:r.status, data:null, raw:t.substring(0,300), url:url};
-          }
+          try{resolve({ok:true, status:r.status, data:JSON.parse(t), url:url});}
+          catch(e){resolve({ok:false, status:r.status, err:'JSON parse fail', raw:t.substring(0,200), url:url});}
         });
-      })
-      .then(function(resp){
-        if(!resp||timedOut)return false;
-        var d=resp.data;
-        if(d && d.challenges){
-          CHALLENGES_ALL = d.challenges;
-          console.log('[QUESTS] SUCCESS from', resp.url, '— count=', CHALLENGES_ALL.length);
-          if(d.progress)S.weekProgress=d.progress;
-          if(d.claimed)S.claimedQuests=d.claimed;
-          if(d.week_earned_btc!==undefined)S.weekEarnedBtc=d.week_earned_btc;
-          if(cb)cb();
-          renderChallenges();
-          return true;
-        }
-        return false; // no usable data
-      })
-      .catch(function(e){
+      }).catch(function(e){
         clearTimeout(timer);
-        if(timedOut)return false;
-        console.error('[QUESTS] fetch error for', url, ':', e);
-        return false;
+        resolve({ok:false, err:'fetch:'+(e.message||e), url:url});
       });
+    });
+  }
+  function tryXHR(url){
+    console.log('[QUESTS] XHR attempt:', url);
+    return new Promise(function(resolve){
+      try{
+        var xhr=new XMLHttpRequest();
+        xhr.open('GET', url+'&_t='+Date.now(), true);
+        xhr.setRequestHeader('ngrok-skip-browser-warning','1');
+        xhr.setRequestHeader('Cache-Control','no-cache');
+        xhr.setRequestHeader('Accept','application/json');
+        xhr.timeout=8000;
+        xhr.ontimeout=function(){resolve({ok:false, err:'XHR timeout 8s', url:url});};
+        xhr.onerror=function(){resolve({ok:false, err:'XHR network error', url:url});};
+        xhr.onreadystatechange=function(){
+          if(xhr.readyState===4){
+            try{
+              var d=JSON.parse(xhr.responseText);
+              resolve({ok:true, status:xhr.status, data:d, url:url});
+            }catch(e){
+              resolve({ok:false, status:xhr.status, err:'XHR JSON parse fail', raw:xhr.responseText.substring(0,200), url:url});
+            }
+          }
+        };
+        xhr.send();
+      }catch(e){
+        resolve({ok:false, err:'XHR setup fail:'+e.message, url:url});
+      }
+    });
+  }
+  function useResult(resp){
+    var d=resp.data;
+    if(d && d.challenges){
+      CHALLENGES_ALL = d.challenges;
+      console.log('[QUESTS] SUCCESS from', resp.url, '— count=', CHALLENGES_ALL.length);
+      if(d.progress)S.weekProgress=d.progress;
+      if(d.claimed)S.claimedQuests=d.claimed;
+      if(d.week_earned_btc!==undefined)S.weekEarnedBtc=d.week_earned_btc;
+      if(cb)cb();
+      renderChallenges();
+      return true;
+    }
+    return false;
   }
 
-  // First try /quests_data, then /challenges
-  doFetch(BACKEND+'/quests_data?user_id='+S.userId, false).then(function(ok1){
-    if(ok1)return;
-    console.log('[QUESTS] /quests_data failed, trying /challenges');
-    doFetch(BACKEND+'/challenges?user_id='+S.userId, false).then(function(ok2){
-      if(ok2)return;
-      // Both failed — diagnose via /healthcheck
-      console.log('[QUESTS] both URLs failed, running diagnostic');
+  // Try in order: fetch /quests_data, fetch /challenges, XHR /quests_data, XHR /challenges
+  var attempts = [
+    function(){return tryFetch(BACKEND+'/quests_data?user_id='+S.userId);},
+    function(){return tryFetch(BACKEND+'/challenges?user_id='+S.userId);},
+    function(){return tryXHR(BACKEND+'/quests_data?user_id='+S.userId);},
+    function(){return tryXHR(BACKEND+'/challenges?user_id='+S.userId);},
+  ];
+  var errors=[];
+  function runNext(i){
+    if(i>=attempts.length){
+      // All failed — show diagnostic
+      console.error('[QUESTS] ALL 4 attempts failed:', errors);
       fetch(BACKEND+'/healthcheck',{headers:{'ngrok-skip-browser-warning':'1'},cache:'no-store'})
         .then(function(r){return r.json();})
         .then(function(hc){
-          console.log('[QUESTS] healthcheck:', hc);
           var failing=[];
           if(hc && hc.checks){
             Object.keys(hc.checks).forEach(function(k){
@@ -3265,21 +3284,31 @@ function fetchChallenges(cb){
               if(c && c.ok===false){failing.push(k+': '+(c.error||'unknown'));}
             });
           }
-          var msg='\u26A0\ufe0f Quest fetch failed on both /quests_data and /challenges.<br><br>';
+          var attempts_html = errors.map(function(e){return '\u2022 '+e.url.replace(BACKEND,'').split('?')[0]+': '+(e.err||'?');}).join('<br>');
+          var msg='\u26A0\ufe0f All 4 fetch attempts failed.<br><br>';
+          msg+='<strong>Attempts:</strong><div style="text-align:left;margin:6px 8px;font-size:9px;background:rgba(0,0,0,.4);padding:6px;border-radius:4px;line-height:1.4;">'+attempts_html+'</div>';
           if(failing.length){
-            msg+='<strong>Failing:</strong><div style="text-align:left;margin:8px 18px;color:#fff;background:rgba(0,0,0,.3);padding:8px;border-radius:4px;font-size:10px;">'+failing.join('<br>')+'</div>';
+            msg+='<br><strong>Backend issues:</strong><div style="text-align:left;margin:6px 8px;font-size:9px;background:rgba(0,0,0,.4);padding:6px;border-radius:4px;">'+failing.join('<br>')+'</div>';
           }else if(hc && hc.status==='ok'){
-            msg+='Backend is UP and reports OK, but the /challenges endpoint cannot be reached from the mini app.<br><br>Likely cause: <strong>proxy/firewall blocks the URL</strong>, or browser cache.<br><br>Try in browser: <code style="font-size:9px;display:block;margin:4px;word-break:break-all;background:#000;padding:6px;">'+BACKEND+'/quests_data?user_id='+S.userId+'</code>';
+            msg+='<br>Backend healthy. Likely <strong>WebView cache</strong> — fully close Telegram and reopen.<br>';
           }
-          msg+='<br><small style="opacity:.7">Open Telegram DevTools console for [QUESTS] logs.</small>';
+          msg+='<br><small style="opacity:.6">[build 20260514-0350]</small>';
           showQuestError(lst,msg);
         })
         .catch(function(){
-          showQuestError(lst,'\u26A0\ufe0f Backend UNREACHABLE.<br>Check that backend.py is running and ngrok tunnel is alive.');
+          showQuestError(lst,'\u26A0\ufe0f Backend UNREACHABLE.<br>Check backend.py is running.<br><br><small>[build 20260514-0350]</small>');
         });
       if(cb)cb();
+      return;
+    }
+    attempts[i]().then(function(resp){
+      if(resp.ok && useResult(resp))return; // SUCCESS
+      errors.push(resp);
+      console.warn('[QUESTS] attempt',i+1,'failed:',resp.err||'no data','for',resp.url);
+      runNext(i+1);
     });
-  });
+  }
+  runNext(0);
 }
 
 function showQuestError(lst,htmlMsg){
