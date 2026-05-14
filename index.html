@@ -3890,8 +3890,10 @@ function renderChallenges(){
       var done=prog>=goal;
       var claimed=S.claimedQuests && S.claimedQuests[q.id];
       var progDisplay;
-      if(q.stat==='week_bet_eur'){progDisplay='\u20ac'+Math.round(prog)+' / \u20ac'+goal;}
+      if(q.stat==='week_bet_eur' || q.stat==='highest_single_bet_eur'){progDisplay='\u20ac'+Math.round(prog)+' / \u20ac'+goal;}
       else if(q.stat==='total_won_k'){progDisplay=(prog/100).toFixed(2)+' / '+(goal/100).toFixed(1)+' mBTC';}
+      else if(q.stat==='total_bet_k'){progDisplay=(prog/100).toFixed(1)+' / '+(goal/100)+' mBTC';}
+      else if(q.stat==='level'){progDisplay='Lv.'+prog+' / Lv.'+goal;}
       else{progDisplay=prog+' / '+goal;}
       var rewardEur=(q.reward_btc||0)*S.rate;
       var rewardText=claimed?'\u2713 CLAIMED':'+\u20ac'+rewardEur.toFixed(2);
@@ -4775,40 +4777,106 @@ function pfStatsLongPressEnd(){
 }
 function pfShowDebug(){
   if(!S.userId){toast("Open from Telegram first","err");return;}
-  // Fetch raw debug data and show in a modal
   var url = BACKEND + '/debug_user?user_id=' + S.userId + '&ngrok-skip-browser-warning=true&_t=' + Date.now();
-  toast("Fetching debug...","ok",1200);
-  fetch(url,{cache:'no-store',mode:'cors',credentials:'omit'})
-    .then(function(r){return r.json();})
-    .then(function(d){
-      var modal = document.createElement('div');
-      modal.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.92);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px);";
-      var content = '<div style="background:#1a1f2e;border:2px solid #ffd700;border-radius:14px;padding:20px;max-width:340px;max-height:80vh;overflow:auto;color:#fff;font-family:\'Orbitron\',monospace;font-size:11px;">';
-      content += '<div style="font-family:\'Russo One\',sans-serif;font-size:16px;color:#ffd700;margin-bottom:14px;letter-spacing:1.5px;">\uD83D\uDD0D RAW DATA DEBUG</div>';
-      content += '<div style="background:rgba(0,0,0,.4);padding:10px;border-radius:8px;line-height:1.6;">';
-      content += 'User ID: <b>'+(d.user_id||"?")+'</b><br>';
-      content += 'Games (W+L): <b>'+(d.games_total||0)+'</b><br>';
-      content += 'BTC balance: <b>'+(d.btc||0).toFixed(8)+'</b><br>';
-      content += '<br><b style="color:#ffd700;">PROBLEM AREA:</b><br>';
-      content += 'total_bet RAW: <span style="color:#ff6b6b;">'+(d.total_bet_RAW||0)+' BTC</span><br>';
-      content += '  \u2192 = \u20ac'+(((d.total_bet_RAW||0)*S.rate).toFixed(2))+' (at current rate)<br>';
-      content += 'biggest_win RAW: <span style="color:#ff6b6b;">'+(d.biggest_win_RAW||0)+' BTC</span><br>';
-      content += '  \u2192 = \u20ac'+(((d.biggest_win_RAW||0)*S.rate).toFixed(2))+'<br>';
-      content += '<br>Avg bet/game: \u20ac'+(d.games_total?((d.total_bet_RAW*S.rate)/d.games_total).toFixed(2):"?")+'<br>';
-      content += '<br>XP: '+(d.xp||0)+'<br>txs count: '+(d.txs_count||0)+'<br>week_data weeks: '+((d.week_data_keys||[]).length)+'<br>';
-      content += '</div>';
-      content += '<div style="margin-top:12px;font-size:10px;color:#a1a1aa;line-height:1.5;">If total_bet/biggest_win seem wrong, you can fix in bot chat:<br>';
-      content += '<code style="background:#000;padding:2px 6px;border-radius:3px;color:#39ff14;">/set_stats '+(d.user_id||"YOURID")+' total_bet 0.005</code><br>';
-      content += '<code style="background:#000;padding:2px 6px;border-radius:3px;color:#39ff14;">/reset_stats '+(d.user_id||"YOURID")+'</code></div>';
-      content += '<button onclick="this.parentNode.parentNode.remove()" style="margin-top:14px;width:100%;padding:11px;background:linear-gradient(145deg,#ffd700,#ff9500);color:#000;border:none;border-radius:8px;font-family:\'Russo One\',sans-serif;letter-spacing:1.5px;font-size:12px;font-weight:700;cursor:pointer;">CLOSE</button>';
-      content += '</div>';
-      modal.innerHTML = content;
-      modal.onclick = function(e){if(e.target===modal)modal.remove();};
-      document.body.appendChild(modal);
-    })
-    .catch(function(e){
-      toast("Debug fetch failed: "+e.message,"err",3000);
+  console.log('[DEBUG] fetching:', url);
+  toast("Fetching debug...","ok",1500);
+  
+  // Multi-tier fetch with XHR fallback (same approach as quests)
+  function tryFetch(){
+    return new Promise(function(resolve){
+      var timer = setTimeout(function(){resolve({ok:false,err:'fetch timeout'});}, 8000);
+      fetch(url, {cache:'no-store', mode:'cors', credentials:'omit'})
+        .then(function(r){clearTimeout(timer); return r.text();})
+        .then(function(t){
+          try{resolve({ok:true, data:JSON.parse(t), raw:t.substring(0,300)});}
+          catch(e){resolve({ok:false, err:'JSON parse:'+e.message, raw:t.substring(0,300)});}
+        })
+        .catch(function(e){clearTimeout(timer); resolve({ok:false, err:'fetch:'+e.message});});
     });
+  }
+  function tryXHR(){
+    return new Promise(function(resolve){
+      try{
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', url, true);
+        xhr.timeout = 8000;
+        xhr.ontimeout = function(){resolve({ok:false, err:'XHR timeout'});};
+        xhr.onerror = function(){resolve({ok:false, err:'XHR network error'});};
+        xhr.onreadystatechange = function(){
+          if(xhr.readyState === 4){
+            try{resolve({ok:true, data:JSON.parse(xhr.responseText)});}
+            catch(e){resolve({ok:false, err:'XHR JSON parse:'+e.message, raw:xhr.responseText.substring(0,300)});}
+          }
+        };
+        xhr.send();
+      }catch(e){
+        resolve({ok:false, err:'XHR setup:'+e.message});
+      }
+    });
+  }
+  
+  function showResult(d){
+    var modal = document.createElement('div');
+    modal.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.94);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px);";
+    var content = '<div style="background:#1a1f2e;border:2px solid #ffd700;border-radius:14px;padding:18px 16px;max-width:340px;max-height:85vh;overflow:auto;color:#fff;font-family:Orbitron,monospace;font-size:11px;">';
+    content += '<div style="font-family:Russo One,sans-serif;font-size:15px;color:#ffd700;margin-bottom:14px;letter-spacing:1.5px;">\uD83D\uDD0D RAW DATA DEBUG</div>';
+    content += '<div style="background:rgba(0,0,0,.4);padding:10px;border-radius:8px;line-height:1.7;font-size:10px;">';
+    content += 'User ID: <b>'+(d.user_id||"?")+'</b><br>';
+    content += 'Username: '+(d.username||"-")+'<br>';
+    content += 'BTC rate: \u20ac'+(d.rate_eur||"?")+'<br>';
+    content += 'BTC balance: <b>'+(d.btc||0).toFixed(8)+'</b><br>';
+    content += 'Wins: <b>'+(d.wins||0)+'</b> \u2022 Losses: <b>'+(d.losses||0)+'</b> \u2022 Games: <b>'+(d.games_total||0)+'</b><br>';
+    content += '<br><b style="color:#ffd700;">TOTAL BET</b><br>';
+    content += 'Stored RAW: <span style="color:#ff6b6b;">'+(d.total_bet_RAW||0)+' BTC</span><br>';
+    content += '  = \u20ac'+(((d.total_bet_RAW||0)*(d.rate_eur||90000)).toFixed(2))+'<br>';
+    if(d.total_bet_FROM_WEEKS !== undefined){
+      content += 'From week_data: <span style="color:#39ff14;">'+(d.total_bet_FROM_WEEKS||0)+' BTC</span><br>';
+      content += '  = \u20ac'+(d.total_bet_FROM_WEEKS_eur||0)+'<br>';
+    }
+    content += '<br><b style="color:#ffd700;">BIGGEST WIN</b><br>';
+    content += 'Stored RAW: <span style="color:#ff6b6b;">'+(d.biggest_win_RAW||0)+' BTC</span><br>';
+    content += '  = \u20ac'+(((d.biggest_win_RAW||0)*(d.rate_eur||90000)).toFixed(2))+'<br>';
+    if(d.games_total > 0 && d.total_bet_RAW > 0){
+      var avg = ((d.total_bet_RAW||0)*(d.rate_eur||90000)) / d.games_total;
+      content += '<br>Avg bet/game: \u20ac'+avg.toFixed(2)+'<br>';
+    }
+    content += '<br>Streaks: max_win='+(d.max_win_streak||0)+' current='+(d.current_streak||0)+'<br>';
+    content += 'Highest bet (BTC): '+(d.highest_single_bet||0)+'<br>';
+    content += 'XP: '+(d.xp||0)+' \u2022 txs: '+(d.txs_count||0)+' \u2022 weeks: '+((d.week_data_keys||[]).length)+'<br>';
+    content += '</div>';
+    content += '<div style="margin-top:12px;font-size:10px;color:#a1a1aa;line-height:1.5;">Fix in bot chat:<br>';
+    content += '<code style="background:#000;padding:3px 6px;border-radius:3px;color:#39ff14;font-size:10px;">/set_stats '+(d.user_id||"YOURID")+' total_bet 0.005</code><br>';
+    content += '<code style="background:#000;padding:3px 6px;border-radius:3px;color:#39ff14;font-size:10px;">/reset_stats '+(d.user_id||"YOURID")+'</code></div>';
+    content += '<button onclick="this.parentNode.parentNode.remove()" style="margin-top:14px;width:100%;padding:11px;background:linear-gradient(145deg,#ffd700,#ff9500);color:#000;border:none;border-radius:8px;font-family:Russo One,sans-serif;letter-spacing:1.5px;font-size:12px;font-weight:700;cursor:pointer;">CLOSE</button>';
+    content += '</div>';
+    modal.innerHTML = content;
+    modal.onclick = function(e){if(e.target===modal)modal.remove();};
+    document.body.appendChild(modal);
+  }
+  
+  function showError(msg, raw){
+    var modal = document.createElement('div');
+    modal.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.94);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;";
+    var content = '<div style="background:#1a1f2e;border:2px solid #ef4444;border-radius:14px;padding:18px;max-width:320px;color:#fff;font-family:Orbitron,monospace;font-size:11px;">';
+    content += '<div style="font-family:Russo One,sans-serif;font-size:14px;color:#ef4444;margin-bottom:10px;">\u26A0\uFE0F DEBUG FAILED</div>';
+    content += '<div>'+msg+'</div>';
+    if(raw)content += '<div style="margin-top:8px;font-size:9px;background:rgba(0,0,0,.4);padding:6px;border-radius:4px;max-height:120px;overflow:auto;">'+raw.replace(/</g,'&lt;')+'</div>';
+    content += '<button onclick="this.parentNode.parentNode.remove()" style="margin-top:12px;width:100%;padding:10px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-family:Russo One,sans-serif;font-size:11px;cursor:pointer;">CLOSE</button>';
+    content += '</div>';
+    modal.innerHTML = content;
+    modal.onclick = function(e){if(e.target===modal)modal.remove();};
+    document.body.appendChild(modal);
+  }
+  
+  tryFetch().then(function(r){
+    if(r.ok && r.data){showResult(r.data); return;}
+    console.warn('[DEBUG] fetch failed, trying XHR:', r);
+    tryXHR().then(function(r2){
+      if(r2.ok && r2.data){showResult(r2.data); return;}
+      console.error('[DEBUG] XHR also failed:', r2);
+      showError('Both fetch and XHR failed.<br>fetch: '+(r.err||'?')+'<br>XHR: '+(r2.err||'?'), r.raw||r2.raw);
+    });
+  });
 }
 </script>
 
