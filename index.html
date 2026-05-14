@@ -1902,10 +1902,11 @@ body{position:relative;}
       <div class="duel-hero-sub">Match a random player or challenge a specific @user.<br>Winner takes the pot (−5% fee).</div>
     </div>
 
-    <div class="duel-stat-row">
+    <div class="duel-stat-row" style="position:relative;">
       <div class="duel-stat"><div class="duel-stat-lbl">YOUR WINS</div><div class="duel-stat-val win" id="dl-wins">0</div></div>
       <div class="duel-stat"><div class="duel-stat-lbl">YOUR LOSSES</div><div class="duel-stat-val lose" id="dl-losses">0</div></div>
       <div class="duel-stat"><div class="duel-stat-lbl">WINNINGS</div><div class="duel-stat-val gold" id="dl-earned">€0</div></div>
+      <button onclick="dlRefresh()" style="position:absolute;top:-8px;right:-8px;width:28px;height:28px;border-radius:50%;background:linear-gradient(145deg,#ffd700,#ff9500);color:#000;border:2px solid #0a0e1a;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;box-shadow:0 2px 8px rgba(0,0,0,.4);" title="Refresh stats">↻</button>
     </div>
 
     <!-- LOBBIES (random matchmaking) -->
@@ -4224,19 +4225,38 @@ function dlOpenBot(mode){
     if(tg && tg.close){setTimeout(function(){tg.close();},900);}
   }
 }
-function initDuel(){
-  var bEl=document.getElementById('dl-bal');
-  if(bEl)bEl.textContent=fbal();
-  // Refresh stats from backend
-  loadBalance().then(function(){
-    var w=document.getElementById('dl-wins');if(w)w.textContent=S.duelWins||0;
-    var l=document.getElementById('dl-losses');if(l)l.textContent=S.duelLosses||0;
-    var e=document.getElementById('dl-earned');if(e)e.textContent='€'+Math.round((S.duelEarned||0)*S.rate).toLocaleString();
-  });
-  // Also update immediately with cached values
+var _duelPollTimer = null;
+function dlUpdateStatsDom(){
   var w=document.getElementById('dl-wins');if(w)w.textContent=S.duelWins||0;
   var l=document.getElementById('dl-losses');if(l)l.textContent=S.duelLosses||0;
-  var e=document.getElementById('dl-earned');if(e)e.textContent='€'+Math.round((S.duelEarned||0)*S.rate).toLocaleString();
+  var e=document.getElementById('dl-earned');
+  if(e){
+    var eur = Math.round((S.duelEarned||0)*S.rate);
+    e.textContent='\u20ac'+eur.toLocaleString();
+  }
+  var bEl=document.getElementById('dl-bal');
+  if(bEl)bEl.textContent=fbal();
+}
+function initDuel(){
+  // Update immediately with cached values
+  dlUpdateStatsDom();
+  // Fetch fresh stats from backend
+  loadBalance().then(function(){
+    dlUpdateStatsDom();
+    console.log('[DUEL] stats:', S.duelWins, 'wins,', S.duelLosses, 'losses, \u20ac'+Math.round((S.duelEarned||0)*S.rate), 'earned');
+  });
+  // Auto-poll every 8s while on duel screen, stop when leaving
+  if(_duelPollTimer)clearInterval(_duelPollTimer);
+  _duelPollTimer = setInterval(function(){
+    if(CUR !== 'duel'){
+      clearInterval(_duelPollTimer);
+      _duelPollTimer = null;
+      return;
+    }
+    loadBalance().then(function(){
+      dlUpdateStatsDom();
+    });
+  }, 8000);
 }
 function init(){
   spawnBTC();
@@ -4776,106 +4796,132 @@ function pfStatsLongPressEnd(){
   if(_pfLongPressTimer){clearTimeout(_pfLongPressTimer);_pfLongPressTimer=null;}
 }
 function pfShowDebug(){
-  if(!S.userId){toast("Open from Telegram first","err");return;}
-  var url = BACKEND + '/debug_user?user_id=' + S.userId + '&ngrok-skip-browser-warning=true&_t=' + Date.now();
-  console.log('[DEBUG] fetching:', url);
-  toast("Fetching debug...","ok",1500);
+  // PRIMARY: show in-memory state values (already loaded from /balance)
+  // OPTIONAL: try to fetch raw data from /debug_user for more detail
+  var modal = document.createElement('div');
+  modal.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.94);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px);";
+  var content = '<div style="background:#1a1f2e;border:2px solid #ffd700;border-radius:14px;padding:18px 16px;max-width:340px;max-height:85vh;overflow:auto;color:#fff;font-family:Orbitron,monospace;font-size:11px;">';
+  content += '<div style="font-family:Russo One,sans-serif;font-size:15px;color:#ffd700;margin-bottom:14px;letter-spacing:1.5px;">\uD83D\uDD0D STATS DEBUG</div>';
+  content += '<div style="background:rgba(0,0,0,.4);padding:10px;border-radius:8px;line-height:1.7;font-size:10px;">';
+  content += '<b style="color:#39ff14;">CURRENT (from /balance):</b><br>';
+  content += 'User ID: <b>'+(S.userId||"?")+'</b><br>';
+  content += 'Username: '+(S.username||S.name||"-")+'<br>';
+  content += 'BTC rate: \u20ac'+(S.rate||"?")+'<br>';
+  content += 'BTC balance: <b>'+(S.btc||0).toFixed(8)+'</b><br>';
+  content += 'Wins: <b>'+(S.wins||0)+'</b> \u2022 Losses: <b>'+(S.losses||0)+'</b> \u2022 Games: <b>'+((S.wins||0)+(S.losses||0))+'</b><br>';
+  content += '<br><b style="color:#ffd700;">TOTAL BET (in mini app):</b><br>';
+  content += 'Displayed: <span style="color:#ff6b6b;">\u20ac'+(S.totalBet||0).toFixed(2)+'</span><br>';
+  content += '  = '+((S.totalBet||0)/(S.rate||90000)).toFixed(8)+' BTC<br>';
+  var games = (S.wins||0)+(S.losses||0);
+  if(games>0){
+    content += '  = \u20ac'+((S.totalBet||0)/games).toFixed(2)+' avg/game<br>';
+  }
+  content += '<br><b style="color:#ffd700;">BIGGEST WIN (in mini app):</b><br>';
+  content += 'Displayed: <span style="color:#ff6b6b;">\u20ac'+(S.biggestWin||0).toFixed(2)+'</span><br>';
+  content += '  = '+((S.biggestWin||0)/(S.rate||90000)).toFixed(8)+' BTC<br>';
+  content += '<br><b style="color:#39ff14;">DUEL STATS:</b><br>';
+  content += 'Wins: '+(S.duelWins||0)+' \u2022 Losses: '+(S.duelLosses||0)+'<br>';
+  content += 'Earned: \u20ac'+(((S.duelEarned||0)*S.rate)||0).toFixed(2)+'<br>';
+  content += '<br><b style="color:#39ff14;">OTHER:</b><br>';
+  content += 'XP: '+(S.xp||0)+'<br>';
+  content += '</div>';
   
-  // Multi-tier fetch with XHR fallback (same approach as quests)
-  function tryFetch(){
-    return new Promise(function(resolve){
-      var timer = setTimeout(function(){resolve({ok:false,err:'fetch timeout'});}, 8000);
+  // Backend raw data placeholder
+  content += '<div id="pf-raw-area" style="margin-top:10px;padding:8px;background:rgba(0,0,0,.3);border-radius:6px;font-size:10px;color:#a1a1aa;">';
+  content += 'Tap below to fetch <b>RAW</b> values from backend...';
+  content += '</div>';
+  
+  content += '<button id="pf-fetch-raw" style="margin-top:8px;width:100%;padding:9px;background:#3b82f6;color:#fff;border:none;border-radius:6px;font-family:Russo One,sans-serif;font-size:11px;letter-spacing:1px;cursor:pointer;">\u2193 FETCH RAW FROM BACKEND</button>';
+  
+  content += '<div style="margin-top:12px;font-size:10px;color:#a1a1aa;line-height:1.5;">Fix in bot chat:<br>';
+  content += '<code style="background:#000;padding:3px 6px;border-radius:3px;color:#39ff14;font-size:10px;display:inline-block;margin:2px 0;">/set_stats '+(S.userId||"YOURID")+' total_bet 0.005</code><br>';
+  content += '<code style="background:#000;padding:3px 6px;border-radius:3px;color:#39ff14;font-size:10px;display:inline-block;margin:2px 0;">/reset_stats '+(S.userId||"YOURID")+'</code></div>';
+  
+  content += '<button onclick="this.parentNode.parentNode.remove()" style="margin-top:12px;width:100%;padding:11px;background:linear-gradient(145deg,#ffd700,#ff9500);color:#000;border:none;border-radius:8px;font-family:Russo One,sans-serif;letter-spacing:1.5px;font-size:12px;font-weight:700;cursor:pointer;">CLOSE</button>';
+  content += '</div>';
+  modal.innerHTML = content;
+  modal.onclick = function(e){if(e.target===modal)modal.remove();};
+  document.body.appendChild(modal);
+  
+  // Wire up the raw fetch button
+  var fetchBtn = modal.querySelector('#pf-fetch-raw');
+  if(fetchBtn){
+    fetchBtn.onclick = function(){
+      var area = modal.querySelector('#pf-raw-area');
+      area.innerHTML = '\u23F3 Fetching raw data...';
+      area.style.color = '#a1a1aa';
+      var url = BACKEND + '/debug_user?user_id=' + S.userId + '&ngrok-skip-browser-warning=true&_t=' + Date.now();
+      
+      // Try fetch first
       fetch(url, {cache:'no-store', mode:'cors', credentials:'omit'})
-        .then(function(r){clearTimeout(timer); return r.text();})
-        .then(function(t){
-          try{resolve({ok:true, data:JSON.parse(t), raw:t.substring(0,300)});}
-          catch(e){resolve({ok:false, err:'JSON parse:'+e.message, raw:t.substring(0,300)});}
+        .then(function(r){
+          return r.text().then(function(t){return {ok:r.ok, status:r.status, text:t};});
         })
-        .catch(function(e){clearTimeout(timer); resolve({ok:false, err:'fetch:'+e.message});});
-    });
-  }
-  function tryXHR(){
-    return new Promise(function(resolve){
-      try{
-        var xhr = new XMLHttpRequest();
-        xhr.open('GET', url, true);
-        xhr.timeout = 8000;
-        xhr.ontimeout = function(){resolve({ok:false, err:'XHR timeout'});};
-        xhr.onerror = function(){resolve({ok:false, err:'XHR network error'});};
-        xhr.onreadystatechange = function(){
-          if(xhr.readyState === 4){
-            try{resolve({ok:true, data:JSON.parse(xhr.responseText)});}
-            catch(e){resolve({ok:false, err:'XHR JSON parse:'+e.message, raw:xhr.responseText.substring(0,300)});}
+        .then(function(resp){
+          try{
+            var d = JSON.parse(resp.text);
+            renderRawData(area, d);
+          }catch(e){
+            area.innerHTML = '<b style="color:#ef4444;">Parse error (HTTP '+resp.status+'):</b><br><div style="background:#000;padding:6px;font-family:monospace;font-size:9px;max-height:120px;overflow:auto;border-radius:4px;margin-top:4px;">'+(resp.text||'(empty body)').substring(0,400).replace(/</g,'&lt;')+'</div>';
           }
-        };
-        xhr.send();
-      }catch(e){
-        resolve({ok:false, err:'XHR setup:'+e.message});
-      }
-    });
+        })
+        .catch(function(err){
+          // Fallback to XHR
+          var xhr = new XMLHttpRequest();
+          xhr.open('GET', url, true);
+          xhr.timeout = 6000;
+          xhr.ontimeout = function(){area.innerHTML = '<b style="color:#ef4444;">Timeout</b>';};
+          xhr.onerror = function(){
+            area.innerHTML = '<b style="color:#ef4444;">XHR network error (status: '+xhr.status+')</b><br>fetch error: '+err.message;
+          };
+          xhr.onreadystatechange = function(){
+            if(xhr.readyState === 4){
+              if(xhr.status === 0){
+                area.innerHTML = '<b style="color:#ef4444;">CORS blocked (status 0)</b><br>'+
+                  'Backend probabilmente non ha riavviato.<br>'+
+                  'fetch error: '+err.message+'<br>'+
+                  '<small>This usually means CORS preflight failed or ngrok dropped the request.</small>';
+              }else{
+                try{
+                  var d = JSON.parse(xhr.responseText);
+                  renderRawData(area, d);
+                }catch(e){
+                  area.innerHTML = '<b style="color:#ef4444;">XHR parse error (HTTP '+xhr.status+', body '+xhr.responseText.length+' bytes):</b><br>'+
+                    '<div style="background:#000;padding:6px;font-family:monospace;font-size:9px;max-height:120px;overflow:auto;border-radius:4px;margin-top:4px;">'+
+                    (xhr.responseText||'(empty)').substring(0,400).replace(/</g,'&lt;')+'</div>';
+                }
+              }
+            }
+          };
+          xhr.send();
+        });
+    };
   }
   
-  function showResult(d){
-    var modal = document.createElement('div');
-    modal.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.94);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px);";
-    var content = '<div style="background:#1a1f2e;border:2px solid #ffd700;border-radius:14px;padding:18px 16px;max-width:340px;max-height:85vh;overflow:auto;color:#fff;font-family:Orbitron,monospace;font-size:11px;">';
-    content += '<div style="font-family:Russo One,sans-serif;font-size:15px;color:#ffd700;margin-bottom:14px;letter-spacing:1.5px;">\uD83D\uDD0D RAW DATA DEBUG</div>';
-    content += '<div style="background:rgba(0,0,0,.4);padding:10px;border-radius:8px;line-height:1.7;font-size:10px;">';
-    content += 'User ID: <b>'+(d.user_id||"?")+'</b><br>';
-    content += 'Username: '+(d.username||"-")+'<br>';
-    content += 'BTC rate: \u20ac'+(d.rate_eur||"?")+'<br>';
-    content += 'BTC balance: <b>'+(d.btc||0).toFixed(8)+'</b><br>';
-    content += 'Wins: <b>'+(d.wins||0)+'</b> \u2022 Losses: <b>'+(d.losses||0)+'</b> \u2022 Games: <b>'+(d.games_total||0)+'</b><br>';
-    content += '<br><b style="color:#ffd700;">TOTAL BET</b><br>';
-    content += 'Stored RAW: <span style="color:#ff6b6b;">'+(d.total_bet_RAW||0)+' BTC</span><br>';
-    content += '  = \u20ac'+(((d.total_bet_RAW||0)*(d.rate_eur||90000)).toFixed(2))+'<br>';
+  function renderRawData(area, d){
+    if(!d){area.innerHTML='<b style="color:#ef4444;">No data</b>';return;}
+    var html = '<b style="color:#39ff14;">BACKEND RAW DATA:</b><br>';
+    html += 'total_bet stored: <span style="color:#ff6b6b;">'+(d.total_bet_RAW||0)+' BTC</span><br>';
     if(d.total_bet_FROM_WEEKS !== undefined){
-      content += 'From week_data: <span style="color:#39ff14;">'+(d.total_bet_FROM_WEEKS||0)+' BTC</span><br>';
-      content += '  = \u20ac'+(d.total_bet_FROM_WEEKS_eur||0)+'<br>';
+      html += 'total_bet from weeks: <span style="color:#39ff14;">'+(d.total_bet_FROM_WEEKS||0)+' BTC</span><br>';
+      var pct = d.total_bet_RAW>0 ? (d.total_bet_FROM_WEEKS/d.total_bet_RAW*100).toFixed(0) : '?';
+      html += '<small>(weeks is '+pct+'% of stored)</small><br>';
     }
-    content += '<br><b style="color:#ffd700;">BIGGEST WIN</b><br>';
-    content += 'Stored RAW: <span style="color:#ff6b6b;">'+(d.biggest_win_RAW||0)+' BTC</span><br>';
-    content += '  = \u20ac'+(((d.biggest_win_RAW||0)*(d.rate_eur||90000)).toFixed(2))+'<br>';
-    if(d.games_total > 0 && d.total_bet_RAW > 0){
-      var avg = ((d.total_bet_RAW||0)*(d.rate_eur||90000)) / d.games_total;
-      content += '<br>Avg bet/game: \u20ac'+avg.toFixed(2)+'<br>';
-    }
-    content += '<br>Streaks: max_win='+(d.max_win_streak||0)+' current='+(d.current_streak||0)+'<br>';
-    content += 'Highest bet (BTC): '+(d.highest_single_bet||0)+'<br>';
-    content += 'XP: '+(d.xp||0)+' \u2022 txs: '+(d.txs_count||0)+' \u2022 weeks: '+((d.week_data_keys||[]).length)+'<br>';
-    content += '</div>';
-    content += '<div style="margin-top:12px;font-size:10px;color:#a1a1aa;line-height:1.5;">Fix in bot chat:<br>';
-    content += '<code style="background:#000;padding:3px 6px;border-radius:3px;color:#39ff14;font-size:10px;">/set_stats '+(d.user_id||"YOURID")+' total_bet 0.005</code><br>';
-    content += '<code style="background:#000;padding:3px 6px;border-radius:3px;color:#39ff14;font-size:10px;">/reset_stats '+(d.user_id||"YOURID")+'</code></div>';
-    content += '<button onclick="this.parentNode.parentNode.remove()" style="margin-top:14px;width:100%;padding:11px;background:linear-gradient(145deg,#ffd700,#ff9500);color:#000;border:none;border-radius:8px;font-family:Russo One,sans-serif;letter-spacing:1.5px;font-size:12px;font-weight:700;cursor:pointer;">CLOSE</button>';
-    content += '</div>';
-    modal.innerHTML = content;
-    modal.onclick = function(e){if(e.target===modal)modal.remove();};
-    document.body.appendChild(modal);
+    html += 'biggest_win stored: <span style="color:#ff6b6b;">'+(d.biggest_win_RAW||0)+' BTC</span><br>';
+    if(d.max_win_streak !== undefined)html += 'max_win_streak: '+d.max_win_streak+'<br>';
+    if(d.highest_single_bet !== undefined)html += 'highest_single_bet: '+d.highest_single_bet+' BTC<br>';
+    html += 'week_data keys: '+((d.week_data_keys||[]).length)+'<br>';
+    area.innerHTML = html;
+    area.style.background = 'rgba(57,255,20,.08)';
   }
-  
-  function showError(msg, raw){
-    var modal = document.createElement('div');
-    modal.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.94);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;";
-    var content = '<div style="background:#1a1f2e;border:2px solid #ef4444;border-radius:14px;padding:18px;max-width:320px;color:#fff;font-family:Orbitron,monospace;font-size:11px;">';
-    content += '<div style="font-family:Russo One,sans-serif;font-size:14px;color:#ef4444;margin-bottom:10px;">\u26A0\uFE0F DEBUG FAILED</div>';
-    content += '<div>'+msg+'</div>';
-    if(raw)content += '<div style="margin-top:8px;font-size:9px;background:rgba(0,0,0,.4);padding:6px;border-radius:4px;max-height:120px;overflow:auto;">'+raw.replace(/</g,'&lt;')+'</div>';
-    content += '<button onclick="this.parentNode.parentNode.remove()" style="margin-top:12px;width:100%;padding:10px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-family:Russo One,sans-serif;font-size:11px;cursor:pointer;">CLOSE</button>';
-    content += '</div>';
-    modal.innerHTML = content;
-    modal.onclick = function(e){if(e.target===modal)modal.remove();};
-    document.body.appendChild(modal);
-  }
-  
-  tryFetch().then(function(r){
-    if(r.ok && r.data){showResult(r.data); return;}
-    console.warn('[DEBUG] fetch failed, trying XHR:', r);
-    tryXHR().then(function(r2){
-      if(r2.ok && r2.data){showResult(r2.data); return;}
-      console.error('[DEBUG] XHR also failed:', r2);
-      showError('Both fetch and XHR failed.<br>fetch: '+(r.err||'?')+'<br>XHR: '+(r2.err||'?'), r.raw||r2.raw);
-    });
+}
+function dlRefresh(){
+  toast('\u21BB Refreshing duel stats...','ok',1000);
+  loadBalance().then(function(){
+    dlUpdateStatsDom();
+    toast('\u2705 Updated','ok',800);
+  }).catch(function(e){
+    toast('\u26A0\uFE0F Refresh failed','err',1500);
   });
 }
 </script>
