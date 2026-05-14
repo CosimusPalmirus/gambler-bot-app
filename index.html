@@ -3209,23 +3209,43 @@ function fetchChallenges(cb){
       clearTimeout(timer);
       if(timedOut)return null;
       console.log('[QUESTS] response status=', r.status);
-      if(!r.ok)throw new Error('HTTP '+r.status);
-      return r.json();
+      // LENIENT: try to parse JSON regardless of status code
+      // Many backends return 500 with JSON body containing useful info
+      return r.text().then(function(t){
+        try{return {status:r.status, data:JSON.parse(t)};}
+        catch(e){
+          console.error('[QUESTS] JSON parse failed, raw text:', t.substring(0,200));
+          return {status:r.status, data:null, raw:t};
+        }
+      });
     })
-    .then(function(d){
-      if(!d||timedOut)return;
-      console.log('[QUESTS] data received:', d);
-      if(d.error && (!d.challenges || !d.challenges.length)){
-        showQuestError(lst,'Backend reported: '+d.error);
+    .then(function(resp){
+      if(!resp||timedOut)return;
+      var d=resp.data;
+      if(d){
+        console.log('[QUESTS] data received (status '+resp.status+'):', d);
+        // Even if backend reports an error, use the challenges list if present
+        if(d.challenges && d.challenges.length){
+          CHALLENGES_ALL = d.challenges;
+          console.log('[QUESTS] CHALLENGES_ALL count=', CHALLENGES_ALL.length);
+          if(d.progress)S.weekProgress=d.progress;
+          if(d.claimed)S.claimedQuests=d.claimed;
+          if(d.week_earned_btc!==undefined)S.weekEarnedBtc=d.week_earned_btc;
+          if(cb)cb();
+          renderChallenges();
+          if(d.error){
+            // Got quests but also an error — show subtle warning
+            console.warn('[QUESTS] backend partial error:', d.error);
+          }
+          return;
+        }
+        // Got JSON but no quests — show backend error
+        showQuestError(lst,'Backend returned no quests.<br>'+(d.error?'Error: '+d.error:'Empty response.'));
+        if(cb)cb();
         return;
       }
-      CHALLENGES_ALL = d.challenges || [];
-      console.log('[QUESTS] CHALLENGES_ALL count=', CHALLENGES_ALL.length);
-      if(d.progress)S.weekProgress=d.progress;
-      if(d.claimed)S.claimedQuests=d.claimed;
-      if(d.week_earned_btc!==undefined)S.weekEarnedBtc=d.week_earned_btc;
-      if(cb)cb();
-      renderChallenges();
+      // No JSON parsed — fall through to error
+      throw new Error('HTTP '+resp.status+' (non-JSON response)');
     })
     .catch(function(e){
       clearTimeout(timer);
@@ -3235,8 +3255,23 @@ function fetchChallenges(cb){
         .then(function(r){return r.json();})
         .then(function(hc){
           console.log('[QUESTS] healthcheck:', hc);
-          var hcInfo = (hc && hc.status==='ok') ? 'Backend is UP but /challenges call failed' : 'Backend status: '+(hc?hc.status:'?');
-          showQuestError(lst,'\u26A0\ufe0f Quest fetch failed: '+e.message+'<br><br>'+hcInfo+'<br><br><small>Check Telegram WebApp console for [QUESTS] logs.</small>');
+          var failingChecks=[];
+          if(hc && hc.checks){
+            Object.keys(hc.checks).forEach(function(k){
+              var c=hc.checks[k];
+              if(c && c.ok===false){failingChecks.push(k+': '+(c.error||'unknown'));}
+            });
+          }
+          var msg='\u26A0\ufe0f Quest fetch failed: '+e.message+'<br><br>';
+          if(hc && hc.status==='ok'){
+            msg+='Backend is UP but /challenges call failed.<br>';
+          }else if(failingChecks.length){
+            msg+='<strong>Failing subsystems:</strong><br><div style="text-align:left;margin:8px 18px;color:#fff;background:rgba(0,0,0,.3);padding:8px;border-radius:4px;font-size:10px;line-height:1.5;">'+failingChecks.join('<br>')+'</div>';
+          }else{
+            msg+='Backend status: '+(hc?hc.status:'?')+'<br>';
+          }
+          msg+='<br><small style="opacity:.7">Open <code>'+BACKEND+'/healthcheck</code> in a browser for full details.</small>';
+          showQuestError(lst,msg);
         })
         .catch(function(){
           showQuestError(lst,'\u26A0\ufe0f Backend UNREACHABLE.<br>Check that backend.py is running and ngrok tunnel is alive.<br><br>Error: '+e.message);
