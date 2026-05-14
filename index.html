@@ -1900,14 +1900,39 @@ body{position:relative;}
 }
 .pl-ball.hide{opacity:0;}
 
-.pl-slots-row{display:flex;justify-content:space-between;gap:1px;margin-top:6px;padding:0 2px;}
+/* Bottom buckets — BIG visible target slots */
+.pl-slots-row{
+  display:flex;justify-content:space-between;gap:2px;margin-top:0;padding:0;
+  position:relative;
+}
 .pl-slot{
   flex:1;min-width:0;
-  padding:6px 1px;border-radius:4px;text-align:center;
-  font-family:'Russo One',sans-serif;font-size:8px;color:#fff;letter-spacing:.5px;
-  transition:all .25s;
+  padding:14px 2px 12px;
+  border-radius:8px 8px 4px 4px;
+  text-align:center;
+  font-family:'Russo One',sans-serif;
+  font-size:14px;
+  color:#fff;
+  letter-spacing:.5px;
+  transition:transform .25s, box-shadow .25s;
+  position:relative;
+  border:2px solid rgba(255,255,255,.12);
+  border-bottom:4px solid rgba(0,0,0,.4);
+  box-shadow:inset 0 -3px 0 rgba(0,0,0,.3), 0 2px 4px rgba(0,0,0,.4);
+  z-index:2;
 }
-.pl-slot.win{transform:scale(1.25) translateY(-4px);box-shadow:0 0 16px currentColor;z-index:5;}
+.pl-slot.win{
+  transform:scale(1.18) translateY(-8px);
+  box-shadow:0 0 20px currentColor, 0 0 36px currentColor, 0 -4px 12px rgba(255,255,255,.4);
+  z-index:5;
+  animation:slotWinPulse 1.6s ease-out;
+}
+@keyframes slotWinPulse{
+  0%{transform:scale(1) translateY(0);}
+  20%{transform:scale(1.3) translateY(-12px);}
+  40%{transform:scale(1.1) translateY(-6px);}
+  100%{transform:scale(1.18) translateY(-8px);}
+}
 
 .pl-bets-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px;}
 .pl-bet-btn{
@@ -5697,35 +5722,35 @@ function frShareLink(){
 
 
 // ================================================================
-// PLINKO GAME v2 — REAL PHYSICS + DROP ZONE SELECTION
+// PLINKO v3 — SCATTERED PEGS + VISIBLE BUCKETS + RANDOMIZE ON DROP
 // ================================================================
 var PL = {
   risk: 'LOW',
   inFlight: false,
   recent: [],
-  dropZone: 3,  // 0..6, default center
+  dropZone: 3,  // 0..6
   boardReady: false,
   
   // Geometry (matches viewBox 0..320 x 0..360)
   W: 320,
   H: 360,
-  ROWS: 16,
-  COL_SPACING: 17,
-  ROW_SPACING: 17,
-  TOP_PAD: 38,
-  BOTTOM_Y: 330,
-  PEG_R: 4,        // BIG visible pegs
-  BALL_R: 6,
+  TOP_PAD: 32,
+  BOTTOM_Y: 318,        // floor where ball lands in slot
+  PEG_R: 7,             // BIG pegs
+  BALL_R: 7,
+  WALL_THICK: 4,
+  
+  NUM_PEGS: 38,         // scattered pegs in play area
+  NUM_SLOTS: 7,         // bottom buckets
   
   // Physics
   GRAVITY: 0.22,
-  BOUNCE: 0.62,
+  BOUNCE: 0.58,
   FRICTION: 0.998,
-  RAND_KICK: 0.28,
+  RAND_KICK: 0.4,
   MAX_VY: 7,
   
-  // 7 drop zone X positions (evenly spaced)
-  dropPositions: [40, 80, 120, 160, 200, 240, 280],  // 7 zones evenly spaced
+  dropPositions: [40, 80, 120, 160, 200, 240, 280],
   
   pegs: [],
   pegElements: [],
@@ -5733,40 +5758,53 @@ var PL = {
   animFrame: null,
   trailHistory: [],
   
+  // 7 slots — payout tables tuned for symmetric Gaussian-ish landing distribution
   paytables: {
-    LOW:    [16, 9, 2, 1.4, 1.4, 1.2, 1.1, 1.0, 0.5, 1.0, 1.1, 1.2, 1.4, 1.4, 2, 9, 16],
-    MEDIUM: [110, 41, 10, 5, 3, 1.5, 1.0, 0.5, 0.3, 0.5, 1.0, 1.5, 3, 5, 10, 41, 110],
-    HIGH:   [1000, 130, 26, 9, 4, 2, 0.2, 0.2, 0.2, 0.2, 0.2, 2, 4, 9, 26, 130, 1000]
+    LOW:    [4.0, 1.4, 0.5, 0.1, 0.5, 1.4, 4.0],
+    MEDIUM: [9.0, 2.0, 0.5, 0.0, 0.5, 2.0, 9.0],
+    HIGH:   [25.0, 4.0, 0.3, 0.0, 0.3, 4.0, 25.0]
   }
 };
 
 function plMultiColor(m){
-  if(m >= 100)  return '#ffd700';
-  if(m >= 10)   return '#06b6d4';
-  if(m >= 2)    return '#22c55e';
-  if(m >= 1)    return '#84cc16';
-  if(m >= 0.5)  return '#f59e0b';
+  if(m >= 20)   return '#ffd700';
+  if(m >= 5)    return '#a855f7';
+  if(m >= 2)    return '#06b6d4';
+  if(m >= 1)    return '#22c55e';
+  if(m >= 0.4)  return '#f59e0b';
   return '#ef4444';
 }
 
-function plBuildBoard(){
-  // Build peg array (positions)
+// Generate random peg field using Poisson-disk-style rejection sampling
+function plGenerateRandomPegs(){
   PL.pegs = [];
-  for(var r = 0; r < PL.ROWS; r++){
-    var numPegs = r + 3;
-    var rowWidth = (numPegs - 1) * PL.COL_SPACING;
-    var startX = (PL.W - rowWidth) / 2;
-    var y = PL.TOP_PAD + r * PL.ROW_SPACING + 12;
-    for(var i = 0; i < numPegs; i++){
-      PL.pegs.push({
-        x: startX + i * PL.COL_SPACING,
-        y: y
-      });
+  var MIN_DIST = 30;        // min distance between pegs (must allow ball+walls to pass)
+  var MIN_DIST_SQ = MIN_DIST * MIN_DIST;
+  var FIELD_TOP = PL.TOP_PAD + 30;    // first row of pegs starts here
+  var FIELD_BOTTOM = PL.BOTTOM_Y - 35;
+  var FIELD_LEFT = 18;
+  var FIELD_RIGHT = PL.W - 18;
+  
+  var attempts = 0;
+  var MAX_ATTEMPTS = 1500;
+  while(PL.pegs.length < PL.NUM_PEGS && attempts < MAX_ATTEMPTS){
+    attempts++;
+    var x = FIELD_LEFT + Math.random() * (FIELD_RIGHT - FIELD_LEFT);
+    var y = FIELD_TOP + Math.random() * (FIELD_BOTTOM - FIELD_TOP);
+    var ok = true;
+    for(var i = 0; i < PL.pegs.length; i++){
+      var dx = x - PL.pegs[i].x;
+      var dy = y - PL.pegs[i].y;
+      if(dx*dx + dy*dy < MIN_DIST_SQ){ ok = false; break; }
+    }
+    if(ok){
+      PL.pegs.push({x: x, y: y});
     }
   }
   
-  // Render pegs into SVG
+  // Render
   var pegsG = document.getElementById('pl-pegs');
+  if(!pegsG) return;
   pegsG.innerHTML = '';
   PL.pegElements = [];
   for(var i = 0; i < PL.pegs.length; i++){
@@ -5780,7 +5818,49 @@ function plBuildBoard(){
     pegsG.appendChild(c);
     PL.pegElements.push(c);
   }
-  
+}
+
+function plRenderSlotDividers(){
+  // Draw vertical divider walls between slots extending up into play area
+  var pegsG = document.getElementById('pl-pegs');
+  if(!pegsG) return;
+  var slotW = PL.W / PL.NUM_SLOTS;
+  for(var i = 1; i < PL.NUM_SLOTS; i++){
+    var x = i * slotW;
+    var line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', x);
+    line.setAttribute('x2', x);
+    line.setAttribute('y1', PL.BOTTOM_Y - 22);
+    line.setAttribute('y2', PL.BOTTOM_Y + 2);
+    line.setAttribute('stroke', 'rgba(255,255,255,0.18)');
+    line.setAttribute('stroke-width', '2');
+    line.setAttribute('stroke-linecap', 'round');
+    pegsG.appendChild(line);
+  }
+}
+
+function plRenderSlots(){
+  var slotsEl = document.getElementById('pl-slots');
+  if(!slotsEl) return;
+  var table = PL.paytables[PL.risk];
+  slotsEl.innerHTML = '';
+  for(var i = 0; i < PL.NUM_SLOTS; i++){
+    var m = table[i];
+    var col = plMultiColor(m);
+    var slot = document.createElement('div');
+    slot.className = 'pl-slot';
+    slot.style.background = 'linear-gradient(180deg, ' + col + ' 0%, ' + col + 'cc 60%, ' + col + '88 100%)';
+    slot.style.color = (m >= 0.4 && m < 2) ? '#000' : '#fff';
+    slot.style.textShadow = (m >= 0.4 && m < 2) ? '0 1px 0 rgba(255,255,255,.3)' : '0 1px 2px rgba(0,0,0,.6)';
+    slot.textContent = m + 'x';
+    slot.id = 'pl-slot-' + i;
+    slotsEl.appendChild(slot);
+  }
+}
+
+function plBuildBoard(){
+  plGenerateRandomPegs();
+  plRenderSlotDividers();
   plRenderDropZones();
   plRenderSlots();
 }
@@ -5804,27 +5884,7 @@ function plSetDropZone(idx){
   PL.dropZone = idx;
   for(var i = 0; i < 7; i++){
     var btn = document.getElementById('pl-drop-btn-' + i);
-    if(btn){
-      if(i === idx) btn.classList.add('active');
-      else btn.classList.remove('active');
-    }
-  }
-}
-
-function plRenderSlots(){
-  var slotsEl = document.getElementById('pl-slots');
-  if(!slotsEl) return;
-  var table = PL.paytables[PL.risk];
-  slotsEl.innerHTML = '';
-  for(var i = 0; i < 17; i++){
-    var m = table[i];
-    var slot = document.createElement('div');
-    slot.className = 'pl-slot';
-    slot.style.background = 'linear-gradient(180deg, ' + plMultiColor(m) + ' 0%, ' + plMultiColor(m) + 'aa 100%)';
-    slot.style.color = (m >= 0.5 && m < 2) ? '#000' : '#fff';
-    slot.textContent = m + 'x';
-    slot.id = 'pl-slot-' + i;
-    slotsEl.appendChild(slot);
+    if(btn){ i === idx ? btn.classList.add('active') : btn.classList.remove('active'); }
   }
 }
 
@@ -5834,6 +5894,9 @@ function plSetRisk(risk){
   document.querySelectorAll('.pl-risk-btn').forEach(function(b){b.classList.remove('active');});
   document.getElementById('pl-risk-' + risk.toLowerCase()).classList.add('active');
   plRenderSlots();
+  // Also regenerate pegs on risk change for variety
+  plGenerateRandomPegs();
+  plRenderSlotDividers();
 }
 
 function plDrop(eur){
@@ -5845,28 +5908,29 @@ function plDrop(eur){
   PL.inFlight = true;
   document.getElementById('pl-bal').textContent = '\u20ac' + (S.btc * S.rate).toFixed(2);
   
-  // Initialize ball at chosen drop position
+  // RANDOMIZE PEGS ON EVERY DROP — each bet = unique arena
+  plGenerateRandomPegs();
+  plRenderSlotDividers();
+  
   var startX = PL.dropPositions[PL.dropZone] || 160;
-  // Add small jitter so consecutive drops from same zone differ
-  startX += (Math.random() - 0.5) * 4;
+  startX += (Math.random() - 0.5) * 6;  // small jitter
   
   PL.ball = {
     x: startX,
-    y: 4,
-    vx: (Math.random() - 0.5) * 0.4,
+    y: 6,
+    vx: (Math.random() - 0.5) * 0.5,
     vy: 0
   };
   PL.trailHistory = [];
   
-  // Show ball
   var ballEl = document.getElementById('pl-ball');
   if(ballEl){
     ballEl.setAttribute('cx', PL.ball.x);
     ballEl.setAttribute('cy', PL.ball.y);
+    ballEl.setAttribute('r', PL.BALL_R);
     ballEl.style.opacity = '1';
   }
   
-  // Start physics loop
   plPhysicsLoop(eur, bet_btc);
 }
 
@@ -5875,50 +5939,37 @@ function plPhysicsLoop(eur, bet_btc){
     if(!PL.inFlight){ return; }
     var b = PL.ball;
     
-    // Apply gravity
     b.vy += PL.GRAVITY;
     if(b.vy > PL.MAX_VY) b.vy = PL.MAX_VY;
-    
-    // Update position
     b.x += b.vx;
     b.y += b.vy;
-    
-    // Air friction
     b.vx *= PL.FRICTION;
     b.vy *= PL.FRICTION;
     
-    // Collide with all pegs (could optimize with spatial hashing for many pegs)
     var minD = PL.BALL_R + PL.PEG_R;
     var minDsq = minD * minD;
     for(var i = 0; i < PL.pegs.length; i++){
       var p = PL.pegs[i];
       var dx = b.x - p.x;
       var dy = b.y - p.y;
-      // Quick reject
       if(dx > minD || dx < -minD || dy > minD || dy < -minD) continue;
       var dSq = dx*dx + dy*dy;
       if(dSq < minDsq && dSq > 0.01){
         var d = Math.sqrt(dSq);
         var nx = dx / d;
         var ny = dy / d;
-        // Resolve penetration
         b.x = p.x + nx * minD;
         b.y = p.y + ny * minD;
-        // Reflect velocity along normal
         var dot = b.vx * nx + b.vy * ny;
         if(dot < 0){
           b.vx = (b.vx - 2 * dot * nx) * PL.BOUNCE;
           b.vy = (b.vy - 2 * dot * ny) * PL.BOUNCE;
-          // Random horizontal kick adds organic variation
           b.vx += (Math.random() - 0.5) * PL.RAND_KICK;
         }
-        // Visual: light peg
         var pegEl = PL.pegElements[i];
         if(pegEl){
           pegEl.classList.add('hit');
-          (function(el){
-            setTimeout(function(){ el.classList.remove('hit'); }, 280);
-          })(pegEl);
+          (function(el){ setTimeout(function(){ el.classList.remove('hit'); }, 280); })(pegEl);
         }
       }
     }
@@ -5927,22 +5978,38 @@ function plPhysicsLoop(eur, bet_btc){
     if(b.x < PL.BALL_R){ b.x = PL.BALL_R; b.vx = Math.abs(b.vx) * PL.BOUNCE; }
     if(b.x > PL.W - PL.BALL_R){ b.x = PL.W - PL.BALL_R; b.vx = -Math.abs(b.vx) * PL.BOUNCE; }
     
-    // Update ball SVG
+    // Slot divider collision (vertical walls between slots in bottom 22px)
+    if(b.y > PL.BOTTOM_Y - 22 && b.y < PL.BOTTOM_Y + 4){
+      var slotW = PL.W / PL.NUM_SLOTS;
+      for(var s = 1; s < PL.NUM_SLOTS; s++){
+        var divX = s * slotW;
+        if(Math.abs(b.x - divX) < PL.BALL_R){
+          // Push ball away from divider
+          if(b.x < divX){
+            b.x = divX - PL.BALL_R;
+            b.vx = -Math.abs(b.vx) * PL.BOUNCE;
+          } else {
+            b.x = divX + PL.BALL_R;
+            b.vx = Math.abs(b.vx) * PL.BOUNCE;
+          }
+        }
+      }
+    }
+    
     var ballEl = document.getElementById('pl-ball');
     if(ballEl){
       ballEl.setAttribute('cx', b.x);
       ballEl.setAttribute('cy', b.y);
     }
     
-    // Trail effect: drop a fading dot every few frames
-    PL.trailHistory.push({x:b.x, y:b.y, age:0});
-    if(PL.trailHistory.length > 12) PL.trailHistory.shift();
+    PL.trailHistory.push({x:b.x, y:b.y});
+    if(PL.trailHistory.length > 14) PL.trailHistory.shift();
     plRenderTrail();
     
-    // Check landing
     if(b.y >= PL.BOTTOM_Y){
-      var slotIdx = Math.floor(b.x / (PL.W / 17));
-      slotIdx = Math.max(0, Math.min(16, slotIdx));
+      var slotW = PL.W / PL.NUM_SLOTS;
+      var slotIdx = Math.floor(b.x / slotW);
+      slotIdx = Math.max(0, Math.min(PL.NUM_SLOTS - 1, slotIdx));
       plLand(slotIdx, eur, bet_btc);
       return;
     }
@@ -5958,8 +6025,8 @@ function plRenderTrail(){
   trailG.innerHTML = '';
   for(var i = 0; i < PL.trailHistory.length; i++){
     var t = PL.trailHistory[i];
-    var alpha = (i + 1) / PL.trailHistory.length * 0.4;
-    var rdot = PL.BALL_R * (0.3 + 0.6 * (i + 1) / PL.trailHistory.length);
+    var alpha = (i + 1) / PL.trailHistory.length * 0.5;
+    var rdot = PL.BALL_R * (0.25 + 0.65 * (i + 1) / PL.trailHistory.length);
     var c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     c.setAttribute('cx', t.x);
     c.setAttribute('cy', t.y);
@@ -5976,42 +6043,34 @@ function plLand(slotIdx, eur, bet_btc){
   var payout_eur = eur * multi;
   var payout_btc = payout_eur / S.rate;
   
-  // Highlight slot dramatically
   var slotEl = document.getElementById('pl-slot-' + slotIdx);
   if(slotEl){
     slotEl.classList.add('win');
-    slotEl.style.boxShadow = '0 0 20px ' + plMultiColor(multi) + ', 0 0 40px ' + plMultiColor(multi);
-    setTimeout(function(){
-      slotEl.classList.remove('win');
-      slotEl.style.boxShadow = '';
-    }, 1800);
+    setTimeout(function(){ slotEl.classList.remove('win'); }, 2000);
   }
   
-  // Add to recent
   PL.recent.unshift({multi: multi, slot: slotIdx});
   if(PL.recent.length > 10) PL.recent.pop();
   plRenderRecent();
   
-  // Settle bet
   if(multi > 0){
     winBet(payout_btc, 'plinko');
     if(multi >= 1){
       var profit = eur * (multi - 1);
       toast('\uD83D\uDD25 ' + multi + 'x! +\u20ac' + profit.toFixed(2), 'ok', 2500);
-      if(multi >= 10){
+      if(multi >= 5){
         try{tg.HapticFeedback && tg.HapticFeedback.notificationOccurred('success');}catch(e){}
       }
     }else{
       var lossEur = eur * (1 - multi);
-      toast(multi + 'x \u2014 \u20ac' + lossEur.toFixed(2) + ' lost', 'err', 1800);
+      toast(multi + 'x \u2014 -\u20ac' + lossEur.toFixed(2), 'err', 1800);
     }
   }else{
     loseBet(bet_btc, 'plinko');
-    toast('\uD83D\uDC80 0x', 'err', 1500);
+    toast('\uD83D\uDC80 0x \u2014 -\u20ac' + eur, 'err', 1500);
   }
   document.getElementById('pl-bal').textContent = '\u20ac' + (S.btc * S.rate).toFixed(2);
   
-  // Hide ball + clear trail after a moment
   setTimeout(function(){
     var ballEl = document.getElementById('pl-ball');
     if(ballEl) ballEl.style.opacity = '0';
@@ -6019,7 +6078,7 @@ function plLand(slotIdx, eur, bet_btc){
     var trailG = document.getElementById('pl-trail');
     if(trailG) trailG.innerHTML = '';
     PL.inFlight = false;
-  }, 900);
+  }, 1000);
 }
 
 function plRenderRecent(){
@@ -6033,6 +6092,7 @@ function plRenderRecent(){
 function plInit(){
   document.getElementById('pl-bal').textContent = '\u20ac' + (S.btc * S.rate).toFixed(2);
   if(!PL.boardReady){ plBuildBoard(); PL.boardReady = true; }
+  else { plGenerateRandomPegs(); plRenderSlotDividers(); }  // refresh layout on revisit
   plRenderRecent();
 }
 
