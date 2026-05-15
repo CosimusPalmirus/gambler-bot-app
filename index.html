@@ -5775,9 +5775,10 @@ var PL = {
   
   // 7 slots — payout tables tuned for symmetric Gaussian-ish landing distribution
   paytables: {
-    LOW:    [4.0, 1.4, 0.5, 0.1, 0.5, 1.4, 4.0],
-    MEDIUM: [9.0, 2.0, 0.5, 0.0, 0.5, 2.0, 9.0],
-    HIGH:   [25.0, 4.0, 0.3, 0.0, 0.3, 4.0, 25.0]
+    // Rebalanced for ~10-15% house edge with random peg field (more uniform distribution)
+    LOW:    [1.6, 1.0, 0.6, 0.3, 0.6, 1.0, 1.6],
+    MEDIUM: [3.0, 0.9, 0.4, 0.1, 0.4, 0.9, 3.0],
+    HIGH:   [6.0, 1.0, 0.1, 0.0, 0.1, 1.0, 6.0]
   }
 };
 
@@ -5798,8 +5799,8 @@ function plGenerateRandomPegs(){
   var MAX_ATTEMPTS_NEW = 3000;  // more attempts for denser layout
   var FIELD_TOP = PL.TOP_PAD + 16;    // pegs start near top
   var FIELD_BOTTOM = PL.BOTTOM_Y - 22;
-  var FIELD_LEFT = 18;
-  var FIELD_RIGHT = PL.W - 18;
+  var FIELD_LEFT = 28;       // safe distance from wall (no corner pockets)
+  var FIELD_RIGHT = PL.W - 28;
   
   var attempts = 0;
   var MAX_ATTEMPTS = 3000;
@@ -6056,14 +6057,21 @@ function plPhysicsLoop(eur){
     if(PL.trailHistory.length > 14) PL.trailHistory.shift();
     plRenderTrail();
     
-    // Anti-stuck: if ball moves < 0.4 px/frame for ~30 frames, kick it
+    // Anti-stuck: detects slow ball AND ball near walls
     var speed = Math.abs(b.vx) + Math.abs(b.vy);
-    if(speed < 0.4){
+    var nearWall = b.x < (PL.BALL_R + 4) || b.x > (PL.W - PL.BALL_R - 4);
+    if(speed < 0.6 || (nearWall && speed < 1.2)){
       PL.stuckFrames = (PL.stuckFrames || 0) + 1;
-      if(PL.stuckFrames > 25){
-        // Give it a downward nudge + random horizontal
-        b.vy += 1.5;
-        b.vx += (Math.random() - 0.5) * 1.2;
+      if(PL.stuckFrames > 15){
+        // Stronger kick: downward boost + horizontal away from nearest wall
+        b.vy += 2.5;
+        if(nearWall){
+          // Push toward center
+          var pushDir = b.x < PL.W / 2 ? 1 : -1;
+          b.vx += pushDir * 1.5 + (Math.random() - 0.5) * 0.8;
+        } else {
+          b.vx += (Math.random() - 0.5) * 2;
+        }
         PL.stuckFrames = 0;
       }
     } else { PL.stuckFrames = 0; }
