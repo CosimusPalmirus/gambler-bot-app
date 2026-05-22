@@ -3181,15 +3181,40 @@ body{position:relative;}
 
 /* ---------- FREE SPINS OVERLAYS ---------- */
 .slv2-fs-intro, .slv2-fs-summary{
-  display:none;
+  display:flex;
   position:fixed;
   inset:0;
   z-index:10000;
   align-items:center;
   justify-content:center;
+  pointer-events:none;
+  opacity:0;
+  visibility:hidden;
+  transition:opacity .6s cubic-bezier(.4,0,.2,1), visibility .6s;
+}
+.slv2-fs-intro.visible, .slv2-fs-summary.visible{
+  opacity:1;
+  visibility:visible;
   pointer-events:all;
 }
-.slv2-fs-intro.visible, .slv2-fs-summary.visible{display:flex;}
+.slv2-fs-intro.visible .slv2-fs-intro-content,
+.slv2-fs-summary.visible .slv2-fs-summary-content{
+  animation:slv2OverlayPop .7s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes slv2OverlayPop{
+  0%{transform:scale(0.6) translateY(40px);opacity:0;}
+  60%{transform:scale(1.05) translateY(-5px);opacity:1;}
+  100%{transform:scale(1) translateY(0);opacity:1;}
+}
+
+/* Content scales slightly while overlay fades out */
+.slv2-fs-intro:not(.visible) .slv2-fs-intro-content,
+.slv2-fs-summary:not(.visible) .slv2-fs-summary-content,
+.slv2-bonus-wheel:not(.visible) .slv2-bw-content,
+.slv2-vault-game:not(.visible) .slv2-vg-content{
+  transform:scale(0.92) translateY(10px);
+  transition:transform .5s ease-in;
+}
 .slv2-fs-intro-bg, .slv2-fs-summary-bg{
   position:absolute;
   inset:0;
@@ -3592,15 +3617,25 @@ body{position:relative;}
    BONUS WHEEL mini-game
    ================================================================ */
 .slv2-bonus-wheel{
-  display:none;
+  display:flex;
   position:fixed;
   inset:0;
   z-index:10001;
   align-items:center;
   justify-content:center;
+  pointer-events:none;
+  opacity:0;
+  visibility:hidden;
+  transition:opacity .6s cubic-bezier(.4,0,.2,1), visibility .6s;
+}
+.slv2-bonus-wheel.visible{
+  opacity:1;
+  visibility:visible;
   pointer-events:all;
 }
-.slv2-bonus-wheel.visible{display:flex;}
+.slv2-bonus-wheel.visible .slv2-bw-content{
+  animation:slv2OverlayPop .7s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
 .slv2-bw-bg{
   position:absolute;
   inset:0;
@@ -3736,15 +3771,25 @@ body{position:relative;}
    PICK-A-VAULT mini-game
    ================================================================ */
 .slv2-vault-game{
-  display:none;
+  display:flex;
   position:fixed;
   inset:0;
   z-index:10001;
   align-items:center;
   justify-content:center;
+  pointer-events:none;
+  opacity:0;
+  visibility:hidden;
+  transition:opacity .6s cubic-bezier(.4,0,.2,1), visibility .6s;
+}
+.slv2-vault-game.visible{
+  opacity:1;
+  visibility:visible;
   pointer-events:all;
 }
-.slv2-vault-game.visible{display:flex;}
+.slv2-vault-game.visible .slv2-vg-content{
+  animation:slv2OverlayPop .7s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
 .slv2-vg-bg{
   position:absolute;
   inset:0;
@@ -3948,6 +3993,20 @@ body{position:relative;}
 .slv2-vg-video[src]:not([src=""]) ~ .slv2-vg-bg{opacity:0.55;}
 /* Bonus game UI stays on top */
 .slv2-bw-content, .slv2-vg-content{position:relative;z-index:3;}
+
+
+/* Video fluid transitions — fade with overlay, fade out at end */
+.slv2-fs-intro-video,
+.slv2-bw-video,
+.slv2-vg-video{
+  transition:opacity 1.2s ease-out;
+}
+/* When video ends, fade it out gracefully so the CSS bg + content remain */
+.slv2-fs-intro-video.ended,
+.slv2-bw-video.ended,
+.slv2-vg-video.ended{
+  opacity:0 !important;
+}
 </style>
 </head>
 <body>
@@ -4368,7 +4427,7 @@ body{position:relative;}
       <div class="slv2-fs-intro-bg"></div>
       <!-- Higgsfield cinematic video (optional - set src below). Plays muted + autoloop. -->
       <video class="slv2-fs-intro-video" id="slv2-fs-intro-video"
-             autoplay muted loop playsinline preload="auto"
+             autoplay muted playsinline preload="auto"
              src=""></video>
       <div class="slv2-fs-intro-content">
         <div class="slv2-fs-intro-title">🤖 FREE SPINS! 🤖</div>
@@ -4400,7 +4459,7 @@ body{position:relative;}
       <div class="slv2-bw-bg"></div>
       <!-- Higgsfield cinematic trigger video (optional, plays in background) -->
       <video class="slv2-bw-video" id="slv2-bw-video"
-             autoplay muted loop playsinline preload="auto"
+             autoplay muted playsinline preload="auto"
              src=""></video>
       <div class="slv2-bw-content">
         <div class="slv2-bw-title">✨ BONUS WHEEL ✨</div>
@@ -4420,7 +4479,7 @@ body{position:relative;}
       <div class="slv2-vg-bg"></div>
       <!-- Higgsfield cinematic trigger video (optional, plays in background) -->
       <video class="slv2-vg-video" id="slv2-vg-video"
-             autoplay muted loop playsinline preload="auto"
+             autoplay muted playsinline preload="auto"
              src=""></video>
       <div class="slv2-vg-content">
         <div class="slv2-vg-title">🔑 PICK A VAULT 🔑</div>
@@ -6500,6 +6559,7 @@ function slv2TriggerFreeSpinsIntro(count){
   var countEl = document.getElementById('slv2-fs-intro-count');
   if(countEl) countEl.textContent = count;
   if(intro) intro.classList.add('visible');
+  slv2RestartVideo('slv2-fs-intro-video');
   slv2Sound('free-spins');
   // Stop auto spin during FS intro - will continue after FS
   if(SL2.autoActive){
@@ -6750,6 +6810,7 @@ function slv2BonusWheelTrigger(){
   slv2BonusWheelBuild();
   var ov = document.getElementById('slv2-bonus-wheel');
   if(ov) ov.classList.add('visible');
+  slv2RestartVideo('slv2-bw-video');
   var btn = document.getElementById('slv2-bw-spin');
   var collect = document.getElementById('slv2-bw-collect');
   var result = document.getElementById('slv2-bw-result');
@@ -6901,6 +6962,7 @@ function slv2VaultTrigger(){
 
   var ov = document.getElementById('slv2-vault-game');
   if(ov) ov.classList.add('visible');
+  slv2RestartVideo('slv2-vg-video');
   slv2Sound('free-spins');
 }
 
@@ -7031,6 +7093,30 @@ function slv2SetVideoSrc(elemId, url){
   v.play().catch(function(){});  // silently ignore autoplay block
 }
 
+// Restart a video from beginning (used when overlay opens — ensures animation plays from frame 1)
+function slv2RestartVideo(elemId){
+  var v = document.getElementById(elemId);
+  if(!v) return;
+  if(!v.getAttribute('src')) return;
+  try {
+    v.currentTime = 0;
+    v.classList.remove('ended');  // remove fade-out class for fresh play
+    v.play().catch(function(){});
+  } catch(e){}
+}
+
+// Attach onended handlers to video elements once page is loaded
+function slv2WireVideoEndHandlers(){
+  ['slv2-fs-intro-video','slv2-bw-video','slv2-vg-video'].forEach(function(id){
+    var v = document.getElementById(id);
+    if(!v) return;
+    v.addEventListener('ended', function(){
+      // Smooth fade-out when video naturally ends — CSS overlay bg + content remain
+      v.classList.add('ended');
+    });
+  });
+}
+
 // =================================================================
 // ===  HIGGSFIELD CINEMATIC VIDEO URLS  -  paste all three here  ===
 // =================================================================
@@ -7062,6 +7148,7 @@ window.addEventListener('DOMContentLoaded', function(){
   slv2SetFreeSpinsVideo(SLOT_CONFIG.freeSpins);
   slv2SetWheelVideo(SLOT_CONFIG.wheelBonus);
   slv2SetVaultVideo(SLOT_CONFIG.pickVault);
+  slv2WireVideoEndHandlers();
 });
 
 function slv2ClearAnticipation(){
