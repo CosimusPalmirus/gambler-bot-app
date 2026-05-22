@@ -3106,6 +3106,19 @@ body{position:relative;}
     drop-shadow(0 1px 2px rgba(0,0,0,.7));
 }
 
+/* Wheel scatter — perf-optimized: single span with CSS bg-image instead of
+   13 SVG DOM nodes per cell. ~150 fewer DOM nodes across all reels. */
+.slv2-wheel-img{
+  width:46px;
+  height:46px;
+  display:block;
+  background-image: var(--wheel-img);
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  filter: drop-shadow(0 0 4px rgba(255,215,0,.55));
+}
+
 /* Per-symbol idle animations — PERF: scoped to .slv2-sym-active (only 3 visible per reel) */
 .slv2-sym-active.sym-btc{animation:slv2SymBtcIdle 3s ease-in-out infinite;}
 @keyframes slv2SymBtcIdle{
@@ -4722,23 +4735,46 @@ body{position:relative;}
      • Spin button: gentle bevel only, no continuous halo loop
    ================================================================ */
 
-/* MARQUEE — restore scroll with slow duration (was cut to flexbox center in nuclear round) */
+/* ============ PERF ROUND 5 — wheel SVG cache + final shadow trim ============
+   • Wheel cell content: 13 SVG nodes → 1 span (data-URL background-image)
+   • Cabinet box-shadow: 3 layers → 1 (the outer green halo was the heaviest)
+   • Reel cells: explicit contain to lock paint scope                          */
+#slots .slv2-cabinet{
+  /* Original was 3-layer shadow. Keep one tight inner glow for definition. */
+  box-shadow: 0 4px 14px rgba(0,0,0,.55), 0 0 0 1px rgba(57,255,20,.25) !important;
+}
+#slots .slv2-reel{
+  contain: layout paint;
+}
+#slots .slv2-wheel-img{
+  /* contain prevents the rare wheel-img from triggering whole-page repaints */
+  contain: layout style paint;
+}
+
+/* MARQUEE — explicit dimensions so the banner is always visible and not cut */
 #slots .slv2-marquee{
   background: linear-gradient(180deg, #14082a 0%, #1f0a3a 50%, #14082a 100%) !important;
-  border-top: 1px solid rgba(57,255,20,.35) !important;
-  border-bottom: 1px solid rgba(255,215,0,.35) !important;
+  border-top: 1px solid rgba(57,255,20,.4) !important;
+  border-bottom: 1px solid rgba(255,215,0,.4) !important;
   overflow: hidden;
+  min-height: 30px !important;
+  padding: 9px 0 !important;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  position: relative;
 }
 #slots .slv2-marquee-track{
   animation: slv2MarqueeScroll 60s linear infinite !important;
-  transform: none;
   display: flex !important;
-  justify-content: flex-start !important;
   flex-wrap: nowrap !important;
+  white-space: nowrap;
   width: max-content;
+  align-items: center;
+  gap: 22px;
 }
-/* Re-enable all items (nuclear round hid items after 7) */
-#slots .slv2-marquee-track > *:nth-child(n){ display: inline-block !important; }
+#slots .slv2-marquee-track > *{ display: inline-block !important; flex-shrink: 0; line-height: 1.2; }
+#slots .slv2-mq-item{ font-size: 12px !important; letter-spacing: 2px !important; }
 @keyframes slv2MarqueeScroll{
   from{ transform: translateX(0); }
   to{ transform: translateX(-50%); }
@@ -5038,22 +5074,40 @@ body{position:relative;}
 .slv2-vault-game.has-video .slv2-vg-subtitle{
   opacity: 0;
   visibility: hidden;
-  transition: opacity .4s ease-out, visibility .4s ease-out;
+  transition: opacity .6s ease-out .3s, visibility .6s ease-out .3s;
 }
-/* CRITICAL: also strip the content CARD's background/border/shadow when video plays
-   (the card itself is the "rectangle covering the video" the user noticed) */
+/* Content card transitions smoothly to "ghost" mode so the video shows through —
+   no more jarring hard-cut to transparent. */
+.slv2-fs-intro-content,
+.slv2-fs-summary-content,
+.slv2-bw-content,
+.slv2-vg-content{
+  transition:
+    background-color .6s ease-out,
+    border-color .6s ease-out,
+    box-shadow .6s ease-out,
+    backdrop-filter .6s ease-out !important;
+}
 .slv2-fs-intro.has-video .slv2-fs-intro-content,
 .slv2-fs-summary.has-video .slv2-fs-summary-content,
 .slv2-bonus-wheel.has-video .slv2-bw-content,
 .slv2-vault-game.has-video .slv2-vg-content{
   background: transparent !important;
-  border: none !important;
+  border-color: transparent !important;
   box-shadow: none !important;
   backdrop-filter: none !important;
-  padding-top: 60vh !important; /* push buttons to lower portion of screen */
+  -webkit-backdrop-filter: none !important;
+  /* NO more padding-top snap — keep content where it is; the buttons will
+     simply float over the video which is fine */
 }
-/* When the overlay opens with a video, also kill the shockwave / light beams
-   (the video provides the cinematic motion instead) */
+/* Video itself fades in smoothly when it starts playing */
+.slv2-fs-intro-video,
+.slv2-bw-video,
+.slv2-vg-video{
+  transition: opacity 1s ease-in !important;
+}
+/* And the overlay shockwave + light beams: hide IMMEDIATELY when has-video,
+   no transition flicker */
 .slv2-fs-intro.has-video::before,
 .slv2-fs-intro.has-video::after,
 .slv2-bonus-wheel.has-video::before,
@@ -5066,7 +5120,8 @@ body{position:relative;}
 .slv2-fs-intro.has-video .slv2-fs-intro-bg,
 .slv2-bonus-wheel.has-video .slv2-bw-bg,
 .slv2-vault-game.has-video .slv2-vg-bg{
-  opacity: 0.25 !important;
+  opacity: 0.20 !important;
+  transition: opacity .6s ease-out !important;
 }
 
 /* CINEMATIC FALLBACK — when no Higgsfield video is set, an animated
@@ -7341,39 +7396,49 @@ function slv2GbLogoHTML(){
   return '<span class="slv2-gb-logo-img" aria-hidden="true"></span>';
 }
 
-// Wheel scatter symbol — rendered as SVG so it ALWAYS displays correctly across
-// devices (the 🎡 emoji was rendering as a tofu box on some Telegram WebViews).
-// Looks like a mini bonus wheel: 8 alternating colored segments + gold rim + hub.
+// Wheel scatter symbol — rendered as a CSS background image via data URL.
+// Performance: instead of 13 SVG DOM nodes per wheel cell × ~13 cells visible
+// across all 5 reel strips (= ~169 SVG nodes), we use ONE pre-built data URL
+// referenced via a CSS variable. Each cell becomes a single <span>.
+var SL2_WHEEL_SVG_DATAURL = (function(){
+  var svgMarkup =
+    '<svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">' +
+      '<defs>' +
+        '<radialGradient id="g" cx="50%" cy="50%">' +
+          '<stop offset="60%" stop-color="transparent"/>' +
+          '<stop offset="80%" stop-color="#ffd700"/>' +
+          '<stop offset="100%" stop-color="#8b6914"/>' +
+        '</radialGradient>' +
+      '</defs>' +
+      '<g transform="translate(30,30)">' +
+        '<path d="M0,0 L25.5,0 A26,26 0 0 1 18,18 Z" fill="#ffd700"/>' +
+        '<path d="M0,0 L18,18 A26,26 0 0 1 0,25.5 Z" fill="#39ff14"/>' +
+        '<path d="M0,0 L0,25.5 A26,26 0 0 1 -18,18 Z" fill="#a855f7"/>' +
+        '<path d="M0,0 L-18,18 A26,26 0 0 1 -25.5,0 Z" fill="#ff8844"/>' +
+        '<path d="M0,0 L-25.5,0 A26,26 0 0 1 -18,-18 Z" fill="#ffd700"/>' +
+        '<path d="M0,0 L-18,-18 A26,26 0 0 1 0,-25.5 Z" fill="#39ff14"/>' +
+        '<path d="M0,0 L0,-25.5 A26,26 0 0 1 18,-18 Z" fill="#a855f7"/>' +
+        '<path d="M0,0 L18,-18 A26,26 0 0 1 25.5,0 Z" fill="#ff8844"/>' +
+      '</g>' +
+      '<circle cx="30" cy="30" r="26" fill="none" stroke="#ffd700" stroke-width="2.5"/>' +
+      '<circle cx="30" cy="30" r="26" fill="url(#g)"/>' +
+      '<circle cx="30" cy="30" r="6" fill="#1a0500" stroke="#ffd700" stroke-width="1.5"/>' +
+      '<circle cx="30" cy="30" r="2.5" fill="#ffd700"/>' +
+      '<path d="M30,2 L26,8 L34,8 Z" fill="#39ff14" stroke="#1a0500" stroke-width="1"/>' +
+    '</svg>';
+  return 'url("data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgMarkup) + '")';
+})();
+// Inject as CSS variable so all .slv2-wheel-img spans get it via background-image
+(function(){
+  try {
+    var rootStyle = document.documentElement.style;
+    rootStyle.setProperty('--wheel-img', SL2_WHEEL_SVG_DATAURL);
+  } catch(e){}
+})();
+
 function slv2WheelSVG(){
-  return '<svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" ' +
-         'style="width:46px;height:46px;display:block;">' +
-    '<defs>' +
-      '<radialGradient id="whGoldRim" cx="50%" cy="50%">' +
-        '<stop offset="60%" stop-color="transparent"/>' +
-        '<stop offset="80%" stop-color="#ffd700"/>' +
-        '<stop offset="100%" stop-color="#8b6914"/>' +
-      '</radialGradient>' +
-    '</defs>' +
-    // 8 segments alternating brand colors (gold/green/violet/orange)
-    '<g transform="translate(30,30)">' +
-      '<path d="M0,0 L25.5,0 A26,26 0 0 1 18.0,18.0 Z" fill="#ffd700"/>' +
-      '<path d="M0,0 L18.0,18.0 A26,26 0 0 1 0,25.5 Z" fill="#39ff14"/>' +
-      '<path d="M0,0 L0,25.5 A26,26 0 0 1 -18.0,18.0 Z" fill="#a855f7"/>' +
-      '<path d="M0,0 L-18.0,18.0 A26,26 0 0 1 -25.5,0 Z" fill="#ff8844"/>' +
-      '<path d="M0,0 L-25.5,0 A26,26 0 0 1 -18.0,-18.0 Z" fill="#ffd700"/>' +
-      '<path d="M0,0 L-18.0,-18.0 A26,26 0 0 1 0,-25.5 Z" fill="#39ff14"/>' +
-      '<path d="M0,0 L0,-25.5 A26,26 0 0 1 18.0,-18.0 Z" fill="#a855f7"/>' +
-      '<path d="M0,0 L18.0,-18.0 A26,26 0 0 1 25.5,0 Z" fill="#ff8844"/>' +
-    '</g>' +
-    // Gold rim
-    '<circle cx="30" cy="30" r="26" fill="none" stroke="#ffd700" stroke-width="2.5"/>' +
-    '<circle cx="30" cy="30" r="26" fill="url(#whGoldRim)"/>' +
-    // Center hub
-    '<circle cx="30" cy="30" r="6" fill="#1a0500" stroke="#ffd700" stroke-width="1.5"/>' +
-    '<circle cx="30" cy="30" r="2.5" fill="#ffd700"/>' +
-    // Top pointer triangle (indicates "ferris-wheel/spinner" feel)
-    '<path d="M30,2 L26,8 L34,8 Z" fill="#39ff14" stroke="#1a0500" stroke-width="1"/>' +
-  '</svg>';
+  // Single span with CSS bg-image — was 13 SVG DOM nodes before, now 1.
+  return '<span class="slv2-wheel-img" aria-hidden="true"></span>';
 }
 
 var SL2_NAMES = {
@@ -7917,7 +7982,7 @@ function slv2RenderPaytable(){
   sec2b.innerHTML =
     '<div class="slv2-pt-section-title">\ud83c\udfa1 WHEEL SCATTER \u2014 Bonus Wheel</div>' +
     '<div class="slv2-pt-row" style="border-left-color:#ffd700;">' +
-      '<div class="slv2-pt-sym-box">' + slv2WheelSVG().replace('width:46px;height:46px', 'width:32px;height:32px') + '</div>' +
+      '<div class="slv2-pt-sym-box"><span class="slv2-wheel-img" style="width:32px;height:32px;"></span></div>' +
       '<div><div style="font-family:\'Russo One\',sans-serif;font-size:11px;color:#ffd700;">WHEEL Scatter</div>' +
       '<div class="slv2-pt-name">3+ anywhere \u2192 spin the Bonus Wheel</div></div>' +
       '<div class="slv2-pt-pays">' +
@@ -9028,9 +9093,100 @@ function slv2BonusWheelTrigger(){
   }, 2500);
 }
 
+// ============ WHEEL SPIN AUDIO — 3 LAYERS ============
+// Plays during the wheel's transform animation. Synced to physics:
+//   Layer 1: ticks at decelerating cadence (matches the ease-out curve)
+//   Layer 2: low rumble drum-roll for sustained tension underneath
+//   Layer 3: "snap-lock" punch when the wheel comes to rest on its segment
+function slv2PlayWheelSpinAudio(durationMs, rotations){
+  if(!SL2.soundsEnabled) return;
+  var ctx = slv2EnsureAudio();
+  if(!ctx) return;
+  try {
+    var t0 = ctx.currentTime;
+
+    // ---- LAYER 1: TICKS following the ease-out velocity curve ----
+    // Each segment passing under the pointer = 1 tick. With 10-14 rotations
+    // × 12 segments = ~120-168 ticks total. We render proportional ticks per
+    // unit time to match the physics: dense at start, sparse at end.
+    var totalTicks = 60;          // perceptual sweet-spot, not 168 (too dense)
+    for(var i = 0; i < totalTicks; i++){
+      // Easing function inverse: for tick i, when in time does it fire?
+      // We want ticks to follow the cubic-bezier(0.17, 0.67, 0.4, 1) progression.
+      // Approximation: tickTime ≈ duration × (1 - (1 - i/total)^2.2)
+      var fraction = i / totalTicks;
+      var timeProgress = 1 - Math.pow(1 - fraction, 2.2);  // ease-out inverse
+      var delaySec = timeProgress * (durationMs / 1000);
+      var when = t0 + delaySec;
+
+      // Tick pitch rises slightly toward the end (anticipation)
+      var pitch = 320 + (fraction * 280) + Math.random() * 40;
+      var vol = 0.16 - fraction * 0.04;   // start louder, fade slightly
+
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.value = pitch;
+      gain.gain.setValueAtTime(0.0001, when);
+      gain.gain.exponentialRampToValueAtTime(vol, when + 0.002);
+      gain.gain.exponentialRampToValueAtTime(0.001, when + 0.05);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(when);
+      osc.stop(when + 0.06);
+    }
+
+    // ---- LAYER 2: LOW RUMBLE drum-roll for sustain ----
+    // Filtered noise pad held under the ticks, fades out as wheel stops
+    var bufLen = ctx.sampleRate * (durationMs / 1000 + 0.2);
+    var buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    var data = buf.getChannelData(0);
+    for(var b = 0; b < bufLen; b++){
+      data[b] = (Math.random() * 2 - 1) * 0.5;
+    }
+    var noise = ctx.createBufferSource();
+    var noiseGain = ctx.createGain();
+    var lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 280;     // deep rumble
+    lp.Q.value = 1.2;
+    noise.buffer = buf;
+    noiseGain.gain.setValueAtTime(0.0001, t0);
+    noiseGain.gain.exponentialRampToValueAtTime(0.10, t0 + 0.3);
+    noiseGain.gain.setValueAtTime(0.10, t0 + (durationMs / 1000) * 0.7);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, t0 + durationMs / 1000);
+    noise.connect(lp).connect(noiseGain).connect(ctx.destination);
+    noise.start(t0);
+    noise.stop(t0 + durationMs / 1000 + 0.1);
+
+    // ---- LAYER 3: "SNAP LOCK" punch at landing ----
+    var lockTime = t0 + (durationMs / 1000);
+    // Low thud
+    var thud = ctx.createOscillator();
+    var thudG = ctx.createGain();
+    thud.type = 'sine';
+    thud.frequency.setValueAtTime(180, lockTime);
+    thud.frequency.exponentialRampToValueAtTime(60, lockTime + 0.25);
+    thudG.gain.setValueAtTime(0.0001, lockTime);
+    thudG.gain.exponentialRampToValueAtTime(0.32, lockTime + 0.008);
+    thudG.gain.exponentialRampToValueAtTime(0.001, lockTime + 0.3);
+    thud.connect(thudG).connect(ctx.destination);
+    thud.start(lockTime);
+    thud.stop(lockTime + 0.35);
+    // High crystal ding (overlaid for sparkle)
+    var ding = ctx.createOscillator();
+    var dingG = ctx.createGain();
+    ding.type = 'sine';
+    ding.frequency.value = 2349;   // D7
+    dingG.gain.setValueAtTime(0.0001, lockTime + 0.04);
+    dingG.gain.exponentialRampToValueAtTime(0.14, lockTime + 0.06);
+    dingG.gain.exponentialRampToValueAtTime(0.001, lockTime + 0.7);
+    ding.connect(dingG).connect(ctx.destination);
+    ding.start(lockTime + 0.04);
+    ding.stop(lockTime + 0.75);
+  } catch(e){}
+}
+
 // Cinematic fanfare for wheel bonus open — synth horn + sparkle bells
-// Plays in parallel with the (muted) Higgsfield video so the player always
-// hears something dramatic. Works in any browser without user-gesture issues.
 function slv2PlayWheelOpenFanfare(){
   if(!SL2.soundsEnabled) return;
   var ctx = slv2EnsureAudio();
@@ -9119,29 +9275,31 @@ function slv2BonusWheelSpin(){
   }
 
   var segAngle = 360 / SL2.WHEEL_SEGMENTS;
-  var rotations = 6 + Math.floor(Math.random() * 4);
+  // FAST + DRAMATIC: 10-14 full rotations in 3.5s with proper ease-out curve.
+  // Old curve was cubic-bezier(0.15, 0.7, 0.2, 1) — completed 100% of motion
+  // in the first 20% of time, then crawled for 3.6s ("fa girare pianissimo").
+  // New curve is a real ease-out: fast throughout, gentle settle at the end.
+  var rotations = 10 + Math.floor(Math.random() * 5);  // 10-14 rotations
   var jitter = (Math.random() - 0.5) * (segAngle * 0.7);
   var targetMod = ((-((winIdx + 0.5) * segAngle) + jitter) % 360 + 360) % 360;
   var finalAngle = rotations * 360 + targetMod;
+  var spinDurationMs = 3500;
 
   SL2.bwSelectedIdx = winIdx;
 
   var rotor = document.getElementById('slv2-bw-rotor');
   if(rotor){
-    rotor.style.transition = 'transform 4.5s cubic-bezier(0.15, 0.7, 0.2, 1)';
+    // cubic-bezier(0.17, 0.67, 0.4, 1) — classic wheel-of-fortune curve:
+    // high initial velocity, sustained motion mid-spin, smooth deceleration at end.
+    rotor.style.transition = 'transform ' + spinDurationMs + 'ms cubic-bezier(0.17, 0.67, 0.4, 1)';
     rotor.style.transform = 'rotate(' + finalAngle + 'deg)';
   }
 
-  // Sound: rapid ticks accelerating then slowing
-  var tickCount = 25;
-  for(var ti = 0; ti < tickCount; ti++){
-    (function(i){
-      var delay = i * (50 + i * 6);
-      setTimeout(function(){
-        slv2PlayTone(220 + Math.random() * 80, 0.04, 'square', 0.08);
-      }, delay);
-    })(ti);
-  }
+  // ============ ENHANCED AUDIO ============
+  // Layer 1: ticks following the physics curve (fast → slow), audible volume
+  // Layer 2: low rumble drum-roll underneath for sustained tension
+  // Layer 3: "snap lock" punch when wheel stops on the winning segment
+  slv2PlayWheelSpinAudio(spinDurationMs, rotations);
 
   setTimeout(function(){
     SL2.bwSpinning = false;
@@ -9370,14 +9528,14 @@ function slv2MaybeTriggerBonus(spinHadWin){
   else SL2.losingStreak = 0;
   SL2.spinCount++;
 
-  // ---- COUNTER-BASED RANDOM TRIGGER (every 25–55 spins) ----
-  // Simplified per user request: removed the multi-branch (FS/Wheel/Vault)
-  // system. Now the timer triggers ONLY the WHEEL bonus. The wheel itself
-  // can land on FS/chest/cash/mystery segments — so FS and vault are still
-  // reachable, but always via the wheel as the entry point.
+  // ---- COUNTER-BASED RANDOM TRIGGER (every 35–70 spins) ----
+  // The wheel timer fires "as if" 3 wheel scatters just landed on the reels.
+  // First we visually "convert" 3 random visible cells to wheel symbols with
+  // suspense pulse + audio, THEN open the bonus overlay — so the timed trigger
+  // feels organic, like the player just got a natural scatter.
   SL2.spinsSinceLastBonus++;
   if(SL2.spinsSinceLastBonus >= SL2.nextBonusAt){
-    setTimeout(slv2BonusWheelTrigger, 600);
+    slv2FakeWheelScatterReveal();   // 1.5s spectacle THEN open wheel
     slv2ResetBonusCounter();
     SL2.losingStreak = 0;
     return true;
@@ -9402,6 +9560,74 @@ function slv2MaybeTriggerBonus(spinHadWin){
 function slv2ResetBonusCounter(){
   SL2.spinsSinceLastBonus = 0;
   SL2.nextBonusAt = 35 + Math.floor(Math.random() * 36); // 35..70 inclusive
+}
+
+// ===== "FAKE SCATTER REVEAL" — timed wheel trigger spectacle =====
+// When the wheel timer fires (every 35-70 spins), we want the trigger to feel
+// like the player just landed 3+ wheel scatters naturally. We pick 3 random
+// visible cells, morph them into wheel symbols with the same gold pulse +
+// suspense audio used for real scatters, then open the bonus overlay.
+function slv2FakeWheelScatterReveal(){
+  // Pick 3 distinct visible cells (5 reels × 3 rows = 15 candidates)
+  var picks = [];
+  while(picks.length < 3){
+    var r = Math.floor(Math.random() * 5);
+    var row = Math.floor(Math.random() * 3);
+    var key = r + '_' + row;
+    if(picks.some(function(p){ return p.key === key; })) continue;
+    picks.push({reel: r, row: row, key: key});
+  }
+
+  // Convert each picked cell to a wheel scatter — save original to restore later
+  picks.forEach(function(p){
+    var strip = document.getElementById('slv2-strip-' + p.reel);
+    if(!strip) return;
+    var idx = SL2.positions[p.reel] + (p.row - 1);
+    var cell = strip.children[idx];
+    if(!cell) return;
+    p.cell = cell;
+    p.origClass = cell.className;
+    p.origHTML  = cell.innerHTML;
+    cell.className = 'slv2-sym sym-wheel wheel-locked dropping-in';
+    cell.innerHTML = slv2WheelSVG();
+    // remove dropping-in class after animation completes
+    setTimeout(function(){
+      cell.classList.remove('dropping-in');
+    }, 500);
+  });
+
+  // Cabinet golden suspense halo + rising audio
+  var cab = document.querySelector('.slv2-cabinet');
+  if(cab) cab.classList.add('wheel-suspense');
+  slv2PlayWheelSuspense();
+  // Drum-hit punch when the first wheel "lands"
+  slv2PlayTone(440, 0.12, 'square', 0.15);
+  setTimeout(function(){ slv2PlayTone(660, 0.10, 'square', 0.13); }, 180);
+  setTimeout(function(){ slv2PlayTone(880, 0.18, 'square', 0.18); }, 360);
+
+  // After 1.6s of spectacle, restore the cells and open the bonus wheel
+  setTimeout(function(){
+    picks.forEach(function(p){
+      if(!p.cell) return;
+      // Smooth fade-out before restoring
+      p.cell.style.transition = 'transform .3s, opacity .3s';
+      p.cell.style.transform  = 'scale(.85)';
+      p.cell.style.opacity    = '0.4';
+    });
+    setTimeout(function(){
+      picks.forEach(function(p){
+        if(!p.cell) return;
+        p.cell.className = p.origClass;
+        p.cell.innerHTML = p.origHTML;
+        p.cell.style.transition = '';
+        p.cell.style.transform  = '';
+        p.cell.style.opacity    = '';
+      });
+      if(cab) cab.classList.remove('wheel-suspense');
+      // Now open the bonus wheel — the player has had the full reveal moment
+      slv2BonusWheelTrigger();
+    }, 300);
+  }, 1600);
 }
 
 // ================================================================
