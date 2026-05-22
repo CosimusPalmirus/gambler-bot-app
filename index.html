@@ -2522,6 +2522,15 @@ body{position:relative;}
   margin-bottom:10px;
   position:relative;
   box-shadow:inset 0 0 18px rgba(57,255,20,.08), 0 0 14px rgba(57,255,20,.12);
+  transition:opacity .35s ease, filter .35s ease;
+}
+/* Slot is actively spinning → calm the banner so the reels are the focal point */
+.slv2.is-spinning .slv2-marquee{
+  opacity:.55;
+  filter:saturate(.6);
+}
+.slv2.is-spinning .slv2-marquee-track{
+  animation-play-state: paused;
 }
 .slv2-marquee::before, .slv2-marquee::after{
   content:'';
@@ -2860,6 +2869,22 @@ body{position:relative;}
   position:relative;
   z-index:2;
 }
+/* Logo watermark — large brand mark behind the reel grid, very subtle */
+.slv2-cab-frame::before{
+  content:'';
+  position:absolute;
+  inset:14px 10px;
+  background-image: var(--gb-logo);
+  background-size:60% auto;
+  background-position:center 28%;
+  background-repeat:no-repeat;
+  opacity:.06;
+  filter:brightness(1.4) saturate(.7) blur(.3px);
+  pointer-events:none;
+  z-index:0;
+  mix-blend-mode:screen;
+}
+.slv2-reels-grid{ z-index:1; }
 
 /* Reels grid — 5 columns, deep violet interior with subtle green inner glow */
 .slv2-reels-grid{
@@ -2936,6 +2961,8 @@ body{position:relative;}
   display:flex;
   flex-direction:column;
   will-change:transform;
+  transform: translate3d(0,0,0);  /* force compositor layer */
+  backface-visibility: hidden;
 }
 .slv2-reel-strip.spinning{
   /* Dynamic motion-blur driven by per-spin duration custom prop --spin-dur */
@@ -3125,23 +3152,68 @@ body{position:relative;}
   inset:8px 6px;
   pointer-events:none;
   z-index:4;
+  overflow:visible;
 }
+/* Each payline gets TWO visual layers via group: thick glow + thin flowing top */
 .slv2-payline-line{
   fill:none;
   stroke:#ffd700;
-  stroke-width:3;
+  stroke-width:5;
   stroke-linecap:round;
   stroke-linejoin:round;
-  filter:drop-shadow(0 0 6px gold) drop-shadow(0 0 12px rgba(255,215,0,.7));
+  filter:
+    drop-shadow(0 0 6px currentColor)
+    drop-shadow(0 0 14px rgba(255,215,0,.7))
+    drop-shadow(0 0 24px rgba(57,255,20,.4));
   opacity:0;
-  animation:slv2PaylineDraw 1.5s ease-out forwards;
+  animation:slv2PaylineDraw 2.4s cubic-bezier(.4,.0,.25,1) forwards;
+  paint-order:stroke;
+}
+/* The "flow" — drawn on top via dashed pattern that shifts */
+.slv2-payline-flow{
+  fill:none;
+  stroke:#fff;
+  stroke-width:1.8;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  stroke-dasharray:14 9;
+  opacity:0;
+  filter:drop-shadow(0 0 4px #fff) drop-shadow(0 0 8px currentColor);
+  animation:
+    slv2PaylineFlowFade 2.4s ease-out forwards,
+    slv2PaylineFlow 0.9s linear infinite;
+}
+/* Travelling spark — circle that runs along the line */
+.slv2-payline-spark{
+  fill:#fff;
+  stroke:currentColor;
+  stroke-width:1.5;
+  opacity:0;
+  filter:drop-shadow(0 0 6px currentColor) drop-shadow(0 0 12px #fff);
+  animation:slv2PaylineSparkFade 2.4s ease-out forwards;
 }
 @keyframes slv2PaylineDraw{
-  0%{opacity:0;stroke-dasharray:0 1000;}
-  10%{opacity:1;}
-  60%{stroke-dasharray:1000 0;}
-  90%{opacity:1;}
-  100%{opacity:0;stroke-dasharray:1000 0;}
+  0%   { opacity:0;   stroke-dasharray:0 1200; }
+  12%  { opacity:1; }
+  45%  { stroke-dasharray:1200 0; }
+  85%  { opacity:1;   stroke-dasharray:1200 0; }
+  100% { opacity:0;   stroke-dasharray:1200 0; }
+}
+@keyframes slv2PaylineFlowFade{
+  0%,25%{ opacity:0; }
+  40%   { opacity:1; }
+  85%   { opacity:1; }
+  100%  { opacity:0; }
+}
+@keyframes slv2PaylineFlow{
+  0%   { stroke-dashoffset:0; }
+  100% { stroke-dashoffset:-23; }
+}
+@keyframes slv2PaylineSparkFade{
+  0%,25%{ opacity:0; }
+  35%   { opacity:1; }
+  85%   { opacity:1; }
+  100%  { opacity:0; }
 }
 
 /* Win cells overlay (highlights) */
@@ -3153,16 +3225,27 @@ body{position:relative;}
 }
 .slv2-win-cell{
   position:absolute;
-  border:2px solid #ffd700;
-  border-radius:4px;
+  border:2px solid var(--gb-green);
+  border-radius:5px;
   box-shadow:
-    inset 0 0 14px rgba(255,215,0,.5),
-    0 0 18px rgba(255,215,0,.6);
-  animation:slv2WinCellPulse 0.6s ease-in-out infinite alternate;
+    inset 0 0 16px rgba(57,255,20,.5),
+    0 0 18px rgba(57,255,20,.7),
+    0 0 30px rgba(255,215,0,.3);
+  animation:slv2WinCellPulse 0.65s ease-in-out infinite alternate;
 }
 @keyframes slv2WinCellPulse{
-  from{box-shadow:inset 0 0 14px rgba(255,215,0,.5), 0 0 18px rgba(255,215,0,.6);}
-  to{box-shadow:inset 0 0 28px rgba(255,215,0,1), 0 0 36px rgba(255,215,0,1);}
+  from{
+    box-shadow:
+      inset 0 0 14px rgba(57,255,20,.5),
+      0 0 18px rgba(57,255,20,.6),
+      0 0 30px rgba(255,215,0,.3);
+  }
+  to{
+    box-shadow:
+      inset 0 0 28px rgba(57,255,20,1),
+      0 0 36px rgba(57,255,20,1),
+      0 0 50px rgba(255,215,0,.6);
+  }
 }
 
 /* Free spins border (visible during FS) */
@@ -3956,18 +4039,85 @@ body{position:relative;}
   position:absolute;
   pointer-events:none;
   z-index:3;
+  will-change:transform, opacity;
 }
 .slv2-particle.coin{
-  font-size:28px;
-  animation:slv2ParticleCoin 2s ease-in forwards;
+  font-size:30px;
+  filter:
+    drop-shadow(0 0 6px rgba(255,215,0,.85))
+    drop-shadow(0 0 14px rgba(255,170,0,.5))
+    drop-shadow(0 2px 3px rgba(0,0,0,.7));
+  animation:slv2ParticleCoin var(--dur, 2.4s) cubic-bezier(.36,.0,.66,1) forwards;
+}
+.slv2-particle.coin.tier-purple{
+  filter:
+    drop-shadow(0 0 6px rgba(168,85,247,.85))
+    drop-shadow(0 0 14px rgba(168,85,247,.5))
+    drop-shadow(0 2px 3px rgba(0,0,0,.7));
+}
+.slv2-particle.coin.tier-green{
+  filter:
+    drop-shadow(0 0 6px rgba(57,255,20,.85))
+    drop-shadow(0 0 14px rgba(57,255,20,.5))
+    drop-shadow(0 2px 3px rgba(0,0,0,.7));
 }
 @keyframes slv2ParticleCoin{
-  0%{transform:translateY(-100px) translateX(0) rotate(0deg);opacity:0;}
-  15%{opacity:1;}
-  100%{transform:translateY(120vh) translateX(var(--xShift, 0px)) rotate(900deg);opacity:0.4;}
+  0%   { transform:translate3d(0,-100px,0) rotate(0deg); opacity:0; }
+  10%  { opacity:1; }
+  40%  { transform:translate3d(calc(var(--xShift, 0px) * 0.4), 40vh, 0) rotate(380deg); }
+  70%  { transform:translate3d(calc(var(--xShift, 0px) * 0.85), 75vh, 0) rotate(720deg); }
+  100% { transform:translate3d(var(--xShift, 0px), 120vh, 0) rotate(1080deg); opacity:0.35; }
+}
+.slv2-particle.spark{
+  width:8px;
+  height:8px;
+  background:radial-gradient(circle, #fff 0%, var(--spark-c, #ffd700) 40%, transparent 75%);
+  border-radius:50%;
+  filter:drop-shadow(0 0 6px var(--spark-c, #ffd700));
+  animation:slv2ParticleSpark 1.4s cubic-bezier(.2,.6,.3,1) forwards;
+}
+@keyframes slv2ParticleSpark{
+  0%   { transform:translate3d(0,0,0) scale(.3); opacity:0; }
+  10%  { transform:translate3d(0,0,0) scale(1.2); opacity:1; }
+  100% { transform:translate3d(var(--sx, 0px), var(--sy, 0px), 0) scale(0); opacity:0; }
 }
 
 /* ---------- FREE SPINS OVERLAYS ---------- */
+/* Shared crest used at the top of every bonus overlay */
+.slv2-overlay-crest{
+  width:72px;
+  height:72px;
+  margin:0 auto 10px;
+  background-image: var(--gb-logo);
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  border-radius:50%;
+  position:relative;
+  filter:
+    drop-shadow(0 0 8px rgba(57,255,20,.65))
+    drop-shadow(0 0 18px rgba(57,255,20,.35))
+    drop-shadow(0 3px 5px rgba(0,0,0,.7));
+  animation: slotsCrestBob 3.6s ease-in-out infinite, slotsCrestGlow 2.4s ease-in-out infinite;
+}
+.slv2-overlay-crest::before{
+  content:'';
+  position:absolute;
+  inset:-6px;
+  border-radius:50%;
+  background:radial-gradient(circle at 50% 50%, rgba(57,255,20,.28) 0%, rgba(57,255,20,.10) 45%, transparent 70%);
+  z-index:-1;
+  animation: slotsCrestHalo 2.4s ease-in-out infinite;
+}
+.slv2-overlay-crest::after{
+  content:'';
+  position:absolute;
+  inset:1px;
+  border-radius:50%;
+  box-shadow:inset 0 0 0 1px rgba(255,215,0,.35), 0 0 0 1px rgba(0,0,0,.5);
+  pointer-events:none;
+}
+
 .slv2-fs-intro, .slv2-fs-summary{
   display:flex;
   position:fixed;
@@ -4387,6 +4537,139 @@ body{position:relative;}
   to{box-shadow:inset 0 0 20px rgba(57,255,20,.6),0 0 16px rgba(57,255,20,.4);}
 }
 
+/* ================================================================
+   PHASE 3 — POLISH: motion suspension, perf hints, accessibility
+   ================================================================ */
+
+/* CINEMATIC FALLBACK — when no Higgsfield video is set, an animated
+   shockwave + radial light beams burst out of the overlay center on
+   open. Visible only when the .visible class is added by JS. */
+.slv2-fs-intro.visible::before,
+.slv2-bonus-wheel.visible::before,
+.slv2-vault-game.visible::before{
+  content:'';
+  position:absolute;
+  top:50%; left:50%;
+  width:0; height:0;
+  border-radius:50%;
+  border:3px solid var(--gb-green, #39ff14);
+  box-shadow:
+    0 0 30px rgba(57,255,20,.7),
+    0 0 60px rgba(255,215,0,.4),
+    inset 0 0 20px rgba(57,255,20,.5);
+  transform:translate(-50%, -50%);
+  animation:slv2Shockwave 1.6s ease-out forwards;
+  pointer-events:none;
+  z-index:2;
+  opacity:0;
+}
+@keyframes slv2Shockwave{
+  0%   { width:0;     height:0;     opacity:1; border-width:6px; }
+  60%  { width:560px; height:560px; opacity:.5; border-width:3px; }
+  100% { width:900px; height:900px; opacity:0;  border-width:1px; }
+}
+/* Radial light-beams rotating behind the content — pure CSS theater */
+.slv2-fs-intro.visible::after,
+.slv2-bonus-wheel.visible::after,
+.slv2-vault-game.visible::after{
+  content:'';
+  position:absolute;
+  top:50%; left:50%;
+  width:140vmax;
+  height:140vmax;
+  transform:translate(-50%, -50%);
+  background:
+    conic-gradient(from 0deg,
+      transparent 0deg,
+      rgba(57,255,20,.10) 12deg,
+      transparent 24deg,
+      transparent 60deg,
+      rgba(255,215,0,.10) 72deg,
+      transparent 84deg,
+      transparent 120deg,
+      rgba(168,85,247,.10) 132deg,
+      transparent 144deg,
+      transparent 180deg,
+      rgba(57,255,20,.10) 192deg,
+      transparent 204deg,
+      transparent 240deg,
+      rgba(255,215,0,.10) 252deg,
+      transparent 264deg,
+      transparent 300deg,
+      rgba(168,85,247,.10) 312deg,
+      transparent 324deg,
+      transparent 360deg);
+  pointer-events:none;
+  z-index:1;
+  opacity:0;
+  animation:slv2BeamsAppear .6s ease-out .2s forwards, slv2BeamsRotate 18s linear infinite;
+  mix-blend-mode:screen;
+}
+/* When the optional Higgsfield video IS present, hide the CSS beams (video takes over) */
+.slv2-fs-intro .slv2-fs-intro-video[src]:not([src=""]) ~ .slv2-fs-intro-bg ~ *,
+.slv2-bonus-wheel .slv2-bw-video[src]:not([src=""]) ~ .slv2-bw-bg ~ *,
+.slv2-vault-game .slv2-vg-video[src]:not([src=""]) ~ .slv2-vg-bg ~ *{
+  /* (selector kept narrow on purpose — applies only to pseudo siblings — content untouched) */
+}
+.slv2-fs-intro:has(.slv2-fs-intro-video[src]:not([src=""]))::after,
+.slv2-bonus-wheel:has(.slv2-bw-video[src]:not([src=""]))::after,
+.slv2-vault-game:has(.slv2-vg-video[src]:not([src=""]))::after{
+  opacity:0 !important; animation:none !important;
+}
+@keyframes slv2BeamsAppear{
+  to{ opacity:1; }
+}
+@keyframes slv2BeamsRotate{
+  to{ transform:translate(-50%, -50%) rotate(360deg); }
+}
+
+/* While reels are actively spinning, suspend per-symbol idle anims —
+   keeps the motion focused on the reel travel itself, calmer overall */
+.slv2.is-spinning .slv2-sym.sym-btc,
+.slv2.is-spinning .slv2-sym.sym-bot,
+.slv2.is-spinning .slv2-sym.sym-seven,
+.slv2.is-spinning .slv2-sym.sym-gem,
+.slv2.is-spinning .slv2-sym.sym-bell,
+.slv2.is-spinning .slv2-sym.sym-gblogo{
+  animation-play-state: paused;
+}
+/* Crest gets a steadier "watching" feel during the spin */
+.slv2.is-spinning .slots-crest{
+  animation-duration: 1.6s, 1.2s;  /* faster bob + faster glow */
+}
+/* Micro mechanical vibration on the spin button while disabled (during spin) */
+.slv2-spin-big:disabled{
+  animation: slv2SpinVibrate 0.08s linear infinite !important;
+}
+@keyframes slv2SpinVibrate{
+  0%,100%{ transform: translate(0,0); }
+  25%    { transform: translate(0.4px, -0.3px); }
+  75%    { transform: translate(-0.4px, 0.3px); }
+}
+/* Force GPU layers for the most-animated elements */
+.slots-crest,
+.slv2-spin-big,
+.slv2-particle,
+.slv2-bw-rotor{
+  transform: translate3d(0,0,0);
+  backface-visibility: hidden;
+}
+
+/* Accessibility — calm AMBIENT motion for users that ask for reduced motion,
+   but keep critical brand/feedback animations (crest, payline flow, win pulses)
+   so the experience still feels alive */
+@media (prefers-reduced-motion: reduce){
+  .slv2-marquee-track,
+  .slv2-cab-light,
+  .slv2-spin-big::before,
+  .slv2-mq-dot{
+    animation: none !important;
+    transition-duration: .15s !important;
+  }
+  .slv2::before{ animation: none; opacity: .6; }
+  .slv2-cab-frame::before{ animation: none; }
+}
+
 /* ---- Screen shake on big cascade chain ---- */
 .slv2-cabinet.shaking{animation:slv2Shake 0.4s linear;}
 @keyframes slv2Shake{
@@ -4451,15 +4734,16 @@ body{position:relative;}
   position:absolute;
   inset:0;
   background:
-    radial-gradient(ellipse at center, rgba(255,170,0,.4) 0%, transparent 65%),
-    radial-gradient(ellipse at 30% 80%, rgba(57,255,20,.3) 0%, transparent 50%),
-    radial-gradient(ellipse at 70% 20%, rgba(170,68,255,.3) 0%, transparent 50%),
-    rgba(0,0,0,.94);
-  animation:slv2BwBg 2s ease-in-out infinite;
+    radial-gradient(ellipse at 50% 30%, rgba(255,215,0,.32) 0%, transparent 60%),
+    radial-gradient(ellipse at 30% 80%, rgba(57,255,20,.32) 0%, transparent 55%),
+    radial-gradient(ellipse at 75% 25%, rgba(168,85,247,.30) 0%, transparent 55%),
+    radial-gradient(ellipse at 15% 25%, rgba(79,125,247,.18) 0%, transparent 55%),
+    linear-gradient(180deg, rgba(13,8,32,.96) 0%, rgba(8,5,26,.98) 50%, rgba(5,3,16,.98) 100%);
+  animation:slv2BwBg 2.4s ease-in-out infinite;
 }
 @keyframes slv2BwBg{
   0%,100%{filter:brightness(1);}
-  50%{filter:brightness(1.25);}
+  50%{filter:brightness(1.18) saturate(1.15);}
 }
 .slv2-bw-content{
   position:relative;
@@ -4605,9 +4889,10 @@ body{position:relative;}
   position:absolute;
   inset:0;
   background:
-    radial-gradient(ellipse at center, rgba(100,180,255,.3) 0%, transparent 60%),
-    radial-gradient(ellipse at 20% 80%, rgba(170,68,255,.25) 0%, transparent 50%),
-    rgba(0,0,0,.94);
+    radial-gradient(ellipse at 50% 30%, rgba(168,85,247,.36) 0%, transparent 58%),
+    radial-gradient(ellipse at 25% 85%, rgba(255,215,0,.22) 0%, transparent 52%),
+    radial-gradient(ellipse at 75% 80%, rgba(57,255,20,.20) 0%, transparent 52%),
+    linear-gradient(180deg, rgba(13,8,32,.96) 0%, rgba(8,5,26,.98) 50%, rgba(5,3,16,.98) 100%);
 }
 .slv2-vg-content{
   position:relative;
@@ -5274,6 +5559,7 @@ body{position:relative;}
              autoplay muted playsinline preload="auto"
              src=""></video>
       <div class="slv2-fs-intro-content">
+        <div class="slv2-overlay-crest" aria-hidden="true"></div>
         <div class="slv2-fs-intro-title">🤖 FREE SPINS! 🤖</div>
         <div class="slv2-fs-intro-count" id="slv2-fs-intro-count">10</div>
         <div class="slv2-fs-intro-label">FREE SPINS WITH 2× MULTIPLIER</div>
@@ -5285,6 +5571,7 @@ body{position:relative;}
     <div class="slv2-fs-summary" id="slv2-fs-summary">
       <div class="slv2-fs-summary-bg"></div>
       <div class="slv2-fs-summary-content">
+        <div class="slv2-overlay-crest" aria-hidden="true"></div>
         <div class="slv2-fs-summary-title">🎉 FREE SPINS COMPLETE</div>
         <div class="slv2-fs-summary-stat">
           <span>Spins played</span>
@@ -5306,6 +5593,7 @@ body{position:relative;}
              autoplay muted playsinline preload="auto"
              src=""></video>
       <div class="slv2-bw-content">
+        <div class="slv2-overlay-crest" aria-hidden="true"></div>
         <div class="slv2-bw-title">✨ BONUS WHEEL ✨</div>
         <div class="slv2-bw-subtitle">Spin to win up to <strong>500×</strong> your bet!</div>
         <div class="slv2-bw-stage">
@@ -5326,6 +5614,7 @@ body{position:relative;}
              autoplay muted playsinline preload="auto"
              src=""></video>
       <div class="slv2-vg-content">
+        <div class="slv2-overlay-crest" aria-hidden="true"></div>
         <div class="slv2-vg-title">🔑 PICK A VAULT 🔑</div>
         <div class="slv2-vg-subtitle">Choose one of three vaults to reveal your prize</div>
         <div class="slv2-vg-vaults">
@@ -7089,6 +7378,9 @@ function slv2Spin(){
   SL2.cascadeWinTotal = 0;
   var spinBtn = document.getElementById('slv2-spin-btn');
   if(spinBtn) spinBtn.disabled = true;
+  // Task: visually quiet the marquee while reels are in motion (focus on reels)
+  var slvRoot = document.querySelector('.slv2');
+  if(slvRoot) slvRoot.classList.add('is-spinning');
 
   // Clear payline SVG + win overlay
   var svg = document.getElementById('slv2-payline-svg');
@@ -7376,6 +7668,9 @@ function slv2FinishSpin(fsTriggered){
   SL2.spinning = false;
   var spinBtn = document.getElementById('slv2-spin-btn');
   if(spinBtn) spinBtn.disabled = false;
+  // Restore the marquee from its quiet state
+  var slvRoot = document.querySelector('.slv2');
+  if(slvRoot) slvRoot.classList.remove('is-spinning');
 
   // STICKY WILDS: capture any new wilds that landed (during FS only)
   if(SL2.fsActive){
@@ -7528,7 +7823,8 @@ function slv2RenderWins(wins){
   // Coordinate system: viewBox 0 0 500 240 (5 reels of 100, 3 rows of 80)
   // Reel width: 500/5 = 100. Row height: 240/3 = 80.
   // Cell center: reel*100+50, row*80+40
-  var palette = ['#ffd700','#39ff14','#ff44aa','#5fc7ff','#ff8800','#aa44ff','#06d6a0','#ffaa44','#ff2244','#88ff44'];
+  // Brand-aligned palette: green, gold, purple, blue dominant
+  var palette = ['#39ff14','#ffd700','#a855f7','#22d3ee','#ffaa00','#5fff3a','#4f7df7','#ff8800','#c084fc','#86efac'];
 
   wins.forEach(function(w, i){
     if(w.type === 'line'){
@@ -7540,12 +7836,44 @@ function slv2RenderWins(wins){
         var y = line[c] * 80 + 40;
         pts.push(x + ',' + y);
       }
-      var poly = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-      poly.setAttribute('points', pts.join(' '));
+      var ptsStr = pts.join(' ');
+      var color  = palette[i % palette.length];
+      var delay  = (i * 0.1) + 's';
+      var SVG_NS = 'http://www.w3.org/2000/svg';
+
+      // Layer 1 — thick glow halo line
+      var poly = document.createElementNS(SVG_NS, 'polyline');
+      poly.setAttribute('points', ptsStr);
       poly.setAttribute('class', 'slv2-payline-line');
-      poly.style.stroke = palette[i % palette.length];
-      poly.style.animationDelay = (i * 0.1) + 's';
+      poly.style.stroke = color;
+      poly.style.color  = color;
+      poly.style.animationDelay = delay;
       svg.appendChild(poly);
+
+      // Layer 2 — bright flowing dashes on top
+      var flow = document.createElementNS(SVG_NS, 'polyline');
+      flow.setAttribute('points', ptsStr);
+      flow.setAttribute('class', 'slv2-payline-flow');
+      flow.style.color = color;
+      flow.style.animationDelay = delay + ', ' + delay;
+      svg.appendChild(flow);
+
+      // Layer 3 — travelling spark that runs along the path
+      var spark = document.createElementNS(SVG_NS, 'circle');
+      spark.setAttribute('r', '4');
+      spark.setAttribute('cx', '0');
+      spark.setAttribute('cy', '0');
+      spark.setAttribute('class', 'slv2-payline-spark');
+      spark.style.color = color;
+      spark.style.animationDelay = delay;
+      var anim = document.createElementNS(SVG_NS, 'animateMotion');
+      anim.setAttribute('dur', '1.4s');
+      anim.setAttribute('repeatCount', 'indefinite');
+      anim.setAttribute('begin', delay);
+      anim.setAttribute('path', 'M ' + pts.join(' L '));
+      anim.setAttribute('rotate', 'auto');
+      spark.appendChild(anim);
+      svg.appendChild(spark);
     }
     // Mark winning cells
     w.cells.forEach(function(c){
@@ -7809,23 +8137,60 @@ function slv2ShowCelebration(ratio, winAmount, isScatter){
   if(subEl) subEl.textContent = sub;
   celeb.classList.add('visible');
 
-  // Coin rain for big+ wins
-  if(ratio >= 15){
-    var coinCount = Math.min(40, Math.floor(ratio));
+  // Coin shower for medium+ wins (lowered threshold for more frequent visual delight)
+  if(ratio >= 5){
+    var coinCount;
+    if      (ratio >= 100) coinCount = 70;
+    else if (ratio >= 30)  coinCount = 50;
+    else if (ratio >= 15)  coinCount = 32;
+    else if (ratio >= 8)   coinCount = 20;
+    else                   coinCount = 14;
+
     for(var i = 0; i < coinCount; i++){
       (function(idx){
         setTimeout(function(){
           if(!celeb.classList.contains('visible')) return;
           var coin = document.createElement('div');
-          coin.className = 'slv2-particle coin';
-          coin.textContent = (idx % 3 === 0) ? '\ud83e\udd47' : (idx % 3 === 1) ? '\ud83d\udcb0' : '\u20bf';
+          // 70% gold BTC, 15% purple gem, 15% green sparkle coin
+          var roll = Math.random();
+          var sym, klass;
+          if(roll < 0.70){ sym = '\u20bf'; klass = ''; }       // ₿ gold BTC
+          else if(roll < 0.85){ sym = '\ud83d\udc8e'; klass = 'tier-purple'; } // 💎
+          else { sym = '\u2605'; klass = 'tier-green'; }       // ★
+          coin.className = 'slv2-particle coin' + (klass ? ' ' + klass : '');
+          coin.textContent = sym;
+          // Random font size for depth feel
+          coin.style.fontSize = (22 + Math.random() * 16) + 'px';
           coin.style.left = (Math.random() * 100) + '%';
-          coin.style.top = '-50px';
-          coin.style.setProperty('--xShift', (Math.random() - 0.5) * 200 + 'px');
+          coin.style.top  = '-50px';
+          coin.style.setProperty('--xShift', (Math.random() - 0.5) * 260 + 'px');
+          coin.style.setProperty('--dur',    (1.9 + Math.random() * 1.2) + 's');
           celeb.appendChild(coin);
-          setTimeout(function(){ coin.remove(); }, 2200);
-        }, idx * 60);
+          setTimeout(function(){ coin.remove(); }, 3200);
+        }, idx * (ratio >= 30 ? 35 : 55));
       })(i);
+    }
+
+    // Sparkle burst from center on first beat (5x+)
+    var sparkCount = ratio >= 30 ? 24 : ratio >= 15 ? 16 : 10;
+    for(var s = 0; s < sparkCount; s++){
+      (function(idx){
+        setTimeout(function(){
+          if(!celeb.classList.contains('visible')) return;
+          var spark = document.createElement('div');
+          spark.className = 'slv2-particle spark';
+          var angle = (idx / sparkCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+          var dist  = 90 + Math.random() * 130;
+          spark.style.left = '50%';
+          spark.style.top  = '50%';
+          spark.style.setProperty('--sx', Math.cos(angle) * dist + 'px');
+          spark.style.setProperty('--sy', Math.sin(angle) * dist + 'px');
+          // Mix gold + green sparks
+          spark.style.setProperty('--spark-c', (idx % 3 === 0) ? '#39ff14' : '#ffd700');
+          celeb.appendChild(spark);
+          setTimeout(function(){ spark.remove(); }, 1500);
+        }, 80 + idx * 18);
+      })(s);
     }
   }
 
@@ -8240,10 +8605,28 @@ function slv2SetVideoSrc(elemId, url){
     v.load();
     return;
   }
+  // Attach error/load listeners to diagnose silent failures
+  v.onerror = function(){
+    console.warn('[slv2 video] failed to load:', url, '— overlay will use CSS-only fallback.');
+    v.style.display = 'none';
+    v.removeAttribute('src');
+  };
+  v.onloadeddata = function(){
+    console.info('[slv2 video] loaded:', url);
+  };
   v.setAttribute('src', url);
+  v.muted = true;          // ensure muted (required for autoplay on mobile)
+  v.playsInline = true;
   v.style.display = 'block';
   v.load();
-  v.play().catch(function(){});  // silently ignore autoplay block
+  // Play attempt — autoplay may be blocked, will retry on user-interaction trigger
+  var p = v.play();
+  if(p && typeof p.catch === 'function'){
+    p.catch(function(err){
+      console.warn('[slv2 video] autoplay blocked for', url, '—', err && err.name);
+      // Will be retried via slv2RestartVideo() when overlay opens (counts as user gesture)
+    });
+  }
 }
 
 // Restart a video from beginning (used when overlay opens — ensures animation plays from frame 1)
@@ -8282,9 +8665,22 @@ function slv2WireVideoEndHandlers(){
 //
 // If a URL is empty, the corresponding overlay uses CSS-only fallback.
 // =================================================================
+// =================================================================
+// ===  SLOT MEDIA CONFIG  =========================================
+// =================================================================
+// • The reel "GB" symbol uses the inline base64 brand logo from the
+//   --gb-logo CSS variable (set on #slots). No external file needed.
+//   If you want to override with a hosted URL (e.g. a higher-res PNG),
+//   set `SLOT_CONFIG.logoUrl = 'https://your.cdn/logo.png'` BEFORE
+//   slv2Init() runs (or just before the slot screen mounts).
+// • The three .mp4 paths below are RELATIVE to the page URL. Drop the
+//   files next to index.html on your backend, OR replace with absolute
+//   https:// URLs (recommended for CDN delivery). If a file is missing
+//   the overlay silently falls back to the (rich) CSS-only animation.
 var SLOT_CONFIG = {
-  // Real Gambler Bot logo (used as reel symbol). Fallback to inline SVG if file missing.
-  logoUrl: 'logo.png',
+  // Reel-symbol logo — null means "use the inline brand logo from --gb-logo".
+  // Set to a string URL to override with a different asset.
+  logoUrl: null,
 
   // Higgsfield cinematic trigger videos (1080p 9:16, with fade-in/out built-in).
   freeSpins:  'fs-intro.mp4',
