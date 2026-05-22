@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="build-version" content="2026-05-22-PERF-R4">
+<meta name="build-version" content="2026-05-22-PERF-R4-BAL">
 <title>Gambler Bot</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -4672,108 +4672,175 @@ body{position:relative;}
 .slv2-sym-active.sym-btc::before{ display: none !important; }
 
 /* ================================================================
-   PERF ROUND 4 — NUCLEAR (universal, not just mobile)
+   PERF ROUND 4 — BALANCED (perf + minimal motion identity)
    ================================================================
-   At this point we kill EVERY continuous animation in the slot scope.
-   The only motion that survives is action-triggered:
-     • Reel travel during spin
-     • Win cell pulses + payline flow during a win
-     • Cascade drop-in
-     • Bonus overlay entrance
-   Everything that runs CONSTANTLY in the background is OFF, on every
-   device (desktop included). This is the most aggressive cut.
+   The nuclear cut was too sterile. This round restores the bare
+   minimum motion that gives the slot life:
+     • Marquee SCROLLS slowly (60s) — was the "banner" the user noticed missing
+     • Corner cabinet lights pulse subtly (single keyframe, single shadow)
+     • Premium symbols (BTC wild, GB logo, lucky 7) keep light idle
+     • Low-tier symbols (spade, star, bolt, bell) stay static
+     • Spin button: gentle bevel only, no continuous halo loop
    ================================================================ */
 
-/* Universal: kill all idle/ambient animations regardless of device */
-#slots .slv2-sym-active.sym-btc,
-#slots .slv2-sym-active.sym-bot,
-#slots .slv2-sym-active.sym-wheel,
-#slots .slv2-sym-active.sym-seven,
-#slots .slv2-sym-active.sym-gem,
-#slots .slv2-sym-active.sym-bell,
-#slots .slv2-sym-active.sym-bolt,
-#slots .slv2-sym-active.sym-star,
-#slots .slv2-sym-active.sym-spade,
-#slots .slv2-sym-active.sym-gblogo,
-#slots .slv2-marquee-track,
-#slots .slv2-cab-light,
-#slots .slv2-mq-dot,
-#slots .slv2-bet.active,
-#slots .slv2-jp-meter,
-#slots .slv2-stat-card.slv2-fs-card.active,
-#slots .slv2-spin-big{
-  animation: none !important;
-}
-
-/* Drop ALL drop-shadow filters from idle reel cells — keep only a flat
-   text-shadow on the symbol glyph for readability. Saves ~30 composite layers. */
-#slots .slv2-sym{
-  filter: none !important;
-}
-#slots .slv2-sym-active.sym-btc,
-#slots .slv2-sym-active.sym-gblogo{
-  filter: drop-shadow(0 0 4px rgba(255,215,0,.5)) !important;
-}
-
-/* Cabinet: minimal box-shadow only (was 4-layer shadow + filter halo) */
-#slots .slv2-cabinet{
-  box-shadow: 0 4px 16px rgba(0,0,0,.6) !important;
-}
-/* No box-shadow on the stats row, marquee, bet container — those don't need glow */
-#slots .slv2-stats,
-#slots .slv2-marquee,
-#slots .slv2-bet-row{
-  box-shadow: none !important;
-}
-
-/* Stat cards backgrounds — flat solid, no gradients/shadows */
-#slots .slv2-stat-card{
-  background: #1a0d2e !important;
-  box-shadow: none !important;
-  border: 1px solid rgba(57,255,20,.25) !important;
-}
-
-/* Marquee: simplest possible — solid bg, no scroll, no animation */
+/* MARQUEE — restore scroll with slow duration (was cut to flexbox center in nuclear round) */
 #slots .slv2-marquee{
-  background: #15082a !important;
-  border-top: 1px solid rgba(57,255,20,.3) !important;
-  border-bottom: 1px solid rgba(255,215,0,.3) !important;
-}
-#slots .slv2-marquee-track{
-  animation: none !important;
-  transform: none !important;
-  justify-content: center;
-  display: flex;
-  flex-wrap: nowrap;
+  background: linear-gradient(180deg, #14082a 0%, #1f0a3a 50%, #14082a 100%) !important;
+  border-top: 1px solid rgba(57,255,20,.35) !important;
+  border-bottom: 1px solid rgba(255,215,0,.35) !important;
   overflow: hidden;
 }
-/* Only show the first few marquee items since it doesn't scroll */
-#slots .slv2-marquee-track > *:nth-child(n+8){ display: none !important; }
+#slots .slv2-marquee-track{
+  animation: slv2MarqueeScroll 60s linear infinite !important;
+  transform: none;
+  display: flex !important;
+  justify-content: flex-start !important;
+  flex-wrap: nowrap !important;
+  width: max-content;
+}
+/* Re-enable all items (nuclear round hid items after 7) */
+#slots .slv2-marquee-track > *:nth-child(n){ display: inline-block !important; }
+@keyframes slv2MarqueeScroll{
+  from{ transform: translateX(0); }
+  to{ transform: translateX(-50%); }
+}
 
-/* Spin button: flat 3D look, no halo, no shine sweep, no pulse */
+/* CABINET LIGHTS — soft alternating pulse, single box-shadow layer */
+#slots .slv2-cab-light{
+  width: 10px !important;
+  height: 10px !important;
+  box-shadow: 0 0 6px currentColor !important;
+  opacity: .8;
+  animation: slv2CabLightPulse 2.4s ease-in-out infinite !important;
+}
+#slots .slv2-cab-light-tr,
+#slots .slv2-cab-light-bl{
+  animation-delay: 1.2s !important;
+}
+@keyframes slv2CabLightPulse{
+  0%,100%{ opacity: .55; }
+  50%    { opacity: 1;   }
+}
+
+/* PREMIUM SYMBOLS — light idle on the high-tier ones only.
+   Scoped with :not(.dropping-in):not(.exploding) so cascade anims win. */
+/* BTC wild — gentle gold glow */
+#slots .slv2-sym-active.sym-btc:not(.dropping-in):not(.exploding){
+  filter: drop-shadow(0 0 6px rgba(255,215,0,.7)) !important;
+  animation: slv2BtcSoftIdle 3.5s ease-in-out infinite !important;
+}
+@keyframes slv2BtcSoftIdle{
+  0%,100%{ filter: drop-shadow(0 0 5px rgba(255,215,0,.6)); }
+  50%    { filter: drop-shadow(0 0 10px rgba(255,215,0,1));  }
+}
+/* GB logo — gentle green halo */
+#slots .slv2-sym-active.sym-gblogo:not(.dropping-in):not(.exploding){
+  filter: drop-shadow(0 0 5px rgba(57,255,20,.5)) !important;
+  animation: slv2GbSoftIdle 4s ease-in-out infinite !important;
+}
+@keyframes slv2GbSoftIdle{
+  0%,100%{ filter: drop-shadow(0 0 4px rgba(57,255,20,.4)); }
+  50%    { filter: drop-shadow(0 0 10px rgba(57,255,20,.8)); }
+}
+/* Lucky 7 — soft purple flicker (was the aggressive flame) */
+#slots .slv2-sym-active.sym-seven:not(.dropping-in):not(.exploding){
+  animation: slv2SevenSoftIdle 2.5s ease-in-out infinite !important;
+}
+@keyframes slv2SevenSoftIdle{
+  0%,100%{ text-shadow: 0 0 6px rgba(168,85,247,.7); }
+  50%    { text-shadow: 0 0 12px rgba(168,85,247,1), 0 0 18px rgba(168,85,247,.5); }
+}
+/* Bonus scatters — they're features, keep them animated */
+#slots .slv2-sym-active.sym-bot:not(.dropping-in):not(.exploding){
+  animation: slv2BotSoftIdle 3s ease-in-out infinite !important;
+}
+@keyframes slv2BotSoftIdle{
+  0%,100%{ transform: rotate(-2deg); text-shadow: 0 0 6px rgba(57,255,20,.6); }
+  50%    { transform: rotate(2deg);  text-shadow: 0 0 10px rgba(57,255,20,1);  }
+}
+#slots .slv2-sym-active.sym-wheel:not(.dropping-in):not(.exploding){
+  animation: slv2WheelSoftIdle 3.2s ease-in-out infinite !important;
+}
+@keyframes slv2WheelSoftIdle{
+  0%,100%{ text-shadow: 0 0 6px rgba(255,215,0,.6); }
+  50%    { text-shadow: 0 0 12px rgba(255,215,0,1), 0 0 18px rgba(57,255,20,.4); }
+}
+
+/* LOW-TIER SYMBOLS — explicitly STATIC (no idle) — these are the bulk of cells.
+   Scoped with :not(.dropping-in):not(.exploding) so cascade animations still play. */
+#slots .slv2-sym-active.sym-spade:not(.dropping-in):not(.exploding),
+#slots .slv2-sym-active.sym-star:not(.dropping-in):not(.exploding),
+#slots .slv2-sym-active.sym-bolt:not(.dropping-in):not(.exploding),
+#slots .slv2-sym-active.sym-bell:not(.dropping-in):not(.exploding),
+#slots .slv2-sym-active.sym-gem:not(.dropping-in):not(.exploding){
+  animation: none !important;
+  filter: none !important;
+}
+
+/* SPIN BUTTON — light gentle halo (was a continuous double-pulse) */
 #slots .slv2-spin-big{
-  box-shadow: 0 0 0 3px #000, 0 4px 0 #8b6914 !important;
+  animation: slv2SpinSoftPulse 2.8s ease-in-out infinite !important;
+  box-shadow:
+    0 0 0 3px #000,
+    0 4px 0 #8b6914,
+    0 0 18px rgba(57,255,20,.45) !important;
+}
+@keyframes slv2SpinSoftPulse{
+  0%,100%{ box-shadow: 0 0 0 3px #000, 0 4px 0 #8b6914, 0 0 14px rgba(57,255,20,.35); }
+  50%    { box-shadow: 0 0 0 3px #000, 0 4px 0 #8b6914, 0 0 24px rgba(57,255,20,.65); }
 }
 #slots .slv2-spin-big::before,
 #slots .slv2-spin-big::after{ display: none !important; }
 
-/* Bet chips: simple flat button look */
-#slots .slv2-bet::before{ display: none !important; }
-#slots .slv2-bet{ box-shadow: 0 2px 4px rgba(0,0,0,.4) !important; }
-
-/* Cabinet lights: single small dot, no pulse, no shadow */
-#slots .slv2-cab-light{
-  box-shadow: none !important;
-  background: currentColor !important;
-  width: 8px !important; height: 8px !important;
-  opacity: .7;
+/* CABINET — keep simple shadow, no gradient border (border-image is slow) */
+#slots .slv2-cabinet{
+  box-shadow: 0 4px 16px rgba(0,0,0,.6), 0 0 24px rgba(57,255,20,.18) !important;
 }
+#slots .slv2-cab-frame{
+  border-image: none !important;
+  border: 4px solid #ffd700 !important;
+  border-radius: 18px;
+  box-shadow: 0 0 0 1px rgba(184,134,11,.7) !important;
+}
+#slots .slv2-cab-frame::before{ display: none !important; } /* logo watermark off */
+#slots .slv2-cabinet::after{ display: none !important; }
+#slots .slv2-cab-frame::after{ display: none !important; }
 
-/* Reel grid container: kill inner box-shadow + ::before pin-stripe completely */
-#slots .slv2-reels-grid{ box-shadow: inset 0 0 0 1px rgba(0,0,0,.4) !important; }
+/* STAT CARDS — solid bg, single border, no inner glow loops */
+#slots .slv2-stat-card{
+  background: #1a0d2e !important;
+  box-shadow: none !important;
+}
+#slots .slv2-stat-card:nth-child(1){ border:1px solid rgba(255,215,0,.45) !important; }
+#slots .slv2-stat-card:nth-child(2){ border:1px solid rgba(57,255,20,.4) !important; }
+#slots .slv2-stat-card:nth-child(3){ border:1px solid rgba(168,85,247,.4) !important; }
+#slots .slv2-stat-card.slv2-fs-card.active{
+  border-color: rgba(57,255,20,.85) !important;
+  background: #14271f !important;
+}
+/* Stat values: no pulse loop */
+#slots .slv2-jp-meter{ animation: none !important; color: #ffd700 !important; }
+#slots .slv2-stat-card.slv2-fs-card.active{ animation: none !important; }
 
-/* Confirm no idle animation on .slv2::before particles (already display:none) */
+/* MARQUEE DOTS — keep static (no blink loop) */
+#slots .slv2-mq-dot{ animation: none !important; opacity: .7; }
+
+/* BET CHIPS — flat, no conic-gradient notches */
+#slots .slv2-bet::before{ display: none !important; }
+#slots .slv2-bet{ box-shadow: 0 2px 6px rgba(0,0,0,.5) !important; }
+#slots .slv2-bet.active{ animation: none !important; transform: scale(1.06) !important; }
+
+/* REELS GRID — simple inner shadow */
+#slots .slv2-reels-grid{ box-shadow: inset 0 0 0 1px rgba(0,0,0,.5) !important; }
+#slots .slv2-reels-grid::before{ display: none !important; }
+#slots .slv2-reel-col:not(:last-child)::after{ display: none !important; }
+
+/* Particle bg fullscreen — confirmed off */
 #slots.slv2::before, #slots .slv2::before{ display: none !important; }
+
+/* Reduce composite layers on the spin reels: only mark spinning ones */
+#slots .slv2-reel-strip{ will-change: auto; }
+#slots .slv2-reel-strip.spinning{ will-change: transform; }
 
 /* ================================================================
    PHASE 3 — POLISH: motion suspension, perf hints, accessibility
@@ -4934,6 +5001,18 @@ body{position:relative;}
   visibility: hidden;
   transition: opacity .4s ease-out, visibility .4s ease-out;
 }
+/* CRITICAL: also strip the content CARD's background/border/shadow when video plays
+   (the card itself is the "rectangle covering the video" the user noticed) */
+.slv2-fs-intro.has-video .slv2-fs-intro-content,
+.slv2-fs-summary.has-video .slv2-fs-summary-content,
+.slv2-bonus-wheel.has-video .slv2-bw-content,
+.slv2-vault-game.has-video .slv2-vg-content{
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  padding-top: 60vh !important; /* push buttons to lower portion of screen */
+}
 /* When the overlay opens with a video, also kill the shockwave / light beams
    (the video provides the cinematic motion instead) */
 .slv2-fs-intro.has-video::before,
@@ -4943,6 +5022,12 @@ body{position:relative;}
 .slv2-vault-game.has-video::before,
 .slv2-vault-game.has-video::after{
   display: none !important;
+}
+/* And the gradient bg — fade it more so video shows clearly */
+.slv2-fs-intro.has-video .slv2-fs-intro-bg,
+.slv2-bonus-wheel.has-video .slv2-bw-bg,
+.slv2-vault-game.has-video .slv2-vg-bg{
+  opacity: 0.25 !important;
 }
 
 /* CINEMATIC FALLBACK — when no Higgsfield video is set, an animated
@@ -5823,11 +5908,6 @@ body{position:relative;}
         <div class="slv2-stat-lbl">🤖 FREE SPINS</div>
         <div class="slv2-stat-val" id="slv2-fs-count">0</div>
       </div>
-    </div>
-
-    <!-- VERSION BADGE — tap to confirm you're seeing PERF Round 4 build -->
-    <div style="text-align:center;padding:4px 0;font-size:10px;letter-spacing:1.5px;color:#39ff14;background:rgba(0,0,0,.4);border-bottom:1px solid rgba(57,255,20,.3);font-family:'Russo One',sans-serif;">
-      BUILD PERF-R4 · 22/05 22:30
     </div>
 
     <!-- Slot cabinet -->
@@ -8916,29 +8996,46 @@ function slv2BonusWheelClose(){
 function slv2VaultTrigger(){
   if(SL2.bonusActive) return;
   SL2.bonusActive = true;
+  SL2.vaultPickedIdx = null;
 
-  // Generate 3 random prizes: one high, one medium, one low
-  var pool = [];
-  // BALANCE TUNED — vault tiers calibrated for ~94% RTP target.
-  // Previously [50,80,120,200] / [15,20,30,40] / [3,5,8,10] (avg ~48× bet) was too
-  // generous combined with the 20-50 spin random-bonus cadence (RTP ~111%).
-  // High tier
-  var highTier = [15, 22, 30, 40];   // avg 26.75×
-  pool.push(highTier[Math.floor(Math.random() * highTier.length)]);
-  // Medium tier
-  var midTier = [6, 9, 11, 14];      // avg 10×
-  pool.push(midTier[Math.floor(Math.random() * midTier.length)]);
-  // Low tier  
-  var lowTier = [1, 2, 3, 5];        // avg 2.75×
-  pool.push(lowTier[Math.floor(Math.random() * lowTier.length)]);
-  // Shuffle so user doesn't know which is which
-  for(var i = pool.length - 1; i > 0; i--){
-    var j = Math.floor(Math.random() * (i + 1));
-    var tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
+  // === NEW MIXED VAULT POOL ===
+  // 3 vaults, each pre-assigned a tier (HIGH / MID / LOW) — within each tier,
+  // the prize is randomly typed: cash multiplier OR free spins.
+  // This makes the vault feel like a real "lucky pick" where you might find
+  // money OR free spins, not just multipliers.
+  // RTP-tuned: avg ~10× bet equivalent per vault pick.
+  var prizes = [];
+
+  // HIGH-tier vault — exciting prize. 60% cash, 40% FS
+  if(Math.random() < 0.60){
+    var hiCash = [15, 20, 25, 30][Math.floor(Math.random() * 4)];
+    prizes.push({type:'cash', value: hiCash});
+  } else {
+    var hiFs = [8, 10, 12, 15][Math.floor(Math.random() * 4)];
+    prizes.push({type:'fs', value: hiFs});
   }
-  SL2.vaultPrizes = pool;
 
-  // Reset vault UI
+  // MID-tier vault — decent prize. 60% cash, 40% FS
+  if(Math.random() < 0.60){
+    var midCash = [5, 7, 9, 12][Math.floor(Math.random() * 4)];
+    prizes.push({type:'cash', value: midCash});
+  } else {
+    var midFs = [5, 6, 7, 8][Math.floor(Math.random() * 4)];
+    prizes.push({type:'fs', value: midFs});
+  }
+
+  // LOW-tier vault — small consolation cash only
+  var lowCash = [1, 2, 3, 5][Math.floor(Math.random() * 4)];
+  prizes.push({type:'cash', value: lowCash});
+
+  // Shuffle positions so user doesn't know which is which
+  for(var i = prizes.length - 1; i > 0; i--){
+    var j = Math.floor(Math.random() * (i + 1));
+    var tmp = prizes[i]; prizes[i] = prizes[j]; prizes[j] = tmp;
+  }
+  SL2.vaultPrizes = prizes;
+
+  // Reset vault UI — show generic "?" until picked, reveal prize type on reveal
   for(var k = 0; k < 3; k++){
     var v = document.querySelector('.slv2-vault[data-idx="' + k + '"]');
     if(v){
@@ -8946,7 +9043,17 @@ function slv2VaultTrigger(){
     }
     var pz = document.getElementById('slv2-vault-prize-' + k);
     if(pz){
-      pz.innerHTML = '<div class="multi">' + pool[k] + '\u00d7</div><div class="label">YOUR PRIZE</div>';
+      // Pre-render the prize that's INSIDE this vault (revealed on click)
+      var p = prizes[k];
+      var html;
+      if(p.type === 'cash'){
+        html = '<div class="multi" style="color:#ffd700;">' + p.value + '×</div>' +
+               '<div class="label" style="color:#39ff14;">CASH PRIZE</div>';
+      } else if(p.type === 'fs'){
+        html = '<div class="multi" style="color:#39ff14;font-size:28px;">' + p.value + '</div>' +
+               '<div class="label" style="color:#39ff14;">FREE SPINS</div>';
+      }
+      pz.innerHTML = html;
     }
   }
   var result = document.getElementById('slv2-vg-result');
@@ -8962,10 +9069,10 @@ function slv2VaultTrigger(){
 
 function slv2VaultPick(idx){
   if(!SL2.bonusActive) return;
-  if(SL2.vaultPickedIdx !== undefined && SL2.vaultPickedIdx !== null) return; // already picked
+  if(SL2.vaultPickedIdx !== undefined && SL2.vaultPickedIdx !== null) return;
   SL2.vaultPickedIdx = idx;
 
-  // Mark picked + reveal
+  // Mark picked + reveal ALL (player sees what they could've won)
   var vaults = document.querySelectorAll('.slv2-vault');
   vaults.forEach(function(v, i){
     if(i === idx){
@@ -8975,27 +9082,39 @@ function slv2VaultPick(idx){
     }
   });
 
-  var multi = SL2.vaultPrizes[idx];
-  var winAmount = SL2.bet * multi;
-  SL2.totalWonThisSession += winAmount;
-  winBet(winAmount, 'slots');
-
+  var prize = SL2.vaultPrizes[idx];
   var result = document.getElementById('slv2-vg-result');
-  if(result){
-    result.textContent = 'YOU WON ' + multi + '\u00d7 \u2192 +\u20ac' + winAmount.toFixed(2);
-  }
   var collect = document.getElementById('slv2-vg-collect');
-  if(collect) collect.style.display = 'inline-block';
 
-  if(multi >= 100) slv2Sound('jackpot');
-  else if(multi >= 30) slv2Sound('big-win');
-  else slv2Sound('medium-win');
+  if(prize.type === 'cash'){
+    var winAmount = SL2.bet * prize.value;
+    SL2.totalWonThisSession += winAmount;
+    winBet(winAmount, 'slots');
+    if(result){
+      result.textContent = 'YOU WON ' + prize.value + '\u00d7 \u2192 +\u20ac' + winAmount.toFixed(2);
+    }
+    if(collect) collect.style.display = 'inline-block';
 
-  // Update slot last-win
-  var lw = document.getElementById('slv2-last-win');
-  if(lw){
-    lw.className = 'slv2-stat-val win';
-    lw.textContent = '+\u20ac' + winAmount.toFixed(2);
+    if(prize.value >= 25) slv2Sound('big-win');
+    else if(prize.value >= 10) slv2Sound('medium-win');
+    else slv2Sound('small-win');
+
+    var lw = document.getElementById('slv2-last-win');
+    if(lw){
+      lw.className = 'slv2-stat-val win';
+      lw.textContent = '+\u20ac' + winAmount.toFixed(2);
+    }
+  }
+  else if(prize.type === 'fs'){
+    if(result){
+      result.textContent = 'YOU WON ' + prize.value + ' FREE SPINS!';
+    }
+    slv2Sound('big-win');
+    // Close vault and trigger FS intro after a beat
+    setTimeout(function(){
+      slv2VaultClose();
+      setTimeout(function(){ slv2TriggerFreeSpinsIntro(prize.value); }, 400);
+    }, 1800);
   }
 }
 
