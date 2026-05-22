@@ -3741,20 +3741,20 @@ function slotsSpin(){
     if(reels.length){r1=reels[0];r2=reels[1];r3=reels[2];}
   }
   [r1,r2,r3].forEach(function(r){if(r)r.classList.add('spinning');});
-  var jit=setInterval(function(){
-    if(r1)r1.textContent=SLOT_SYMS[Math.floor(Math.random()*SLOT_SYMS.length)];
-    if(r2)r2.textContent=SLOT_SYMS[Math.floor(Math.random()*SLOT_SYMS.length)];
-    if(r3)r3.textContent=SLOT_SYMS[Math.floor(Math.random()*SLOT_SYMS.length)];
-  },70);
+  // Per-reel jitter intervals so each stops independently (FIX: was using single global jit
+  // that kept overwriting r1/r2 even after they were "stopped")
+  var jit1=setInterval(function(){if(r1)r1.textContent=SLOT_SYMS[Math.floor(Math.random()*SLOT_SYMS.length)];},70);
+  var jit2=setInterval(function(){if(r2)r2.textContent=SLOT_SYMS[Math.floor(Math.random()*SLOT_SYMS.length)];},70);
+  var jit3=setInterval(function(){if(r3)r3.textContent=SLOT_SYMS[Math.floor(Math.random()*SLOT_SYMS.length)];},70);
   var results=[
     SLOT_SYMS[Math.floor(Math.random()*SLOT_SYMS.length)],
     SLOT_SYMS[Math.floor(Math.random()*SLOT_SYMS.length)],
     SLOT_SYMS[Math.floor(Math.random()*SLOT_SYMS.length)]
   ];
-  setTimeout(function(){if(r1){r1.classList.remove('spinning');r1.textContent=results[0];}},700);
-  setTimeout(function(){if(r2){r2.classList.remove('spinning');r2.textContent=results[1];}},1000);
+  setTimeout(function(){clearInterval(jit1);if(r1){r1.classList.remove('spinning');r1.textContent=results[0];}},700);
+  setTimeout(function(){clearInterval(jit2);if(r2){r2.classList.remove('spinning');r2.textContent=results[1];}},1000);
   setTimeout(function(){
-    clearInterval(jit);
+    clearInterval(jit3);
     if(r3){r3.classList.remove('spinning');r3.textContent=results[2];}
     var key=results.join('');var mult=SLOT_MULT[key]||0;
     if(!mult&&(results[0]===results[1]||results[1]===results[2]||results[0]===results[2]))mult=1.5;
@@ -6530,9 +6530,15 @@ function whSpin(eur){
   // Plus add 5+ full rotations for drama
   var segCenter = winIdx * segAngle + segAngle/2;
   var rotations = 5 + Math.floor(Math.random() * 4);  // 5-8 full
-  // Final visual angle (add some random offset within the segment for naturalness)
-  var jitter = (Math.random() - 0.5) * (segAngle * 0.6);
-  var finalAngle = rotations * 360 + (360 - segCenter) + jitter;
+  // Tighter jitter: keep pointer well within the segment (was 60%, now 45%)
+  var jitter = (Math.random() - 0.5) * (segAngle * 0.45);
+  
+  // FIX: previous formula assumed wheel starts at angle 0, but currentAngle accumulates
+  // across spins, causing visual drift. Compute the target modulo and the delta needed.
+  var targetMod = ((360 - segCenter + jitter) % 360 + 360) % 360;
+  var currentMod = ((WH.currentAngle % 360) + 360) % 360;
+  var deltaToTarget = (targetMod - currentMod + 360) % 360;
+  var finalAngle = rotations * 360 + deltaToTarget;
   
   // Apply rotation
   WH.currentAngle += finalAngle;
