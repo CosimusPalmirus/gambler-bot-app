@@ -2889,7 +2889,7 @@ body{position:relative;}
       </div>
       <div class="pk-action-row" id="pk-action-row" style="display:none;">
         <button class="pk-action fold"  onclick="pkPlayerAction('fold')">FOLD</button>
-        <button class="pk-action check" onclick="pkPlayerAction('check')">CHECK</button>
+        <button class="pk-action check" onclick="pkPlayerAction('call')">CALL €<span id="pk-call-amt">2</span></button>
         <button class="pk-action raise" onclick="pkPlayerAction('raise')">RAISE +€<span id="pk-raise-amt">5</span></button>
       </div>
       <button class="action-btn gold" id="pk-again" style="display:none;width:100%;padding:14px;font-family:'Russo One',sans-serif;font-size:14px;letter-spacing:2px;margin-top:6px;" onclick="pkReset()">↻ PLAY AGAIN</button>
@@ -3645,8 +3645,24 @@ function bjDeal(){
   BJ.dealer=[BJ.deck.pop(),BJ.deck.pop()];
   BJ.activeHand=0;BJ.active=true;BJ.bet=bet;
   placeBet(bet,'bj');
+  // Check if dealer has natural blackjack (industry rule: if dealer upcard is A or 10-value,
+  // dealer "peeks" at hole card; if BJ, game ends immediately before player decisions)
+  var dealerBJ = (handVal(BJ.dealer) === 21);
+  BJ.dealerBlackjack = dealerBJ;
+  var playerBJ = (handVal(BJ.hands[0].cards) === 21);
+  if(playerBJ) BJ.hands[0].blackjack = true;
   bjRenderHands(true);
-  if(handVal(BJ.hands[0].cards)===21){BJ.hands[0].blackjack=true;bjStand();return;}
+  if(dealerBJ){
+    // Dealer has natural BJ — reveal both hands, no player decisions
+    BJ.hands[0].done = true;
+    bjDealerPlay();
+    return;
+  }
+  if(playerBJ){
+    // Player BJ without dealer BJ — immediate 3:2 win
+    bjStand();
+    return;
+  }
   setBJActions('play');
 }
 function bjHit(){
@@ -3693,32 +3709,52 @@ function bjNextHand(){
   bjDealerPlay();
 }
 function bjDealerPlay(){
-  var anyAlive=BJ.hands.some(function(h){return !h.bust;});
-  if(anyAlive){
-    while(handVal(BJ.dealer)<17)BJ.dealer.push(BJ.deck.pop());
+  // If dealer doesn't already have natural BJ, dealer draws normally
+  if(!BJ.dealerBlackjack){
+    var anyAlive=BJ.hands.some(function(h){return !h.bust;});
+    if(anyAlive){
+      while(handVal(BJ.dealer)<17)BJ.dealer.push(BJ.deck.pop());
+    }
   }
   var d=handVal(BJ.dealer),dBust=d>21;
   var totalWin=0,wins=0,losses=0,pushes=0;
   BJ.hands.forEach(function(h){
     if(h.bust){losses++;return;}
     var p=handVal(h.cards);
-    if(h.blackjack&&BJ.hands.length===1){
-      h.won=true;wins++;totalWin+=h.bet*2.5;
-    }else if(dBust||p>d){
-      h.won=true;wins++;totalWin+=h.bet*2;
-    }else if(p===d){
-      pushes++;totalWin+=h.bet;
-    }else{losses++;}
+    // CASE 1: Both have natural BJ → PUSH (bug was paying 2.5x here)
+    if(h.blackjack && BJ.dealerBlackjack){ pushes++; totalWin += h.bet; return; }
+    // CASE 2: Player natural BJ, dealer no BJ → 3:2 win (single hand only)
+    if(h.blackjack && BJ.hands.length === 1){
+      h.won=true; wins++; totalWin += h.bet * 2.5; return;
+    }
+    // CASE 3: Normal compare (includes dealer natural BJ beating player)
+    if(dBust || p > d){
+      h.won=true; wins++; totalWin += h.bet * 2;
+    } else if(p === d){
+      pushes++; totalWin += h.bet;
+    } else {
+      losses++;
+    }
   });
   BJ.active=false;
   bjRenderHands(false);
-  if(totalWin>0){
-    winBet(totalWin,'bj');
-    var msg=wins>0?'🎉 Won €'+totalWin.toFixed(2):'🤝 Push';
-    toast(msg,wins>0?'ok':'warn');
-  }else{
-    loseBet(BJ.hands.reduce(function(a,h){return a+h.bet;},0),'bj');
-    toast('Dealer wins',  'err');
+  var totalBet = BJ.hands.reduce(function(a,h){return a+h.bet;},0);
+  if(totalWin > totalBet){
+    winBet(totalWin, 'bj');
+    var profit = totalWin - totalBet;
+    toast('🎉 Won €' + profit.toFixed(2), 'ok');
+  } else if(totalWin === totalBet){
+    // Pure push - refund without counting win/loss
+    var refundBtc = eurToBtc(totalBet);
+    S.btc += refundBtc;
+    refresh();
+    syncBalance(refundBtc, 0, false, false, 'bj_refund');
+    toast('🤝 Push — €' + totalBet.toFixed(2) + ' returned', 'warn');
+  } else if(totalWin > 0){
+    winBet(totalWin, 'bj');
+  } else {
+    loseBet(totalBet, 'bj');
+    toast(BJ.dealerBlackjack ? '⚫ Dealer Blackjack' : 'Dealer wins', 'err');
   }
   setBJActions('done');
 }
@@ -5193,14 +5229,16 @@ if(document.readyState==='loading'){
 // TEXAS HOLD'EM HEADS-UP ENGINE
 // ===========================================
 var PK = {
-  phase: 'idle',      // 'idle','hole','flop','turn','river','showdown'
+  // Casino Hold\'em: phase progression is idle -> dealing -> flop -> turn -> river -> showdown
+  phase: 'idle',
   ante: 0,            // initial bet
-  totalBet: 0,        // total committed so far (ante + raises)
+  play: 0,            // play bet (2x ante) made on CALL after flop
+  totalBet: 0,        // ante + play
   player: [],         // 2 hole cards
   dealer: [],         // 2 dealer cards
-  community: [],      // 5 community cards (some hidden)
-  revealedCommunity: 0, // how many community cards are revealed
-  result: null,
+  community: [],      // 5 community cards
+  revealedCommunity: 0,
+  result: null
 };
 
 var PK_RANK_NAMES = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
@@ -5214,23 +5252,27 @@ var PK_HAND_NAMES = [
   'High Card','Pair','Two Pair','Three of a Kind','Straight',
   'Flush','Full House','Four of a Kind','Straight Flush','Royal Flush'
 ];
-// Bonus multiplier on win, applied to total bet (besides 2x base payout)
-// Final payout = totalBet * (2 + bonus). 0 bonus = even money.
-// Bonuses on top of base payout. Combined with base 1.85x (15% house edge).
-var PK_BONUS_MULTI = {
-  9: 10,    // Royal Flush
-  8:  5,    // Straight Flush
-  7:  2.5,  // Four of a Kind
-  6:  1,    // Full House
-  5:  0.5,  // Flush
-  4:  0.25, // Straight
-  3:  0.1,  // Three of a Kind
-  2:  0.05, // Two Pair
-  1:  0,    // Pair
-  0:  0,    // High Card
+
+// Casino Hold'em ante paytable (multiplier on ante when player wins)
+var PK_ANTE_PAYTABLE = {
+  9: 100,   // Royal Flush
+  8: 20,    // Straight Flush
+  7: 10,    // Four of Kind
+  6: 3,     // Full House
+  5: 2,     // Flush
+  4: 1,     // Straight
+  3: 1,     // Three of Kind
+  2: 1,     // Two Pair
+  1: 1,     // Pair
+  0: 1      // High Card
 };
-// Base payout multiplier on win. Below 2 = house edge baked into every win.
-var PK_BASE_PAYOUT = 1.85;
+
+// Dealer qualifies with at least Pair of 4s (rank=1 with kickers[0] >= 2)
+function pkDealerQualifies(hand){
+  if(hand.rank >= 2) return true;
+  if(hand.rank === 1) return hand.kickers[0] >= 2;
+  return false;
+}
 
 function pkBuildDeck(){
   var d=[];
@@ -5382,7 +5424,7 @@ function pkRender(){
   // Phase badge
   var pbadge=document.getElementById('pk-phase-badge');
   if(pbadge){
-    var labels={'idle':'WAITING','hole':'PRE-FLOP','flop':'FLOP','turn':'TURN','river':'RIVER','showdown':'SHOWDOWN'};
+    var labels={'idle':'WAITING','dealing':'DEALING','flop':'FLOP','turn':'TURN','river':'RIVER','showdown':'SHOWDOWN'};
     pbadge.textContent=labels[PK.phase]||PK.phase.toUpperCase();
   }
   var bbadge=document.getElementById('pk-bet-info');
@@ -5417,8 +5459,9 @@ function pkUpdateLabels(){
 // ===== Game flow =====
 function pkStart(eur){
   if(PK.phase!=='idle')return;
-  if(!hasFunds(eur)){toast('Saldo insufficiente','err');return;}
+  if(!hasFunds(eur)){toast('Insufficient balance','err');return;}
   PK.ante=eur;
+  PK.play=0;
   PK.totalBet=eur;
   if(!placeBet(eur,'poker')){return;}
   var deck=pkBuildDeck();
@@ -5427,9 +5470,9 @@ function pkStart(eur){
   PK.community=[deck.pop(),deck.pop(),deck.pop(),deck.pop(),deck.pop()];
   PK.revealedCommunity=0;
   PK.result=null;
-  PK.phase='hole';
+  PK.phase='dealing';
   pkRender();
-  // Dealing animation - add 'dealing' class to player + dealer cards
+  // Dealing animation
   setTimeout(function(){
     var cards=document.querySelectorAll('#pk-player-cards .pk-card, #pk-dealer-cards .pk-card');
     cards.forEach(function(c,i){
@@ -5438,27 +5481,54 @@ function pkStart(eur){
     });
   },10);
   pkUpdateButtons();
-  document.getElementById('pk-status').textContent='Hole cards. Your move:';
+  document.getElementById('pk-status').textContent='Dealing flop...';
+  // Auto-reveal flop after deal animation
+  setTimeout(function(){
+    PK.phase='flop';
+    pkAnimateReveal(0,3,function(){
+      PK.revealedCommunity=3;
+      pkRender();
+      pkUpdateButtons();
+      document.getElementById('pk-status').textContent =
+        'CALL €' + (PK.ante*2) + ' to see turn + river, or FOLD';
+    });
+  },900);
 }
 
 function pkPlayerAction(action){
   if(action==='fold'){
-    // Lose totalBet (already committed). End game.
+    // Fold: lose only the ante (already committed)
     PK.phase='showdown';
     PK.result={winner:'dealer',reason:'fold',playerHand:null,dealerHand:null,payout:0};
     pkShowFold();
     return;
   }
-  if(action==='check'){
-    pkAdvance();
-    return;
-  }
-  if(action==='raise'){
-    // Raise = +1x ante
-    if(!hasFunds(PK.ante)){toast('Insufficient funds for raise','err');return;}
-    PK.totalBet+=PK.ante;
-    placeBet(PK.ante,'poker');
-    pkAdvance();
+  if(action==='call'){
+    // Call: place Play bet = 2x ante, auto-reveal turn + river, go to showdown
+    var playBet = PK.ante * 2;
+    if(!hasFunds(playBet)){toast('Insufficient for CALL','err');return;}
+    PK.play = playBet;
+    PK.totalBet = PK.ante + PK.play;
+    placeBet(playBet,'poker');
+    pkUpdateButtons();
+    document.getElementById('pk-status').textContent='Revealing turn...';
+    PK.phase='turn';
+    pkAnimateReveal(3,4,function(){
+      PK.revealedCommunity=4;
+      pkRender();
+      setTimeout(function(){
+        document.getElementById('pk-status').textContent='Revealing river...';
+        PK.phase='river';
+        pkAnimateReveal(4,5,function(){
+          PK.revealedCommunity=5;
+          pkRender();
+          setTimeout(function(){
+            PK.phase='showdown';
+            pkShowdown();
+          },700);
+        });
+      },800);
+    });
     return;
   }
 }
@@ -5514,10 +5584,9 @@ function pkAnimateReveal(fromIdx, toIdx, cb){
 }
 
 function pkShowdown(){
-  // Reveal all dealer cards
   PK.revealedCommunity=5;
   pkRender();
-  // Trigger flip animation on dealer cards
+  // Flip dealer cards
   setTimeout(function(){
     var dc=document.querySelectorAll('#pk-dealer-cards .pk-card');
     dc.forEach(function(c,i){
@@ -5525,38 +5594,57 @@ function pkShowdown(){
       c.style.animationDelay=(i*0.15)+'s';
     });
   },10);
-  // Compute hands
+  // Compute hands and payout
   setTimeout(function(){
-    var pHand=pkBestHand(PK.player.concat(PK.community));
-    var dHand=pkBestHand(PK.dealer.concat(PK.community));
-    var cmp=pkCompare(pHand,dHand);
-    var winner, payout=0;
-    if(cmp>0){
-      winner='player';
-      // Payout: refund of totalBet + win amount based on (base + bonus)
-      // Base 1.85x = 15% house edge on every win
-      var bonus=PK_BONUS_MULTI[pHand.rank]||0;
-      var multi = (PK_BASE_PAYOUT - 1) + bonus; // 0.85 + bonus
-      payout=PK.totalBet+PK.totalBet*multi;
-      winBet(payout,'poker');
-    }else if(cmp<0){
-      winner='dealer';
-      payout=0;
-      loseBet(PK.totalBet,'poker');
-    }else{
-      winner='push';
-      // True push: refund all bets, DO NOT count as win or loss
-      payout=PK.totalBet;
-      var refundBtc = eurToBtc(payout);
+    var pHand = pkBestHand(PK.player.concat(PK.community));
+    var dHand = pkBestHand(PK.dealer.concat(PK.community));
+    var cmp = pkCompare(pHand, dHand);
+    var qual = pkDealerQualifies(dHand);
+    var result = { playerHand: pHand, dealerHand: dHand, dealerQual: qual };
+
+    if(cmp > 0){
+      // PLAYER WINS
+      var antePayMulti = PK_ANTE_PAYTABLE[pHand.rank] || 1;
+      var anteWinnings = PK.ante * antePayMulti;   // pure profit on ante
+      if(!qual){
+        // Dealer doesn't qualify -> Play pushes back, Ante pays per table
+        var totalReturn = PK.ante + anteWinnings + PK.play;
+        winBet(totalReturn, 'poker');
+        result.winner = 'player';
+        result.payout = totalReturn;
+        result.anteWinnings = anteWinnings;
+        result.playWinnings = 0;
+        result.antePayMulti = antePayMulti;
+        result.playPushed = true;
+      } else {
+        // Dealer qualifies + player wins -> Ante per table + Play 1:1
+        var totalReturn = PK.ante + anteWinnings + PK.play + PK.play;
+        winBet(totalReturn, 'poker');
+        result.winner = 'player';
+        result.payout = totalReturn;
+        result.anteWinnings = anteWinnings;
+        result.playWinnings = PK.play;
+        result.antePayMulti = antePayMulti;
+        result.playPushed = false;
+      }
+    } else if(cmp < 0){
+      // DEALER WINS - both bets lost
+      result.winner = 'dealer';
+      result.reason = 'beat';
+      result.payout = 0;
+      loseBet(PK.totalBet, 'poker');
+    } else {
+      // PUSH - refund all
+      result.winner = 'push';
+      result.payout = PK.totalBet;
+      var refundBtc = eurToBtc(PK.totalBet);
       S.btc += refundBtc;
       refresh();
-      // Sync to backend without won/lost flags. Game name "pk_refund" avoids
-      // matching "poker" in backend's _update_week_stats — so no pk_wins inc.
       syncBalance(refundBtc, 0, false, false, 'pk_refund');
     }
-    PK.result={winner:winner,playerHand:pHand,dealerHand:dHand,payout:payout};
+    PK.result = result;
     pkShowResult();
-  },1000);
+  }, 1000);
 }
 
 function pkShowResult(){
@@ -5569,30 +5657,42 @@ function pkShowResult(){
   var resultText='';
   var subText='';
   var payText='';
+  var extraText='';
   if(res.winner==='player'){
     ov.classList.add('win');
     resultText='\uD83C\uDFC6 YOU WIN!';
-    subText='With '+PK_HAND_NAMES[pHand.rank];
-    var net=res.payout-PK.totalBet;
-    payText='+\u20ac'+net.toFixed(2);
-    // Highlight winning cards
+    var handName = PK_HAND_NAMES[pHand.rank];
+    subText = 'You: ' + handName +
+              (res.dealerHand ? ' \u2022 Dealer: ' + PK_HAND_NAMES[res.dealerHand.rank] : '');
+    if(res.playPushed){
+      extraText = 'Dealer didn\'t qualify \u2014 Play returned';
+    } else if(res.antePayMulti > 1){
+      extraText = 'Ante pays ' + res.antePayMulti + ':1 \u2022 Play pays 1:1';
+    }
+    var net = res.payout - PK.totalBet;
+    payText = '+\u20ac' + net.toFixed(2);
     pkHighlightWinningCards(pHand);
-    // Confetti if big win
-    if(pHand.rank>=4)pkConfetti();
-  }else if(res.winner==='dealer'){
+    if(pHand.rank >= 4) pkConfetti();
+  } else if(res.winner==='dealer'){
     ov.classList.add('lose');
-    resultText='DEALER WINS';
-    subText='You: '+PK_HAND_NAMES[pHand.rank]+' \u2022 Dealer: '+PK_HAND_NAMES[res.dealerHand.rank];
-    payText='-\u20ac'+PK.totalBet.toFixed(2);
-  }else{
+    if(res.reason==='fold'){
+      resultText='YOU FOLDED';
+      subText='Ante lost: \u20ac' + PK.ante.toFixed(2);
+    } else {
+      resultText='DEALER WINS';
+      subText='You: ' + PK_HAND_NAMES[pHand.rank] + ' \u2022 Dealer: ' + PK_HAND_NAMES[res.dealerHand.rank];
+    }
+    payText = '-\u20ac' + PK.totalBet.toFixed(2);
+  } else {
     ov.classList.add('push');
     resultText='PUSH';
-    subText='Both: '+PK_HAND_NAMES[pHand.rank];
-    payText='\u20ac'+PK.totalBet.toFixed(2)+' refunded';
+    subText='Both: ' + PK_HAND_NAMES[pHand.rank];
+    payText='\u20ac' + PK.totalBet.toFixed(2) + ' refunded';
   }
-  ov.innerHTML='<div class="pk-result">'+resultText+'</div>'+
-               '<div class="pk-hand-info">'+subText+'</div>'+
-               '<div class="pk-payout">'+payText+'</div>';
+  ov.innerHTML = '<div class="pk-result">'+resultText+'</div>' +
+                 '<div class="pk-hand-info">'+subText+'</div>' +
+                 (extraText ? '<div class="pk-hand-info" style="opacity:.7;font-size:11px;margin-top:2px;">'+extraText+'</div>' : '') +
+                 '<div class="pk-payout">'+payText+'</div>';
   ov.classList.add('visible');
   pkUpdateButtons();
 }
@@ -5646,6 +5746,7 @@ function pkConfetti(){
 function pkReset(){
   PK.phase='idle';
   PK.ante=0;
+  PK.play=0;
   PK.totalBet=0;
   PK.player=[];
   PK.dealer=[];
@@ -5670,10 +5771,16 @@ function pkUpdateButtons(){
     if(betRow)betRow.style.display='none';
     if(actionRow)actionRow.style.display='none';
     if(againBtn)againBtn.style.display='';
-  }else{
+  }else if(PK.phase==='flop'){
+    // Only at flop the player can decide CALL or FOLD
     if(betRow)betRow.style.display='none';
     if(actionRow)actionRow.style.display='';
-    var ra=document.getElementById('pk-raise-amt');if(ra)ra.textContent=PK.ante;
+    var ra=document.getElementById('pk-call-amt');if(ra)ra.textContent=PK.ante*2;
+    if(againBtn)againBtn.style.display='none';
+  }else{
+    // turn/river/dealing - all hidden (auto-progress)
+    if(betRow)betRow.style.display='none';
+    if(actionRow)actionRow.style.display='none';
     if(againBtn)againBtn.style.display='none';
   }
 }
