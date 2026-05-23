@@ -7136,7 +7136,7 @@ body{position:relative;}
       <div class="slv2-bw-content">
         <div class="slv2-overlay-crest" aria-hidden="true"></div>
         <div class="slv2-bw-title">✨ BONUS WHEEL ✨</div>
-        <div class="slv2-bw-subtitle">Spin to win up to <strong>500×</strong> your bet!</div>
+        <div class="slv2-bw-subtitle" id="slv2-bw-subtitle">Spin to win!</div>
         <div class="slv2-bw-stage">
           <div class="slv2-bw-pointer">▼</div>
           <svg class="slv2-bw-svg" id="slv2-bw-svg" viewBox="0 0 300 300"></svg>
@@ -8584,15 +8584,104 @@ var SL2_REEL = [
   'btc'
 ];  // total: 30 symbols per reel
 // Payouts (multiplier on per-line bet) — 5-of-a-kind, 4-of-a-kind, 3-of-a-kind
-// BALANCE: gblogo (Gambler Bot brand symbol) is the premium-mid tier and pays
-// MORE than gem at every level — the brand mark deserves higher prize than a
-// generic gem stone. (Was the other way around in the original draft.)
-var SL2_PAY_5 = {'btc':5000,'gblogo':1000,'gem':800,'seven':500,'bell':200,'bolt':100,'star':50,'spade':20};
-var SL2_PAY_4 = {'btc':500, 'gblogo':150, 'gem':120,'seven':75, 'bell':40, 'bolt':20, 'star':10,'spade':4};
-var SL2_PAY_3 = {'btc':60,  'gblogo':30,  'gem':25, 'seven':16, 'bell':10, 'bolt':6,  'star':3, 'spade':1};
-// Scatter payouts (bot anywhere on grid)
-var SL2_SCATTER_PAY = {3:5, 4:25, 5:100};        // bet multiplier
-var SL2_SCATTER_FS  = {3:8, 4:12, 5:18};         // free spins triggered (was 10/15/25 — reduced for balance)
+// ─── BALANCE PASS 2 (post-user-test rebalance) ──────────────────────
+// Previous paytable allowed a tester to grow €10 bets into €10k in one day
+// of play — RTP was way too high (~110%). The user explicitly requested
+// the game be centered on the WHEEL SCATTER, with paylines giving only
+// modest wins. Paytable cut ~50% across the board; the wheel is now the
+// real value driver (bet-tier-balanced — see SL2_WHEEL_TIERS below).
+//
+// New "ceiling" for a base-game win on €10 bet (€1/line, 10 lines):
+//   5 wilds across one payline = €25000  (was €50000)
+//   3-of-a-kind low symbols    = few € per line (was €10s)
+var SL2_PAY_5 = {'btc':2500,'gblogo':500,'gem':400,'seven':250,'bell':100,'bolt':50, 'star':25, 'spade':10 };
+var SL2_PAY_4 = {'btc':250, 'gblogo':75, 'gem':60, 'seven':37, 'bell':20, 'bolt':10, 'star':5,  'spade':2  };
+var SL2_PAY_3 = {'btc':30,  'gblogo':15, 'gem':12, 'seven':8,  'bell':5,  'bolt':3,  'star':1.5,'spade':0.5};
+// Scatter (bot symbol anywhere on grid) — also trimmed. Wheel scatter is the
+// main bonus driver; bot scatter is just an FS bumper.
+var SL2_SCATTER_PAY = {3:2, 4:8, 5:40};         // bet multiplier (was 5/25/100)
+var SL2_SCATTER_FS  = {3:5, 4:8, 5:12};         // free spins triggered (was 8/12/18)
+
+// ─── BET-TIERED WHEEL CONFIGS ──────────────────────────────────────
+// Per user spec: "la wheel a seconda della puntata dovrebbe avere
+// moltiplicatori diversi, e % di beccare punti alti diverse" — the wheel
+// segments + probabilities scale with the player's current bet.
+//
+//   • LOW tier  (bet ≤ €2):    safe, low-volatility wheel
+//                              max payout 15×, no jackpot
+//   • MID tier  (€2 < bet ≤ €25): balanced
+//                              max 30× + tiny jackpot chance
+//   • HIGH tier (bet > €25):   high variance, real chance of huge hits
+//                              max 200× + meaningful jackpot weight
+//
+// This way a low-stake casual player gets steady small thrills, while
+// a high-roller takes on real risk for real reward. Slot RTP target ≈ 92%.
+var SL2_WHEEL_TIERS = {
+  LOW: {
+    label: 'LOW',
+    // Avg payout ~5× — bulk of segments in 2-6× range, max 15×
+    segments: [
+      { type:'cash',    value:3,   weight:18, color:'#5fc7ff', label:'3×'     },
+      { type:'cash',    value:4,   weight:16, color:'#5fc7ff', label:'4×'     },
+      { type:'cash',    value:2,   weight:14, color:'#5fc7ff', label:'2×'     },
+      { type:'cash',    value:5,   weight:12, color:'#7dd3fc', label:'5×'     },
+      { type:'cash',    value:6,   weight:9,  color:'#7dd3fc', label:'6×'     },
+      { type:'cash',    value:3,   weight:9,  color:'#5fc7ff', label:'3×'     },
+      { type:'fs',      value:8,   weight:6,  color:'#39ff14', label:'8 FS'   },
+      { type:'chest',              weight:5,  color:'#a855f7', label:'🔑'      },
+      { type:'cash',    value:8,   weight:4,  color:'#7dd3fc', label:'8×'     },
+      { type:'mystery',            weight:4,  color:'#e879f9', label:'?'      },
+      { type:'cash',    value:10,  weight:2,  color:'#ff8844', label:'10×'    },
+      { type:'cash',    value:15,  weight:1,  color:'#ffd700', label:'15×'    }
+    ]
+  },
+  MID: {
+    label: 'MID',
+    // Avg payout ~6× — slightly higher variance, max 30× + jackpot
+    segments: [
+      { type:'cash',    value:3,   weight:16, color:'#5fc7ff', label:'3×'     },
+      { type:'cash',    value:4,   weight:14, color:'#5fc7ff', label:'4×'     },
+      { type:'cash',    value:5,   weight:12, color:'#7dd3fc', label:'5×'     },
+      { type:'cash',    value:3,   weight:11, color:'#5fc7ff', label:'3×'     },
+      { type:'cash',    value:6,   weight:10, color:'#7dd3fc', label:'6×'     },
+      { type:'cash',    value:8,   weight:8,  color:'#7dd3fc', label:'8×'     },
+      { type:'fs',      value:10,  weight:6,  color:'#39ff14', label:'10 FS'  },
+      { type:'chest',              weight:6,  color:'#a855f7', label:'🔑'      },
+      { type:'cash',    value:12,  weight:5,  color:'#ff8844', label:'12×'    },
+      { type:'mystery',            weight:5,  color:'#e879f9', label:'?'      },
+      { type:'cash',    value:20,  weight:3,  color:'#ff8844', label:'20×'    },
+      { type:'cash',    value:30,  weight:1,  color:'#ffd700', label:'30×'    },
+      { type:'jackpot',            weight:0.05, color:'#ff2244', label:'JACKPOT' }
+    ]
+  },
+  HIGH: {
+    label: 'HIGH',
+    // Avg payout ~7× — long-tail high variance. Most spins are 3-8×, but
+    // rare 50/100/200× hits give the big-roller real upside. Max 200× + jackpot.
+    segments: [
+      { type:'cash',    value:3,   weight:16, color:'#5fc7ff', label:'3×'     },
+      { type:'cash',    value:4,   weight:14, color:'#5fc7ff', label:'4×'     },
+      { type:'cash',    value:5,   weight:12, color:'#7dd3fc', label:'5×'     },
+      { type:'cash',    value:6,   weight:10, color:'#7dd3fc', label:'6×'     },
+      { type:'cash',    value:8,   weight:9,  color:'#7dd3fc', label:'8×'     },
+      { type:'cash',    value:3,   weight:8,  color:'#5fc7ff', label:'3×'     },
+      { type:'cash',    value:12,  weight:7,  color:'#ff8844', label:'12×'    },
+      { type:'fs',      value:12,  weight:6,  color:'#39ff14', label:'12 FS'  },
+      { type:'chest',              weight:6,  color:'#a855f7', label:'🔑'      },
+      { type:'cash',    value:25,  weight:4,  color:'#ff8844', label:'25×'    },
+      { type:'mystery',            weight:5,  color:'#e879f9', label:'?'      },
+      { type:'cash',    value:50,  weight:2,  color:'#ffd700', label:'50×'    },
+      { type:'cash',    value:200, weight:0.3,color:'#ff2244', label:'200×'   },
+      { type:'jackpot',            weight:0.15, color:'#ff2244', label:'JACKPOT'}
+    ]
+  }
+};
+// Pick the wheel tier for the player's current bet
+function slv2WheelTierForBet(bet){
+  if(bet <= 2)       return 'LOW';
+  else if(bet <= 25) return 'MID';
+  else               return 'HIGH';
+}
 
 // 10 paylines (each is an array of row positions per column, 0=top 1=mid 2=bot)
 var SL2_LINES = [
@@ -8649,7 +8738,7 @@ var SL2 = {
   bonusActive: false,        // any bonus modal currently open
   // ---- TIMED RANDOM BONUS (Task 6) ----
   spinsSinceLastBonus: 0,
-  nextBonusAt: 35 + Math.floor(Math.random() * 36), // random 35..70 (wheel trigger)
+  nextBonusAt: 25 + Math.floor(Math.random() * 21), // random 25..45 (wheel trigger — more frequent for wheel-centric balance)
   // Sticky wilds (during FS): array of {reel, row} positions where wild is locked
   stickyWilds: [],
   // Wheel bonus config
@@ -10523,40 +10612,36 @@ function slv2ShowCelebration(ratio, winAmount, isScatter){
 // BONUS WHEEL mini-game
 // ================================================================
 function slv2BonusWheelBuild(){
-  // 12 segments — diversified prize types: cash, free spins, chest (vault), mystery
-  // Each segment carries {type, value?, weight, color, label} — weights drive RNG (house edge).
-  // BALANCE TUNED (post-removal of timed FS bonus): wheel is now the ONLY way to
-  // get bonus features, so it triggers more often via timer. Per-trigger payouts
-  // cut so RTP stays in the healthy 92-96% band.
-  // 12 segments — rebalanced per user spec:
-  //  • ONLY 1 FS segment (was 3 spread across the wheel)
-  //  • Many LOW cash multipliers (2×, 3×, 4×, 5×) — the bulk of wins
-  //  • Few higher prizes (one 10× and one 30× for occasional excitement)
-  //  • CHEST + MYSTERY kept for variety (chest opens vault, mystery 1-100×)
-  //  • NEW: JACKPOT segment — extremely rare (weight 0.05/103.05 = 0.05%)
-  //    triggers the cross-player progressive pool win via backend.
-  //  Simulated RTP ≈ 85% (after 1% jackpot rake); house edge ~15% which is
-  //  healthy for a Telegram crypto mini-app.
-  var segments = [
-    { type:'cash',    value:3,   weight:17, color:'#5fc7ff', label:'3×'    },
-    { type:'cash',    value:4,   weight:14, color:'#5fc7ff', label:'4×'    },
-    { type:'cash',    value:3,   weight:13, color:'#5fc7ff', label:'3×'    },
-    { type:'cash',    value:5,   weight:11, color:'#7dd3fc', label:'5×'    },
-    { type:'cash',    value:6,   weight:10, color:'#7dd3fc', label:'6×'    },
-    { type:'cash',    value:5,   weight:9,  color:'#7dd3fc', label:'5×'    },
-    { type:'cash',    value:10,  weight:7,  color:'#ff8844', label:'10×'   },
-    { type:'fs',      value:15,  weight:6,  color:'#39ff14', label:'15 FS' },
-    { type:'chest',              weight:8,  color:'#a855f7', label:'🔑'     },
-    { type:'cash',    value:30,  weight:3,  color:'#ffd700', label:'30×'   },
-    { type:'mystery',            weight:6,  color:'#e879f9', label:'?'     },
-    { type:'jackpot',            weight:0.05, color:'#ff2244', label:'JACKPOT' }
-  ];
+  // Wheel segments are pulled from SL2_WHEEL_TIERS based on the player's
+  // current bet. Lower bets → safer wheel with smaller multipliers; higher
+  // bets → big-variance wheel with rare huge payouts + jackpot weight.
+  // The tier is locked at trigger time and cached on SL2.bwTier so the
+  // result calc later uses the same set the player saw spinning.
+  var bet = SL2.bet || 1;
+  var tier = slv2WheelTierForBet(bet);
+  SL2.bwTier = tier;
+  // Deep-clone the tier segments so shuffling doesn't mutate the source
+  var segments = SL2_WHEEL_TIERS[tier].segments.map(function(s){
+    return {
+      type: s.type, value: s.value, weight: s.weight,
+      color: s.color, label: s.label
+    };
+  });
   // Shuffle so position is random per game
   for(var i = segments.length - 1; i > 0; i--){
     var j = Math.floor(Math.random() * (i + 1));
     var tmp = segments[i]; segments[i] = segments[j]; segments[j] = tmp;
   }
   SL2.bwSegments = segments;
+  // Update the subtitle to advertise the current tier's max payout
+  var subEl = document.getElementById('slv2-bw-subtitle');
+  if(subEl){
+    var tierMaxes = { LOW: '15×', MID: '30× + JP', HIGH: '200× + JP' };
+    var tierColor = { LOW: '#5fc7ff', MID: '#ff8844', HIGH: '#ffd700' };
+    subEl.innerHTML = '<span style="opacity:.85;">Bet </span><strong>\u20ac' + (SL2.bet || 1) +
+      '</strong><span style="opacity:.85;"> \u00b7 ' + tier + ' tier \u00b7 win up to </span><strong style="color:' +
+      tierColor[tier] + ';">' + tierMaxes[tier] + '</strong>';
+  }
 
   var svg = document.getElementById('slv2-bw-svg');
   if(!svg) return;
@@ -11026,20 +11111,25 @@ function slv2BonusWheelSpin(){
       }, 1500);
     }
     else if(seg.type === 'mystery'){
-      // Random multiplier 1-100×, heavily weighted toward low (random² × 100, capped)
+      // Random multiplier — capped by current wheel tier so low-stake players
+      // can't hit a 100× mystery on a €0.50 bet. Distribution stays heavily
+      // weighted toward the low end (random² × cap).
+      var tierCap = (SL2.bwTier === 'HIGH') ? 200 :
+                    (SL2.bwTier === 'MID')  ? 40  : 8;
       var r1 = Math.random(), r2 = Math.random();
-      var mystMulti = Math.max(1, Math.floor(r1 * r2 * 100));
+      var mystMulti = Math.max(1, Math.floor(r1 * r2 * tierCap));
       var mystAmount = SL2.bet * mystMulti;
       SL2.totalWonThisSession += mystAmount;
       winBet(mystAmount, 'slots');
       // Track for "Mystery Solver" weekly quest (every mystery landing counts)
       slv2SendSlotEvent('mystery_hit', { multi: mystMulti });
-      // Big-win quest tracking
-      if(mystMulti >= 50) slv2SendSlotEvent('big_win', { multi: mystMulti, source: 'wheel_mystery' });
+      // Big-win quest tracking (threshold scales with tier — 50× on HIGH, 20× on MID, 6× on LOW)
+      var bigThreshold = (SL2.bwTier === 'HIGH') ? 50 : (SL2.bwTier === 'MID') ? 20 : 6;
+      if(mystMulti >= bigThreshold) slv2SendSlotEvent('big_win', { multi: mystMulti, source: 'wheel_mystery' });
       if(result) result.textContent = 'MYSTERY: ' + mystMulti + '\u00d7 \u2192 +\u20ac' + mystAmount.toFixed(2);
-      if(mystMulti >= 50)      slv2Sound('mega-win');
-      else if(mystMulti >= 15) slv2Sound('big-win');
-      else                     slv2Sound('medium-win');
+      if(mystMulti >= bigThreshold)         slv2Sound('mega-win');
+      else if(mystMulti >= bigThreshold/2)  slv2Sound('big-win');
+      else                                  slv2Sound('medium-win');
       var lw2 = document.getElementById('slv2-last-win');
       if(lw2){ lw2.className = 'slv2-stat-val win'; lw2.textContent = '+\u20ac' + mystAmount.toFixed(2); }
       if(spinBtn) spinBtn.style.display = 'none';
@@ -11210,35 +11300,45 @@ function slv2VaultTrigger(){
   // Track for "Vault Cracker" weekly quest
   slv2SendSlotEvent('vault_open');
 
-  // === NEW MIXED VAULT POOL ===
+  // === NEW MIXED VAULT POOL — TIER-SCALED ===
   // 3 vaults, each pre-assigned a tier (HIGH / MID / LOW) — within each tier,
   // the prize is randomly typed: cash multiplier OR free spins.
-  // This makes the vault feel like a real "lucky pick" where you might find
-  // money OR free spins, not just multipliers.
-  // RTP-tuned: avg ~10× bet equivalent per vault pick.
+  // Prize values now scale by SL2.bwTier (the wheel-bet tier captured at
+  // trigger): so a €0.50 bet can't crack open a €30 vault.
   var prizes = [];
+  var bwTier = SL2.bwTier || slv2WheelTierForBet(SL2.bet || 1);
 
-  // HIGH-tier vault — exciting prize. 60% cash, 40% FS
+  // ── HIGH vault — exciting prize. 60% cash, 40% FS
   if(Math.random() < 0.60){
-    var hiCash = [15, 20, 25, 30][Math.floor(Math.random() * 4)];
-    prizes.push({type:'cash', value: hiCash});
+    var hiCashTable = (bwTier === 'HIGH') ? [25, 35, 50, 75] :
+                      (bwTier === 'MID')  ? [10, 15, 20, 30] :
+                                            [4,  6,  8,  12];
+    prizes.push({type:'cash', value: hiCashTable[Math.floor(Math.random() * 4)]});
   } else {
-    var hiFs = [8, 10, 12, 15][Math.floor(Math.random() * 4)];
-    prizes.push({type:'fs', value: hiFs});
+    var hiFsTable = (bwTier === 'HIGH') ? [10, 12, 15, 20] :
+                    (bwTier === 'MID')  ? [8,  10, 12, 15] :
+                                          [5,  6,  8,  10];
+    prizes.push({type:'fs', value: hiFsTable[Math.floor(Math.random() * 4)]});
   }
 
-  // MID-tier vault — decent prize. 60% cash, 40% FS
+  // ── MID vault — decent prize. 60% cash, 40% FS
   if(Math.random() < 0.60){
-    var midCash = [5, 7, 9, 12][Math.floor(Math.random() * 4)];
-    prizes.push({type:'cash', value: midCash});
+    var midCashTable = (bwTier === 'HIGH') ? [10, 15, 20, 25] :
+                       (bwTier === 'MID')  ? [4,  6,  9,  12] :
+                                             [2,  3,  4,  6];
+    prizes.push({type:'cash', value: midCashTable[Math.floor(Math.random() * 4)]});
   } else {
-    var midFs = [5, 6, 7, 8][Math.floor(Math.random() * 4)];
-    prizes.push({type:'fs', value: midFs});
+    var midFsTable = (bwTier === 'HIGH') ? [7,  9,  11, 13] :
+                     (bwTier === 'MID')  ? [5,  6,  7,  8]  :
+                                           [3,  4,  5,  6];
+    prizes.push({type:'fs', value: midFsTable[Math.floor(Math.random() * 4)]});
   }
 
-  // LOW-tier vault — small consolation cash only
-  var lowCash = [1, 2, 3, 5][Math.floor(Math.random() * 4)];
-  prizes.push({type:'cash', value: lowCash});
+  // ── LOW vault — small consolation cash only
+  var lowCashTable = (bwTier === 'HIGH') ? [3, 5, 7, 10] :
+                     (bwTier === 'MID')  ? [1, 2, 3, 5]  :
+                                           [0.5, 1, 1.5, 2];
+  prizes.push({type:'cash', value: lowCashTable[Math.floor(Math.random() * 4)]});
 
   // Shuffle positions so user doesn't know which is which
   for(var i = prizes.length - 1; i > 0; i--){
@@ -11451,7 +11551,7 @@ function slv2MaybeTriggerBonus(spinHadWin){
 // Reset counter + re-randomize next wheel trigger threshold (35..70 spins)
 function slv2ResetBonusCounter(){
   SL2.spinsSinceLastBonus = 0;
-  SL2.nextBonusAt = 35 + Math.floor(Math.random() * 36); // 35..70 inclusive
+  SL2.nextBonusAt = 25 + Math.floor(Math.random() * 21); // 25..45 inclusive
 }
 
 // ===== "FAKE SCATTER REVEAL" — timed wheel trigger spectacle =====
