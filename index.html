@@ -4533,36 +4533,96 @@ body{position:relative;}
    SLOT V3 - Per-symbol custom animations
    ================================================================ */
 
-/* ---- GBLOGO code-id — now renders as ₿ (regular premium paying symbol after swap) ---- */
+/* Paytable BTC coin — gentle 2D wobble (lighter than the full reel 3D spin) */
+@keyframes slv2PtBtcSpin{
+  0%   { transform: perspective(220px) rotateY(-25deg); }
+  50%  { transform: perspective(220px) rotateY( 25deg); }
+  100% { transform: perspective(220px) rotateY(-25deg); }
+}
+
+/* ---- GBLOGO code-id — now a 3D Bitcoin coin (regular premium paying after swap) ---- */
 .slv2-sym.sym-gblogo{
-  font-size: 34px;
-  color: #ffd700;
-  text-shadow:
-    0 0 8px rgba(255,215,0,.55),
-    0 0 16px rgba(255,170,0,.35),
-    0 1px 2px rgba(0,0,0,.85);
-  font-weight: 900;
+  font-size: 0;            /* hide any text fallback — coin is rendered via spans */
   position:relative;
+  display:flex;
+  align-items:center;
+  justify-content:center;
 }
-.slv2-sym-active.sym-gblogo{
-  animation:slv2GbIdle 4s ease-in-out infinite;
+/* 3D coin container — perspective + preserve-3d so children rotate in real space */
+.slv2-btc-coin{
+  position:relative;
+  display:inline-block;
+  width:46px;
+  height:46px;
+  transform-style:preserve-3d;
+  /* Idle: gentle continuous Y-axis rotation */
+  animation: slv2BtcCoinSpin 5s linear infinite;
+  /* Soft drop-shadow below the coin */
+  filter:
+    drop-shadow(0 3px 6px rgba(0,0,0,.55))
+    drop-shadow(0 0 8px rgba(255,170,0,.35));
 }
-@keyframes slv2GbIdle{
-  0%,100%{text-shadow: 0 0 6px rgba(255,215,0,.45), 0 0 14px rgba(255,170,0,.25), 0 1px 2px rgba(0,0,0,.85);}
-  50%    {text-shadow: 0 0 12px rgba(255,215,0,.75), 0 0 22px rgba(255,170,0,.45), 0 1px 2px rgba(0,0,0,.85);}
+/* Two coin faces — each shows the same SVG. backface-visibility:hidden
+   means the back face is invisible when facing away (and vice-versa), so
+   the coin appears to flip front→edge→back→edge→front continuously. */
+.slv2-btc-face{
+  position:absolute;
+  inset:0;
+  background-image: var(--btc-coin-img);
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  backface-visibility:hidden;
+  -webkit-backface-visibility:hidden;
 }
-.slv2-sym.sym-gblogo.winning{
-  animation:slv2GbWin 0.7s ease-in-out infinite alternate !important;
+.slv2-btc-face.back{
+  transform: rotateY(180deg);
 }
-@keyframes slv2GbWin{
-  0%   { transform:scale(1);    filter:drop-shadow(0 0 6px rgba(57,255,20,.8)) drop-shadow(0 0 12px rgba(57,255,20,.4)); }
-  100% {
-    transform:scale(1.30);
+@keyframes slv2BtcCoinSpin{
+  0%   { transform: perspective(380px) rotateY(0deg)   rotateX(8deg); }
+  100% { transform: perspective(380px) rotateY(360deg) rotateX(8deg); }
+}
+/* When the cell is on the visible window, give the spin a stronger
+   "edge-on shimmer" feel by adding a subtle scale pulse */
+.slv2-sym-active.sym-gblogo .slv2-btc-coin{
+  animation: slv2BtcCoinSpinActive 4.5s linear infinite,
+             slv2BtcCoinGlow      2.4s ease-in-out infinite;
+}
+@keyframes slv2BtcCoinSpinActive{
+  0%   { transform: perspective(380px) rotateY(0deg)   rotateX(10deg); }
+  100% { transform: perspective(380px) rotateY(360deg) rotateX(10deg); }
+}
+@keyframes slv2BtcCoinGlow{
+  0%,100%{
     filter:
-      brightness(1.25)
-      drop-shadow(0 0 14px rgba(57,255,20,1))
-      drop-shadow(0 0 28px rgba(255,215,0,.7))
-      drop-shadow(0 0 44px rgba(57,255,20,.5));
+      drop-shadow(0 3px 6px rgba(0,0,0,.55))
+      drop-shadow(0 0  8px rgba(255,170,0,.35));
+  }
+  50%{
+    filter:
+      drop-shadow(0 4px 10px rgba(0,0,0,.55))
+      drop-shadow(0 0 18px rgba(255,200,40,.65))
+      drop-shadow(0 0 28px rgba(255,140,0,.35));
+  }
+}
+/* Win state — much faster spin + bright glow */
+.slv2-sym.sym-gblogo.winning .slv2-btc-coin{
+  animation: slv2BtcCoinWinSpin 0.6s linear infinite,
+             slv2BtcCoinWinGlow 0.7s ease-in-out infinite alternate !important;
+}
+@keyframes slv2BtcCoinWinSpin{
+  0%   { transform: perspective(380px) rotateY(0deg)   rotateX(12deg) scale(1.05); }
+  100% { transform: perspective(380px) rotateY(360deg) rotateX(12deg) scale(1.05); }
+}
+@keyframes slv2BtcCoinWinGlow{
+  0%  { filter: drop-shadow(0 0 10px rgba(255,215,0,.7))   drop-shadow(0 0 18px rgba(57,255,20,.3)); }
+  100%{ filter: brightness(1.25) drop-shadow(0 0 22px rgba(255,215,0,1)) drop-shadow(0 0 36px rgba(255,170,0,.7)) drop-shadow(0 0 48px rgba(57,255,20,.4)); }
+}
+/* Reduce-motion friendly: pause the spin to avoid vestibular discomfort */
+@media (prefers-reduced-motion: reduce){
+  .slv2-btc-coin,
+  .slv2-sym-active.sym-gblogo .slv2-btc-coin{
+    animation: slv2BtcCoinGlow 3s ease-in-out infinite !important;
   }
 }
 .slv2-sym.sym-gblogo.dropping-in{
@@ -4795,37 +4855,105 @@ body{position:relative;}
    triggering the BONUS WHEEL feature. Reels 3 and 4 still spinning get
    this golden suspense glow. */
 .slv2-reel-strip.wheel-anticipating{
-  animation: slv2WheelAnticipate 0.5s ease-in-out infinite !important;
-  filter: blur(2px) brightness(1.25) !important;
+  animation: slv2WheelAnticipate 0.35s ease-in-out infinite !important;
+  filter: blur(1.8px) brightness(1.35) !important;
 }
 @keyframes slv2WheelAnticipate{
-  0%,100%{ filter: blur(2px) brightness(1.25) drop-shadow(0 0 8px rgba(255,215,0,.7)); }
-  50%    { filter: blur(2.5px) brightness(1.6) drop-shadow(0 0 18px rgba(255,215,0,1)) drop-shadow(0 0 28px rgba(57,255,20,.5)); }
+  0%,100%{ filter: blur(1.8px) brightness(1.3)  drop-shadow(0 0 10px rgba(255,215,0,.8)); }
+  50%    { filter: blur(2.2px) brightness(1.75) drop-shadow(0 0 24px rgba(255,215,0,1)) drop-shadow(0 0 36px rgba(57,255,20,.6)) drop-shadow(0 0 52px rgba(168,85,247,.4)); }
 }
 .slv2-reel-col.wheel-anticipating-col{
-  animation: slv2WheelAnticipateCol 0.45s ease-in-out infinite alternate;
+  animation: slv2WheelAnticipateCol 0.42s ease-in-out infinite alternate;
   position: relative;
   z-index: 2;
 }
 @keyframes slv2WheelAnticipateCol{
-  from{ box-shadow: inset 0 0 16px rgba(255,215,0,.5), 0 0 14px rgba(255,215,0,.4); }
-  to  { box-shadow: inset 0 0 32px rgba(255,215,0,.95), 0 0 28px rgba(255,215,0,.8), 0 0 50px rgba(57,255,20,.5); }
+  from{ box-shadow: inset 0 0 18px rgba(255,215,0,.55), 0 0 18px rgba(255,215,0,.5); }
+  to  { box-shadow: inset 0 0 40px rgba(255,215,0,1), 0 0 38px rgba(255,215,0,.9), 0 0 64px rgba(57,255,20,.6), 0 0 92px rgba(168,85,247,.35); }
 }
-/* Whole cabinet pulses with anticipation glow when wheel suspense is on */
+
+/* CABINET: enhanced multi-layer suspense — halo + vignette + sweep. */
 .slv2-cabinet.wheel-suspense{
-  animation: slv2CabinetSuspense 0.7s ease-in-out infinite alternate;
+  animation: slv2CabinetSuspense 0.55s ease-in-out infinite alternate;
+  position: relative;
 }
 @keyframes slv2CabinetSuspense{
-  from{ box-shadow: 0 4px 16px rgba(0,0,0,.6), 0 0 24px rgba(255,215,0,.5); }
-  to  { box-shadow: 0 4px 16px rgba(0,0,0,.6), 0 0 50px rgba(255,215,0,1),  0 0 80px rgba(57,255,20,.4); }
+  from{ box-shadow: 0 4px 16px rgba(0,0,0,.6), 0 0 32px rgba(255,215,0,.65), inset 0 0 36px rgba(255,170,0,.18); }
+  to  { box-shadow: 0 4px 16px rgba(0,0,0,.6), 0 0 72px rgba(255,215,0,1),   0 0 110px rgba(57,255,20,.55), inset 0 0 60px rgba(255,200,30,.40); }
 }
+
+/* WARNING BEAM SWEEP — diagonal gold light beam that sweeps across the
+   cabinet face every spin cycle, reinforcing "something big is happening". */
+.slv2-cabinet.wheel-suspense::after{
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+  background: linear-gradient(
+    115deg,
+    transparent 0%,
+    transparent 35%,
+    rgba(255,215,0,0.35) 47%,
+    rgba(255,255,200,0.55) 50%,
+    rgba(255,215,0,0.35) 53%,
+    transparent 65%,
+    transparent 100%
+  );
+  background-size: 280% 100%;
+  background-position: -120% 0%;
+  animation: slv2BeamSweep 0.9s linear infinite;
+  mix-blend-mode: screen;
+  border-radius: inherit;
+}
+@keyframes slv2BeamSweep{
+  0%   { background-position: -120% 0%; }
+  100% { background-position:  220% 0%; }
+}
+
+/* SCREEN-WIDE VIGNETTE — darkens the page corners to focus eyes on cabinet.
+   Applied on body level via a pseudo overlay anchored in the slots screen. */
+#slots.suspense-active::before{
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 30%,
+    rgba(0,0,0,0.35) 65%,
+    rgba(0,0,0,0.78) 100%
+  );
+  opacity: 0;
+  animation: slv2VignetteIn 0.5s ease-out forwards;
+}
+@keyframes slv2VignetteIn{
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* TIER 2/3 MAX-DRAMA — cabinet shakes when multiple wheels land */
+.slv2-cabinet.wheel-suspense.tier-max{
+  animation: slv2CabinetSuspense 0.45s ease-in-out infinite alternate,
+             slv2CabinetTremor 0.12s linear infinite;
+}
+@keyframes slv2CabinetTremor{
+  0%   { transform: translate(0, 0); }
+  25%  { transform: translate(-1px, 1px); }
+  50%  { transform: translate(1px, -1px); }
+  75%  { transform: translate(-1px, -1px); }
+  100% { transform: translate(1px, 1px); }
+}
+
 /* Wheel symbols that already landed pulse golden during suspense */
 .slv2-sym.sym-wheel.wheel-locked{
-  animation: slv2WheelLocked 0.6s ease-in-out infinite alternate !important;
+  animation: slv2WheelLocked 0.5s ease-in-out infinite alternate !important;
+  z-index: 4;
 }
 @keyframes slv2WheelLocked{
-  from{ transform: scale(1);   text-shadow: 0 0 10px rgba(255,215,0,1); }
-  to  { transform: scale(1.18); text-shadow: 0 0 22px rgba(255,215,0,1), 0 0 40px rgba(57,255,20,.6); }
+  from{ transform: scale(1);    filter: drop-shadow(0 0 8px rgba(255,215,0,.9)); }
+  to  { transform: scale(1.25); filter: drop-shadow(0 0 22px rgba(255,215,0,1)) drop-shadow(0 0 40px rgba(57,255,20,.75)) drop-shadow(0 0 60px rgba(168,85,247,.5)); }
 }
 
 /* ============================================================
@@ -8003,6 +8131,82 @@ function slv2WheelSVG(){
   return '<span class="slv2-wheel-img" aria-hidden="true"></span>';
 }
 
+// ─── 3D BITCOIN COIN ───────────────────────────────────────────
+// The ₿ glyph is replaced with a beautiful gold coin SVG that has
+// embossed depth, specular highlight, beveled edge — and is animated
+// in CSS via two stacked faces (front+back, both same image) that
+// rotate continuously on the Y axis when the symbol is on the visible
+// reel window. Performance: data URL is cached once, rotation is a
+// transform-only animation (GPU compositor) so all instances at 60fps.
+var SL2_BTC_SVG_DATAURL = (function(){
+  var svgMarkup =
+    '<svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">' +
+      '<defs>' +
+        // Coin face — radial gradient with strong top-left highlight for 3D illusion
+        '<radialGradient id="bcf" cx="32%" cy="26%" r="80%">' +
+          '<stop offset="0%" stop-color="#ffffff" stop-opacity="0.95"/>' +
+          '<stop offset="14%" stop-color="#fff5b0"/>' +
+          '<stop offset="38%" stop-color="#ffd700"/>' +
+          '<stop offset="68%" stop-color="#cf9a0a"/>' +
+          '<stop offset="100%" stop-color="#5a3a00"/>' +
+        '</radialGradient>' +
+        // Beveled outer edge — diagonal gradient suggesting a stamped rim
+        '<linearGradient id="bce" x1="0%" y1="0%" x2="100%" y2="100%">' +
+          '<stop offset="0%" stop-color="#fff8d0"/>' +
+          '<stop offset="35%" stop-color="#ffd700"/>' +
+          '<stop offset="75%" stop-color="#8b6914"/>' +
+          '<stop offset="100%" stop-color="#3a1d05"/>' +
+        '</linearGradient>' +
+        // Inner ring (deeper bezel)
+        '<radialGradient id="bci" cx="50%" cy="50%" r="50%">' +
+          '<stop offset="92%" stop-color="rgba(0,0,0,0)"/>' +
+          '<stop offset="100%" stop-color="rgba(0,0,0,0.45)"/>' +
+        '</radialGradient>' +
+        // ₿ symbol gradient — dark embossed look
+        '<linearGradient id="bcs" x1="20%" y1="0%" x2="80%" y2="100%">' +
+          '<stop offset="0%" stop-color="#3a1d05"/>' +
+          '<stop offset="50%" stop-color="#6b4500"/>' +
+          '<stop offset="100%" stop-color="#1a0500"/>' +
+        '</linearGradient>' +
+      '</defs>' +
+      // Drop shadow (below the coin) for depth
+      '<ellipse cx="30" cy="56" rx="20" ry="2.5" fill="#000" opacity=".35"/>' +
+      // Outer beveled rim
+      '<circle cx="30" cy="30" r="27" fill="url(#bce)"/>' +
+      // Inner coin face
+      '<circle cx="30" cy="30" r="24.5" fill="url(#bcf)"/>' +
+      // Inner bezel shadow ring
+      '<circle cx="30" cy="30" r="24.5" fill="url(#bci)"/>' +
+      // Dashed inner detail (stamped engraving)
+      '<circle cx="30" cy="30" r="22" fill="none" stroke="rgba(255,255,255,.35)" stroke-width=".5" stroke-dasharray="1.5 1.5"/>' +
+      // Specular highlight (top-left) for that glossy "metal" reflection
+      '<ellipse cx="22" cy="17" rx="9" ry="4.5" fill="#ffffff" opacity=".45"/>' +
+      '<ellipse cx="20" cy="15" rx="4" ry="2" fill="#ffffff" opacity=".75"/>' +
+      // ₿ shadow (offset down for emboss)
+      '<text x="30" y="43.5" text-anchor="middle" font-family="Russo One,Impact,Arial Black,sans-serif" font-size="34" font-weight="900" fill="rgba(0,0,0,.5)">\u20BF</text>' +
+      // ₿ main — dark gradient with subtle outline
+      '<text x="30" y="42" text-anchor="middle" font-family="Russo One,Impact,Arial Black,sans-serif" font-size="34" font-weight="900" fill="url(#bcs)" stroke="rgba(0,0,0,.3)" stroke-width=".4">\u20BF</text>' +
+      // ₿ top highlight (tiny shine over the symbol)
+      '<text x="30" y="41" text-anchor="middle" font-family="Russo One,Impact,Arial Black,sans-serif" font-size="34" font-weight="900" fill="rgba(255,248,208,.2)">\u20BF</text>' +
+    '</svg>';
+  return 'url("data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgMarkup) + '")';
+})();
+// Inject the data URL as a CSS variable so all coin instances share it
+(function(){
+  try {
+    document.documentElement.style.setProperty('--btc-coin-img', SL2_BTC_SVG_DATAURL);
+  } catch(e){}
+})();
+
+// Return the HTML for a 3D-spinning BTC coin (two stacked faces with
+// backface-visibility:hidden, so it rotates like a real coin in space)
+function slv2BtcCoinHTML(){
+  return '<span class="slv2-btc-coin" aria-hidden="true">' +
+           '<span class="slv2-btc-face front"></span>' +
+           '<span class="slv2-btc-face back"></span>' +
+         '</span>';
+}
+
 var SL2_NAMES = {
   // VISUAL SWAP: code-id 'btc' is the WILD but rendered as the GB logo;
   // code-id 'gblogo' is a regular premium paying symbol rendered as ₿.
@@ -8397,7 +8601,7 @@ function slv2BuildStrip(reelIdx){
     if(sym === 'btc'){
       div.innerHTML = slv2GbLogoHTML();
     } else if(sym === 'gblogo'){
-      div.textContent = SL2_CHAR['gblogo'];   // = '\u20BF' (₿)
+      div.innerHTML = slv2BtcCoinHTML();   // 3D spinning gold coin
     } else if(sym === 'wheel'){
       div.innerHTML = slv2WheelSVG();
     } else {
@@ -8614,7 +8818,7 @@ function slv2RenderPaytable(){
     if(sym === 'btc'){
       symHtml = '<span style="display:inline-block;width:36px;height:36px;">' + slv2GbLogoHTML().replace('width:46px;height:46px', 'width:36px;height:36px') + '</span>';
     } else if(sym === 'gblogo'){
-      symHtml = '<span class="sym-gblogo" style="font-size:24px;">' + SL2_CHAR['gblogo'] + '</span>';
+      symHtml = '<span class="slv2-pt-btc-coin" style="display:inline-block;width:34px;height:34px;background-image:var(--btc-coin-img);background-size:contain;background-repeat:no-repeat;background-position:center;animation:slv2PtBtcSpin 5s linear infinite;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5)) drop-shadow(0 0 6px rgba(255,170,0,.3));"></span>';
     } else {
       symHtml = '<span class="sym-' + sym + '" style="font-size:24px;">' + SL2_CHAR[sym] + '</span>';
     }
@@ -8791,6 +8995,10 @@ function slv2Spin(){
   // Reset escalating wheel-suspense tracker (each new wheel found on
   // reels 0-2 increases the slowdown intensity on remaining reels)
   SL2._wheelCountLastDetected = 0;
+  // Clear grid — each reel's stop callback re-populates its row. Without
+  // this reset, stale 'wheel' values from the previous spin would leak
+  // into the anticipation check and trigger false positives.
+  SL2.grid = [[], [], [], [], []];
   for(var rr = 0; rr < 5; rr++){
     (function(reelIdx){
       var dur = baseDur + reelIdx * stagger;
@@ -8812,7 +9020,7 @@ function slv2Spin(){
         // The slv2SlowDownReel function stacks via dataset.slowdownMs so each
         // call ADDS on top of the previous extension.
         if(reelIdx <= 2){
-          var wheelsFound = slv2CheckWheelAnticipation();
+          var wheelsFound = slv2CheckWheelAnticipation(reelIdx);
           if(wheelsFound > 0){
             var prevCount = SL2._wheelCountLastDetected || 0;
             var newWheels = wheelsFound - prevCount;
@@ -8916,7 +9124,7 @@ function slv2SpinReel(reelIdx, targetSymbol, durationMs, cb){
       if(targetSymbol === 'btc'){
         cell.innerHTML = slv2GbLogoHTML();
       } else if(targetSymbol === 'gblogo'){
-        cell.textContent = SL2_CHAR['gblogo'];
+        cell.innerHTML = slv2BtcCoinHTML();
       } else if(targetSymbol === 'wheel'){
         cell.innerHTML = slv2WheelSVG();
       } else {
@@ -9425,7 +9633,7 @@ function slv2CascadeStep(wins){
             if(newSym === 'btc'){
               sym.innerHTML = slv2GbLogoHTML();
             } else if(newSym === 'gblogo'){
-              sym.textContent = SL2_CHAR['gblogo'];
+              sym.innerHTML = slv2BtcCoinHTML();
             } else if(newSym === 'wheel'){
               sym.innerHTML = slv2WheelSVG();
             } else {
@@ -9523,9 +9731,8 @@ function slv2TriggerFreeSpinsIntro(count){
 function slv2StartFreeSpins(){
   var intro = document.getElementById('slv2-fs-intro');
   slv2CancelCountdown('slv2-fs-intro');
-  // Pause FS intro video to free GPU/audio while spins run
   var fsVid = document.getElementById('slv2-fs-intro-video');
-  if(fsVid){ try { fsVid.pause(); fsVid.currentTime = 0; } catch(e){} }
+  if(fsVid){ try { fsVid.pause(); } catch(e){} }
   if(intro) intro.classList.remove('visible');
   SL2.fsActive = true;
   SL2.stickyWilds = [];  // reset sticky wild positions for this FS run
@@ -10055,21 +10262,32 @@ function slv2BonusWheelSpin(){
   }
 
   var segAngle = 360 / SL2.WHEEL_SEGMENTS;
-  // FAST + DRAMATIC — duration cut 3500→2200ms, rotations 10→22-30,
-  // sharper start of the easing curve so the wheel LOOKS rapid throughout.
-  var rotations = 22 + Math.floor(Math.random() * 9);  // 22-30 rotations
+  // SUPER fast spin — drama maxed out. Bug fix included: previously the
+  // transition+transform were set in the same tick which made the browser
+  // skip the animation (it computed both at once → rotor jumped to ~0 rot).
+  // Now we explicitly snap to 0deg, force a reflow, THEN apply the spin.
+  var rotations = 35 + Math.floor(Math.random() * 16);  // 35-50 full rotations
   var jitter = (Math.random() - 0.5) * (segAngle * 0.7);
   var targetMod = ((-((winIdx + 0.5) * segAngle) + jitter) % 360 + 360) % 360;
   var finalAngle = rotations * 360 + targetMod;
-  var spinDurationMs = 2200;
+  var spinDurationMs = 2800;
 
   SL2.bwSelectedIdx = winIdx;
 
   var rotor = document.getElementById('slv2-bw-rotor');
   if(rotor){
-    // cubic-bezier(0.10, 0.45, 0.20, 1) — very fast initial acceleration,
-    // sustained high velocity through ~70% of the spin, then crisp deceleration.
-    rotor.style.transition = 'transform ' + spinDurationMs + 'ms cubic-bezier(0.10, 0.45, 0.20, 1)';
+    // STEP 1: hard-reset rotor to 0deg with NO transition (snaps instantly)
+    rotor.style.transition = 'none';
+    rotor.style.transform = 'rotate(0deg)';
+    // STEP 2: force browser reflow so the snap-to-0 is committed before
+    //         the animation starts. Without this, the browser batches both
+    //         style mutations and skips the animation entirely.
+    // eslint-disable-next-line no-unused-expressions
+    void rotor.offsetWidth;
+    // STEP 3: apply the spin transition + final angle — NOW animation runs
+    // cubic-bezier(0.08, 0.4, 0.18, 1) — very steep acceleration, sustained
+    // high velocity through ~65% of duration, then crisp deceleration.
+    rotor.style.transition = 'transform ' + spinDurationMs + 'ms cubic-bezier(0.08, 0.4, 0.18, 1)';
     rotor.style.transform = 'rotate(' + finalAngle + 'deg)';
   }
 
@@ -10276,9 +10494,9 @@ function slv2PlayJackpotCelebration(){
 function slv2BonusWheelClose(){
   var ov = document.getElementById('slv2-bonus-wheel');
   slv2CancelCountdown('slv2-bonus-wheel');
-  // Pause the cinematic video so GPU + audio decode can free between rounds
+  // Pause cinematic video (next trigger's slv2RestartVideo resets time + plays)
   var bwVid = document.getElementById('slv2-bw-video');
-  if(bwVid){ try { bwVid.pause(); bwVid.currentTime = 0; } catch(e){} }
+  if(bwVid){ try { bwVid.pause(); } catch(e){} }
   if(ov) ov.classList.remove('visible');
   SL2.bonusActive = false;
   // ─── FS RESUME ─────────────────────────────────────────────────
@@ -10482,7 +10700,7 @@ function slv2VaultClose(){
   var ov = document.getElementById('slv2-vault-game');
   slv2CancelCountdown('slv2-vault-game');
   var vgVid = document.getElementById('slv2-vg-video');
-  if(vgVid){ try { vgVid.pause(); vgVid.currentTime = 0; } catch(e){} }
+  if(vgVid){ try { vgVid.pause(); } catch(e){} }
   if(ov) ov.classList.remove('visible');
   SL2.bonusActive = false;
   SL2.vaultPickedIdx = null;
@@ -10793,25 +11011,42 @@ function slv2SetVideoSrc(elemId, url){
     v.removeAttribute('src');
     v.style.display = 'none';
     if(overlay) overlay.classList.remove('has-video');
+    delete v.dataset.intendedSrc;
     v.load();
     return;
   }
+  // Persist intended URL so slv2RestartVideo can recover from a transient
+  // initial-load failure (network blip, slow CDN) on subsequent triggers.
+  v.dataset.intendedSrc = url;
+  v.dataset.failCount = v.dataset.failCount || '0';
+
   // Attach error/play listeners to diagnose silent failures + toggle title vis
   v.onerror = function(){
-    console.warn('[slv2 video] failed to load:', url, '— overlay will use CSS-only fallback.');
-    v.style.display = 'none';
-    v.removeAttribute('src');
+    var failCount = parseInt(v.dataset.failCount || '0', 10) + 1;
+    v.dataset.failCount = failCount;
+    console.warn('[slv2 video] failed to load:', url, '(attempt #' + failCount + ') — will retry on next trigger.');
+    // DON'T permanently remove src/display — let slv2RestartVideo try again.
+    // Only fall back to CSS-only after 3 consecutive failures.
+    if(failCount >= 3){
+      console.warn('[slv2 video] giving up on', url, 'after 3 failures — using CSS fallback.');
+      v.style.display = 'none';
+      v.removeAttribute('src');
+    }
     if(overlay) overlay.classList.remove('has-video');
   };
   v.onloadeddata = function(){
     console.info('[slv2 video] loaded:', url);
+    v.dataset.failCount = '0';  // reset fail counter on success
   };
   // When the video actually starts playing → mark overlay so CSS hides titles
   v.addEventListener('playing', function(){
     if(overlay) overlay.classList.add('has-video');
   });
   v.addEventListener('pause', function(){
-    if(overlay) overlay.classList.remove('has-video');
+    // Don't strip has-video on manual pause from slv2BonusWheelClose etc.
+    // (the overlay is closing anyway and the next open will re-add the class).
+    // Keep this lightweight — just refresh visibility for natural pause/end.
+    if(overlay && v.ended) overlay.classList.remove('has-video');
   });
   v.addEventListener('ended', function(){
     if(overlay) overlay.classList.remove('has-video');
@@ -10826,7 +11061,7 @@ function slv2SetVideoSrc(elemId, url){
   if(p && typeof p.catch === 'function'){
     p.catch(function(err){
       console.warn('[slv2 video] autoplay blocked for', url, '—', err && err.name);
-      if(overlay) overlay.classList.remove('has-video');
+      // Don't strip has-video — restart can retry with a fresh user gesture
     });
   }
 }
@@ -10835,7 +11070,18 @@ function slv2SetVideoSrc(elemId, url){
 function slv2RestartVideo(elemId){
   var v = document.getElementById(elemId);
   if(!v) return;
-  if(!v.getAttribute('src')) return;
+  // RECOVERY: if src is missing (transient initial load failure cleared it),
+  // try to re-apply from the persisted intendedSrc stashed by slv2SetVideoSrc.
+  if(!v.getAttribute('src') && v.dataset && v.dataset.intendedSrc){
+    console.info('[slv2 video] retrying with stored URL:', v.dataset.intendedSrc);
+    v.setAttribute('src', v.dataset.intendedSrc);
+    v.style.display = 'block';
+    v.dataset.failCount = '0';
+    v.load();
+  }
+  if(!v.getAttribute('src')) return;  // truly nothing to play
+  // Ensure the overlay can mount the video visually
+  v.style.display = 'block';
   try {
     v.currentTime = 0;
     v.classList.remove('ended');
@@ -10920,7 +11166,13 @@ function slv2ClearAnticipation(){
   document.querySelectorAll('.wheel-anticipating').forEach(function(el){ el.classList.remove('wheel-anticipating'); });
   document.querySelectorAll('.wheel-locked').forEach(function(el){ el.classList.remove('wheel-locked'); });
   var cab = document.querySelector('.slv2-cabinet');
-  if(cab) cab.classList.remove('wheel-suspense');
+  if(cab){
+    cab.classList.remove('wheel-suspense');
+    cab.classList.remove('tier-max');
+  }
+  // Remove screen vignette
+  var slotScreen = document.getElementById('slots');
+  if(slotScreen) slotScreen.classList.remove('suspense-active');
   // Stop any in-flight suspense audio
   slv2StopWheelSuspense();
 }
@@ -11029,14 +11281,21 @@ function slv2SlowDownReel(reelIdx, extraMs){
   } catch(_e){}
 }
 
-function slv2CheckWheelAnticipation(){
+function slv2CheckWheelAnticipation(maxReelIdx){
   // Threshold: EVEN 1 wheel triggers the suspense — every wheel on the first
   // three reels feels like a possible bonus build-up.
+  // CRITICAL: scan ONLY up to maxReelIdx — grid cells for reels that haven't
+  // stopped yet still contain STALE data from the previous spin (they get
+  // updated only when each reel's finalize callback fires). If we read past
+  // maxReelIdx we get false-positive triggers from old wheel landings.
+  if(typeof maxReelIdx !== 'number') maxReelIdx = 2;  // legacy callers
+  var scanLimit = Math.min(maxReelIdx, 2);  // anticipation only cares about reels 0-2
   var wheelCount = 0;
   var wheelCells = [];
-  for(var r = 0; r < 3; r++){
+  for(var r = 0; r <= scanLimit; r++){
+    if(!SL2.grid[r]) continue;
     for(var row = 0; row < 3; row++){
-      if(SL2.grid[r] && SL2.grid[r][row] === 'wheel'){
+      if(SL2.grid[r][row] === 'wheel'){
         wheelCount++;
         wheelCells.push({reel: r, row: row});
       }
@@ -11055,9 +11314,16 @@ function slv2CheckWheelAnticipation(){
       if(col) col.classList.add('wheel-anticipating-col');
       if(strip) strip.classList.add('wheel-anticipating');
     }
-    // Cabinet-wide pulsing halo
+    // Cabinet-wide pulsing halo + screen vignette + sweep beam
     var cab = document.querySelector('.slv2-cabinet');
-    if(cab) cab.classList.add('wheel-suspense');
+    if(cab){
+      cab.classList.add('wheel-suspense');
+      // Tier escalation: 2+ wheels = max-drama tremor
+      if(wheelCount >= 2) cab.classList.add('tier-max');
+    }
+    // Activate global vignette via screen-level class
+    var slotScreen = document.getElementById('slots');
+    if(slotScreen) slotScreen.classList.add('suspense-active');
     // Lock pulse on the wheel symbols already landed
     wheelCells.forEach(function(c){
       var strip = document.getElementById('slv2-strip-' + c.reel);
