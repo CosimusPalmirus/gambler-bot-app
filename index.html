@@ -1096,6 +1096,32 @@ body{position:relative;}
 .q-tab.on{background:linear-gradient(145deg,#ffd700,#ff9500);color:#000;
   box-shadow:0 3px 12px rgba(255,215,0,.3);}
 
+/* Weekly rotation countdown — appears between tabs and quest cards.
+   Hidden when Season tab is active (via #challenges.tab-season toggle). */
+.q-reset-timer{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  margin:-6px 0 12px 0;
+  padding:7px 10px;
+  background:linear-gradient(90deg, rgba(168,85,247,.10) 0%, rgba(57,255,20,.10) 100%);
+  border:1px solid rgba(255,215,0,.25);
+  border-radius:8px;
+  font-family:'Russo One',sans-serif;
+  font-size:11px;
+  letter-spacing:1px;
+  color:#cfb;
+}
+.q-reset-icon{ font-size:14px; }
+.q-reset-text{ color:rgba(255,255,255,.65); }
+.q-reset-clock{
+  color:#ffd700;
+  font-family:'Orbitron','Russo One',monospace;
+  font-weight:700;
+  letter-spacing:1.2px;
+  text-shadow:0 0 8px rgba(255,215,0,.55);
+}
+/* When season tab is active, hide the countdown (it only applies to weeklies) */
+#challenges.tab-season .q-reset-timer{ display:none; }
+
 .q-card.easy{border-left:3px solid #10b981;}
 .q-card.medium{border-left:3px solid #f59e0b;}
 .q-card.hard{border-left:3px solid #ef4444;}
@@ -2693,6 +2719,36 @@ body{position:relative;}
 .slv2-fs-card{
   opacity:0.55;
   transition:all 0.4s;
+  position:relative;  /* needed for retrigger toast positioning */
+}
+.slv2-fs-retrigger-toast{
+  position:absolute;
+  top:-8px;
+  left:50%;
+  transform:translateX(-50%);
+  background:linear-gradient(180deg, #ffd700 0%, #ff8800 100%);
+  color:#1a0500;
+  font-family:'Russo One', sans-serif;
+  font-size:13px;
+  letter-spacing:1.5px;
+  padding:4px 12px;
+  border-radius:14px;
+  border:2px solid #fff8d0;
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,.8),
+    0 4px 12px rgba(255,170,0,.5),
+    0 0 24px rgba(255,215,0,.8);
+  white-space:nowrap;
+  pointer-events:none;
+  z-index:50;
+  animation:slv2FsRetriggerToast 2.2s ease-out forwards;
+}
+@keyframes slv2FsRetriggerToast{
+  0%   { transform:translateX(-50%) translateY(20px) scale(.4); opacity:0; }
+  15%  { transform:translateX(-50%) translateY(-10px) scale(1.15); opacity:1; }
+  30%  { transform:translateX(-50%) translateY(-8px) scale(1); }
+  75%  { transform:translateX(-50%) translateY(-22px) scale(1); opacity:1; }
+  100% { transform:translateX(-50%) translateY(-50px) scale(.85); opacity:0; }
 }
 .slv2-fs-card.active{
   opacity:1;
@@ -4337,21 +4393,23 @@ body{position:relative;}
    SLOT V3 - Per-symbol custom animations
    ================================================================ */
 
-/* ---- GB LOGO (new premium-mid symbol) ---- */
+/* ---- GBLOGO code-id — now renders as ₿ (regular premium paying symbol after swap) ---- */
 .slv2-sym.sym-gblogo{
-  font-size:0; /* hide GB text since SVG is rendered */
+  font-size: 34px;
+  color: #ffd700;
+  text-shadow:
+    0 0 8px rgba(255,215,0,.55),
+    0 0 16px rgba(255,170,0,.35),
+    0 1px 2px rgba(0,0,0,.85);
+  font-weight: 900;
   position:relative;
 }
 .slv2-sym-active.sym-gblogo{
   animation:slv2GbIdle 4s ease-in-out infinite;
 }
-.slv2-sym.sym-gblogo svg{
-  filter:drop-shadow(0 0 4px rgba(255,215,0,.6));
-  transition:transform 0.3s;
-}
 @keyframes slv2GbIdle{
-  0%,100%{filter:drop-shadow(0 0 0 rgba(255,215,0,0));}
-  50%{filter:drop-shadow(0 0 8px rgba(255,215,0,.6));}
+  0%,100%{text-shadow: 0 0 6px rgba(255,215,0,.45), 0 0 14px rgba(255,170,0,.25), 0 1px 2px rgba(0,0,0,.85);}
+  50%    {text-shadow: 0 0 12px rgba(255,215,0,.75), 0 0 22px rgba(255,170,0,.45), 0 1px 2px rgba(0,0,0,.85);}
 }
 .slv2-sym.sym-gblogo.winning{
   animation:slv2GbWin 0.7s ease-in-out infinite alternate !important;
@@ -6189,7 +6247,7 @@ body{position:relative;}
         <span class="slv2-mq-dot">●</span>
         <span class="slv2-mq-item slv2-mq-hot">🤖 FREE SPINS BONUS</span>
         <span class="slv2-mq-dot">●</span>
-        <span class="slv2-mq-item">₿ WILD JACKPOT 2000×</span>
+        <span class="slv2-mq-item">★ GB WILD JACKPOT 5000×</span>
         <span class="slv2-mq-dot">●</span>
         <span class="slv2-mq-item slv2-mq-green">💥 CASCADE WINS</span>
         <span class="slv2-mq-dot">●</span>
@@ -7111,6 +7169,12 @@ body{position:relative;}
       <div class="q-tab on" id="qt-week" onclick="chSwitchTab('week')">WEEKLY</div>
       <div class="q-tab" id="qt-season" onclick="chSwitchTab('season')">★ SEASONAL</div>
     </div>
+    <!-- Weekly reset countdown — hidden on Season tab, updates every second -->
+    <div id="q-reset-timer" class="q-reset-timer">
+      <span class="q-reset-icon">🔄</span>
+      <span class="q-reset-text">Next rotation in</span>
+      <span class="q-reset-clock" id="q-reset-clock">—</span>
+    </div>
     <div id="ch-list" style="display:flex;flex-direction:column;gap:8px;"></div>
   </div>
 </div>
@@ -7274,6 +7338,8 @@ function go(id){
     cancelAnimationFrame(CR.raf);CR.raf=null;
     if(CR.state==='flying')CR.state='idle';
   }
+  // Stop the weekly-reset countdown unconditionally — re-started below for challenges
+  if(typeof qResetTimerStop === 'function') qResetTimerStop();
   document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
   target.classList.add('active');
   document.querySelectorAll('.bnav-btn').forEach(function(b){b.classList.remove('on');});
@@ -7294,7 +7360,7 @@ function go(id){
   else if(id==='wallet')renderWallet();
   else if(id==='leaderboard')loadLeaderboard();
   else if(id==='duel')initDuel();
-  else if(id==='challenges'){fetchChallenges(renderChallenges);renderChallenges();}
+  else if(id==='challenges'){fetchChallenges(renderChallenges);renderChallenges();qResetTimerStart();}
   else if(id==='poker'){if(PK.phase==='idle')pkReset();else pkRender();}
   else if(id==='friends'){frInit();}
   else if(id==='plinko'){plInit();}
@@ -7645,7 +7711,10 @@ function slv2WheelSVG(){
 }
 
 var SL2_NAMES = {
-  'btc':'BTC WILD','bot':'BOT SCATTER','wheel':'BONUS WHEEL','gblogo':'Gambler Bot',
+  // VISUAL SWAP: code-id 'btc' is the WILD but rendered as the GB logo;
+  // code-id 'gblogo' is a regular premium paying symbol rendered as ₿.
+  // (Wild logic stays anchored to 'btc' internally to keep code simple.)
+  'btc':'GB WILD','bot':'BOT SCATTER','wheel':'BONUS WHEEL','gblogo':'Bitcoin',
   'gem':'Gem','seven':'Lucky 7',
   'bell':'Bell','bolt':'Lightning','star':'Star','spade':'Spade'
 };
@@ -8030,8 +8099,12 @@ function slv2BuildStrip(reelIdx){
     SL2.stripSyms[reelIdx].push(sym);
     var div = document.createElement('div');
     div.className = 'slv2-sym sym-' + sym;
-    if(sym === 'gblogo'){
+    // VISUAL SWAP — 'btc' code = WILD = renders the GB logo (more prominence);
+    // 'gblogo' code = regular premium = renders ₿ glyph.
+    if(sym === 'btc'){
       div.innerHTML = slv2GbLogoHTML();
+    } else if(sym === 'gblogo'){
+      div.textContent = SL2_CHAR['gblogo'];   // = '\u20BF' (₿)
     } else if(sym === 'wheel'){
       div.innerHTML = slv2WheelSVG();
     } else {
@@ -8242,8 +8315,18 @@ function slv2RenderPaytable(){
     row.style.borderLeftColor = colorMap[sym] || '#fff';
     var label = SL2_NAMES[sym];
     if(sym === 'btc') label += ' \ud83c\udf1f';
+    // VISUAL SWAP: 'btc' row shows the GB logo (now the wild visually);
+    // 'gblogo' row shows the ₿ glyph (now a regular paying symbol).
+    var symHtml;
+    if(sym === 'btc'){
+      symHtml = '<span style="display:inline-block;width:36px;height:36px;">' + slv2GbLogoHTML().replace('width:46px;height:46px', 'width:36px;height:36px') + '</span>';
+    } else if(sym === 'gblogo'){
+      symHtml = '<span class="sym-gblogo" style="font-size:24px;">' + SL2_CHAR['gblogo'] + '</span>';
+    } else {
+      symHtml = '<span class="sym-' + sym + '" style="font-size:24px;">' + SL2_CHAR[sym] + '</span>';
+    }
     row.innerHTML =
-      '<div class="slv2-pt-sym-box"><span class="sym-' + sym + '" style="font-size:24px;">' + SL2_CHAR[sym] + '</span></div>' +
+      '<div class="slv2-pt-sym-box">' + symHtml + '</div>' +
       '<div><div style="font-family:\'Russo One\',sans-serif;font-size:11px;color:#ffd700;">' + label + '</div>' +
       '<div class="slv2-pt-name">' + (sym === 'btc' ? 'Wild (substitutes any)' : '') + '</div></div>' +
       '<div class="slv2-pt-pays">' +
@@ -8297,7 +8380,7 @@ function slv2RenderPaytable(){
       '<b style="color:#39ff14;">FREE SPINS</b> arrive from <b>two</b> places:<br>' +
       '\u2022 3+ \ud83e\udd16 BOT scatters on the reels (8/12/18 FS)<br>' +
       '\u2022 Landing on the single <b>FS segment</b> of the Bonus Wheel (15 FS)<br>' +
-      '<i style="opacity:.75;">During FS, all wins are \u00d72. Any \u20bf wild that lands stays sticky for the whole round.</i>' +
+      '<i style="opacity:.75;">During FS, all wins are \u00d72. Any GB-logo wild that lands stays sticky for the whole round.</i>' +
     '</div>' +
 
     '<div class="slv2-pt-rule" style="border-left:3px solid #ffd700;padding-left:10px;">' +
@@ -8326,7 +8409,7 @@ function slv2RenderPaytable(){
   sec4.innerHTML =
     '<div class="slv2-pt-section-title">\ud83d\udcd6 BASE GAME RULES</div>' +
     '<div class="slv2-pt-rule">\u26a1 <b>5 reels \u00d7 3 rows \u00b7 10 paylines.</b> Bet divided across 10 lines. Wins pay left-to-right starting from leftmost reel.</div>' +
-    '<div class="slv2-pt-rule">\u20bf <b>BTC = WILD.</b> Substitutes for all symbols except scatters (\ud83e\udd16 BOT, \ud83c\udfa1 WHEEL).</div>' +
+    '<div class="slv2-pt-rule">\ud83d\udd25 <b>GB LOGO = WILD.</b> The Gambler Bot logo substitutes for all symbols except scatters (\ud83e\udd16 BOT, \ud83c\udfa1 WHEEL). It also pays the top reward on its own line.</div>' +
     '<div class="slv2-pt-rule">\ud83d\udcab <b>CASCADE WINS.</b> Winning symbols explode; new symbols drop in. Chain reactions possible.</div>' +
     '<div class="slv2-pt-rule">\ud83d\udcb0 <b>PROGRESSIVE JACKPOT.</b> Cross-player pool, 1% of every bet feeds it. Win via the JACKPOT segment of the Bonus Wheel.</div>' +
     '<div class="slv2-pt-rule">\ud83d\udcca <b>RTP \u2248 85%.</b> House edge ~15%.</div>';
@@ -8410,6 +8493,8 @@ function slv2Spin(){
   var lastReelIdx = 4;
   // Clear any prior anticipation visual
   slv2ClearAnticipation();
+  // Reset the once-per-spin audio flag for wheel-anticipation crescendo
+  SL2._wheelAnticipationAudioPlayed = false;
   for(var rr = 0; rr < 5; rr++){
     (function(reelIdx){
       var dur = baseDur + reelIdx * stagger;
@@ -8421,11 +8506,21 @@ function slv2Spin(){
       slv2SpinReel(reelIdx, targets[reelIdx], dur, function(){
         slv2Sound('reel-stop');
         slv2UpdateGridFromStrip(reelIdx);
-        // === NEW: wheel scatter suspense ===
-        // After reel 2 lands (3rd column), check if 2+ wheels appeared on reels 0-2.
-        // If yes, light up reels 3 + 4 with golden anticipation + rising suspense tone.
-        if(reelIdx === 2){
-          slv2CheckWheelAnticipation();
+        // === NEW: wheel scatter suspense — checked AFTER EACH of reels 0/1/2 ===
+        // ANY wheel landing on the first three reels triggers gold pulse on
+        // remaining reels, a crescendo audio (once), AND slows down all
+        // still-spinning reels to maximise the "about-to-trigger" feel.
+        if(reelIdx <= 2){
+          var wheelsFound = slv2CheckWheelAnticipation();
+          if(wheelsFound > 0){
+            // Slow down all still-spinning reels right of this one.
+            // Each subsequent wheel discovery adds extra slowdown on top
+            // (capped to avoid stuck reels) via the per-strip slowedDown flag.
+            var extra = 700 + (wheelsFound - 1) * 250;  // 1 wheel = 700ms, 2 = 950ms, 3 = 1200ms
+            for(var r2 = reelIdx + 1; r2 <= 4; r2++){
+              slv2SlowDownReel(r2, extra);
+            }
+          }
         }
         // After reel 3 stops (4th column), check FS scatter anticipation on reel 4
         if(reelIdx === 3){
@@ -8509,8 +8604,10 @@ function slv2SpinReel(reelIdx, targetSymbol, durationMs, cb){
     var cell = strip.children[targetIdx];
     if(cell){
       cell.className = 'slv2-sym sym-' + targetSymbol;
-      if(targetSymbol === 'gblogo'){
+      if(targetSymbol === 'btc'){
         cell.innerHTML = slv2GbLogoHTML();
+      } else if(targetSymbol === 'gblogo'){
+        cell.textContent = SL2_CHAR['gblogo'];
       } else if(targetSymbol === 'wheel'){
         cell.innerHTML = slv2WheelSVG();
       } else {
@@ -8520,6 +8617,11 @@ function slv2SpinReel(reelIdx, targetSymbol, durationMs, cb){
   }
   SL2.positions[reelIdx] = targetIdx;
   var finalOffset = -((targetIdx - 1) * SL2_SYM_H);
+  // Remember target offset so slv2SlowDownReel can extend the transition later
+  SL2.reelFinalOffsets = SL2.reelFinalOffsets || [];
+  SL2.reelFinalOffsets[reelIdx] = finalOffset;
+  // Clear any previous "slowed down" flag on this strip (new spin)
+  if(strip.dataset.slowedDown) strip.dataset.slowedDown = '';
 
   // Apply per-spin custom property so the blur keyframe matches duration
   strip.style.setProperty('--spin-dur', (durationMs / 1000) + 's');
@@ -8677,11 +8779,15 @@ function slv2ProcessSpinResult(){
     slv2FinishSpin(fsTriggered);
   }
 
-  // Defer feature triggers to after cascade
-  if(fsTriggered > 0 && !SL2.fsActive){
-    SL2.pendingFsTrigger = fsTriggered;
+  // Defer feature triggers to after cascade. Scatters during FS are NOT
+  // cancelled — they re-trigger inside the FS context:
+  //  • bot scatter (3+) → adds free spins to the current remaining count
+  //  • wheel scatter (3+) → pauses FS, opens bonus wheel, resumes FS on close
+  if(fsTriggered > 0){
+    // accumulate retriggers across cascades
+    SL2.pendingFsTrigger = (SL2.pendingFsTrigger || 0) + fsTriggered;
   }
-  if(wheelTriggered && !SL2.fsActive){
+  if(wheelTriggered){
     SL2.pendingWheelTrigger = true;
   }
 }
@@ -8716,7 +8822,33 @@ function slv2FinishSpin(fsTriggered){
     }
   }
 
-  // Trigger FS if pending
+  // ─── FS RE-TRIGGER LOGIC ───────────────────────────────────────
+  // When the player gets another scatter DURING free spins, don't cancel it.
+  // Instead:
+  //  • bot scatter (3+ BOT)   → add the new FS to the remaining count
+  //  • wheel scatter (3+ WHEEL) → pause FS, play the wheel, resume FS on close
+  // Both cases accumulate the FS — new FS count ADDED to old, never replaces.
+  if(SL2.fsActive && SL2.pendingFsTrigger > 0){
+    var extraFs = SL2.pendingFsTrigger;
+    SL2.pendingFsTrigger = 0;
+    SL2.fsRemaining = (SL2.fsRemaining || 0) + extraFs;
+    SL2.fsCount     = (SL2.fsCount     || 0) + extraFs;
+    slv2UpdateFsUI();
+    slv2ShowFsRetriggerToast(extraFs);
+    slv2Sound('free-spins');
+    // Track for the "Free Spinner" quest (counts as a retrigger event)
+    slv2SendSlotEvent('fs_round', { count: extraFs, retrigger: true });
+  }
+  if(SL2.fsActive && SL2.pendingWheelTrigger){
+    SL2.pendingWheelTrigger = false;
+    if(typeof slv2ResetBonusCounter === 'function') slv2ResetBonusCounter();
+    // Open the wheel mid-FS — slv2BonusWheelClose will detect fsActive
+    // and resume FS automatically when the player collects their prize.
+    setTimeout(slv2BonusWheelTrigger, 500);
+    return;
+  }
+
+  // Trigger FS if pending (outside FS — fresh round)
   if(SL2.pendingFsTrigger && !SL2.fsActive){
     var n = SL2.pendingFsTrigger;
     SL2.pendingFsTrigger = 0;
@@ -8725,7 +8857,7 @@ function slv2FinishSpin(fsTriggered){
     slv2TriggerFreeSpinsIntro(n);
     return;
   }
-  // Trigger Wheel bonus if pending (from 3+ wheel scatter on reels)
+  // Trigger Wheel bonus if pending (from 3+ wheel scatter on reels, outside FS)
   if(SL2.pendingWheelTrigger && !SL2.fsActive){
     SL2.pendingWheelTrigger = false;
     if(typeof slv2ResetBonusCounter === 'function') slv2ResetBonusCounter();
@@ -8981,8 +9113,10 @@ function slv2CascadeStep(wins){
             var newSym = SL2_REEL[Math.floor(Math.random() * SL2_REEL.length)];
             SL2.stripSyms[r][idx] = newSym;
             sym.className = 'slv2-sym sym-' + newSym + ' dropping-in';
-            if(newSym === 'gblogo'){
+            if(newSym === 'btc'){
               sym.innerHTML = slv2GbLogoHTML();
+            } else if(newSym === 'gblogo'){
+              sym.textContent = SL2_CHAR['gblogo'];
             } else if(newSym === 'wheel'){
               sym.innerHTML = slv2WheelSVG();
             } else {
@@ -9588,23 +9722,21 @@ function slv2BonusWheelSpin(){
   }
 
   var segAngle = 360 / SL2.WHEEL_SEGMENTS;
-  // FAST + DRAMATIC: 10-14 full rotations in 3.5s with proper ease-out curve.
-  // Old curve was cubic-bezier(0.15, 0.7, 0.2, 1) — completed 100% of motion
-  // in the first 20% of time, then crawled for 3.6s ("fa girare pianissimo").
-  // New curve is a real ease-out: fast throughout, gentle settle at the end.
-  var rotations = 10 + Math.floor(Math.random() * 5);  // 10-14 rotations
+  // FAST + DRAMATIC — duration cut 3500→2200ms, rotations 10→22-30,
+  // sharper start of the easing curve so the wheel LOOKS rapid throughout.
+  var rotations = 22 + Math.floor(Math.random() * 9);  // 22-30 rotations
   var jitter = (Math.random() - 0.5) * (segAngle * 0.7);
   var targetMod = ((-((winIdx + 0.5) * segAngle) + jitter) % 360 + 360) % 360;
   var finalAngle = rotations * 360 + targetMod;
-  var spinDurationMs = 3500;
+  var spinDurationMs = 2200;
 
   SL2.bwSelectedIdx = winIdx;
 
   var rotor = document.getElementById('slv2-bw-rotor');
   if(rotor){
-    // cubic-bezier(0.17, 0.67, 0.4, 1) — classic wheel-of-fortune curve:
-    // high initial velocity, sustained motion mid-spin, smooth deceleration at end.
-    rotor.style.transition = 'transform ' + spinDurationMs + 'ms cubic-bezier(0.17, 0.67, 0.4, 1)';
+    // cubic-bezier(0.10, 0.45, 0.20, 1) — very fast initial acceleration,
+    // sustained high velocity through ~70% of the spin, then crisp deceleration.
+    rotor.style.transition = 'transform ' + spinDurationMs + 'ms cubic-bezier(0.10, 0.45, 0.20, 1)';
     rotor.style.transform = 'rotate(' + finalAngle + 'deg)';
   }
 
@@ -9646,13 +9778,28 @@ function slv2BonusWheelSpin(){
       if(collect) collect.style.display = 'inline-block';
     }
     else if(seg.type === 'fs'){
-      // Award free spins — close wheel and start FS intro
+      // Award free spins — if we're ALREADY in a FS round (this wheel was a
+      // retrigger from inside FS), just ADD to the current count. Otherwise
+      // close the wheel and start a fresh FS intro.
       if(result) result.textContent = seg.value + ' FREE SPINS!';
       slv2Sound('big-win');
-      setTimeout(function(){
-        slv2BonusWheelClose();
-        setTimeout(function(){ slv2TriggerFreeSpinsIntro(seg.value); }, 350);
-      }, 1500);
+      if(SL2.fsActive){
+        // Stack onto existing FS round — no intro video, no reset
+        SL2.fsRemaining = (SL2.fsRemaining || 0) + seg.value;
+        SL2.fsCount     = (SL2.fsCount     || 0) + seg.value;
+        slv2UpdateFsUI();
+        slv2SendSlotEvent('fs_round', { count: seg.value, retrigger: true });
+        setTimeout(function(){
+          slv2ShowFsRetriggerToast(seg.value);
+          slv2BonusWheelClose();  // will resume FS automatically
+        }, 1500);
+      } else {
+        // Normal flow — close wheel and start FS intro
+        setTimeout(function(){
+          slv2BonusWheelClose();
+          setTimeout(function(){ slv2TriggerFreeSpinsIntro(seg.value); }, 350);
+        }, 1500);
+      }
     }
     else if(seg.type === 'chest'){
       // Trigger the vault game — close wheel and open vault
@@ -9691,7 +9838,7 @@ function slv2BonusWheelSpin(){
       slv2SendSlotEvent('progressive_win');
       slv2HandleJackpotWin(spinBtn, collect, result);
     }
-  }, 4600);
+  }, spinDurationMs + 800);
 }
 
 // Atomic claim of the cross-player progressive jackpot. The backend pays the
@@ -9797,10 +9944,36 @@ function slv2BonusWheelClose(){
   var ov = document.getElementById('slv2-bonus-wheel');
   if(ov) ov.classList.remove('visible');
   SL2.bonusActive = false;
+  // ─── FS RESUME ─────────────────────────────────────────────────
+  // If the wheel was triggered DURING free spins (scatter retrigger), resume
+  // the FS round. fsRemaining may have been bumped by an FS segment landing.
+  if(SL2.fsActive){
+    if(SL2.fsRemaining > 0){
+      setTimeout(slv2Spin, 800);
+    } else {
+      slv2EndFreeSpins();
+    }
+    return;
+  }
   // Resume auto-spin if it was running
   if(SL2.autoActive && SL2.autoRemaining > 0){
     setTimeout(slv2Spin, 800);
   }
+}
+
+// Brief on-screen celebration when an FS retrigger gives extra spins.
+// Floats above the FS counter card and fades after 2 seconds.
+function slv2ShowFsRetriggerToast(extra){
+  var fsCard = document.getElementById('slv2-fs-card');
+  if(!fsCard) return;
+  var toast = document.createElement('div');
+  toast.className = 'slv2-fs-retrigger-toast';
+  toast.textContent = '+' + extra + ' FREE SPINS!';
+  fsCard.appendChild(toast);
+  // Auto-remove after fade
+  setTimeout(function(){
+    if(toast.parentNode) toast.parentNode.removeChild(toast);
+  }, 2200);
 }
 
 // ================================================================
@@ -9925,11 +10098,23 @@ function slv2VaultPick(idx){
       result.textContent = 'YOU WON ' + prize.value + ' FREE SPINS!';
     }
     slv2Sound('big-win');
-    // Close vault and trigger FS intro after a beat
-    setTimeout(function(){
-      slv2VaultClose();
-      setTimeout(function(){ slv2TriggerFreeSpinsIntro(prize.value); }, 400);
-    }, 1800);
+    if(SL2.fsActive){
+      // Already inside an FS round (chest opened via wheel-during-FS) — stack
+      SL2.fsRemaining = (SL2.fsRemaining || 0) + prize.value;
+      SL2.fsCount     = (SL2.fsCount     || 0) + prize.value;
+      slv2UpdateFsUI();
+      slv2SendSlotEvent('fs_round', { count: prize.value, retrigger: true });
+      setTimeout(function(){
+        slv2ShowFsRetriggerToast(prize.value);
+        slv2VaultClose();  // resumes FS via the patched close logic
+      }, 1800);
+    } else {
+      // Normal flow — close vault and trigger FS intro
+      setTimeout(function(){
+        slv2VaultClose();
+        setTimeout(function(){ slv2TriggerFreeSpinsIntro(prize.value); }, 400);
+      }, 1800);
+    }
   }
 }
 
@@ -9938,6 +10123,17 @@ function slv2VaultClose(){
   if(ov) ov.classList.remove('visible');
   SL2.bonusActive = false;
   SL2.vaultPickedIdx = null;
+  // ─── FS RESUME ─────────────────────────────────────────────────
+  // If this vault was opened from a wheel chest segment DURING free spins,
+  // resume the FS round when the vault closes.
+  if(SL2.fsActive){
+    if(SL2.fsRemaining > 0){
+      setTimeout(slv2Spin, 800);
+    } else {
+      slv2EndFreeSpins();
+    }
+    return;
+  }
   if(SL2.autoActive && SL2.autoRemaining > 0){
     setTimeout(slv2Spin, 800);
   }
@@ -10237,8 +10433,81 @@ function slv2ClearAnticipation(){
 // rising suspense tone builds. If a third wheel lands → bonus triggers
 // and the suspense pays off. Otherwise resolves silently.
 // ================================================================
+// Dynamically EXTEND a still-spinning reel's transition. Used when a wheel
+// lands on an earlier reel and we want the remaining reels to noticeably
+// slow down (suspense build-up).
+// Reads the strip's current Y from getComputedStyle, snaps the transition,
+// then re-applies the target offset with a longer transition duration.
+function slv2SlowDownReel(reelIdx, extraMs){
+  if(!SL2.reelSpinning || !SL2.reelSpinning[reelIdx]) return;
+  var strip = document.getElementById('slv2-strip-' + reelIdx);
+  if(!strip) return;
+  var targetOffset = (SL2.reelFinalOffsets || [])[reelIdx];
+  if(targetOffset === undefined || targetOffset === null) return;
+
+  // Mark this reel as "in suspense" so we don't slow it down twice
+  if(strip.dataset.slowedDown === '1') return;
+  strip.dataset.slowedDown = '1';
+
+  // Get current Y from the matrix transform
+  var currentY = 0;
+  try {
+    var matrixStr = window.getComputedStyle(strip).transform;
+    if(matrixStr && matrixStr !== 'none'){
+      var m = matrixStr.match(/matrix\(([^)]+)\)/) || matrixStr.match(/matrix3d\(([^)]+)\)/);
+      if(m){
+        var vals = m[1].split(',').map(parseFloat);
+        // matrix(a,b,c,d,tx,ty) → ty at idx 5; matrix3d → m42 = idx 13
+        currentY = vals.length === 6 ? vals[5] : (vals[13] || 0);
+      }
+    }
+  } catch(e){ /* fall through, currentY=0 */ }
+
+  // If already very close to target, skip slowdown
+  var distance = Math.abs(targetOffset - currentY);
+  if(distance < 30) return;
+
+  // Snap to current position (cancel running transition)
+  strip.style.transition = 'none';
+  strip.style.transform = 'translateY(' + currentY + 'px)';
+  // Force reflow so the new transition takes effect
+  // eslint-disable-next-line no-unused-expressions
+  void strip.offsetWidth;
+
+  // Compute the new (longer) duration. The original target time is the time
+  // the reel WOULD have taken to cover the remaining distance — we add extraMs
+  // on top for slowdown. Minimum 600ms so the slowdown is perceptible.
+  var newDuration = Math.max(distance * 2.8 + extraMs, 700);
+
+  // Apply NEW transition with stronger ease-out (decelerates harder)
+  strip.style.transition = 'transform ' + newDuration + 'ms cubic-bezier(0.05, 0.4, 0.2, 1)';
+  strip.style.transform = 'translateY(' + targetOffset + 'px)';
+
+  // Reschedule the safety timer (the transitionend listener is still attached
+  // to the strip and will fire on the new transition completing — we just
+  // bump the fallback timer to the new ETA so it doesn't fire prematurely)
+  if(SL2.reelTimers[reelIdx]){
+    clearTimeout(SL2.reelTimers[reelIdx]);
+    SL2.reelTimers[reelIdx] = null;
+  }
+  // The existing onTrans handler will be invoked by the new transitionend.
+  // Add a fallback timer matching the new duration as belt-and-suspenders.
+  SL2.reelTimers[reelIdx] = setTimeout(function(){
+    // If the strip somehow hasn't fired transitionend, dispatch a synthetic
+    // one so the spin's `finalize` callback still runs.
+    try {
+      var ev = new Event('transitionend', { bubbles: true });
+      ev.propertyName = 'transform';
+      strip.dispatchEvent(ev);
+    } catch(_e){}
+  }, newDuration + 60);
+  // Audible click on the slowdown engaging — gives a "gear shift" feel
+  try { slv2PlayTone(180 + reelIdx * 20, 0.08, 'triangle', 0.10); } catch(_e){}
+}
+
 function slv2CheckWheelAnticipation(){
-  // Count wheel scatters on already-stopped reels 0-2 (first three columns)
+  // Threshold: EVEN 1 wheel triggers the suspense — every wheel on the first
+  // three reels feels like a possible bonus build-up.
   var wheelCount = 0;
   var wheelCells = [];
   for(var r = 0; r < 3; r++){
@@ -10249,31 +10518,39 @@ function slv2CheckWheelAnticipation(){
       }
     }
   }
-  if(wheelCount >= 2){
-    // Apply golden anticipation to reels 3 + 4 (the two still spinning)
+  if(wheelCount >= 1){
+    // Apply gold anticipation visual to all reels right of this one that are
+    // still spinning. We DON'T know which reel triggered the check, so just
+    // apply to any reel index > maxWheelReel + 1 that is currently spinning.
+    var maxWheelReel = wheelCells.reduce(function(a, c){ return Math.max(a, c.reel); }, -1);
     var cols = document.querySelectorAll('.slv2-reel-col');
-    [3, 4].forEach(function(idx){
+    for(var idx = maxWheelReel + 1; idx < 5; idx++){
+      if(!SL2.reelSpinning || !SL2.reelSpinning[idx]) continue;  // already stopped
       var col = cols[idx];
       var strip = document.getElementById('slv2-strip-' + idx);
       if(col) col.classList.add('wheel-anticipating-col');
       if(strip) strip.classList.add('wheel-anticipating');
-    });
+    }
     // Cabinet-wide pulsing halo
     var cab = document.querySelector('.slv2-cabinet');
     if(cab) cab.classList.add('wheel-suspense');
-    // Lock pulse on the wheel symbols already landed (so they pulse)
+    // Lock pulse on the wheel symbols already landed
     wheelCells.forEach(function(c){
       var strip = document.getElementById('slv2-strip-' + c.reel);
       if(!strip) return;
-      var idx = SL2.positions[c.reel] + (c.row - 1);
-      var cell = strip.children[idx];
+      var cellIdx = SL2.positions[c.reel] + (c.row - 1);
+      var cell = strip.children[cellIdx];
       if(cell) cell.classList.add('wheel-locked');
     });
-    // Play the rising suspense tone — Web Audio crescendo
-    slv2PlayWheelSuspense();
-    return true;
+    // Audio: play crescendo ONCE per spin (multiple wheels on different reels
+    // don't restack the audio). Use a flag on the SL2 state.
+    if(!SL2._wheelAnticipationAudioPlayed){
+      SL2._wheelAnticipationAudioPlayed = true;
+      slv2PlayWheelSuspense();
+    }
+    return wheelCount;
   }
-  return false;
+  return 0;
 }
 
 // Rising synth pad — frequency ramps low→high + volume crescendo,
@@ -10352,7 +10629,7 @@ function slv2ApplyStickyWilds(){
     var cell = strip.children[idx];
     if(cell){
       cell.className = 'slv2-sym sym-btc sticky-wild';
-      cell.textContent = SL2_CHAR['btc'];
+      cell.innerHTML = slv2GbLogoHTML();  // VISUAL SWAP: wild renders as GB logo
       SL2.stripSyms[sw.reel][idx] = 'btc';
       // Also update grid
       if(SL2.grid[sw.reel]) SL2.grid[sw.reel][sw.row] = 'btc';
@@ -11309,7 +11586,48 @@ function chSwitchTab(t){
   _CH_TAB=t;
   document.getElementById('qt-week').classList.toggle('on',t==='week');
   document.getElementById('qt-season').classList.toggle('on',t==='season');
+  // Toggle the "tab-season" class on the screen so the reset-timer hides via CSS
+  var screen = document.getElementById('challenges');
+  if(screen) screen.classList.toggle('tab-season', t==='season');
   renderChallenges();
+}
+
+// ─── WEEKLY QUEST RESET COUNTDOWN ───────────────────────────────
+// Backend rotates weekly quests at the start of each new ISO week.
+// We compute "next Monday 00:00 in user's local timezone" and tick down.
+// Using local time matches ISO week boundary in most TZ — the rotation is
+// driven by backend's get_week_key() which uses Python's strftime("%W"),
+// so we don't need exact second precision (anywhere within Monday is fine).
+var _qResetTimer = null;
+function qResetTimerStart(){
+  qResetTimerStop();
+  function tick(){
+    var el = document.getElementById('q-reset-clock');
+    if(!el) return;
+    var now = new Date();
+    var dow = now.getDay();                // 0=Sun, 1=Mon, ... 6=Sat
+    // days until next Monday 00:00 — if today is Monday, target = next Monday (7d)
+    var daysToMonday = ((1 - dow + 7) % 7) || 7;
+    var target = new Date(now);
+    target.setDate(now.getDate() + daysToMonday);
+    target.setHours(0, 0, 0, 0);
+    var diff = target - now;
+    if(diff < 0){ el.textContent = '—'; return; }
+    var d = Math.floor(diff / 86400000);
+    var h = Math.floor((diff % 86400000) / 3600000);
+    var m = Math.floor((diff % 3600000) / 60000);
+    var s = Math.floor((diff % 60000) / 1000);
+    var txt;
+    if(d > 0)       txt = d + 'd ' + String(h).padStart(2,'0') + 'h ' + String(m).padStart(2,'0') + 'm';
+    else if(h > 0)  txt = String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+    else            txt = String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+    el.textContent = txt;
+  }
+  tick();
+  _qResetTimer = setInterval(tick, 1000);
+}
+function qResetTimerStop(){
+  if(_qResetTimer){ clearInterval(_qResetTimer); _qResetTimer = null; }
 }
 function chProgress(q){
   var wp=S.weekProgress||{};
