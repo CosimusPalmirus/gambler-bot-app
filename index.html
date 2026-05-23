@@ -1664,6 +1664,71 @@ body{position:relative;}
   }
 }
 
+/* ─── Chip stacks for player + dealer ──────────────────────────────
+   Visually show that BOTH sides put money into the pot. The dealer's
+   chip stack mirrors the player's bet — matching call/raise symmetrically. */
+.pk-chip-stack{
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 2;
+  pointer-events: none;
+  font-family: 'Orbitron', monospace;
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  opacity: 0;
+  transition: opacity .35s ease-out, transform .35s ease-out;
+  transform: translateY(6px);
+}
+.pk-chip-stack.active{
+  opacity: 1;
+  transform: translateY(0);
+}
+.pk-dealer-chips{
+  top: 28px;
+  right: 10px;
+  color: rgba(255, 100, 100, .9);
+}
+.pk-player-chips{
+  bottom: 28px;
+  right: 10px;
+  color: rgba(95, 199, 255, .9);
+}
+.pk-cs-label{
+  font-weight: 700;
+  font-size: 8px;
+  letter-spacing: 2px;
+  opacity: .7;
+}
+.pk-cs-stack{
+  display: inline-flex;
+  align-items: center;
+}
+.pk-cs-stack .pk-cs-chip{
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1.5px solid #fff8d0;
+  margin-left: -4px;
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,.6),
+    0 2px 3px rgba(0,0,0,.5),
+    inset 0 -2px 3px rgba(0,0,0,.3);
+  animation: pkChipAppear .3s ease-out backwards;
+}
+.pk-cs-stack .pk-cs-chip:first-child{ margin-left: 0; }
+@keyframes pkChipAppear{
+  0%   { transform: scale(0) translateY(-10px); opacity: 0; }
+  60%  { transform: scale(1.3) translateY(2px); opacity: 1; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+.pk-cs-amt{
+  font-weight: 900;
+  text-shadow: 0 1px 2px rgba(0,0,0,.8);
+  margin-left: 2px;
+}
+
 /* Pot — chip-stack visualization that pulses when bets are placed */
 .pk-pot{
   position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
@@ -5995,12 +6060,17 @@ body{position:relative;}
   25%    { transform: translate(0.4px, -0.3px); }
   75%    { transform: translate(-0.4px, 0.3px); }
 }
-/* Force GPU layers for the most-animated elements */
+/* Force GPU layers for the most-animated elements.
+   NOTE: .slv2-bw-rotor INTENTIONALLY EXCLUDED — CSS `transform: translate3d`
+   would override the SVG transform attribute we drive via rAF, killing the spin. */
 .slots-crest,
 .slv2-spin-big,
-.slv2-particle,
-.slv2-bw-rotor{
+.slv2-particle{
   transform: translate3d(0,0,0);
+  backface-visibility: hidden;
+}
+/* Rotor needs backface-visibility but NOT transform (it owns its own transform attr) */
+.slv2-bw-rotor{
   backface-visibility: hidden;
 }
 
@@ -7319,12 +7389,17 @@ body{position:relative;}
       <div class="pk-phase-badge" id="pk-phase-badge">WAITING</div>
       <div class="pk-bet-info" id="pk-bet-info">No bet</div>
 
-      <!-- Dealer area -->
+      <!-- Dealer area + chip stack -->
       <div class="pk-area">
         <div class="pk-area-label">🎩 DEALER<span class="pk-hand-name" id="pk-dealer-hand-name"></span></div>
         <div class="pk-cards" id="pk-dealer-cards" style="display:flex;justify-content:center;gap:6px;">
           <div class="pk-card empty"></div>
           <div class="pk-card empty"></div>
+        </div>
+        <div class="pk-chip-stack pk-dealer-chips" id="pk-dealer-chips">
+          <span class="pk-cs-label">DEALER</span>
+          <span class="pk-cs-stack" id="pk-dealer-stack"></span>
+          <span class="pk-cs-amt" id="pk-dealer-amt">\u20ac0</span>
         </div>
       </div>
 
@@ -7341,13 +7416,18 @@ body{position:relative;}
         <div class="pk-card empty"></div>
       </div>
 
-      <!-- Player area -->
+      <!-- Player area + chip stack -->
       <div class="pk-area">
         <div class="pk-cards" id="pk-player-cards" style="display:flex;justify-content:center;gap:6px;">
           <div class="pk-card empty"></div>
           <div class="pk-card empty"></div>
         </div>
         <div class="pk-area-label">👤 YOU<span class="pk-hand-name" id="pk-player-hand-name"></span></div>
+        <div class="pk-chip-stack pk-player-chips" id="pk-player-chips">
+          <span class="pk-cs-label">YOU</span>
+          <span class="pk-cs-stack" id="pk-player-stack"></span>
+          <span class="pk-cs-amt" id="pk-player-amt">\u20ac0</span>
+        </div>
       </div>
 
       <!-- Showdown overlay (hidden until result) -->
@@ -7376,13 +7456,15 @@ body{position:relative;}
       <button class="action-btn gold" id="pk-again" style="display:none;width:100%;padding:14px;font-family:'Russo One',sans-serif;font-size:14px;letter-spacing:2px;margin-top:6px;" onclick="pkReset()">↻ PLAY AGAIN</button>
     </div>
 
-    <!-- Action guide — CALL vs RAISE strategy -->
+    <!-- Action guide — head-to-head poker rules -->
     <div style="margin-top:10px;background:rgba(0,0,0,.4);border-radius:10px;padding:9px 10px;border:1px solid rgba(168,85,247,.25);">
-      <div style="font-family:'Russo One',sans-serif;font-size:10px;color:#d8b4fe;letter-spacing:1.5px;margin-bottom:5px;">\ud83c\udfb2 YOUR MOVES AT THE FLOP</div>
+      <div style="font-family:'Russo One',sans-serif;font-size:10px;color:#d8b4fe;letter-spacing:1.5px;margin-bottom:5px;">\ud83c\udfb2 HEAD-TO-HEAD vs DEALER</div>
       <div style="font-family:'Orbitron',monospace;font-size:9px;color:#a1a1aa;line-height:1.55;">
-        <div><b style="color:#fca5a5;">FOLD</b> &mdash; quit; lose your ante</div>
-        <div><b style="color:#93c5fd;">CALL (2&times; ante)</b> &mdash; standard play, see all 5 community cards</div>
-        <div><b style="color:#ffd700;">RAISE (3&times; ante)</b> &mdash; bigger commit, bigger payout if you win &mdash; same RTP, higher variance</div>
+        <div style="margin-bottom:4px;">The dealer <b style="color:#ffd700;">matches every chip you put in</b>. The pot grows with both stakes. Winner takes the whole pot. Big hands earn a bonus on top.</div>
+        <div><b style="color:#fca5a5;">FOLD</b> &mdash; surrender the pot; lose your ante</div>
+        <div><b style="color:#93c5fd;">CALL</b> &mdash; you add 2&times; ante, dealer matches 2&times; ante. Pot = 6&times; ante</div>
+        <div><b style="color:#ffd700;">RAISE</b> &mdash; you add 3&times; ante, dealer matches 3&times; ante. Pot = 8&times; ante &mdash; bigger pot, same odds</div>
+        <div style="margin-top:4px;opacity:.7;">If the dealer's hand doesn't qualify (no pair of 4s), your CALL/RAISE bet is refunded.</div>
       </div>
     </div>
     <!-- Paytable info -->
@@ -7644,9 +7726,9 @@ body{position:relative;}
       <div class="pl-slots-row" id="pl-slots" style="display:none;"></div>
     </div>
     
-    <!-- In-flight counter — caps spam at MAX_BALLS in flight -->
+    <!-- Launch counter — capped per peg layout, change risk level to reset -->
     <div class="pl-flight-meter" id="pl-flight-meter">
-      <span class="pl-fm-label">BALLS IN FLIGHT</span>
+      <span class="pl-fm-label">LAUNCHES THIS LAYOUT</span>
       <span class="pl-fm-bar"><span class="pl-fm-fill" id="pl-fm-fill"></span></span>
       <span class="pl-fm-count"><span id="pl-fm-cur">0</span>/<span id="pl-fm-max">10</span></span>
     </div>
@@ -13395,7 +13477,8 @@ function pkPlayBuf(ctx, gen, durSec, filterType, filterFreq){
   } catch(e){}
 }
 
-// Animate chips flying from player area to the pot for visual feedback
+// Animate chips flying from BOTH player + dealer area into the pot.
+// This visualizes the dealer matching the player's bet symmetrically.
 function pkAnimateChipsToPot(amount, color){
   var pot = document.getElementById('pk-pot');
   if(!pot) return;
@@ -13403,28 +13486,79 @@ function pkAnimateChipsToPot(amount, color){
   var table = document.querySelector('.pk-table');
   if(!table) return;
   var tableRect = table.getBoundingClientRect();
-  // Spawn 3-6 chips, each a div that animates from bottom to pot
+  // Spawn 3-8 chips from EACH side (player bottom + dealer top)
   var count = Math.min(8, Math.max(3, Math.floor(amount / 5)));
+  // PLAYER side (bottom)
   for(var i = 0; i < count; i++){
     (function(idx){
       setTimeout(function(){
-        var chip = document.createElement('div');
-        chip.className = 'pk-flying-chip';
-        chip.style.background = color || '#ffd700';
-        // Start from bottom-center of table (player area)
-        var startX = tableRect.width / 2 + (Math.random() - 0.5) * 80;
-        var startY = tableRect.height - 30;
-        var endX = rect.left - tableRect.left + rect.width / 2;
-        var endY = rect.top - tableRect.top + rect.height / 2;
-        chip.style.left = startX + 'px';
-        chip.style.top = startY + 'px';
-        chip.style.setProperty('--tx', (endX - startX) + 'px');
-        chip.style.setProperty('--ty', (endY - startY) + 'px');
-        table.appendChild(chip);
-        setTimeout(function(){ if(chip.parentNode) chip.parentNode.removeChild(chip); }, 800);
+        pkSpawnFlyingChip(table, tableRect, rect, color || '#ffd700', 'player');
       }, idx * 60);
     })(i);
   }
+  // DEALER side (top) — same count, fires in sync
+  for(var j = 0; j < count; j++){
+    (function(idx){
+      setTimeout(function(){
+        pkSpawnFlyingChip(table, tableRect, rect, color || '#ffd700', 'dealer');
+      }, idx * 60);
+    })(j);
+  }
+}
+
+function pkSpawnFlyingChip(table, tableRect, potRect, color, source){
+  var chip = document.createElement('div');
+  chip.className = 'pk-flying-chip';
+  chip.style.background = color;
+  var startX, startY;
+  if(source === 'dealer'){
+    startX = tableRect.width / 2 + (Math.random() - 0.5) * 80;
+    startY = 30;  // top area
+  } else {
+    startX = tableRect.width / 2 + (Math.random() - 0.5) * 80;
+    startY = tableRect.height - 30;  // bottom area
+  }
+  var endX = potRect.left - tableRect.left + potRect.width / 2;
+  var endY = potRect.top - tableRect.top + potRect.height / 2;
+  chip.style.left = startX + 'px';
+  chip.style.top = startY + 'px';
+  chip.style.setProperty('--tx', (endX - startX) + 'px');
+  chip.style.setProperty('--ty', (endY - startY) + 'px');
+  table.appendChild(chip);
+  setTimeout(function(){ if(chip.parentNode) chip.parentNode.removeChild(chip); }, 800);
+}
+
+// Render the chip stacks next to player + dealer areas.
+// Stack size visualizes how much each side has put into the pot.
+function pkRenderChipStacks(playerAmt, dealerAmt, callerLabel){
+  function build(side, amount){
+    var stackEl = document.getElementById('pk-' + side + '-stack');
+    var amtEl   = document.getElementById('pk-' + side + '-amt');
+    var wrap    = document.getElementById('pk-' + side + '-chips');
+    if(!stackEl || !amtEl || !wrap) return;
+    if(amount <= 0){
+      wrap.classList.remove('active');
+      stackEl.innerHTML = '';
+      amtEl.textContent = '\u20ac0';
+      return;
+    }
+    wrap.classList.add('active');
+    // Visualize chip count proportionally — 1 chip per bet €1-5, capped at 5 chips
+    var numChips = Math.min(5, Math.max(1, Math.round(amount / Math.max(1, amount / 4))));
+    if(numChips < 1) numChips = 1;
+    if(numChips > 5) numChips = 5;
+    // Color by side
+    var color = side === 'dealer' ? '#ef4444' : '#5fc7ff';
+    var html = '';
+    for(var i = 0; i < numChips; i++){
+      var delay = (i * 80) + 'ms';
+      html += '<span class="pk-cs-chip" style="background:' + color + ';animation-delay:' + delay + ';"></span>';
+    }
+    stackEl.innerHTML = html;
+    amtEl.textContent = '\u20ac' + amount.toFixed(2).replace(/\.00$/, '');
+  }
+  build('player', playerAmt);
+  build('dealer', dealerAmt);
 }
 
 var PK_RANK_NAMES = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
@@ -13607,7 +13741,7 @@ function pkRender(){
   if(pot){
     if(PK.totalBet>0){
       pot.classList.add('visible');
-      pot.innerHTML='<span class="pk-pot-coin">\uD83D\uDCB0</span>POT: \u20ac'+PK.totalBet;
+      pot.innerHTML='<span class="pk-pot-coin">\uD83D\uDCB0</span>POT: \u20ac' + (PK.totalBet * 2);
     }else{
       pot.classList.remove('visible');
     }
@@ -13703,7 +13837,7 @@ function pkStart(eur){
       pkSound('reveal');
       pkUpdateButtons();
       document.getElementById('pk-status').textContent =
-        'Decide: CALL \u20ac' + (PK.ante*2) + ', RAISE \u20ac' + (PK.ante*3) + ', or FOLD';
+        'Match the pot: CALL +\u20ac' + (PK.ante*2) + ' or RAISE +\u20ac' + (PK.ante*3) + ' \u2014 or FOLD';
     });
   },1100);
 }
@@ -13819,20 +13953,25 @@ function pkPulsePot(addAmount){
   setTimeout(function(){ pot.classList.remove('pulse'); }, 800);
 }
 
-// Sync the pot/bet info text with current bet state
+// Sync the pot/bet info text with current symmetric pot state.
+// The pot's "real" total is 2× the player's bet because the dealer
+// matches every chip the player puts in.
 function pkUpdateBetInfo(){
   var info = document.getElementById('pk-bet-info');
   if(!info) return;
   if(PK.totalBet === 0){
-    info.textContent = 'No bet';
+    info.textContent = 'Pick a stake to ante up';
+    pkRenderChipStacks(0, 0);
     return;
   }
-  var parts = ['Ante \u20ac' + PK.ante.toFixed(2)];
-  if(PK.play > 0){
-    var label = PK.playAction === 'raise' ? 'Raise' : 'Play';
-    parts.push(label + ' \u20ac' + PK.play.toFixed(2));
-  }
-  info.innerHTML = parts.join(' \u2022 ') + ' <span style="color:#ffd700;font-weight:700;">\u2192 Total \u20ac' + PK.totalBet.toFixed(2) + '</span>';
+  // Visualize the side chip stacks
+  pkRenderChipStacks(PK.totalBet, PK.totalBet);  // dealer matches symmetrically
+  // The actual visible pot in the center = 2× player's bet
+  var visiblePot = PK.totalBet * 2;
+  var parts = ['You \u20ac' + PK.totalBet.toFixed(2).replace(/\.00$/, '')];
+  parts.push('Dealer \u20ac' + PK.totalBet.toFixed(2).replace(/\.00$/, ''));
+  info.innerHTML = parts.join(' <span style="opacity:.5;">vs</span> ') +
+    ' <span style="color:#ffd700;font-weight:700;"> \u2192 POT \u20ac' + visiblePot.toFixed(2).replace(/\.00$/, '') + '</span>';
 }
 
 function pkAdvance(){
@@ -14063,6 +14202,8 @@ function pkReset(){
   if(tbl) tbl.classList.remove('raise-flash', 'win-glow', 'lose-fade');
   var pot = document.getElementById('pk-pot');
   if(pot) pot.classList.remove('pulse');
+  // Hide chip stacks
+  pkRenderChipStacks(0, 0);
   pkRender();
   pkUpdateButtons();
   pkUpdateBetInfo();
@@ -14374,7 +14515,9 @@ var PL = {
   animFrame: null,
   lastDropTs: 0,         // for rate-limit (max 1 ball per 120ms)
   DROP_INTERVAL: 120,    // ms between consecutive drops
-  MAX_BALLS: 10,         // anti-spam cap — max balls in flight at once
+  MAX_BALLS: 10,                  // legacy: in-flight cap (kept for safety, not the primary gate)
+  MAX_LAUNCHES_PER_LAYOUT: 10,    // NEW: total launches you can fire on a given peg layout
+  launchesThisLayout: 0,          // counter — does NOT decrement when balls land
   
   // 7 slots — payout tables tuned for symmetric Gaussian-ish landing distribution
   paytables: {
@@ -14555,14 +14698,16 @@ function plSetRisk(risk){
   document.getElementById('pl-risk-' + risk.toLowerCase()).classList.add('active');
   PL.revealed = false;       // hide buckets when changing risk
   PL.currentSlots = null;
+  PL.launchesThisLayout = 0; // NEW LEVEL → reset launch counter
   plGenerateRandomPegs();
   plRenderSlotDividers();
   plRenderSlots();
+  plUpdateFlightMeter();
 }
 
 function plUpdateFlightMeter(){
-  var cur = PL.balls.length;
-  var max = PL.MAX_BALLS;
+  var cur = PL.launchesThisLayout;
+  var max = PL.MAX_LAUNCHES_PER_LAYOUT;
   var curEl = document.getElementById('pl-fm-cur');
   var maxEl = document.getElementById('pl-fm-max');
   var fillEl = document.getElementById('pl-fm-fill');
@@ -14574,20 +14719,31 @@ function plUpdateFlightMeter(){
   if(meter){
     meter.classList.toggle('warn', cur >= max * 0.7 && cur < max);
     meter.classList.toggle('cap',  cur >= max);
+    // Update label text — different message at cap vs. progress
+    var lbl = meter.querySelector('.pl-fm-label');
+    if(lbl){
+      if(cur >= max){
+        lbl.textContent = 'LAYOUT EXHAUSTED \u2014 CHANGE LEVEL TO RESET';
+      } else {
+        lbl.textContent = 'LAUNCHES THIS LAYOUT';
+      }
+    }
   }
-  // Hard-lock the bet grid when at cap — buttons become un-clickable + visibly disabled
+  // Lock the bet grid at cap — no more drops on this layout
   if(grid) grid.classList.toggle('at-cap', cur >= max);
 }
 
 function plDrop(eur){
-  // ---- Rate-limit + cap ----
+  // ---- Rate-limit + per-layout cap ----
   var now = Date.now();
   if(now - PL.lastDropTs < PL.DROP_INTERVAL){
     // Silently swallow rapid double-clicks (no toast spam)
     return;
   }
-  if(PL.balls.length >= PL.MAX_BALLS){
-    toast('Max ' + PL.MAX_BALLS + ' balls in flight — wait for some to land', 'err', 1400);
+  // Per-layout launch cap — once you've fired 10 balls on this peg arrangement,
+  // you must change risk level to reset (so you can't exploit a learned layout).
+  if(PL.launchesThisLayout >= PL.MAX_LAUNCHES_PER_LAYOUT){
+    toast('Layout exhausted \u2014 change risk level to start a new layout', 'err', 1800);
     return;
   }
   if(!PL.boardReady){ plBuildBoard(); PL.boardReady = true; }
@@ -14597,7 +14753,11 @@ function plDrop(eur){
 
   document.getElementById('pl-bal').textContent = '\u20ac' + (S.btc * S.rate).toFixed(2);
 
-  // First ball of a flight: randomize pegs + slot values, lock them for the whole flight
+  // First ball of a flight: randomize pegs + slot values for the new flight.
+  // NOTE: launchesThisLayout does NOT reset here. The counter only resets when
+  // the player explicitly switches risk level (LOW/MEDIUM/HIGH) — this prevents
+  // exploiting a learned peg layout by firing 10, waiting them out, firing 10
+  // more on the same level.
   if(PL.balls.length === 0){
     plGenerateRandomPegs();
     plRenderSlotDividers();
@@ -14622,6 +14782,7 @@ function plDrop(eur){
     stuckFrames: 0
   };
   PL.balls.push(ball);
+  PL.launchesThisLayout++;
   plUpdateFlightMeter();
 
   // Create SVG circle for this ball
