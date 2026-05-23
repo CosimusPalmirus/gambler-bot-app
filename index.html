@@ -15136,6 +15136,43 @@ function plDrop(eur){
   }
 }
 
+// Plinko peg-bounce sound — short pitched tink scaled by ball speed.
+// Throttled to max 4 sounds per 80ms window so cascading multi-ball
+// rallies don't turn into an audio jackhammer.
+function plPegBounceSound(ball){
+  if(!SL2.soundsEnabled) return;
+  var now = performance.now();
+  if(!PL._pegSoundTimes) PL._pegSoundTimes = [];
+  // Drop entries older than 80ms
+  while(PL._pegSoundTimes.length && (now - PL._pegSoundTimes[0]) > 80){
+    PL._pegSoundTimes.shift();
+  }
+  if(PL._pegSoundTimes.length >= 4) return;
+  PL._pegSoundTimes.push(now);
+
+  var ctx = slv2EnsureAudio();
+  if(!ctx) return;
+  // Map speed → pitch + volume. Slow grazes are quiet low-pitched tonks,
+  // fast direct hits are bright sharp tinks.
+  var speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+  var pitch = 700 + Math.min(1800, speed * 110) + Math.random() * 120;
+  var vol   = Math.min(0.11, 0.035 + speed * 0.012);
+  try {
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = pitch;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    var t0 = ctx.currentTime;
+    gain.gain.setValueAtTime(0, t0);
+    gain.gain.linearRampToValueAtTime(vol, t0 + 0.002);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.055);
+    osc.start(t0);
+    osc.stop(t0 + 0.08);
+  } catch(e){}
+}
+
 function plPhysicsLoop(){
   function step(){
     if(PL.balls.length === 0){
@@ -15177,6 +15214,10 @@ function plPhysicsLoop(){
             b.vx = (b.vx - 2 * dot * nx) * PL.BOUNCE;
             b.vy = (b.vy - 2 * dot * ny) * PL.BOUNCE;
             b.vx += (Math.random() - 0.5) * PL.RAND_KICK;
+            // Sound: short tink, pitch + volume scale with ball speed.
+            // Throttled to avoid 100 simultaneous sounds when multiple
+            // balls are bouncing through dense peg fields.
+            plPegBounceSound(b);
           }
           var pegEl = PL.pegElements[i];
           if(pegEl){
