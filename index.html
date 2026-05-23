@@ -6790,8 +6790,6 @@ body{position:relative;}
       <video class="slv2-fs-intro-video" id="slv2-fs-intro-video"
              autoplay muted playsinline preload="auto" decoding="async"
              src=""></video>
-      <!-- Tap-to-unmute pill (only shown if autoplay blocks audio) -->
-      <div class="slv2-sound-hint" id="slv2-fs-sound-hint" onclick="slv2UnmuteVideo('slv2-fs-intro-video', 'slv2-fs-sound-hint')">🔇 TAP FOR SOUND</div>
       <!-- Countdown ring (shown during the "GET READY" pre-button window) -->
       <div class="slv2-video-countdown" id="slv2-fs-countdown">
         <svg viewBox="0 0 80 80" aria-hidden="true">
@@ -6840,7 +6838,6 @@ body{position:relative;}
       <video class="slv2-bw-video" id="slv2-bw-video"
              autoplay muted playsinline preload="auto" decoding="async"
              src=""></video>
-      <div class="slv2-sound-hint" id="slv2-bw-sound-hint" onclick="slv2UnmuteVideo('slv2-bw-video', 'slv2-bw-sound-hint')">🔇 TAP FOR SOUND</div>
       <div class="slv2-video-countdown" id="slv2-bw-countdown">
         <svg viewBox="0 0 80 80" aria-hidden="true">
           <circle class="ring-bg" cx="40" cy="40" r="36"/>
@@ -6869,7 +6866,6 @@ body{position:relative;}
       <video class="slv2-vg-video" id="slv2-vg-video"
              autoplay muted playsinline preload="auto" decoding="async"
              src=""></video>
-      <div class="slv2-sound-hint" id="slv2-vg-sound-hint" onclick="slv2UnmuteVideo('slv2-vg-video', 'slv2-vg-sound-hint')">🔇 TAP FOR SOUND</div>
       <div class="slv2-video-countdown" id="slv2-vg-countdown">
         <svg viewBox="0 0 80 80" aria-hidden="true">
           <circle class="ring-bg" cx="40" cy="40" r="36"/>
@@ -8937,6 +8933,35 @@ function slv2ClosePaytable(ev){
 function slv2Spin(){
   if(SL2.spinning) return;
 
+  // ─── VIDEO WARMUP (first spin only) ─────────────────────────────
+  // The user gesture from clicking SPIN is our chance to "prime" the bonus
+  // videos so they can later autoplay UNMUTED when the bonus triggers
+  // (which happens outside any gesture context). We play+pause each video
+  // here — browsers remember the user-initiated state and allow subsequent
+  // .play() with sound from any callback context.
+  if(!SL2._videosWarmed){
+    SL2._videosWarmed = true;
+    ['slv2-fs-intro-video', 'slv2-bw-video', 'slv2-vg-video'].forEach(function(id){
+      var v = document.getElementById(id);
+      if(!v || !v.getAttribute('src')) return;
+      try {
+        v.muted = true;
+        var p = v.play();
+        if(p && p.then){
+          p.then(function(){
+            // Pause immediately after starting — element is now "primed"
+            try { v.pause(); v.currentTime = 0; } catch(_e){}
+          }).catch(function(){ /* silent — warmup is best-effort */ });
+        }
+      } catch(e){ /* ignore */ }
+    });
+    // Also resume any suspended Web Audio context so suspense crescendo works
+    try {
+      var ctx = (typeof slv2EnsureAudio === 'function') ? slv2EnsureAudio() : null;
+      if(ctx && ctx.state === 'suspended') ctx.resume();
+    } catch(e){}
+  }
+
   // If we're in free spins mode, don't deduct from balance
   var isFreeSpin = SL2.fsActive && SL2.fsRemaining > 0;
 
@@ -9703,7 +9728,6 @@ function slv2TriggerFreeSpinsIntro(count){
   if(countEl) countEl.textContent = count;
   if(intro) intro.classList.add('visible');
   slv2RestartVideo('slv2-fs-intro-video');
-  slv2MaybeShowSoundHint('slv2-fs-intro');
   slv2Sound('free-spins');
   // Stop auto spin during FS intro - will continue after FS
   if(SL2.autoActive){
@@ -10059,7 +10083,6 @@ function slv2BonusWheelTrigger(){
   // the player ALWAYS hears something dramatic when the wheel opens
   slv2PlayWheelOpenFanfare();
   slv2Sound('scatter');
-  slv2MaybeShowSoundHint('slv2-bonus-wheel');
 
   // Run a visible 5-second countdown ring so the player knows they're
   // watching the cinematic, then the SPIN button activates.
@@ -10607,7 +10630,6 @@ function slv2VaultTrigger(){
   var ov = document.getElementById('slv2-vault-game');
   if(ov) ov.classList.add('visible');
   slv2RestartVideo('slv2-vg-video');
-  slv2MaybeShowSoundHint('slv2-vault-game');
   slv2Sound('free-spins');
 
   // Gate the picks for 3.5s — the player should see the cinematic before
@@ -10968,6 +10990,8 @@ function slv2UnmuteVideo(videoId, pillId){
 }
 
 // Show the "tap for sound" pill on an overlay if autoplay fell back muted.
+// (Legacy — no longer called from triggers since video warmup makes the pill
+// unnecessary. Function kept in case any external code references it.)
 function slv2MaybeShowSoundHint(overlayId){
   if(SL2_AUDIO_UNLOCKED) return;
   var prefix = ({
