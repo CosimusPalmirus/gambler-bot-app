@@ -1769,6 +1769,74 @@ body{position:relative;}
 .gcard.bj .gcard-icon{filter:drop-shadow(0 0 10px rgba(220,38,38,.6));}
 .gcard.slots{--gc-from:#ffd700;--gc-to:#ff7a00;border-color:rgba(255,215,0,.45);}
 .gcard.slots .gcard-icon{filter:drop-shadow(0 0 12px rgba(255,215,0,.55));}
+
+/* Premium upgrade for Gambler Slots — sets it apart visually as the flagship game */
+.gcard.gcard-premium{
+  position:relative;
+  background:
+    radial-gradient(ellipse at top, rgba(255,215,0,.12), transparent 60%),
+    linear-gradient(145deg, rgba(168,85,247,.08), rgba(255,170,0,.05));
+  border-width:1.5px;
+  border-color:rgba(255,215,0,.6);
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,.4),
+    0 8px 18px rgba(0,0,0,.5),
+    0 0 20px rgba(255,215,0,.18);
+  overflow:visible;  /* allow ribbon to peek */
+  animation:slv2GcardPremiumGlow 3.4s ease-in-out infinite;
+}
+@keyframes slv2GcardPremiumGlow{
+  0%,100%{ box-shadow: 0 0 0 1px rgba(0,0,0,.4), 0 8px 18px rgba(0,0,0,.5), 0 0 14px rgba(255,215,0,.16); }
+  50%    { box-shadow: 0 0 0 1px rgba(0,0,0,.4), 0 8px 18px rgba(0,0,0,.5), 0 0 28px rgba(255,215,0,.42), 0 0 44px rgba(168,85,247,.18); }
+}
+.gcard.gcard-premium .gcard-name{
+  background: linear-gradient(180deg, #fff8d0 0%, #ffd700 50%, #ff8800 100%);
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+  font-weight:900;
+  letter-spacing:1px;
+  text-shadow: 0 0 12px rgba(255,170,0,.25);
+}
+.gcard.gcard-premium .gcard-info{
+  color: #e8d8a8;
+  font-size: 10.5px;
+  letter-spacing: .3px;
+}
+/* Premium ribbon — diagonal "UPGRADED" tag in upper-left corner */
+.gcard-ribbon{
+  position:absolute;
+  top:8px; left:-10px;
+  background: linear-gradient(135deg, #ff2244 0%, #b91c1c 100%);
+  color:#fff8d0;
+  font-family:'Russo One',sans-serif;
+  font-size:8.5px;
+  letter-spacing:1.4px;
+  padding:3px 12px 3px 14px;
+  font-weight:700;
+  box-shadow:
+    0 2px 6px rgba(0,0,0,.6),
+    inset 0 1px 0 rgba(255,255,255,.2);
+  z-index:3;
+  transform:rotate(-8deg);
+  pointer-events:none;
+  animation: slv2RibbonPulse 2s ease-in-out infinite;
+}
+@keyframes slv2RibbonPulse{
+  0%,100% { filter: drop-shadow(0 0 0 rgba(255,80,80,0)); }
+  50%     { filter: drop-shadow(0 0 5px rgba(255,80,80,.7)); }
+}
+/* Premium badge — gradient gold + larger size */
+.gcard-badge-premium{
+  background: linear-gradient(145deg, #ffd700 0%, #ff8800 100%) !important;
+  color: #1a0500 !important;
+  border-color: #fff8d0 !important;
+  font-weight: 900 !important;
+  text-shadow: none !important;
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,.6),
+    0 0 12px rgba(255,170,0,.5);
+}
 .gcard.roulette{--gc-from:#10b981;--gc-to:#064e3b;border-color:rgba(16,185,129,.45);}
 .gcard.roulette .gcard-icon{filter:drop-shadow(0 0 10px rgba(16,185,129,.55));}
 .gcard.dice{--gc-from:#3b82f6;--gc-to:#1e3a8a;border-color:rgba(59,130,246,.45);}
@@ -5361,11 +5429,34 @@ body{position:relative;}
   /* NO more padding-top snap — keep content where it is; the buttons will
      simply float over the video which is fine */
 }
-/* Video itself fades in smoothly when it starts playing */
+/* Video itself fades in smoothly when it starts playing.
+   Use opacity transform (compositor-only) so the fade doesn't trigger
+   layout/paint passes. will-change hints the browser to keep the video
+   layer GPU-promoted for the duration of the overlay. */
 .slv2-fs-intro-video,
 .slv2-bw-video,
 .slv2-vg-video{
   transition: opacity 1s ease-in !important;
+  will-change: opacity;
+  /* Subtle inset vignette: makes the video feel like a "screen" framed
+     by the overlay rather than a raw clip. */
+  box-shadow:
+    inset 0 0 60px 20px rgba(0,0,0,.55),
+    inset 0 0 0 1px rgba(255,215,0,.15);
+}
+/* When video plays, lift opacity from the legacy 0.7 → 0.95 so the
+   cinematic moment dominates the screen */
+.slv2-fs-intro.has-video .slv2-fs-intro-video,
+.slv2-bonus-wheel.has-video .slv2-bw-video,
+.slv2-vault-game.has-video .slv2-vg-video{
+  opacity: 0.95 !important;
+}
+/* And kill any decorative idle animations on the content card while
+   the video runs — keeps GPU free for smooth 30/60fps playback */
+.slv2-fs-intro.has-video .slv2-fs-intro-content,
+.slv2-bonus-wheel.has-video .slv2-bw-content,
+.slv2-vault-game.has-video .slv2-vg-content{
+  animation: none !important;
 }
 /* And the overlay shockwave + light beams: hide IMMEDIATELY when has-video,
    no transition flicker */
@@ -5887,6 +5978,93 @@ body{position:relative;}
 }
 
 
+/* ────────────────────────────────────────────────────────────────
+   SCATTER VIDEO PRESENTATION POLISH
+   ─ countdown ring  (visible "GET READY..." gauge during intro delay)
+   ─ sound-unlock pill (tap-to-unmute hint if autoplay blocks audio)
+   ──────────────────────────────────────────────────────────────── */
+.slv2-video-countdown{
+  position:absolute;
+  bottom:120px;
+  left:50%;
+  transform:translateX(-50%);
+  width:80px;
+  height:80px;
+  z-index:18;
+  pointer-events:none;
+  opacity:0;
+  transition:opacity .4s ease-out;
+}
+.slv2-video-countdown.show{ opacity:1; }
+.slv2-video-countdown svg{
+  width:100%; height:100%;
+  filter: drop-shadow(0 0 12px rgba(255,215,0,.6));
+}
+.slv2-video-countdown .ring-bg{
+  fill:none;
+  stroke:rgba(0,0,0,.55);
+  stroke-width:5;
+}
+.slv2-video-countdown .ring-fg{
+  fill:none;
+  stroke:url(#countdownGrad);
+  stroke-width:5;
+  stroke-linecap:round;
+  stroke-dasharray:226;          /* 2 * π * 36 */
+  stroke-dashoffset:226;
+  transform-origin:center;
+  transform:rotate(-90deg);
+  /* Duration set via inline `transition` from JS */
+}
+.slv2-video-countdown .num{
+  position:absolute;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-family:'Russo One',sans-serif;
+  font-size:24px;
+  color:#ffd700;
+  text-shadow:0 0 8px rgba(255,215,0,.8), 0 1px 2px rgba(0,0,0,.85);
+}
+
+/* Sound-unlock pill — appears briefly if autoplay falls back to muted */
+.slv2-sound-hint{
+  position:absolute;
+  top:18px;
+  right:18px;
+  z-index:25;
+  background:rgba(0,0,0,.7);
+  border:1px solid rgba(255,215,0,.45);
+  border-radius:18px;
+  padding:6px 12px;
+  font-family:'Russo One',sans-serif;
+  font-size:11px;
+  letter-spacing:1px;
+  color:#ffd700;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  backdrop-filter:blur(4px);
+  -webkit-backdrop-filter:blur(4px);
+  opacity:0;
+  transform:translateY(-10px) scale(.9);
+  transition:opacity .35s ease-out, transform .35s ease-out;
+  pointer-events:none;
+}
+.slv2-sound-hint.show{
+  opacity:1;
+  transform:translateY(0) scale(1);
+  pointer-events:auto;
+  animation:slv2SoundHintPulse 1.8s ease-in-out infinite;
+}
+@keyframes slv2SoundHintPulse{
+  0%,100% { box-shadow:0 0 0 0 rgba(255,215,0,.5); }
+  50%     { box-shadow:0 0 0 6px rgba(255,215,0,0); }
+}
+.slv2-sound-hint:hover{ background:rgba(0,0,0,.85); color:#fff; }
+
 /* Higgsfield video on FS trigger (optional) */
 .slv2-fs-intro-video{
   position:absolute;
@@ -5906,7 +6084,7 @@ body{position:relative;}
 }
 @keyframes slv2FsVideoFade{
   from{opacity:0;}
-  to{opacity:0.7;}
+  to{opacity:0.95;}
 }
 /* When video is present, dim the bg a bit so video shows through */
 .slv2-fs-intro-video[src]:not([src=""]) ~ .slv2-fs-intro-bg{
@@ -6032,11 +6210,12 @@ body{position:relative;}
         <div class="gcard-name">BLACKJACK</div>
         <div class="gcard-info">Beat dealer • x2.5</div>
       </div>
-      <div class="gcard slots" onclick="go('slots')">
-        <span class="gcard-badge gold">x50</span>
+      <div class="gcard slots gcard-premium" onclick="go('slots')">
+        <span class="gcard-badge gold gcard-badge-premium">★ 5000×</span>
+        <span class="gcard-ribbon">UPGRADED</span>
         <div class="gcard-icon">🎰</div>
-        <div class="gcard-name">SLOTS</div>
-        <div class="gcard-info">777 Jackpot</div>
+        <div class="gcard-name">GAMBLER SLOTS</div>
+        <div class="gcard-info">Wilds • Free Spins • Wheel • Vault</div>
       </div>
       <div class="gcard roulette" onclick="go('roulette')">
         <div class="gcard-icon roulette-icon-wrap">
@@ -6409,14 +6588,30 @@ body{position:relative;}
       <div class="slv2-fs-intro-bg"></div>
       <!-- Higgsfield cinematic video (optional - set src below). Plays muted + autoloop. -->
       <video class="slv2-fs-intro-video" id="slv2-fs-intro-video"
-             autoplay muted playsinline preload="auto"
+             autoplay muted playsinline preload="auto" decoding="async"
              src=""></video>
+      <!-- Tap-to-unmute pill (only shown if autoplay blocks audio) -->
+      <div class="slv2-sound-hint" id="slv2-fs-sound-hint" onclick="slv2UnmuteVideo('slv2-fs-intro-video', 'slv2-fs-sound-hint')">🔇 TAP FOR SOUND</div>
+      <!-- Countdown ring (shown during the "GET READY" pre-button window) -->
+      <div class="slv2-video-countdown" id="slv2-fs-countdown">
+        <svg viewBox="0 0 80 80" aria-hidden="true">
+          <defs>
+            <linearGradient id="countdownGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#39ff14"/>
+              <stop offset="100%" stop-color="#ffd700"/>
+            </linearGradient>
+          </defs>
+          <circle class="ring-bg" cx="40" cy="40" r="36"/>
+          <circle class="ring-fg" id="slv2-fs-countdown-ring" cx="40" cy="40" r="36"/>
+        </svg>
+        <div class="num" id="slv2-fs-countdown-num">3</div>
+      </div>
       <div class="slv2-fs-intro-content">
         <div class="slv2-overlay-crest" aria-hidden="true"></div>
         <div class="slv2-fs-intro-title">🤖 FREE SPINS! 🤖</div>
         <div class="slv2-fs-intro-count" id="slv2-fs-intro-count">10</div>
         <div class="slv2-fs-intro-label">FREE SPINS WITH 2× MULTIPLIER</div>
-        <button class="slv2-fs-intro-btn" onclick="slv2StartFreeSpins()">START</button>
+        <button class="slv2-fs-intro-btn" id="slv2-fs-intro-btn" onclick="slv2StartFreeSpins()">START</button>
       </div>
     </div>
 
@@ -6443,8 +6638,16 @@ body{position:relative;}
       <div class="slv2-bw-bg"></div>
       <!-- Higgsfield cinematic trigger video (optional, plays in background) -->
       <video class="slv2-bw-video" id="slv2-bw-video"
-             autoplay muted playsinline preload="auto"
+             autoplay muted playsinline preload="auto" decoding="async"
              src=""></video>
+      <div class="slv2-sound-hint" id="slv2-bw-sound-hint" onclick="slv2UnmuteVideo('slv2-bw-video', 'slv2-bw-sound-hint')">🔇 TAP FOR SOUND</div>
+      <div class="slv2-video-countdown" id="slv2-bw-countdown">
+        <svg viewBox="0 0 80 80" aria-hidden="true">
+          <circle class="ring-bg" cx="40" cy="40" r="36"/>
+          <circle class="ring-fg" id="slv2-bw-countdown-ring" cx="40" cy="40" r="36"/>
+        </svg>
+        <div class="num" id="slv2-bw-countdown-num">5</div>
+      </div>
       <div class="slv2-bw-content">
         <div class="slv2-overlay-crest" aria-hidden="true"></div>
         <div class="slv2-bw-title">✨ BONUS WHEEL ✨</div>
@@ -6464,8 +6667,16 @@ body{position:relative;}
       <div class="slv2-vg-bg"></div>
       <!-- Higgsfield cinematic trigger video (optional, plays in background) -->
       <video class="slv2-vg-video" id="slv2-vg-video"
-             autoplay muted playsinline preload="auto"
+             autoplay muted playsinline preload="auto" decoding="async"
              src=""></video>
+      <div class="slv2-sound-hint" id="slv2-vg-sound-hint" onclick="slv2UnmuteVideo('slv2-vg-video', 'slv2-vg-sound-hint')">🔇 TAP FOR SOUND</div>
+      <div class="slv2-video-countdown" id="slv2-vg-countdown">
+        <svg viewBox="0 0 80 80" aria-hidden="true">
+          <circle class="ring-bg" cx="40" cy="40" r="36"/>
+          <circle class="ring-fg" id="slv2-vg-countdown-ring" cx="40" cy="40" r="36"/>
+        </svg>
+        <div class="num" id="slv2-vg-countdown-num">3</div>
+      </div>
       <div class="slv2-vg-content">
         <div class="slv2-overlay-crest" aria-hidden="true"></div>
         <div class="slv2-vg-title">🔑 PICK A VAULT 🔑</div>
@@ -7624,10 +7835,13 @@ function bjDealerPlay(){
 // Symbol identifiers
 var SL2_SYMS = ['btc','bot','wheel','gblogo','gem','seven','bell','bolt','star','spade'];
 var SL2_CHAR = {
-  'btc':   '\u20BF',           // Bitcoin sign (WILD)
+  // VISUAL SWAP — see SL2_NAMES below. The WILD (code-id 'btc') renders via
+  // slv2GbLogoHTML() so its char value is unused. The regular premium symbol
+  // (code-id 'gblogo') renders the Bitcoin ₿ glyph.
+  'btc':   'GB',                // unused — wild renders as the GB logo image
   'bot':   '\uD83E\uDD16',     // Robot face (FS SCATTER)
   'wheel': '\uD83C\uDFA1',     // Ferris wheel (WHEEL BONUS SCATTER) 🎡
-  'gblogo':'GB',                // Gambler Bot logo (styled separately)
+  'gblogo':'\u20BF',            // Bitcoin sign ₿ — paying premium symbol
   'gem':   '\uD83D\uDC8E',     // Gem stone
   'seven': '7',
   'bell':  '\uD83D\uDD14',     // Bell
@@ -8495,6 +8709,9 @@ function slv2Spin(){
   slv2ClearAnticipation();
   // Reset the once-per-spin audio flag for wheel-anticipation crescendo
   SL2._wheelAnticipationAudioPlayed = false;
+  // Reset escalating wheel-suspense tracker (each new wheel found on
+  // reels 0-2 increases the slowdown intensity on remaining reels)
+  SL2._wheelCountLastDetected = 0;
   for(var rr = 0; rr < 5; rr++){
     (function(reelIdx){
       var dur = baseDur + reelIdx * stagger;
@@ -8509,16 +8726,29 @@ function slv2Spin(){
         // === NEW: wheel scatter suspense — checked AFTER EACH of reels 0/1/2 ===
         // ANY wheel landing on the first three reels triggers gold pulse on
         // remaining reels, a crescendo audio (once), AND slows down all
-        // still-spinning reels to maximise the "about-to-trigger" feel.
+        // still-spinning reels with ESCALATING intensity:
+        //   1st wheel found  → remaining reels +1000ms each
+        //   2nd wheel found  → remaining reels +1700ms more each (cumulative)
+        //   3rd wheel found  → remaining reels +2500ms more each (max agony)
+        // The slv2SlowDownReel function stacks via dataset.slowdownMs so each
+        // call ADDS on top of the previous extension.
         if(reelIdx <= 2){
           var wheelsFound = slv2CheckWheelAnticipation();
           if(wheelsFound > 0){
-            // Slow down all still-spinning reels right of this one.
-            // Each subsequent wheel discovery adds extra slowdown on top
-            // (capped to avoid stuck reels) via the per-strip slowedDown flag.
-            var extra = 700 + (wheelsFound - 1) * 250;  // 1 wheel = 700ms, 2 = 950ms, 3 = 1200ms
-            for(var r2 = reelIdx + 1; r2 <= 4; r2++){
-              slv2SlowDownReel(r2, extra);
+            var prevCount = SL2._wheelCountLastDetected || 0;
+            var newWheels = wheelsFound - prevCount;
+            SL2._wheelCountLastDetected = wheelsFound;
+            if(newWheels > 0){
+              // Each NEW wheel discovery adds a tier of slowdown.
+              // Escalating ms values produce a clear "even slower!" feeling.
+              var TIER_MS = [1000, 1700, 2500, 3000];
+              for(var nw = 0; nw < newWheels; nw++){
+                var tier = prevCount + nw;            // 0,1,2 → which-th wheel
+                var addMs = TIER_MS[tier] || 3000;    // cap at tier 3
+                for(var r2 = reelIdx + 1; r2 <= 4; r2++){
+                  slv2SlowDownReel(r2, addMs);
+                }
+              }
             }
           }
         }
@@ -8620,8 +8850,8 @@ function slv2SpinReel(reelIdx, targetSymbol, durationMs, cb){
   // Remember target offset so slv2SlowDownReel can extend the transition later
   SL2.reelFinalOffsets = SL2.reelFinalOffsets || [];
   SL2.reelFinalOffsets[reelIdx] = finalOffset;
-  // Clear any previous "slowed down" flag on this strip (new spin)
-  if(strip.dataset.slowedDown) strip.dataset.slowedDown = '';
+  // Clear any previous cumulative slowdown counter from the last spin
+  strip.dataset.slowdownMs = '0';
 
   // Apply per-spin custom property so the blur keyframe matches duration
   strip.style.setProperty('--spin-dur', (durationMs / 1000) + 's');
@@ -9186,15 +9416,37 @@ function slv2TriggerFreeSpinsIntro(count){
   if(countEl) countEl.textContent = count;
   if(intro) intro.classList.add('visible');
   slv2RestartVideo('slv2-fs-intro-video');
+  slv2MaybeShowSoundHint('slv2-fs-intro');
   slv2Sound('free-spins');
   // Stop auto spin during FS intro - will continue after FS
   if(SL2.autoActive){
     SL2.autoPausedForFs = true;
   }
+  // Gate the START button for 3s so the player can watch the cinematic
+  var startBtn = document.getElementById('slv2-fs-intro-btn');
+  if(startBtn){
+    startBtn._origText = startBtn._origText || startBtn.textContent || 'START';
+    startBtn.disabled = true;
+    startBtn.style.opacity = '.5';
+    startBtn.style.cursor = 'not-allowed';
+    startBtn.textContent = 'GET READY...';
+  }
+  slv2RunCountdown('slv2-fs-intro', 3, function(){
+    if(startBtn){
+      startBtn.disabled = false;
+      startBtn.style.opacity = '';
+      startBtn.style.cursor = '';
+      startBtn.textContent = startBtn._origText || 'START';
+    }
+  });
 }
 
 function slv2StartFreeSpins(){
   var intro = document.getElementById('slv2-fs-intro');
+  slv2CancelCountdown('slv2-fs-intro');
+  // Pause FS intro video to free GPU/audio while spins run
+  var fsVid = document.getElementById('slv2-fs-intro-video');
+  if(fsVid){ try { fsVid.pause(); fsVid.currentTime = 0; } catch(e){} }
   if(intro) intro.classList.remove('visible');
   SL2.fsActive = true;
   SL2.stickyWilds = [];  // reset sticky wild positions for this FS run
@@ -9521,9 +9773,11 @@ function slv2BonusWheelTrigger(){
   // the player ALWAYS hears something dramatic when the wheel opens
   slv2PlayWheelOpenFanfare();
   slv2Sound('scatter');
+  slv2MaybeShowSoundHint('slv2-bonus-wheel');
 
-  // After 2.5s the spin button activates with a clear visual change
-  setTimeout(function(){
+  // Run a visible 5-second countdown ring so the player knows they're
+  // watching the cinematic, then the SPIN button activates.
+  slv2RunCountdown('slv2-bonus-wheel', 5, function(){
     if(btn){
       btn.disabled = false;
       btn.textContent = btn._originalText || 'SPIN THE WHEEL';
@@ -9537,7 +9791,7 @@ function slv2BonusWheelTrigger(){
         slv2PlayTone(1320, 0.12, 'sine', 0.10);
       }, 90);
     }
-  }, 2500);
+  });
 }
 
 // ============ WHEEL SPIN AUDIO — 3 LAYERS ============
@@ -9942,6 +10196,10 @@ function slv2PlayJackpotCelebration(){
 
 function slv2BonusWheelClose(){
   var ov = document.getElementById('slv2-bonus-wheel');
+  slv2CancelCountdown('slv2-bonus-wheel');
+  // Pause the cinematic video so GPU + audio decode can free between rounds
+  var bwVid = document.getElementById('slv2-bw-video');
+  if(bwVid){ try { bwVid.pause(); bwVid.currentTime = 0; } catch(e){} }
   if(ov) ov.classList.remove('visible');
   SL2.bonusActive = false;
   // ─── FS RESUME ─────────────────────────────────────────────────
@@ -10052,11 +10310,34 @@ function slv2VaultTrigger(){
   var ov = document.getElementById('slv2-vault-game');
   if(ov) ov.classList.add('visible');
   slv2RestartVideo('slv2-vg-video');
+  slv2MaybeShowSoundHint('slv2-vault-game');
   slv2Sound('free-spins');
+
+  // Gate the picks for 3.5s — the player should see the cinematic before
+  // being asked to choose. Vaults remain visible but un-clickable; the
+  // pick-gate flag is checked inside slv2VaultPick.
+  SL2.vaultPickGated = true;
+  // Visually de-emphasise the vaults during the watch window
+  var vEls = document.querySelectorAll('.slv2-vault');
+  vEls.forEach(function(v){
+    v.style.opacity = '.55';
+    v.style.pointerEvents = 'none';
+    v.style.transition = 'opacity .5s ease-out';
+  });
+  slv2RunCountdown('slv2-vault-game', 3, function(){
+    SL2.vaultPickGated = false;
+    vEls.forEach(function(v){
+      v.style.opacity = '';
+      v.style.pointerEvents = '';
+    });
+    // Ready ping
+    try { slv2PlayTone(1320, 0.18, 'sine', 0.12); } catch(e){}
+  });
 }
 
 function slv2VaultPick(idx){
   if(!SL2.bonusActive) return;
+  if(SL2.vaultPickGated) return;  // intro window still running
   if(SL2.vaultPickedIdx !== undefined && SL2.vaultPickedIdx !== null) return;
   SL2.vaultPickedIdx = idx;
 
@@ -10120,9 +10401,18 @@ function slv2VaultPick(idx){
 
 function slv2VaultClose(){
   var ov = document.getElementById('slv2-vault-game');
+  slv2CancelCountdown('slv2-vault-game');
+  var vgVid = document.getElementById('slv2-vg-video');
+  if(vgVid){ try { vgVid.pause(); vgVid.currentTime = 0; } catch(e){} }
   if(ov) ov.classList.remove('visible');
   SL2.bonusActive = false;
   SL2.vaultPickedIdx = null;
+  SL2.vaultPickGated = false;
+  // Reset vault hover/disabled state so the next round starts clean
+  document.querySelectorAll('.slv2-vault').forEach(function(v){
+    v.style.opacity = '';
+    v.style.pointerEvents = '';
+  });
   // ─── FS RESUME ─────────────────────────────────────────────────
   // If this vault was opened from a wheel chest segment DURING free spins,
   // resume the FS round when the vault closes.
@@ -10275,6 +10565,135 @@ function slv2CheckAnticipation(){
   return false;
 }
 
+
+// ────────────────────────────────────────────────────────────────
+// VIDEO PRESENTATION HELPERS (countdown ring + audio unlock)
+// Used by all three scatter intros (FS, Wheel, Vault) to:
+//   1. Lock the UI for a fixed window so the player can actually watch
+//      the cinematic before being asked to interact.
+//   2. Show a visible "GET READY..." countdown ring during that window.
+//   3. Expose a one-tap unmute pill if autoplay falls back to muted.
+// ────────────────────────────────────────────────────────────────
+
+// Animate a countdown ring + numeric tick for `seconds` then call cb.
+// Stops cleanly if the overlay is closed before completion.
+function slv2RunCountdown(overlayId, seconds, cb){
+  var prefix = ({
+    'slv2-fs-intro':    'slv2-fs',
+    'slv2-bonus-wheel': 'slv2-bw',
+    'slv2-vault-game':  'slv2-vg'
+  })[overlayId];
+  if(!prefix){ if(cb) cb(); return; }
+
+  var box  = document.getElementById(prefix + '-countdown');
+  var ring = document.getElementById(prefix + '-countdown-ring');
+  var num  = document.getElementById(prefix + '-countdown-num');
+  if(!box || !ring || !num){ if(cb) cb(); return; }
+
+  box.classList.add('show');
+  // Prime the ring (full circle) — circumference for r=36 → 226.19
+  var CIRC = 226;
+  ring.style.transition = 'none';
+  ring.style.strokeDashoffset = '0';
+  // eslint-disable-next-line no-unused-expressions
+  void ring.offsetWidth;  // reflow
+  // Now animate to "drained" over `seconds`
+  ring.style.transition = 'stroke-dashoffset ' + seconds + 's linear';
+  ring.style.strokeDashoffset = CIRC;
+
+  // Numeric tick — one tone per second, decreasing pitch
+  var remaining = seconds;
+  num.textContent = remaining;
+  try { slv2PlayTone(660, 0.06, 'sine', 0.10); } catch(e){}
+  var tickInterval = setInterval(function(){
+    remaining--;
+    if(remaining <= 0){
+      num.textContent = 'GO!';
+      try { slv2PlayTone(1320, 0.18, 'square', 0.14); } catch(e){}
+      clearInterval(tickInterval);
+      return;
+    }
+    num.textContent = remaining;
+    try { slv2PlayTone(660 + (seconds - remaining) * 80, 0.06, 'sine', 0.10); } catch(e){}
+  }, 1000);
+
+  // Final fire after the full window
+  var finalTimer = setTimeout(function(){
+    box.classList.remove('show');
+    if(cb) cb();
+  }, seconds * 1000);
+
+  // Stash handles so the overlay's close can cancel cleanly
+  box._countdownTimers = [tickInterval, finalTimer];
+}
+
+// Hard-cancel an in-flight countdown (called when overlay closes early)
+function slv2CancelCountdown(overlayId){
+  var prefix = ({
+    'slv2-fs-intro':    'slv2-fs',
+    'slv2-bonus-wheel': 'slv2-bw',
+    'slv2-vault-game':  'slv2-vg'
+  })[overlayId];
+  if(!prefix) return;
+  var box = document.getElementById(prefix + '-countdown');
+  if(!box) return;
+  box.classList.remove('show');
+  if(box._countdownTimers){
+    box._countdownTimers.forEach(function(t){
+      clearInterval(t); clearTimeout(t);
+    });
+    box._countdownTimers = null;
+  }
+}
+
+// One-tap audio unlock — called from the "🔇 TAP FOR SOUND" pill onclick.
+// Unmutes the relevant video element + remembers for future intros so the
+// pill doesn't show again this session.
+var SL2_AUDIO_UNLOCKED = false;
+function slv2UnmuteVideo(videoId, pillId){
+  var v = document.getElementById(videoId);
+  if(!v) return;
+  try {
+    v.muted = false;
+    v.volume = 0.7;
+    // If video was paused, resume it
+    if(v.paused){
+      var p = v.play();
+      if(p && p.catch) p.catch(function(){});
+    }
+    SL2_AUDIO_UNLOCKED = true;
+  } catch(e){}
+  // Hide all three pills (audio is now globally unlocked)
+  ['slv2-fs-sound-hint','slv2-bw-sound-hint','slv2-vg-sound-hint'].forEach(function(pid){
+    var pill = document.getElementById(pid);
+    if(pill) pill.classList.remove('show');
+  });
+}
+
+// Show the "tap for sound" pill on an overlay if autoplay fell back muted.
+function slv2MaybeShowSoundHint(overlayId){
+  if(SL2_AUDIO_UNLOCKED) return;
+  var prefix = ({
+    'slv2-fs-intro':    'slv2-fs',
+    'slv2-bonus-wheel': 'slv2-bw',
+    'slv2-vault-game':  'slv2-vg'
+  })[overlayId];
+  if(!prefix) return;
+  var videoId = ({
+    'slv2-fs-intro':    'slv2-fs-intro-video',
+    'slv2-bonus-wheel': 'slv2-bw-video',
+    'slv2-vault-game':  'slv2-vg-video'
+  })[overlayId];
+  var v = document.getElementById(videoId);
+  if(!v || !v.getAttribute('src')) return;  // no video → no hint
+  // After a short delay (let autoplay attempt complete) check muted state
+  setTimeout(function(){
+    var pill = document.getElementById(prefix + '-sound-hint');
+    if(pill && v.muted && !SL2_AUDIO_UNLOCKED){
+      pill.classList.add('show');
+    }
+  }, 700);
+}
 
 // ----------------------------------------------------------------
 // Higgsfield FS video integration helper
@@ -10433,11 +10852,13 @@ function slv2ClearAnticipation(){
 // rising suspense tone builds. If a third wheel lands → bonus triggers
 // and the suspense pays off. Otherwise resolves silently.
 // ================================================================
-// Dynamically EXTEND a still-spinning reel's transition. Used when a wheel
-// lands on an earlier reel and we want the remaining reels to noticeably
-// slow down (suspense build-up).
-// Reads the strip's current Y from getComputedStyle, snaps the transition,
-// then re-applies the target offset with a longer transition duration.
+// Dynamically EXTEND a still-spinning reel's transition. Now supports
+// STACKING — each successive call ADDS more slowdown on top of any current
+// extension, so when a 2nd and 3rd wheel land on the early reels the
+// remaining reels crawl progressively slower for max suspense.
+//   1st wheel  →  +1000ms total
+//   2nd wheel  →  +1700ms more on top  (cumulative ~2700ms)
+//   3rd wheel  →  +2500ms more on top  (cumulative ~5200ms — agony!)
 function slv2SlowDownReel(reelIdx, extraMs){
   if(!SL2.reelSpinning || !SL2.reelSpinning[reelIdx]) return;
   var strip = document.getElementById('slv2-strip-' + reelIdx);
@@ -10445,11 +10866,7 @@ function slv2SlowDownReel(reelIdx, extraMs){
   var targetOffset = (SL2.reelFinalOffsets || [])[reelIdx];
   if(targetOffset === undefined || targetOffset === null) return;
 
-  // Mark this reel as "in suspense" so we don't slow it down twice
-  if(strip.dataset.slowedDown === '1') return;
-  strip.dataset.slowedDown = '1';
-
-  // Get current Y from the matrix transform
+  // Get current Y from the running matrix transform
   var currentY = 0;
   try {
     var matrixStr = window.getComputedStyle(strip).transform;
@@ -10463,9 +10880,14 @@ function slv2SlowDownReel(reelIdx, extraMs){
     }
   } catch(e){ /* fall through, currentY=0 */ }
 
-  // If already very close to target, skip slowdown
+  // If already very close to target, skip slowdown (would jitter)
   var distance = Math.abs(targetOffset - currentY);
-  if(distance < 30) return;
+  if(distance < 25) return;
+
+  // STACK CUMULATIVE SLOWDOWN — read existing bonus, add the new request
+  var cumulativeMs = parseInt(strip.dataset.slowdownMs || '0', 10);
+  cumulativeMs += extraMs;
+  strip.dataset.slowdownMs = cumulativeMs;
 
   // Snap to current position (cancel running transition)
   strip.style.transition = 'none';
@@ -10474,13 +10896,20 @@ function slv2SlowDownReel(reelIdx, extraMs){
   // eslint-disable-next-line no-unused-expressions
   void strip.offsetWidth;
 
-  // Compute the new (longer) duration. The original target time is the time
-  // the reel WOULD have taken to cover the remaining distance — we add extraMs
-  // on top for slowdown. Minimum 600ms so the slowdown is perceptible.
-  var newDuration = Math.max(distance * 2.8 + extraMs, 700);
+  // New duration: distance × deceleration + the FULL cumulative bonus.
+  // As cumulative grows, easing also gets steeper for visible "near-stop crawl".
+  var stiffness = 3.2 + Math.min(cumulativeMs / 1500, 2.0);  // 3.2..5.2 px-time multiplier
+  var newDuration = Math.max(distance * stiffness + cumulativeMs * 0.6, 900);
 
-  // Apply NEW transition with stronger ease-out (decelerates harder)
-  strip.style.transition = 'transform ' + newDuration + 'ms cubic-bezier(0.05, 0.4, 0.2, 1)';
+  // Apply NEW transition. As cumulative grows, ease-out gets more aggressive
+  // (curve flattens harder near the end → "tortuous crawl" feeling).
+  var easeOut = cumulativeMs > 2200
+    ? 'cubic-bezier(0.02, 0.55, 0.10, 1)'   // very flat tail — agonising
+    : (cumulativeMs > 1100
+        ? 'cubic-bezier(0.04, 0.48, 0.15, 1)' // medium flat tail
+        : 'cubic-bezier(0.05, 0.4, 0.2, 1)'   // light slowdown
+      );
+  strip.style.transition = 'transform ' + newDuration + 'ms ' + easeOut;
   strip.style.transform = 'translateY(' + targetOffset + 'px)';
 
   // Reschedule the safety timer (the transitionend listener is still attached
@@ -10501,8 +10930,24 @@ function slv2SlowDownReel(reelIdx, extraMs){
       strip.dispatchEvent(ev);
     } catch(_e){}
   }, newDuration + 60);
-  // Audible click on the slowdown engaging — gives a "gear shift" feel
-  try { slv2PlayTone(180 + reelIdx * 20, 0.08, 'triangle', 0.10); } catch(_e){}
+  // Audible "gear shift" — pitch + intensity scale with cumulative slowdown.
+  // Tier 1 (≤1100ms):  low triangle thunk
+  // Tier 2 (≤2200ms):  triangle + crystal ding (more dramatic)
+  // Tier 3 (>2200ms):  triangle + ding + sub bass thud (max suspense)
+  try {
+    slv2PlayTone(180 + reelIdx * 20, 0.10, 'triangle', 0.12);
+    if(cumulativeMs > 1100){
+      // Higher crystal stinger for tier 2+
+      slv2PlayTone(1760 - reelIdx * 60, 0.20, 'sine', 0.10);
+    }
+    if(cumulativeMs > 2200){
+      // Sub-bass thud + dissonant low for max-tier drama
+      slv2PlayTone(55, 0.40, 'sawtooth', 0.18);
+      setTimeout(function(){
+        try { slv2PlayTone(82, 0.30, 'square', 0.08); } catch(_e){}
+      }, 90);
+    }
+  } catch(_e){}
 }
 
 function slv2CheckWheelAnticipation(){
