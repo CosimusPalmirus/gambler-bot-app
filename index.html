@@ -2276,6 +2276,78 @@ body{position:relative;}
   display:flex;justify-content:space-between;align-items:center;
   padding:0 10px;margin-bottom:6px;height:32px;
 }
+
+/* BALLS IN FLIGHT meter — anti-spam counter shown above bet buttons */
+.pl-flight-meter{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:6px 10px;
+  margin-bottom:8px;
+  background:linear-gradient(90deg, rgba(168,85,247,.10), rgba(57,255,20,.10));
+  border:1px solid rgba(255,215,0,.25);
+  border-radius:8px;
+  font-family:'Russo One',sans-serif;
+  font-size:10px;
+  letter-spacing:1.2px;
+  color:#cfb;
+  transition: border-color .3s, background .3s, box-shadow .3s;
+}
+.pl-flight-meter.warn{
+  border-color: rgba(255,170,0,.6);
+  background: linear-gradient(90deg, rgba(255,170,0,.15), rgba(255,215,0,.10));
+}
+.pl-flight-meter.cap{
+  border-color: rgba(239,68,68,.7);
+  background: linear-gradient(90deg, rgba(239,68,68,.20), rgba(255,68,68,.10));
+  box-shadow: 0 0 12px rgba(239,68,68,.35);
+  animation: plFlightCapPulse 1s ease-in-out infinite;
+}
+@keyframes plFlightCapPulse{
+  0%,100% { box-shadow: 0 0 8px rgba(239,68,68,.30); }
+  50%     { box-shadow: 0 0 16px rgba(239,68,68,.55); }
+}
+.pl-fm-label{
+  color:rgba(255,255,255,.65);
+  font-size:9.5px;
+  white-space:nowrap;
+}
+.pl-fm-bar{
+  flex:1;
+  height:8px;
+  background:rgba(0,0,0,.55);
+  border-radius:4px;
+  overflow:hidden;
+  border:1px solid rgba(255,215,0,.18);
+  position:relative;
+}
+.pl-fm-fill{
+  display:block;
+  height:100%;
+  width:0%;
+  background:linear-gradient(90deg, #39ff14 0%, #ffd700 60%, #ef4444 100%);
+  transition: width .25s ease-out;
+  box-shadow: 0 0 6px rgba(255,215,0,.45);
+}
+.pl-fm-count{
+  color:#ffd700;
+  font-family:'Orbitron','Russo One',monospace;
+  font-weight:700;
+  letter-spacing:.5px;
+  font-size:11px;
+  min-width:38px;
+  text-align:right;
+}
+.pl-flight-meter.cap .pl-fm-count{ color:#ff6b6b; }
+
+/* Disabled state for bet buttons when at cap */
+.pl-bets-grid.at-cap .pl-bet-btn{
+  opacity:.35;
+  cursor:not-allowed;
+  filter:grayscale(.7);
+  pointer-events:none;
+}
+
 .pl-drop-btn{
   width:30px;height:30px;border-radius:50%;border:2px solid rgba(168,85,247,.4);
   background:linear-gradient(145deg, rgba(20,24,42,.6), rgba(10,4,33,.8));
@@ -7225,7 +7297,14 @@ body{position:relative;}
       <div class="pl-slots-row" id="pl-slots" style="display:none;"></div>
     </div>
     
-    <div class="pl-bets-grid">
+    <!-- In-flight counter — caps spam at MAX_BALLS in flight -->
+    <div class="pl-flight-meter" id="pl-flight-meter">
+      <span class="pl-fm-label">BALLS IN FLIGHT</span>
+      <span class="pl-fm-bar"><span class="pl-fm-fill" id="pl-fm-fill"></span></span>
+      <span class="pl-fm-count"><span id="pl-fm-cur">0</span>/<span id="pl-fm-max">10</span></span>
+    </div>
+
+    <div class="pl-bets-grid" id="pl-bets-grid">
       <button class="pl-bet-btn" onclick="plDrop(1)">€1</button>
       <button class="pl-bet-btn" onclick="plDrop(2)">€2</button>
       <button class="pl-bet-btn" onclick="plDrop(5)">€5</button>
@@ -13354,7 +13433,7 @@ var PL = {
   animFrame: null,
   lastDropTs: 0,         // for rate-limit (max 1 ball per 120ms)
   DROP_INTERVAL: 120,    // ms between consecutive drops
-  MAX_BALLS: 25,         // safety cap
+  MAX_BALLS: 10,         // anti-spam cap — max balls in flight at once
   
   // 7 slots — payout tables tuned for symmetric Gaussian-ish landing distribution
   paytables: {
@@ -13540,6 +13619,25 @@ function plSetRisk(risk){
   plRenderSlots();
 }
 
+function plUpdateFlightMeter(){
+  var cur = PL.balls.length;
+  var max = PL.MAX_BALLS;
+  var curEl = document.getElementById('pl-fm-cur');
+  var maxEl = document.getElementById('pl-fm-max');
+  var fillEl = document.getElementById('pl-fm-fill');
+  var meter = document.getElementById('pl-flight-meter');
+  var grid = document.getElementById('pl-bets-grid');
+  if(curEl) curEl.textContent = cur;
+  if(maxEl) maxEl.textContent = max;
+  if(fillEl) fillEl.style.width = Math.min(100, (cur / max) * 100) + '%';
+  if(meter){
+    meter.classList.toggle('warn', cur >= max * 0.7 && cur < max);
+    meter.classList.toggle('cap',  cur >= max);
+  }
+  // Hard-lock the bet grid when at cap — buttons become un-clickable + visibly disabled
+  if(grid) grid.classList.toggle('at-cap', cur >= max);
+}
+
 function plDrop(eur){
   // ---- Rate-limit + cap ----
   var now = Date.now();
@@ -13548,7 +13646,7 @@ function plDrop(eur){
     return;
   }
   if(PL.balls.length >= PL.MAX_BALLS){
-    toast('Too many balls in flight (max ' + PL.MAX_BALLS + ')', 'err', 1200);
+    toast('Max ' + PL.MAX_BALLS + ' balls in flight — wait for some to land', 'err', 1400);
     return;
   }
   if(!PL.boardReady){ plBuildBoard(); PL.boardReady = true; }
@@ -13583,6 +13681,7 @@ function plDrop(eur){
     stuckFrames: 0
   };
   PL.balls.push(ball);
+  plUpdateFlightMeter();
 
   // Create SVG circle for this ball
   var ballsGroup = document.getElementById('pl-balls-group');
@@ -13743,6 +13842,7 @@ function plPhysicsLoop(){
     plRenderMultiTrail();
 
     // Remove settled balls after their land animation completes
+    var beforeCount = PL.balls.length;
     PL.balls = PL.balls.filter(function(b){
       if(b.settled && (b.landedAt && (Date.now() - b.landedAt) > 1800)){
         // Remove SVG element
@@ -13752,6 +13852,7 @@ function plPhysicsLoop(){
       }
       return true;
     });
+    if(PL.balls.length !== beforeCount) plUpdateFlightMeter();
 
     // Continue loop if any balls left
     if(PL.balls.length > 0){
@@ -13873,6 +13974,7 @@ function plInit(){
   if(!PL.boardReady){ plBuildBoard(); PL.boardReady = true; }
   else { plGenerateRandomPegs(); plRenderSlotDividers(); plRenderSlots(); }  // refresh layout
   plRenderRecent();
+  plUpdateFlightMeter();  // sync the in-flight counter to current state
 }
 
 
