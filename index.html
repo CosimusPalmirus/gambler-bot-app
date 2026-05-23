@@ -6062,16 +6062,21 @@ body{position:relative;}
   75%    { transform: translate(-0.4px, 0.3px); }
 }
 /* Force GPU layers for the most-animated elements.
-   NOTE: .slv2-bw-rotor INTENTIONALLY EXCLUDED — CSS `transform: translate3d`
-   would override the SVG transform attribute we drive via rAF, killing the spin. */
+   NOTE: .slv2-bw-rotor INTENTIONALLY EXCLUDED — its transform is driven by rAF
+   each frame, we don't want a static `transform: translate3d` overriding it. */
 .slots-crest,
 .slv2-spin-big,
 .slv2-particle{
   transform: translate3d(0,0,0);
   backface-visibility: hidden;
 }
-/* Rotor needs backface-visibility but NOT transform (it owns its own transform attr) */
+/* Rotor — pivots around the GEOMETRIC CENTER of its own bounding box.
+   transform-box:fill-box makes transform-origin relative to the element's
+   own box, not the SVG viewport. Combined with 50% 50%, this guarantees
+   the rotation pivot is always dead-center on the wheel content. */
 .slv2-bw-rotor{
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
   backface-visibility: hidden;
 }
 
@@ -6231,9 +6236,7 @@ body{position:relative;}
 .slv2-bw-segment.winning{
   filter:brightness(1.5) drop-shadow(0 0 20px gold);
 }
-.slv2-bw-rotor{
-  transform-origin:150px 150px;
-}
+/* (transform-origin for .slv2-bw-rotor is set above with transform-box:fill-box) */
 .slv2-bw-spin-btn{
   padding:14px 36px;
   background:linear-gradient(180deg, #ff4444 0%, #cc0000 50%, #770000 100%);
@@ -8233,6 +8236,12 @@ function bjDeal(){
   BJ.dealer=[BJ.deck.pop(),BJ.deck.pop()];
   BJ.activeHand=0;BJ.active=true;BJ.bet=bet;
   placeBet(bet,'bj');
+  // Initial deal audio — chip in, 4 cards dealt staggered
+  gSound('chip');
+  setTimeout(function(){ gSound('card'); }, 120);
+  setTimeout(function(){ gSound('card'); }, 240);
+  setTimeout(function(){ gSound('card'); }, 360);
+  setTimeout(function(){ gSound('card'); }, 480);
   var dealerBJ = (handVal(BJ.dealer) === 21);
   BJ.dealerBlackjack = dealerBJ;
   var playerBJ = (handVal(BJ.hands[0].cards) === 21);
@@ -8244,6 +8253,8 @@ function bjDeal(){
     return;
   }
   if(playerBJ){
+    // Player natural 21 — celebrate
+    setTimeout(function(){ gSound('blackjack-21'); }, 600);
     bjStand();
     return;
   }
@@ -8253,18 +8264,28 @@ function bjHit(){
   if(!BJ.active)return;
   var h=BJ.hands[BJ.activeHand];
   h.cards.push(BJ.deck.pop());
+  gSound('card');         // card slide
   bjRenderHands(true);
-  if(handVal(h.cards)>21){h.done=true;h.bust=true;bjNextHand();}
-  else setBJActions('play');
+  if(handVal(h.cards)>21){
+    setTimeout(function(){ gSound('bust'); }, 180);
+    h.done=true;h.bust=true;bjNextHand();
+  } else {
+    setBJActions('play');
+  }
 }
 function bjDouble(){
   if(!BJ.active)return;
   var h=BJ.hands[BJ.activeHand];
   if(h.cards.length!==2||h.doubled||!hasFunds(h.bet))return;
   placeBet(h.bet,'bj');
+  gSound('chip-stack');   // doubling = more chips
   h.bet*=2;h.doubled=true;
   h.cards.push(BJ.deck.pop());
-  if(handVal(h.cards)>21){h.bust=true;}
+  setTimeout(function(){ gSound('card'); }, 200);
+  if(handVal(h.cards)>21){
+    h.bust=true;
+    setTimeout(function(){ gSound('bust'); }, 350);
+  }
   h.done=true;
   bjRenderHands(true);
   bjNextHand();
@@ -8274,6 +8295,9 @@ function bjSplit(){
   var h=BJ.hands[BJ.activeHand];
   if(h.cards.length!==2||cardVal(h.cards[0])!==cardVal(h.cards[1])||BJ.hands.length>=4||!hasFunds(h.bet))return;
   placeBet(h.bet,'bj');
+  gSound('chip-stack');
+  setTimeout(function(){ gSound('card'); }, 120);
+  setTimeout(function(){ gSound('card'); }, 240);
   var newHand={cards:[h.cards.pop(),BJ.deck.pop()],bet:h.bet,done:false,bust:false,won:false,doubled:false};
   h.cards.push(BJ.deck.pop());
   BJ.hands.splice(BJ.activeHand+1,0,newHand);
@@ -8283,6 +8307,7 @@ function bjSplit(){
 function bjStand(){
   if(!BJ.active)return;
   var h=BJ.hands[BJ.activeHand];
+  gSound('tick');         // small confirmation
   h.done=true;
   bjNextHand();
 }
@@ -8293,10 +8318,18 @@ function bjNextHand(){
   bjDealerPlay();
 }
 function bjDealerPlay(){
+  // Dealer's hole card flips first
+  gSound('card-flip');
   if(!BJ.dealerBlackjack){
     var anyAlive=BJ.hands.some(function(h){return !h.bust;});
     if(anyAlive){
-      while(handVal(BJ.dealer)<17)BJ.dealer.push(BJ.deck.pop());
+      // Each hit = another card flip sound
+      var hitCount = 0;
+      while(handVal(BJ.dealer)<17){
+        BJ.dealer.push(BJ.deck.pop());
+        (function(c){ setTimeout(function(){ gSound('card'); }, 250 + c * 350); })(hitCount);
+        hitCount++;
+      }
     }
   }
   var d=handVal(BJ.dealer),dBust=d>21;
@@ -8322,17 +8355,27 @@ function bjDealerPlay(){
   if(totalWin > totalBet){
     winBet(totalWin, 'bj');
     var profit = totalWin - totalBet;
+    // Choose win tier — natural BJ pays 2.5×, double-down win 4×, regular 2×
+    setTimeout(function(){
+      var ratio = totalWin / totalBet;
+      if(ratio >= 2.4)      gSound('win-big');
+      else if(ratio >= 1.8) gSound('win-medium');
+      else                  gSound('win-small');
+    }, 600);
     toast('🎉 Won €' + profit.toFixed(2), 'ok');
   } else if(totalWin === totalBet){
     var refundBtc = eurToBtc(totalBet);
     S.btc += refundBtc;
     refresh();
     syncBalance(refundBtc, 0, false, false, 'bj_refund');
+    setTimeout(function(){ gSound('push'); }, 600);
     toast('🤝 Push — €' + totalBet.toFixed(2) + ' returned', 'warn');
   } else if(totalWin > 0){
     winBet(totalWin, 'bj');
+    setTimeout(function(){ gSound('win-small'); }, 600);
   } else {
     loseBet(totalBet, 'bj');
+    setTimeout(function(){ gSound('lose'); }, 600);
     toast(BJ.dealerBlackjack ? '⚫ Dealer Blackjack' : 'Dealer wins', 'err');
   }
   setBJActions('done');
@@ -8874,6 +8917,233 @@ function slv2Sound(kind){
       slv2PlayTone(800, 0.04, 'square', 0.06);
       break;
   }
+}
+
+// ─── CASINO-WIDE SOUND LIBRARY ─────────────────────────────────
+// Single entry point used by Roulette, Dice, Scratch, Blackjack,
+// Crash, Lotto, Wheel-game and other non-slot games. Reuses the
+// global slv2EnsureAudio context so everything goes through the
+// same Web Audio pipeline (and obeys the soundsEnabled flag).
+function gSound(name, opts){
+  if(!SL2.soundsEnabled) return;
+  var ctx = slv2EnsureAudio();
+  if(!ctx) return;
+  opts = opts || {};
+  try {
+    switch(name){
+
+      // ─── UI / chips ────────────────────────────────────────
+      case 'click':
+        slv2PlayTone(1400, 0.04, 'triangle', 0.08);
+        break;
+      case 'tick':
+        slv2PlayTone(900, 0.03, 'square', 0.06);
+        break;
+      case 'chip':
+        // Single chip clink — high metal ting + low thud
+        slv2PlayTone(2200 + Math.random() * 400, 0.06, 'triangle', 0.16);
+        setTimeout(function(){ slv2PlayTone(110, 0.08, 'sine', 0.16); }, 18);
+        break;
+      case 'chip-stack':
+        // 5 chips stacked in rapid succession
+        for(var i = 0; i < 5; i++){
+          (function(idx){
+            setTimeout(function(){
+              slv2PlayTone(2000 + Math.random() * 600, 0.05, 'triangle', 0.12);
+              slv2PlayTone(90 + Math.random() * 30, 0.06, 'sine', 0.09);
+            }, idx * 60);
+          })(i);
+        }
+        break;
+      case 'cash':
+        // Cash register / payout — bright bell + clatter
+        slv2PlayTone(1568, 0.08, 'sine', 0.16);
+        setTimeout(function(){ slv2PlayTone(2093, 0.10, 'sine', 0.14); }, 80);
+        setTimeout(function(){ gSound('chip-stack'); }, 160);
+        break;
+      case 'ticket':
+        // Printer / ticket buzz
+        gPlayNoiseBuf(ctx, 0.18, 800, function(t){
+          return (Math.random() * 2 - 1) * Math.exp(-t * 8) * 0.18;
+        });
+        setTimeout(function(){ slv2PlayTone(220, 0.10, 'square', 0.10); }, 100);
+        break;
+
+      // ─── Card play (blackjack / poker-adjacent) ─────────────
+      case 'card':
+        // Card slide — whoosh
+        gPlayNoiseBuf(ctx, 0.14, 2200, function(t){
+          return (Math.random() * 2 - 1) * Math.exp(-t * 22) * 0.28;
+        });
+        break;
+      case 'card-flip':
+        // Card flip snap
+        slv2PlayTone(1800, 0.04, 'triangle', 0.16);
+        setTimeout(function(){ slv2PlayTone(2400, 0.05, 'square', 0.10); }, 28);
+        break;
+      case 'bust':
+        // Blackjack bust — descending failure
+        slv2PlayTone(330, 0.18, 'sawtooth', 0.16);
+        setTimeout(function(){ slv2PlayTone(247, 0.20, 'sawtooth', 0.14); }, 150);
+        setTimeout(function(){ slv2PlayTone(165, 0.30, 'sine', 0.12); }, 320);
+        break;
+      case 'blackjack-21':
+        // Natural blackjack — bright fanfare
+        var n21 = [523, 659, 784, 1047, 1319];
+        n21.forEach(function(f, i){
+          setTimeout(function(){ slv2PlayTone(f, 0.30, 'triangle', 0.16); }, i * 70);
+        });
+        break;
+
+      // ─── Roulette / wheels / spinning ───────────────────────
+      case 'ball-roll':
+        // Continuous rolling sound — caller controls duration via setTimeout
+        // We schedule a series of clicks at decreasing frequency to mimic
+        // the ball losing energy as it spins
+        var dur = opts.duration || 3000;
+        var clicks = Math.floor(dur / 60);  // dense rapid clicks at first
+        for(var c = 0; c < clicks; c++){
+          (function(idx){
+            // Slow down: gap increases over time (cubic)
+            var t = idx / clicks;
+            var delay = (idx * 60) + (t * t * t * 600);
+            if(delay > dur) return;
+            setTimeout(function(){
+              // High click for ball-on-frets, with random pitch jitter
+              slv2PlayTone(2400 + Math.random() * 400, 0.025, 'triangle', 0.07 * (1 - t * 0.5));
+            }, delay);
+          })(c);
+        }
+        // Underlying low rumble — buffered noise
+        gPlayNoiseBuf(ctx, dur / 1000, 200, function(t){
+          var fade = Math.max(0, 1 - (t / (dur / 1000)));
+          return (Math.random() * 2 - 1) * fade * 0.10;
+        });
+        break;
+      case 'ball-stop':
+        // Final settling click — solid thunk
+        slv2PlayTone(900, 0.06, 'triangle', 0.18);
+        setTimeout(function(){ slv2PlayTone(180, 0.10, 'sine', 0.14); }, 30);
+        break;
+
+      // ─── Dice ─────────────────────────────────────────────
+      case 'dice-roll':
+        // Tumbling dice — rapid wood/plastic clatter
+        var duration = opts.duration || 1500;
+        var ticks = Math.floor(duration / 50);
+        for(var d = 0; d < ticks; d++){
+          (function(idx){
+            setTimeout(function(){
+              var f = 800 + Math.random() * 1200;
+              slv2PlayTone(f, 0.04, 'square', 0.08 * (1 - idx / ticks * 0.6));
+              slv2PlayTone(160 + Math.random() * 80, 0.06, 'sine', 0.06);
+            }, idx * 50 + Math.random() * 20);
+          })(d);
+        }
+        break;
+      case 'dice-stop':
+        // Final dice settle — wooden clack
+        slv2PlayTone(380, 0.08, 'square', 0.18);
+        setTimeout(function(){ slv2PlayTone(140, 0.12, 'sine', 0.16); }, 30);
+        break;
+
+      // ─── Scratch ticket ────────────────────────────────────
+      case 'scratch':
+        // Scratchy paper sound — pink noise burst
+        gPlayNoiseBuf(ctx, 0.22, 1500, function(t){
+          return (Math.random() * 2 - 1) * Math.exp(-t * 6) * 0.20;
+        });
+        break;
+      case 'match':
+        // Ding for a match found
+        slv2PlayTone(1568, 0.12, 'sine', 0.18);
+        setTimeout(function(){ slv2PlayTone(2093, 0.15, 'sine', 0.14); }, 60);
+        break;
+
+      // ─── Crash game (rocket / explosion) ───────────────────
+      case 'rocket-launch':
+        // Ignition + ascending whoosh
+        slv2PlayTone(80, 0.40, 'sawtooth', 0.22);
+        gPlayNoiseBuf(ctx, 0.45, 600, function(t){
+          return (Math.random() * 2 - 1) * Math.exp(-t * 3) * 0.18;
+        });
+        break;
+      case 'rocket-rising':
+        // Tone that rises with multiplier — caller passes freq via opts.freq
+        slv2PlayTone(opts.freq || 440, 0.06, 'sine', 0.10);
+        break;
+      case 'explosion':
+        // Crash — boom!
+        gPlayNoiseBuf(ctx, 0.7, 400, function(t){
+          return (Math.random() * 2 - 1) * Math.exp(-t * 2.5) * 0.40;
+        });
+        slv2PlayTone(55, 0.45, 'sawtooth', 0.25);
+        setTimeout(function(){ slv2PlayTone(35, 0.60, 'triangle', 0.20); }, 80);
+        break;
+      case 'cashout':
+        // Triumphant cashout — bell + sparkle
+        slv2PlayTone(1568, 0.12, 'triangle', 0.18);
+        setTimeout(function(){ slv2PlayTone(2093, 0.15, 'sine', 0.16); }, 80);
+        setTimeout(function(){
+          [2637, 3136, 3729].forEach(function(f, i){
+            setTimeout(function(){ slv2PlayTone(f, 0.10, 'sine', 0.10); }, i * 50);
+          });
+        }, 160);
+        break;
+
+      // ─── Win/Lose tiers ────────────────────────────────────
+      case 'win-small':
+        slv2PlayTone(659, 0.12, 'triangle', 0.16);
+        setTimeout(function(){ slv2PlayTone(880, 0.18, 'sine', 0.14); }, 90);
+        break;
+      case 'win-medium':
+        [523, 659, 880].forEach(function(f, i){
+          setTimeout(function(){ slv2PlayTone(f, 0.30, 'triangle', 0.16); }, i * 80);
+        });
+        break;
+      case 'win-big':
+        // C major chord cascade + sparkle
+        [523, 659, 784, 1047].forEach(function(f, i){
+          setTimeout(function(){ slv2PlayTone(f, 0.5, 'triangle', 0.16); }, i * 50);
+        });
+        for(var s = 0; s < 6; s++){
+          (function(si){
+            setTimeout(function(){
+              slv2PlayTone(1760 + si * 220, 0.16, 'sine', 0.10);
+            }, 250 + si * 60);
+          })(s);
+        }
+        break;
+      case 'lose':
+        slv2PlayTone(330, 0.25, 'sawtooth', 0.14);
+        setTimeout(function(){ slv2PlayTone(247, 0.30, 'sawtooth', 0.12); }, 200);
+        setTimeout(function(){ slv2PlayTone(165, 0.40, 'sine', 0.10); }, 400);
+        break;
+      case 'push':
+        slv2PlayTone(440, 0.18, 'sine', 0.12);
+        setTimeout(function(){ slv2PlayTone(440, 0.20, 'sine', 0.10); }, 200);
+        break;
+    }
+  } catch(e){}
+}
+
+// Helper for noise-based sounds (whooshes, scratches, explosions)
+function gPlayNoiseBuf(ctx, durSec, filterFreq, gen){
+  try {
+    var sr = ctx.sampleRate;
+    var len = Math.floor(sr * durSec);
+    var buf = ctx.createBuffer(1, len, sr);
+    var data = buf.getChannelData(0);
+    for(var i = 0; i < len; i++) data[i] = gen(i / sr);
+    var src = ctx.createBufferSource();
+    src.buffer = buf;
+    var filt = ctx.createBiquadFilter();
+    filt.type = 'lowpass';
+    filt.frequency.value = filterFreq;
+    src.connect(filt);
+    filt.connect(ctx.destination);
+    src.start();
+  } catch(e){}
 }
 
 // ---------- BUILD reel strips ----------
@@ -10305,7 +10575,9 @@ function slv2BonusWheelBuild(){
   var rotor = document.createElementNS('http://www.w3.org/2000/svg', 'g');
   rotor.setAttribute('class', 'slv2-bw-rotor');
   rotor.setAttribute('id', 'slv2-bw-rotor');
-  rotor.style.transformOrigin = cx + 'px ' + cy + 'px';
+  // NOTE: pivot is handled by CSS transform-box:fill-box + transform-origin:50% 50%
+  //       (set in stylesheet). Inline transformOrigin in px units would be wrong
+  //       because px ≠ SVG units after rendering scale.
   svg.appendChild(rotor);
 
   var segAngle = 360 / SL2.WHEEL_SEGMENTS;
@@ -10622,27 +10894,22 @@ function slv2BonusWheelSpin(){
   if(rotor){
     // Cancel any in-flight animation from a previous spin
     if(SL2._wheelRafId){ cancelAnimationFrame(SL2._wheelRafId); SL2._wheelRafId = null; }
-    // Strip any stale CSS transition so it doesn't interfere
+    // Strip any stale transition + reset transforms (both SVG attr and CSS)
     rotor.style.transition = 'none';
-    rotor.style.transform = '';
-    // Snap to 0deg via SVG attribute (no winding ambiguity)
-    rotor.setAttribute('transform', 'rotate(0 150 150)');
+    rotor.removeAttribute('transform');         // clear any old SVG attr
+    rotor.style.transform = 'rotate(0deg)';     // start CSS rotation at 0
 
     var startTime = performance.now();
     // cubic-bezier(0.08, 0.4, 0.18, 1) approximated via numeric eval per frame
-    // We use a fast Bezier solver — for performance we precompute a lookup.
     function cubicBezier(p1x, p1y, p2x, p2y){
-      // Returns a function t∈[0,1] → eased value via Newton-Raphson on x
       var samples = new Float32Array(11);
+      function bezierAt(t, p1, p2){
+        return ((1-t)*(1-t)*(1-t)*0) + 3*((1-t)*(1-t))*t*p1 + 3*(1-t)*(t*t)*p2 + t*t*t*1;
+      }
       for(var i = 0; i <= 10; i++){
         samples[i] = bezierAt(i / 10, p1x, p2x);
       }
-      function bezierAt(t, p1, p2){
-        // x(t) of cubic-bezier in 1D
-        return ((1-t)*(1-t)*(1-t)*0) + 3*((1-t)*(1-t))*t*p1 + 3*(1-t)*(t*t)*p2 + t*t*t*1;
-      }
       function solveT(x){
-        // Find t given x
         var start = 0, end = 1;
         for(var k = 0; k < 10; k++){
           if(x < samples[k+1]){
@@ -10651,7 +10918,6 @@ function slv2BonusWheelSpin(){
             break;
           }
         }
-        // Newton steps
         var t = start + (x - samples[Math.floor(start*10)]) / (samples[Math.ceil(end*10)] - samples[Math.floor(start*10)]) * (end - start);
         for(var n = 0; n < 5; n++){
           var xt = bezierAt(t, p1x, p2x);
@@ -10675,14 +10941,15 @@ function slv2BonusWheelSpin(){
       var t = Math.min(elapsed / spinDurationMs, 1);
       var eased = easeFn(t);
       var angle = eased * finalAngle;
-      // SVG transform attribute — direct, no CSS matrix conversion
-      rotor.setAttribute('transform', 'rotate(' + angle + ' 150 150)');
+      // CSS transform driven by rAF — discrete value each frame, no interpolation,
+      // no matrix clamping. transform-origin (50% 50% on fill-box) gives true centering.
+      rotor.style.transform = 'rotate(' + angle + 'deg)';
       if(t < 1){
         SL2._wheelRafId = requestAnimationFrame(step);
       } else {
         SL2._wheelRafId = null;
-        // Land precisely on target (cleanup floating-point drift)
-        rotor.setAttribute('transform', 'rotate(' + finalAngle + ' 150 150)');
+        // Land precisely on target
+        rotor.style.transform = 'rotate(' + finalAngle + 'deg)';
       }
     }
     SL2._wheelRafId = requestAnimationFrame(step);
@@ -11958,6 +12225,9 @@ function rlSpin(){
   document.getElementById('rl-spin').disabled=true;
   placeBet(totalBet,'roulette');
   buildRouletteWheel();  // ensure segments are drawn
+  // ─── Audio: ball-rolling for the spin duration ────────────────
+  gSound('chip-stack');                          // chips going in
+  gSound('ball-roll', {duration: 4500});         // rolling sound for spin
   // Pick result deterministically — index into wheel order
   var resultIdx=Math.floor(Math.random()*37);
   var result=ROULETTE_ORDER[resultIdx];
@@ -11983,6 +12253,8 @@ function rlSpin(){
   }
   requestAnimationFrame(frame);
   setTimeout(function(){
+    // Final thunk as the ball settles
+    gSound('ball-stop');
     var color=getRouletteColor(result);
     var resEl=document.getElementById('rl-result');
     var colEl=document.getElementById('rl-color');
@@ -11997,9 +12269,17 @@ function rlSpin(){
     });
     if(won>0){
       winBet(won,'roulette');
+      // Tiered win sound based on payout ratio
+      var ratio = won / totalBet;
+      setTimeout(function(){
+        if(ratio >= 18)      gSound('win-big');     // straight up or better
+        else if(ratio >= 5)  gSound('win-medium');
+        else                 gSound('win-small');
+      }, 250);
       toast('🎉 You won €'+won.toFixed(2)+' on '+result+' '+color.toUpperCase(),'ok',3000);
     }else{
       loseBet(totalBet,'roulette');
+      setTimeout(function(){ gSound('lose'); }, 250);
       toast('😞 Lost €'+totalBet+' on '+result+' '+color.toUpperCase(),'err');
     }
     RL.bets=[];rlRenderBets();
@@ -12053,6 +12333,9 @@ function dcRoll(){
   var bet=currentBet.dice;
   if(!hasFunds(bet)){toast('Insufficient balance','err');return;}
   placeBet(bet,'dice');
+  // Audio: chip drop + tumbling clatter for the whole roll duration
+  gSound('chip');
+  gSound('dice-roll', {duration: 1300});
   document.getElementById('dc-roll').disabled=true;
   var d1=document.getElementById('dc-d1'),d2=document.getElementById('dc-d2');
   d1.classList.add('rolling');d2.classList.add('rolling');
@@ -12070,6 +12353,8 @@ function dcRoll(){
     d1.setAttribute('data-face',r1);d2.setAttribute('data-face',r2);
     d1.classList.remove('rolling');d2.classList.remove('rolling');
     d1.classList.add('landed');d2.classList.add('landed');
+    // Solid wooden clack as dice settle
+    gSound('dice-stop');
     setTimeout(function(){d1.classList.remove('landed');d2.classList.remove('landed');},420);
     var sum=r1+r2;
     totalEl.textContent=sum;
@@ -12081,11 +12366,17 @@ function dcRoll(){
       totalEl.classList.add('win');
       document.getElementById('dc-status').textContent='🎉 You won €'+(bet*mult).toFixed(2)+'!';
       winBet(bet*mult,'dice');
+      // Big win sound for Lucky Seven (×6), medium otherwise
+      setTimeout(function(){
+        if(mult >= 6) gSound('win-big');
+        else          gSound('win-medium');
+      }, 200);
       toast('🎉 +€'+(bet*mult).toFixed(2)+' ('+sum+')','ok');
     }else{
       totalEl.classList.add('lose');
       document.getElementById('dc-status').textContent='😞 Lost €'+bet+' ('+sum+')';
       loseBet(bet,'dice');
+      setTimeout(function(){ gSound('lose'); }, 200);
       toast('😞 -€'+bet+' ('+sum+')','err');
     }
     document.getElementById('dc-roll').disabled=false;
@@ -12140,6 +12431,7 @@ function scNew(){
   if(!hasFunds(bet)){toast('Insufficient balance','err');return;}
   SC.bet=bet;SC.active=true;SC.won=0;SC.revealed=[];
   placeBet(bet,'scratch');
+  gSound('ticket');   // new ticket buzz
   var cells=[];
   // 5 bombs + 11 prize cells (harder, better house edge)
   for(var b=0;b<5;b++)cells.push(5);
@@ -12160,12 +12452,16 @@ function scNew(){
 function scReveal(idx){
   if(!SC.active||SC.revealed.indexOf(idx)>=0)return;
   SC.revealed.push(idx);
+  // Scratchy scrape sound on every reveal
+  gSound('scratch');
   var sym=SC.board[idx];
   if(SC_SYMS[sym].mult===0){
     SC.active=false;
     SC.exploded=idx;
     SC.board.forEach(function(_,i){if(SC.revealed.indexOf(i)<0)SC.revealed.push(i);});
     renderScratch();
+    // BOOM — explosion sound on bomb reveal
+    gSound('explosion');
     setTimeout(function(){
       var grid=document.getElementById('sc-grid');
       if(!grid)return;
@@ -12198,6 +12494,8 @@ function scReveal(idx){
     toast('\uD83D\uDCA3 BOOM! Lost \u20ac'+SC.bet,'err');
     return;
   }
+  // Match found — happy ding (a tiny delay after the scratch sound)
+  setTimeout(function(){ gSound('match'); }, 140);
   SC.won+=SC.bet*SC_SYMS[sym].mult;
   document.getElementById('sc-win').textContent='\u20ac'+SC.won.toFixed(2);
   renderScratch();
@@ -12206,6 +12504,7 @@ function scReveal(idx){
     SC.won*=2;
     document.getElementById('sc-win').textContent='\u20ac'+SC.won.toFixed(2);
     document.getElementById('sc-status').textContent='\uD83C\uDF89 PERFECT CLEAR! 2x bonus!';
+    gSound('win-big');   // perfect clear celebration
     setTimeout(scCashout,500);
   }
 }
@@ -12216,6 +12515,8 @@ function scCashout(){
   }
   SC.active=false;
   winBet(SC.won,'scratch');
+  // Cash register payout sound
+  gSound('cashout');
   toast('💰 Won €'+SC.won.toFixed(2),'ok');
   document.getElementById('sc-status').textContent='Won €'+SC.won.toFixed(2)+'! 🎉';
   document.getElementById('sc-cashout').style.display='none';
@@ -12251,8 +12552,12 @@ function crAction(){
     if(!hasFunds(bet)){toast('Insufficient balance','err');return;}
     CR.bet=bet;CR.hasBet=true;
     placeBet(bet,'crash');
+    // 🚀 Ignition: chip + rocket whoosh
+    gSound('chip');
+    setTimeout(function(){ gSound('rocket-launch'); }, 100);
     CR.startTime=performance.now();
     CR.state='flying';
+    CR._lastTonePlayed = 0;  // tracks when we last played a rising-tone tick
     document.getElementById('cr-status').textContent='✈️ FLYING — cash out!';
     document.getElementById('cr-btn').textContent='💰 CASHOUT @ 1.00x';
     document.getElementById('cr-btn').style.background='linear-gradient(135deg,var(--gold),var(--gold2))';
@@ -12270,6 +12575,13 @@ function crCashout(){
   CR.history.unshift({mult:CR.mult,crashed:false});
   CR.history=CR.history.slice(0,10);
   winBet(won,'crash');
+  // Triumphant cashout sound + win-tier celebration
+  gSound('cashout');
+  setTimeout(function(){
+    if(CR.mult >= 5)      gSound('win-big');
+    else if(CR.mult >= 2) gSound('win-medium');
+    else                  gSound('win-small');
+  }, 250);
   toast('💰 Cashed out @ '+CR.mult.toFixed(2)+'x! +€'+won.toFixed(2),'ok');
   CR.state='crashed';
   var btn=document.getElementById('cr-btn');
@@ -12281,10 +12593,20 @@ function crAnimate(){
   if(CR.state!=='flying')return;
   var elapsed=(performance.now()-CR.startTime)/1000;
   CR.mult=Math.pow(Math.E,0.28*elapsed);
+  // Rising tone that climbs with the multiplier — throttled to one tick per 180ms
+  var nowTs = performance.now();
+  if(nowTs - (CR._lastTonePlayed||0) > 180){
+    CR._lastTonePlayed = nowTs;
+    // Map multiplier 1x → 1.0 ... 10x → 2.5 octaves up
+    var pitch = 220 * Math.pow(1.06, Math.min(40, Math.floor(CR.mult * 4)));
+    gSound('rocket-rising', {freq: pitch});
+  }
   if(CR.auto>0&&CR.hasBet&&CR.mult>=CR.auto){crCashout();return;}
   if(CR.mult>=CR.crashAt){
     if(CR.raf){cancelAnimationFrame(CR.raf);CR.raf=null;}
     CR.mult=CR.crashAt;CR.state='crashed';
+    // 💥 EXPLOSION
+    gSound('explosion');
     document.getElementById('cr-mult').innerHTML=CR.mult.toFixed(2)+'x 💥';
     document.getElementById('cr-mult').classList.add('crashed');
     document.getElementById('cr-status').textContent='CRASHED at '+CR.mult.toFixed(2)+'x';
@@ -12292,6 +12614,7 @@ function crAnimate(){
     CR.history=CR.history.slice(0,10);
     if(CR.hasBet){
       loseBet(CR.bet,'crash');
+      setTimeout(function(){ gSound('lose'); }, 500);
       toast('💥 Crashed! −€'+CR.bet,'err');
     }
     var btn=document.getElementById('cr-btn');
@@ -12486,6 +12809,7 @@ function ltToggle(n){
   if(i>=0)LT.picks.splice(i,1);
   else if(LT.picks.length<6)LT.picks.push(n);
   else{toast('Max 6 numbers','warn');return;}
+  gSound('tick');  // soft tick per pick
   // Update only the numbers grid + picks (don't reset)
   document.querySelectorAll('#lt-nums .num').forEach(function(el,idx){
     el.classList.toggle('sel',LT.picks.indexOf(idx+1)>=0);
@@ -12498,6 +12822,10 @@ function ltRandom(){
     var n=Math.floor(Math.random()*90)+1;
     if(LT.picks.indexOf(n)<0)LT.picks.push(n);
   }
+  // Six quick ticks as random numbers pop in
+  for(var i = 0; i < 6; i++) (function(idx){
+    setTimeout(function(){ gSound('tick'); }, idx * 70);
+  })(i);
   document.querySelectorAll('#lt-nums .num').forEach(function(el,idx){
     el.classList.toggle('sel',LT.picks.indexOf(idx+1)>=0);
   });
@@ -12505,6 +12833,7 @@ function ltRandom(){
 }
 function ltClear(){
   LT.picks=[];
+  gSound('click');
   document.querySelectorAll('#lt-nums .num').forEach(function(el){el.classList.remove('sel');});
   ltRenderPicks();
 }
@@ -12530,12 +12859,14 @@ function ltBuy(){
     body:JSON.stringify({user_id:S.userId,numbers:picks})
   }).then(function(r){return r.json();}).then(function(d){
     if(d.ok){
+      gSound('ticket');  // 🎫 ticket printer
       toast('🎫 Ticket bought! Good luck 🍀','ok',3000);
       LT.picks=[];
       LT.myTickets=(d.my_tickets!==undefined?d.my_tickets:LT.myTickets+1);
       loadBalance();
       initLotto();
     }else{
+      gSound('lose');
       toast('❌ '+(d.error||'Failed'),'err');
     }
   }).catch(function(){toast('Network error','err');});
@@ -15234,6 +15565,9 @@ function whSpin(eur){
   if(!placeBet(eur, 'wheel')) return;
   WH.spinning = true;
   document.getElementById('wh-bal').textContent = '\u20ac' + (S.btc * S.rate).toFixed(2);
+  // 🎯 chip + rolling sound for the duration of the spin
+  gSound('chip');
+  setTimeout(function(){ gSound('ball-roll', {duration: 3800}); }, 80);
   
   var segments = WH.arranged;
   var n = segments.length;
@@ -15245,15 +15579,9 @@ function whSpin(eur){
   var multi = seg.multi;
   
   // Compute final rotation
-  // Pointer is at top (0 degrees in our SVG = 12 o'clock position)
-  // We want the WINNING segment to align with pointer
-  // The center of segment i is at angle (i * segAngle + segAngle/2)
-  // Wheel rotates clockwise; we set wheel rotation = -segCenter (so that segment moves to top)
-  // Plus add 5+ full rotations for drama
   var segCenter = winIdx * segAngle + segAngle/2;
   var rotations = 5 + Math.floor(Math.random() * 4);
   var jitter = (Math.random() - 0.5) * (segAngle * 0.45);
-  // FIX: account for accumulated rotation (previous formula caused visual drift)
   var targetMod = ((360 - segCenter + jitter) % 360 + 360) % 360;
   var currentMod = ((WH.currentAngle % 360) + 360) % 360;
   var deltaToTarget = (targetMod - currentMod + 360) % 360;
@@ -15268,6 +15596,8 @@ function whSpin(eur){
   
   // Wait for animation to finish (4s)
   setTimeout(function(){
+    // Final settling thunk
+    gSound('ball-stop');
     var payout_eur = eur * multi;
     if(multi > 0){
       winBet(payout_eur, 'wheel');
@@ -15276,6 +15606,12 @@ function whSpin(eur){
       document.getElementById('wh-result').innerHTML = 
         '<div class="wh-result-multi ' + resultClass + '">' + multi + 'x</div>' +
         '<div class="wh-result-amount" style="color:#39ff14;">+\u20ac' + profit.toFixed(2) + '</div>';
+      // Tier the win sound by multiplier
+      setTimeout(function(){
+        if(multi >= 10)     gSound('win-big');     // jackpot tier
+        else if(multi >= 3) gSound('win-medium');
+        else                gSound('win-small');
+      }, 250);
       toast(multi + 'x! +\u20ac' + profit.toFixed(2), 'ok', 2200);
       if(multi >= 5){
         try{tg.HapticFeedback && tg.HapticFeedback.notificationOccurred('success');}catch(e){}
@@ -15285,6 +15621,7 @@ function whSpin(eur){
       document.getElementById('wh-result').innerHTML = 
         '<div class="wh-result-multi lose">0x</div>' +
         '<div class="wh-result-amount">-\u20ac' + eur.toFixed(2) + '</div>';
+      setTimeout(function(){ gSound('lose'); }, 250);
       toast('No luck — try again','err',1500);
     }
     document.getElementById('wh-bal').textContent = '\u20ac' + (S.btc * S.rate).toFixed(2);
