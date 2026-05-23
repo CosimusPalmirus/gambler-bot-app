@@ -1610,56 +1610,119 @@ body{position:relative;}
 
 /* Card animations */
 .pk-card.dealing{
-  animation:pkDeal .5s cubic-bezier(.36,.07,.19,.97) backwards;
+  animation:pkDeal .65s cubic-bezier(.34,1.32,.64,1) backwards;
+  transform-origin: 50% 50%;
 }
 @keyframes pkDeal{
-  0%{transform:translate(-50vw,-100px) rotate(-540deg) scale(.5);opacity:0;}
-  60%{transform:translate(0,8px) rotate(15deg) scale(1.05);opacity:1;}
-  100%{transform:translate(0,0) rotate(0) scale(1);opacity:1;}
+  0%   { transform: translate(-180px, -120px) rotateZ(-720deg) rotateY(180deg) scale(.4); opacity:0; }
+  40%  { opacity:1; }
+  70%  { transform: translate(0, 8px) rotateZ(8deg) rotateY(-10deg) scale(1.08); }
+  100% { transform: translate(0, 0) rotateZ(0) rotateY(0) scale(1); opacity:1; }
 }
+
+/* Proper 3D card flip with snap mid-rotation */
 .pk-card.flipping{
-  animation:pkFlip .55s cubic-bezier(.36,.07,.19,.97);
+  animation:pkFlip .75s cubic-bezier(.4, .0, .2, 1);
+  transform-style:preserve-3d;
 }
 @keyframes pkFlip{
-  0%{transform:rotateY(0);}
-  50%{transform:rotateY(90deg) scale(1.05);}
-  100%{transform:rotateY(0) scale(1);}
+  0%   { transform:rotateY(180deg) scale(.92); box-shadow: 0 6px 12px rgba(0,0,0,.6); }
+  50%  { transform:rotateY(90deg)  scale(1.12); box-shadow: 0 14px 28px rgba(0,0,0,.7), 0 0 20px rgba(255,215,0,.4); }
+  100% { transform:rotateY(0deg)   scale(1);   box-shadow: 0 3px 6px rgba(0,0,0,.5); }
 }
+
+/* Mucking — cards slide out + fade when folding */
+.pk-card.mucking{
+  animation: pkMuck .5s ease-in forwards;
+}
+@keyframes pkMuck{
+  0%   { transform: translate(0,0) rotateZ(0); opacity:1; }
+  100% { transform: translate(180px, 100px) rotateZ(540deg) scale(.6); opacity:0; }
+}
+
 .pk-card.winning{
-  animation:pkWinGlow 1.5s ease-in-out infinite;
+  animation:pkWinGlow 1.2s ease-in-out infinite;
   z-index:3;
 }
 @keyframes pkWinGlow{
   0%,100%{
     box-shadow:
       0 0 0 2px #ffd700,
-      0 0 20px rgba(255,215,0,.6),
-      0 0 40px rgba(57,255,20,.4),
+      0 0 22px rgba(255,215,0,.7),
+      0 0 44px rgba(57,255,20,.45),
       0 3px 6px rgba(0,0,0,.5);
-    transform:translateY(-3px) scale(1.05);
+    transform:translateY(-3px) scale(1.05) rotateZ(-2deg);
   }
   50%{
     box-shadow:
       0 0 0 3px #ffd700,
-      0 0 30px rgba(255,215,0,.9),
-      0 0 60px rgba(57,255,20,.6),
+      0 0 36px rgba(255,215,0,1),
+      0 0 70px rgba(57,255,20,.7),
+      0 0 100px rgba(168,85,247,.3),
       0 3px 6px rgba(0,0,0,.5);
-    transform:translateY(-5px) scale(1.08);
+    transform:translateY(-6px) scale(1.1) rotateZ(2deg);
   }
 }
 
-/* Chip stack visualization */
+/* Pot — chip-stack visualization that pulses when bets are placed */
 .pk-pot{
   position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
   font-family:'Russo One',sans-serif;font-size:14px;
   color:#ffd700;text-shadow:0 0 12px rgba(0,0,0,.9),0 2px 4px rgba(0,0,0,.5);
-  background:rgba(0,0,0,.6);border:1px solid rgba(255,215,0,.4);
-  padding:4px 12px;border-radius:14px;letter-spacing:1px;
-  z-index:1;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 30%, rgba(255,215,0,.18), rgba(0,0,0,.85));
+  border:2px solid rgba(255,215,0,.55);
+  padding:6px 14px;border-radius:14px;letter-spacing:1px;
+  z-index:5;pointer-events:none;
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,.5),
+    0 4px 12px rgba(0,0,0,.55),
+    inset 0 1px 0 rgba(255,255,255,.12);
   opacity:0;transition:opacity .3s;
 }
 .pk-pot.visible{opacity:1;}
 .pk-pot .pk-pot-coin{margin-right:4px;}
+.pk-pot.pulse{
+  animation: pkPotPulse .8s cubic-bezier(.34, 1.5, .6, 1);
+}
+@keyframes pkPotPulse{
+  0%   { transform: translate(-50%,-50%) scale(1);    box-shadow: 0 0 0 1px rgba(0,0,0,.5), 0 4px 12px rgba(0,0,0,.55), 0 0 0 rgba(255,215,0,0); }
+  25%  { transform: translate(-50%,-50%) scale(1.32); box-shadow: 0 0 0 1px rgba(0,0,0,.5), 0 4px 12px rgba(0,0,0,.55), 0 0 28px rgba(255,215,0,.85), 0 0 50px rgba(57,255,20,.4); }
+  60%  { transform: translate(-50%,-50%) scale(1.05); }
+  100% { transform: translate(-50%,-50%) scale(1);    box-shadow: 0 0 0 1px rgba(0,0,0,.5), 0 4px 12px rgba(0,0,0,.55); }
+}
+
+/* Flying chips — animated from player area to pot */
+.pk-flying-chip{
+  position: absolute;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #ffd700;
+  border: 2px solid #fff8d0;
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,.7),
+    0 4px 8px rgba(0,0,0,.55),
+    inset 0 -3px 4px rgba(0,0,0,.3),
+    inset 0 2px 3px rgba(255,255,255,.5);
+  z-index: 10;
+  pointer-events: none;
+  animation: pkChipFly .65s cubic-bezier(.45, .05, .55, .95) forwards;
+}
+@keyframes pkChipFly{
+  0%   { transform: translate(0, 0) scale(1)    rotate(0deg); opacity: 1; }
+  50%  { transform: translate(calc(var(--tx) * .5), calc(var(--ty) * .5 - 30px)) scale(1.2) rotate(180deg); opacity: 1; }
+  90%  { transform: translate(var(--tx), var(--ty)) scale(1) rotate(360deg); opacity: 1; }
+  100% { transform: translate(var(--tx), var(--ty)) scale(.6) rotate(360deg); opacity: 0; }
+}
+
+/* Table raise-flash — gold border pulse when RAISE pressed */
+.pk-table.raise-flash{
+  animation: pkRaiseFlash .65s ease-out;
+}
+@keyframes pkRaiseFlash{
+  0%   { box-shadow: 0 0 0 1px rgba(255,215,0,.15) inset, 0 0 40px rgba(0,0,0,.6) inset, 0 8px 28px rgba(0,0,0,.5), 0 0 16px rgba(168,85,247,.2); }
+  30%  { box-shadow: 0 0 0 4px rgba(255,215,0,.9) inset, 0 0 60px rgba(255,170,0,.5) inset, 0 8px 28px rgba(0,0,0,.5), 0 0 70px rgba(255,215,0,.8), 0 0 120px rgba(255,170,0,.4); }
+  100% { box-shadow: 0 0 0 1px rgba(255,215,0,.15) inset, 0 0 40px rgba(0,0,0,.6) inset, 0 8px 28px rgba(0,0,0,.5), 0 0 16px rgba(168,85,247,.2); }
+}
 
 /* Bet selection / Action buttons */
 .pk-controls{padding:4px 0;}
@@ -1686,12 +1749,41 @@ body{position:relative;}
   padding:14px 4px;border-radius:10px;border:none;
   font-family:'Russo One',sans-serif;font-size:13px;font-weight:700;
   letter-spacing:1.5px;cursor:pointer;
-  transition:all .15s;
+  transition:transform .15s, box-shadow .15s;
   box-shadow:0 4px 0 rgba(0,0,0,.4);
+  position:relative;
+  overflow:hidden;
 }
+.pk-action:active{ transform: translateY(2px); box-shadow: 0 2px 0 rgba(0,0,0,.4); }
 .pk-action.fold{background:linear-gradient(145deg,#ef4444,#991b1b);color:#fff;}
+.pk-action.fold:hover{ box-shadow: 0 4px 0 rgba(0,0,0,.4), 0 0 14px rgba(239,68,68,.5); }
 .pk-action.check{background:linear-gradient(145deg,#3b82f6,#1e3a8a);color:#fff;}
-.pk-action.raise{background:linear-gradient(145deg,#ffd700,#ff9500);color:#000;}
+.pk-action.check:hover{ box-shadow: 0 4px 0 rgba(0,0,0,.4), 0 0 14px rgba(59,130,246,.6); }
+.pk-action.raise{
+  background:linear-gradient(145deg,#ffd700,#ff9500);
+  color:#1a0500;
+  animation: pkRaiseGlow 2.2s ease-in-out infinite;
+}
+.pk-action.raise:hover{ animation:none; box-shadow: 0 4px 0 rgba(120,60,0,.5), 0 0 22px rgba(255,215,0,.85), 0 0 40px rgba(255,170,0,.5); transform: translateY(-1px); }
+@keyframes pkRaiseGlow{
+  0%,100%{ box-shadow: 0 4px 0 rgba(120,60,0,.5), 0 0 0 rgba(255,215,0,0); }
+  50%    { box-shadow: 0 4px 0 rgba(120,60,0,.5), 0 0 18px rgba(255,215,0,.7), 0 0 30px rgba(255,170,0,.4); }
+}
+/* Sweep shine that runs across the RAISE button periodically */
+.pk-action.raise::before{
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 80%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.6), transparent);
+  animation: pkRaiseSweep 3.5s linear infinite;
+  pointer-events: none;
+}
+@keyframes pkRaiseSweep{
+  0%   { left: -100%; }
+  60%  { left: 100%; }
+  100% { left: 100%; }
+}
 .pk-action.allin{background:linear-gradient(145deg,#a855f7,#6b21a8);color:#fff;
   animation:pkAllInPulse 1.5s ease-in-out infinite;}
 @keyframes pkAllInPulse{
@@ -1699,6 +1791,101 @@ body{position:relative;}
   50%{box-shadow:0 4px 0 rgba(0,0,0,.4),0 0 16px rgba(168,85,247,.6);}
 }
 .pk-action:active{transform:translateY(2px);box-shadow:0 2px 0 rgba(0,0,0,.4);}
+
+/* Table win-glow — ambient gold halo around the felt when player wins */
+.pk-table.win-glow{
+  animation: pkTableWinGlow 1.4s ease-in-out infinite;
+}
+@keyframes pkTableWinGlow{
+  0%,100%{
+    box-shadow:
+      0 0 0 1px rgba(255,215,0,.6) inset,
+      0 0 50px rgba(255,170,0,.35) inset,
+      0 8px 28px rgba(0,0,0,.5),
+      0 0 40px rgba(255,215,0,.5);
+  }
+  50%{
+    box-shadow:
+      0 0 0 3px rgba(255,215,0,1) inset,
+      0 0 80px rgba(255,170,0,.6) inset,
+      0 8px 28px rgba(0,0,0,.5),
+      0 0 80px rgba(255,215,0,.9),
+      0 0 140px rgba(57,255,20,.4);
+  }
+}
+
+/* Pre-game bet info — appears under phase badge to show ante + play split */
+.pk-bet-info{
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  font-family: 'Russo One', sans-serif;
+  font-size: 10.5px;
+  letter-spacing: 1.2px;
+  color: rgba(255,255,255,.85);
+  background: rgba(0,0,0,.45);
+  border: 1px solid rgba(255,215,0,.25);
+  border-radius: 12px;
+  padding: 4px 12px;
+  margin: -2px auto 6px;
+  width: fit-content;
+  min-height: 18px;
+}
+
+/* Phase badge above the table — pulses on phase transitions */
+.pk-phase-badge{
+  position: relative;
+  z-index: 2;
+  display: block;
+  margin: 0 auto 4px;
+  width: fit-content;
+  padding: 3px 14px;
+  background: linear-gradient(145deg, rgba(168,85,247,.35), rgba(168,85,247,.15));
+  border: 1px solid rgba(168,85,247,.6);
+  border-radius: 12px;
+  color: #d8b4fe;
+  font-family: 'Russo One', sans-serif;
+  font-size: 10px;
+  letter-spacing: 2.5px;
+  text-shadow: 0 1px 2px rgba(0,0,0,.7);
+}
+.pk-phase-badge.flop  { background: linear-gradient(145deg, rgba(59,130,246,.35), rgba(59,130,246,.15)); border-color: rgba(59,130,246,.6); color:#93c5fd; }
+.pk-phase-badge.turn  { background: linear-gradient(145deg, rgba(255,170,0,.35),  rgba(255,170,0,.15));  border-color: rgba(255,170,0,.6);  color:#ffd700; }
+.pk-phase-badge.river { background: linear-gradient(145deg, rgba(239,68,68,.35),  rgba(239,68,68,.15));  border-color: rgba(239,68,68,.6);  color:#fca5a5; }
+.pk-phase-badge.showdown { background: linear-gradient(145deg, rgba(57,255,20,.35), rgba(57,255,20,.15)); border-color: rgba(57,255,20,.6); color:#86efac; animation: pkBadgeBlink 1s ease-in-out infinite; }
+@keyframes pkBadgeBlink{
+  0%,100% { box-shadow: 0 0 8px rgba(57,255,20,.4); }
+  50%     { box-shadow: 0 0 20px rgba(57,255,20,.85), 0 0 36px rgba(57,255,20,.4); }
+}
+
+/* Hand strength tag — color-coded by hand rank */
+.pk-area-label .pk-hand-name.tier-low{ background:rgba(120,120,120,.45); border-color:rgba(180,180,180,.45); color:#ddd; }
+.pk-area-label .pk-hand-name.tier-mid{ background:rgba(59,130,246,.35);  border-color:rgba(59,130,246,.5);  color:#93c5fd; }
+.pk-area-label .pk-hand-name.tier-hi{  background:rgba(168,85,247,.4);   border-color:rgba(168,85,247,.6);  color:#e9d5ff; box-shadow: 0 0 8px rgba(168,85,247,.5); }
+.pk-area-label .pk-hand-name.tier-top{
+  background:linear-gradient(90deg, #ffd700, #ff8800);
+  border-color:#fff8d0; color:#1a0500; font-weight:900;
+  box-shadow: 0 0 12px rgba(255,215,0,.7), 0 0 24px rgba(255,170,0,.4);
+  animation: pkHandTopPulse 1.4s ease-in-out infinite;
+}
+@keyframes pkHandTopPulse{
+  0%,100% { transform: scale(1); }
+  50%     { transform: scale(1.05); }
+}
+
+/* Status text — gentle pulse during decision phase */
+.pk-status{
+  transition: color .3s, text-shadow .3s;
+}
+.pk-status.decision{
+  color: #ffd700 !important;
+  text-shadow: 0 0 10px rgba(255,215,0,.6);
+  animation: pkStatusBlink 1.6s ease-in-out infinite;
+}
+@keyframes pkStatusBlink{
+  0%,100% { opacity: .85; }
+  50%     { opacity: 1; transform: scale(1.03); }
+}
 
 /* Showdown overlay */
 .pk-showdown{
@@ -7162,8 +7349,17 @@ body{position:relative;}
       <button class="action-btn gold" id="pk-again" style="display:none;width:100%;padding:14px;font-family:'Russo One',sans-serif;font-size:14px;letter-spacing:2px;margin-top:6px;" onclick="pkReset()">↻ PLAY AGAIN</button>
     </div>
 
+    <!-- Action guide — CALL vs RAISE strategy -->
+    <div style="margin-top:10px;background:rgba(0,0,0,.4);border-radius:10px;padding:9px 10px;border:1px solid rgba(168,85,247,.25);">
+      <div style="font-family:'Russo One',sans-serif;font-size:10px;color:#d8b4fe;letter-spacing:1.5px;margin-bottom:5px;">\ud83c\udfb2 YOUR MOVES AT THE FLOP</div>
+      <div style="font-family:'Orbitron',monospace;font-size:9px;color:#a1a1aa;line-height:1.55;">
+        <div><b style="color:#fca5a5;">FOLD</b> &mdash; quit; lose your ante</div>
+        <div><b style="color:#93c5fd;">CALL (2&times; ante)</b> &mdash; standard play, see all 5 community cards</div>
+        <div><b style="color:#ffd700;">RAISE (3&times; ante)</b> &mdash; bigger commit, bigger payout if you win &mdash; same RTP, higher variance</div>
+      </div>
+    </div>
     <!-- Paytable info -->
-    <div style="margin-top:14px;background:rgba(0,0,0,.4);border-radius:10px;padding:10px;border:1px solid rgba(255,215,0,.15);">
+    <div style="margin-top:10px;background:rgba(0,0,0,.4);border-radius:10px;padding:10px;border:1px solid rgba(255,215,0,.15);">
       <div style="font-family:'Russo One',sans-serif;font-size:10px;color:#ffd700;letter-spacing:1.5px;margin-bottom:6px;">💰 PAYOUT BONUS (on top of 1.85x base)</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;font-family:'Orbitron',monospace;font-size:9px;color:#a1a1aa;">
         <div>Royal Flush <b style="color:#39ff14;float:right;">+10x</b></div>
@@ -12921,8 +13117,202 @@ var PK = {
   dealer: [],
   community: [],
   revealedCommunity: 0,
-  result: null
+  result: null,
+  playAction: null,   // 'call' or 'raise' — tracks how the player committed
+  potDisplay: 0       // animated pot value for smooth chip-to-pot effect
 };
+
+// ─── POKER SOUND SYSTEM ─────────────────────────────────────────
+// Reuses the global slv2EnsureAudio context. Each sound is a layered
+// composition of Web Audio oscillators for authentic casino atmosphere.
+function pkSound(name){
+  var ctx = (typeof slv2EnsureAudio === 'function') ? slv2EnsureAudio() : null;
+  if(!ctx) return;
+  try {
+    switch(name){
+      case 'deal':
+        // Card slide whoosh — short downward sweep
+        pkPlayBuf(ctx, function(t){
+          return (Math.random() * 2 - 1) * Math.exp(-t * 22) * 0.32;
+        }, 0.14, 'lowpass', 2200);
+        break;
+      case 'flip':
+        // Card flip — paper snap + bright tick
+        pkTone(ctx, 1800, 0.04, 'triangle', 0.18);
+        setTimeout(function(){ pkTone(ctx, 2400, 0.05, 'square', 0.10); }, 30);
+        break;
+      case 'chip':
+        // Single chip clink — high metal ting + low thud
+        pkTone(ctx, 2200 + Math.random() * 400, 0.06, 'triangle', 0.16);
+        setTimeout(function(){ pkTone(ctx, 110, 0.08, 'sine', 0.18); }, 18);
+        break;
+      case 'chipStack':
+        // Multiple chips stacking — rapid succession of clinks
+        for(var i = 0; i < 5; i++){
+          (function(idx){
+            setTimeout(function(){
+              pkTone(ctx, 2000 + Math.random() * 600, 0.05, 'triangle', 0.14);
+              pkTone(ctx, 90 + Math.random() * 30, 0.06, 'sine', 0.10);
+            }, idx * 60);
+          })(i);
+        }
+        break;
+      case 'call':
+        // Confident commitment — mid tone, single chip
+        pkTone(ctx, 440, 0.08, 'sine', 0.16);
+        setTimeout(function(){ pkSound('chip'); }, 60);
+        break;
+      case 'raise':
+        // Bold raise — ascending two-tone + bigger chip clatter
+        pkTone(ctx, 392, 0.10, 'triangle', 0.18);
+        setTimeout(function(){ pkTone(ctx, 587, 0.12, 'triangle', 0.20); }, 90);
+        setTimeout(function(){ pkSound('chipStack'); }, 180);
+        break;
+      case 'fold':
+        // Cards mucked — downward sweep + soft thud
+        pkTone(ctx, 220, 0.18, 'sawtooth', 0.12);
+        setTimeout(function(){ pkTone(ctx, 110, 0.20, 'sine', 0.10); }, 100);
+        break;
+      case 'reveal':
+        // Community card reveal — bright fanfare ping
+        pkTone(ctx, 880, 0.10, 'sine', 0.14);
+        setTimeout(function(){ pkTone(ctx, 1320, 0.12, 'sine', 0.12); }, 70);
+        break;
+      case 'tick':
+        // Soft UI tick
+        pkTone(ctx, 1400, 0.04, 'triangle', 0.08);
+        break;
+      case 'showdown':
+        // Dramatic reveal moment — low brass + cymbal
+        pkTone(ctx, 196, 0.50, 'sawtooth', 0.20);
+        pkTone(ctx, 294, 0.50, 'sawtooth', 0.18);
+        // Cymbal noise
+        pkPlayBuf(ctx, function(t){
+          return (Math.random() * 2 - 1) * Math.exp(-t * 6) * 0.20;
+        }, 0.40, 'highpass', 3500);
+        break;
+      case 'win':
+        // Triumphant chord stack + sparkle
+        var chord = [523, 659, 784, 1047];  // C major
+        chord.forEach(function(f, i){
+          setTimeout(function(){
+            pkTone(ctx, f, 0.50, 'triangle', 0.16);
+          }, i * 40);
+        });
+        // Sparkle cascade
+        for(var s = 0; s < 8; s++){
+          (function(si){
+            setTimeout(function(){
+              pkTone(ctx, 1760 + si * 220, 0.18, 'sine', 0.10);
+            }, 250 + si * 50);
+          })(s);
+        }
+        break;
+      case 'bigWin':
+        // Royal/straight flush — huge fanfare
+        var fanfare = [392, 523, 659, 784, 1047, 1319];
+        fanfare.forEach(function(f, i){
+          setTimeout(function(){
+            pkTone(ctx, f, 0.60, 'sawtooth', 0.18);
+            pkTone(ctx, f * 2, 0.60, 'triangle', 0.10);
+          }, i * 120);
+        });
+        // Crash cymbal
+        setTimeout(function(){
+          pkPlayBuf(ctx, function(t){
+            return (Math.random() * 2 - 1) * Math.exp(-t * 3) * 0.32;
+          }, 1.20, 'highpass', 4000);
+        }, 0);
+        break;
+      case 'lose':
+        // Defeat — descending minor
+        pkTone(ctx, 330, 0.25, 'sawtooth', 0.16);
+        setTimeout(function(){ pkTone(ctx, 277, 0.30, 'sawtooth', 0.14); }, 200);
+        setTimeout(function(){ pkTone(ctx, 220, 0.40, 'sine', 0.12); }, 400);
+        break;
+      case 'push':
+        // Neutral two-tone
+        pkTone(ctx, 440, 0.18, 'sine', 0.14);
+        setTimeout(function(){ pkTone(ctx, 440, 0.20, 'sine', 0.12); }, 200);
+        break;
+    }
+  } catch(e){}
+}
+
+// Tone helper — short oscillator with envelope (poker context, slightly different from slot)
+function pkTone(ctx, freq, dur, type, vol){
+  try {
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.value = freq;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    var t0 = ctx.currentTime;
+    gain.gain.setValueAtTime(0, t0);
+    gain.gain.linearRampToValueAtTime(vol || 0.15, t0 + 0.006);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.start(t0);
+    osc.stop(t0 + dur + 0.04);
+  } catch(e){}
+}
+
+// Buffered noise generator for swooshes / cymbals
+function pkPlayBuf(ctx, gen, durSec, filterType, filterFreq){
+  try {
+    var sr = ctx.sampleRate;
+    var len = Math.floor(sr * durSec);
+    var buf = ctx.createBuffer(1, len, sr);
+    var data = buf.getChannelData(0);
+    for(var i = 0; i < len; i++){
+      data[i] = gen(i / sr);
+    }
+    var src = ctx.createBufferSource();
+    src.buffer = buf;
+    if(filterType){
+      var filt = ctx.createBiquadFilter();
+      filt.type = filterType;
+      filt.frequency.value = filterFreq || 2000;
+      src.connect(filt);
+      filt.connect(ctx.destination);
+    } else {
+      src.connect(ctx.destination);
+    }
+    src.start();
+  } catch(e){}
+}
+
+// Animate chips flying from player area to the pot for visual feedback
+function pkAnimateChipsToPot(amount, color){
+  var pot = document.getElementById('pk-pot');
+  if(!pot) return;
+  var rect = pot.getBoundingClientRect();
+  var table = document.querySelector('.pk-table');
+  if(!table) return;
+  var tableRect = table.getBoundingClientRect();
+  // Spawn 3-6 chips, each a div that animates from bottom to pot
+  var count = Math.min(8, Math.max(3, Math.floor(amount / 5)));
+  for(var i = 0; i < count; i++){
+    (function(idx){
+      setTimeout(function(){
+        var chip = document.createElement('div');
+        chip.className = 'pk-flying-chip';
+        chip.style.background = color || '#ffd700';
+        // Start from bottom-center of table (player area)
+        var startX = tableRect.width / 2 + (Math.random() - 0.5) * 80;
+        var startY = tableRect.height - 30;
+        var endX = rect.left - tableRect.left + rect.width / 2;
+        var endY = rect.top - tableRect.top + rect.height / 2;
+        chip.style.left = startX + 'px';
+        chip.style.top = startY + 'px';
+        chip.style.setProperty('--tx', (endX - startX) + 'px');
+        chip.style.setProperty('--ty', (endY - startY) + 'px');
+        table.appendChild(chip);
+        setTimeout(function(){ if(chip.parentNode) chip.parentNode.removeChild(chip); }, 800);
+      }, idx * 60);
+    })(i);
+  }
+}
 
 var PK_RANK_NAMES = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
 var PK_SUITS = [
@@ -13110,14 +13500,20 @@ function pkRender(){
     }
   }
   
-  // Phase badge
+  // Phase badge with color-coded class
   var pbadge=document.getElementById('pk-phase-badge');
   if(pbadge){
     var labels={'idle':'WAITING','dealing':'DEALING','flop':'FLOP','turn':'TURN','river':'RIVER','showdown':'SHOWDOWN'};
     pbadge.textContent=labels[PK.phase]||PK.phase.toUpperCase();
+    pbadge.className = 'pk-phase-badge ' + PK.phase;
   }
-  var bbadge=document.getElementById('pk-bet-info');
-  if(bbadge)bbadge.textContent='ANTE: \u20ac'+PK.ante;
+  // Apply decision-state pulse on status during flop (player must choose)
+  var statusEl = document.getElementById('pk-status');
+  if(statusEl){
+    if(PK.phase === 'flop') statusEl.classList.add('decision');
+    else                    statusEl.classList.remove('decision');
+  }
+  // Don't overwrite bet-info here — pkUpdateBetInfo handles it richly
 }
 
 function pkUpdateLabels(){
@@ -13127,13 +13523,23 @@ function pkUpdateLabels(){
   if(PK.player.length>=2 && PK.revealedCommunity>=3){
     var visibleCommunity=PK.community.slice(0,PK.revealedCommunity);
     var pHand=pkBestHand(PK.player.concat(visibleCommunity));
-    if(pl)pl.textContent=PK_HAND_NAMES[pHand.rank];
+    if(pl){
+      pl.textContent=PK_HAND_NAMES[pHand.rank];
+      // Color tier: 0=high card, 1=pair → low; 2-3 → mid; 4-5 → hi; 6+ → top
+      pl.className = 'pk-hand-name ' +
+        (pHand.rank >= 6 ? 'tier-top' :
+         pHand.rank >= 4 ? 'tier-hi'  :
+         pHand.rank >= 2 ? 'tier-mid' : 'tier-low');
+    }
   }else if(PK.player.length===2){
     // Just show "Hole cards" or detect a pair from hole
     var r1=PK.player[0].rank,r2=PK.player[1].rank;
-    if(pl)pl.textContent=r1===r2?'POCKET '+PK_RANK_NAMES[r1]+'s':PK_RANK_NAMES[Math.max(r1,r2)]+' high';
+    if(pl){
+      pl.textContent=r1===r2?'POCKET '+PK_RANK_NAMES[r1]+'s':PK_RANK_NAMES[Math.max(r1,r2)]+' high';
+      pl.className = 'pk-hand-name ' + (r1===r2 ? 'tier-mid' : 'tier-low');
+    }
   }else{
-    if(pl)pl.textContent='';
+    if(pl){ pl.textContent=''; pl.className = 'pk-hand-name'; }
   }
   // Dealer label hidden until showdown
   if(PK.phase==='showdown' && dl && PK.dealer.length===2){
@@ -13152,6 +13558,8 @@ function pkStart(eur){
   PK.ante=eur;
   PK.play=0;
   PK.totalBet=eur;
+  PK.playAction=null;
+  PK.potDisplay=eur;
   if(!placeBet(eur,'poker')){return;}
   var deck=pkBuildDeck();
   PK.player=[deck.pop(),deck.pop()];
@@ -13161,11 +13569,15 @@ function pkStart(eur){
   PK.result=null;
   PK.phase='dealing';
   pkRender();
+  pkUpdateBetInfo();
+  pkSound('chip');  // ante chip drop
   setTimeout(function(){
     var cards=document.querySelectorAll('#pk-player-cards .pk-card, #pk-dealer-cards .pk-card');
     cards.forEach(function(c,i){
       c.classList.add('dealing');
-      c.style.animationDelay=(i*0.1)+'s';
+      c.style.animationDelay=(i*0.12)+'s';
+      // Audible card-deal whoosh for each card, staggered
+      setTimeout(function(){ pkSound('deal'); }, i * 120);
     });
   },10);
   pkUpdateButtons();
@@ -13175,18 +13587,23 @@ function pkStart(eur){
     pkAnimateReveal(0,3,function(){
       PK.revealedCommunity=3;
       pkRender();
+      pkSound('reveal');
       pkUpdateButtons();
       document.getElementById('pk-status').textContent =
-        'CALL €' + (PK.ante*2) + ' to see turn + river, or FOLD';
+        'Decide: CALL \u20ac' + (PK.ante*2) + ', RAISE \u20ac' + (PK.ante*3) + ', or FOLD';
     });
-  },900);
+  },1100);
 }
 
 function pkPlayerAction(action){
   if(action==='fold'){
+    pkSound('fold');
+    // Animate cards mucking — slide them out
+    var pcards = document.querySelectorAll('#pk-player-cards .pk-card');
+    pcards.forEach(function(c){ c.classList.add('mucking'); });
     PK.phase='showdown';
     PK.result={winner:'dealer',reason:'fold',playerHand:null,dealerHand:null,payout:0};
-    pkShowFold();
+    setTimeout(function(){ pkShowFold(); }, 500);
     return;
   }
   if(action==='call'){
@@ -13194,28 +13611,115 @@ function pkPlayerAction(action){
     if(!hasFunds(playBet)){toast('Insufficient for CALL','err');return;}
     PK.play = playBet;
     PK.totalBet = PK.ante + PK.play;
+    PK.playAction = 'call';
     placeBet(playBet,'poker');
+    // Audio + visual feedback for the call commit
+    pkSound('call');
+    pkAnimateChipsToPot(playBet, '#5fc7ff');  // blue chips for CALL
+    pkPulsePot(playBet);
     pkUpdateButtons();
+    pkUpdateBetInfo();
     document.getElementById('pk-status').textContent='Revealing turn...';
     PK.phase='turn';
-    pkAnimateReveal(3,4,function(){
-      PK.revealedCommunity=4;
-      pkRender();
-      setTimeout(function(){
-        document.getElementById('pk-status').textContent='Revealing river...';
-        PK.phase='river';
-        pkAnimateReveal(4,5,function(){
-          PK.revealedCommunity=5;
-          pkRender();
-          setTimeout(function(){
-            PK.phase='showdown';
-            pkShowdown();
-          },700);
-        });
-      },800);
-    });
+    setTimeout(function(){
+      pkAnimateReveal(3,4,function(){
+        PK.revealedCommunity=4;
+        pkRender();
+        pkSound('reveal');
+        setTimeout(function(){
+          document.getElementById('pk-status').textContent='Revealing river...';
+          PK.phase='river';
+          pkAnimateReveal(4,5,function(){
+            PK.revealedCommunity=5;
+            pkRender();
+            pkSound('reveal');
+            setTimeout(function(){
+              PK.phase='showdown';
+              pkShowdown();
+            },700);
+          });
+        },800);
+      });
+    }, 360);  // brief pause for chip animation to register
     return;
   }
+  if(action==='raise'){
+    // RAISE — 3× ante (vs CALL's 2×). Higher risk, same RTP but larger swings.
+    // Payouts use the same paytable; only the `play` bet size differs.
+    var raiseBet = PK.ante * 3;
+    if(!hasFunds(raiseBet)){
+      toast('Insufficient for RAISE (need \u20ac' + raiseBet + ')', 'err');
+      return;
+    }
+    PK.play = raiseBet;
+    PK.totalBet = PK.ante + PK.play;
+    PK.playAction = 'raise';
+    placeBet(raiseBet,'poker');
+    pkSound('raise');
+    pkAnimateChipsToPot(raiseBet, '#ffd700');  // gold chips for RAISE
+    pkPulsePot(raiseBet);
+    // Flash the table border gold to celebrate the bold action
+    var tbl = document.querySelector('.pk-table');
+    if(tbl){
+      tbl.classList.remove('raise-flash');
+      void tbl.offsetWidth;
+      tbl.classList.add('raise-flash');
+      setTimeout(function(){ tbl.classList.remove('raise-flash'); }, 700);
+    }
+    pkUpdateButtons();
+    pkUpdateBetInfo();
+    document.getElementById('pk-status').textContent='\ud83d\udd25 BOLD RAISE \u2014 revealing turn...';
+    PK.phase='turn';
+    setTimeout(function(){
+      pkAnimateReveal(3,4,function(){
+        PK.revealedCommunity=4;
+        pkRender();
+        pkSound('reveal');
+        setTimeout(function(){
+          document.getElementById('pk-status').textContent='Revealing river...';
+          PK.phase='river';
+          pkAnimateReveal(4,5,function(){
+            PK.revealedCommunity=5;
+            pkRender();
+            pkSound('reveal');
+            setTimeout(function(){
+              PK.phase='showdown';
+              pkShowdown();
+            },700);
+          });
+        },800);
+      });
+    }, 500);  // slightly longer pause for raise — bigger drama
+    return;
+  }
+}
+
+// Visual pop on the pot icon + update displayed amount
+function pkPulsePot(addAmount){
+  var pot = document.getElementById('pk-pot');
+  if(!pot) return;
+  PK.potDisplay += addAmount;
+  pot.classList.remove('pulse');
+  void pot.offsetWidth;
+  pot.classList.add('pulse');
+  pkUpdateBetInfo();
+  setTimeout(function(){ pot.classList.remove('pulse'); }, 800);
+}
+
+// Sync the pot/bet info text with current bet state
+function pkUpdateBetInfo(){
+  var info = document.getElementById('pk-bet-info');
+  if(!info) return;
+  if(PK.totalBet === 0){
+    info.textContent = 'No bet';
+    return;
+  }
+  var parts = ['Ante \u20ac' + PK.ante.toFixed(2)];
+  if(PK.play > 0){
+    var label = PK.playAction === 'raise' ? 'Raise' : 'Play';
+    parts.push(label + ' \u20ac' + PK.play.toFixed(2));
+  }
+  info.innerHTML = parts.join(' \u2022 ') + ' <span style="color:#ffd700;font-weight:700;">\u2192 Total \u20ac' + PK.totalBet.toFixed(2) + '</span>';
 }
 
 function pkAdvance(){
@@ -13271,11 +13775,13 @@ function pkAnimateReveal(fromIdx, toIdx, cb){
 function pkShowdown(){
   PK.revealedCommunity=5;
   pkRender();
+  pkSound('showdown');
   setTimeout(function(){
     var dc=document.querySelectorAll('#pk-dealer-cards .pk-card');
     dc.forEach(function(c,i){
       c.classList.add('flipping');
-      c.style.animationDelay=(i*0.15)+'s';
+      c.style.animationDelay=(i*0.20)+'s';
+      setTimeout(function(){ pkSound('flip'); }, i * 200);
     });
   },10);
   setTimeout(function(){
@@ -13312,7 +13818,18 @@ function pkShowdown(){
     }
     PK.result = result;
     pkShowResult();
-  }, 1000);
+    // Result audio — bigWin for rare hands (rank ≥ 6: full house+)
+    setTimeout(function(){
+      if(result.winner === 'player'){
+        if(pHand.rank >= 6) pkSound('bigWin');
+        else                pkSound('win');
+      } else if(result.winner === 'dealer'){
+        pkSound('lose');
+      } else {
+        pkSound('push');
+      }
+    }, 100);
+  }, 1100);
 }
 
 function pkShowResult(){
@@ -13370,6 +13887,7 @@ function pkShowFold(){
                '<div class="pk-hand-info">You forfeit \u20ac'+PK.totalBet+'</div>'+
                '<div class="pk-payout">-\u20ac'+PK.totalBet.toFixed(2)+'</div>';
   ov.classList.add('visible');
+  pkSound('lose');
   pkUpdateButtons();
 }
 
@@ -13388,6 +13906,13 @@ function pkHighlightWinningCards(handEval){
       }
     }
   });
+  // Add a global win-glow to the table for ambient celebration
+  var tbl = document.querySelector('.pk-table');
+  if(tbl){
+    tbl.classList.remove('lose-fade');
+    tbl.classList.add('win-glow');
+    setTimeout(function(){ if(tbl) tbl.classList.remove('win-glow'); }, 3500);
+  }
 }
 
 function pkConfetti(){
@@ -13417,9 +13942,18 @@ function pkReset(){
   PK.community=[];
   PK.revealedCommunity=0;
   PK.result=null;
+  PK.playAction=null;
+  PK.potDisplay=0;
   document.getElementById('pk-showdown').classList.remove('visible');
+  // Clean up any lingering animation states
+  var tbl = document.querySelector('.pk-table');
+  if(tbl) tbl.classList.remove('raise-flash', 'win-glow', 'lose-fade');
+  var pot = document.getElementById('pk-pot');
+  if(pot) pot.classList.remove('pulse');
   pkRender();
   pkUpdateButtons();
+  pkUpdateBetInfo();
+  pkSound('tick');
   document.getElementById('pk-status').textContent='Choose your bet';
 }
 
@@ -13438,7 +13972,11 @@ function pkUpdateButtons(){
   }else if(PK.phase==='flop'){
     if(betRow)betRow.style.display='none';
     if(actionRow)actionRow.style.display='';
-    var ra=document.getElementById('pk-call-amt');if(ra)ra.textContent=PK.ante*2;
+    // Sync amounts on the action buttons
+    var ca = document.getElementById('pk-call-amt');
+    if(ca) ca.textContent = PK.ante * 2;
+    var ra = document.getElementById('pk-raise-amt');
+    if(ra) ra.textContent = PK.ante * 3;
     if(againBtn)againBtn.style.display='none';
   }else{
     if(betRow)betRow.style.display='none';
