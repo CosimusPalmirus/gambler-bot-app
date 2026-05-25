@@ -5381,27 +5381,204 @@ body{position:relative;}
 }
 
 /* ─── FAKE NATURAL REEL SPIN (for timed wheel trigger) ─────────────
-   Used when the automatic timer fires the wheel — 3 cells across 3
-   reels do a brief "mini spin" cycling through random symbols, then
-   land on a wheel symbol. Matches the visual feel of a real reel stop
-   so the trigger looks natural, not magical. */
+   V3: real vertical-scroll mini-reel inside each picked cell + multi-
+   stage drama (pre-flash → scroll → slam → connecting beams + banner). */
+
+/* STAGE 1 — Pre-flash: cell pulses gold to signal "incoming" */
+.slv2-sym.slv2-fake-preflash{
+  animation: slv2FakePreFlash 220ms ease-out forwards;
+  z-index: 5;
+}
+@keyframes slv2FakePreFlash{
+  0%   { transform: scale(1);    filter: brightness(1)   drop-shadow(0 0 0 transparent); }
+  50%  { transform: scale(1.18); filter: brightness(2.2) drop-shadow(0 0 22px #ffd700)
+                                          drop-shadow(0 0 44px #ff8800); }
+  100% { transform: scale(1);    filter: brightness(1)   drop-shadow(0 0 0 transparent); }
+}
+
+/* STAGE 2 — Cell becomes a vertical scroll container with a mini-strip */
+.slv2-sym.slv2-fake-spin-container{
+  overflow: hidden;
+  position: relative;
+  padding: 0 !important;
+  font-size: 0 !important;     /* hide any leftover text content */
+}
+.slv2-fake-mini-strip{
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  display: flex;
+  flex-direction: column;
+  will-change: transform, filter;
+}
+.slv2-fake-mini-cell{
+  width: 100%;
+  height: 66px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* STAGE 3 — Slam: wheel symbol drops in with a heavy bounce + glow */
+.slv2-sym.slv2-fake-slam{
+  animation: slv2FakeSlam 0.6s cubic-bezier(.2, 1.7, .55, 1) backwards;
+  z-index: 6;
+}
+@keyframes slv2FakeSlam{
+  0%   { transform: translateY(-22px) scale(0.55) rotate(-18deg);
+         opacity: 0;
+         filter: brightness(2) drop-shadow(0 0 6px transparent); }
+  35%  { transform: translateY(0)     scale(1.45) rotate(8deg);
+         opacity: 1;
+         filter: brightness(1.7) drop-shadow(0 0 24px #ffd700)
+                                  drop-shadow(0 0 48px #ff8800); }
+  60%  { transform: translateY(-3px)  scale(0.95) rotate(-3deg); }
+  100% { transform: translateY(0)     scale(1)    rotate(0deg);
+         filter: brightness(1)   drop-shadow(0 0 12px #ffd700); }
+}
+
+/* STAGE 4 — Cabinet hard-shake on the climax (3rd wheel land) */
+.slv2-cabinet.slv2-fake-climax-shake{
+  animation: slv2FakeClimaxShake 0.7s cubic-bezier(.36, .07, .19, .97);
+}
+@keyframes slv2FakeClimaxShake{
+  0%, 100% { transform: translate(0, 0); }
+  10%  { transform: translate(-4px, -2px) rotate(-0.4deg) scale(1.02); }
+  20%  { transform: translate(4px, 2px)  rotate(0.4deg)  scale(1.05); }
+  30%  { transform: translate(-3px, 1px) rotate(-0.3deg) scale(1.04); }
+  40%  { transform: translate(3px, -1px) rotate(0.3deg)  scale(1.03); }
+  50%  { transform: translate(-2px, 2px) rotate(-0.2deg) scale(1.03); }
+  60%  { transform: translate(2px, -2px) rotate(0.2deg)  scale(1.02); }
+  70%  { transform: translate(-1px, 1px) rotate(-0.1deg) scale(1.02); }
+  85%  { transform: translate(1px, 0)    rotate(0.05deg) scale(1.01); }
+}
+
+/* ─── CONNECTING ENERGY BEAMS between locked wheels ──────────────── */
+.slv2-fake-beams{
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 4;
+  opacity: 0;
+  transition: opacity 0.4s ease-out;
+}
+.slv2-fake-beams.visible{ opacity: 1; }
+.slv2-fake-beam-glow{
+  fill: none;
+  stroke: #ffd700;
+  stroke-width: 12;
+  stroke-linecap: round;
+  filter: blur(8px);
+  opacity: 0.65;
+  animation: slv2FakeBeamPulse 0.7s ease-in-out infinite alternate;
+}
+.slv2-fake-beam-core{
+  fill: none;
+  stroke: #fff8c0;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-dasharray: 8 4;
+  filter: drop-shadow(0 0 6px #ffd700) drop-shadow(0 0 14px #ff8800);
+  animation: slv2FakeBeamFlow 1.4s linear infinite;
+}
+@keyframes slv2FakeBeamPulse{
+  from { opacity: 0.55; stroke-width: 10; }
+  to   { opacity: 0.95; stroke-width: 16; }
+}
+@keyframes slv2FakeBeamFlow{
+  from { stroke-dashoffset: 0; }
+  to   { stroke-dashoffset: -120; }
+}
+.slv2-fake-beam-dot{
+  fill: #fffadd;
+  filter: drop-shadow(0 0 6px #ffd700) drop-shadow(0 0 14px #ff8800);
+}
+
+/* ─── "WHEEL TRIGGERED" banner over the cabinet ───────────────────── */
+.slv2-fake-trigger-banner{
+  position: absolute;
+  top: 6%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.4);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 24px;
+  font-family: 'Russo One', sans-serif;
+  font-size: 22px;
+  letter-spacing: 4px;
+  color: #fff;
+  background: linear-gradient(135deg,
+    rgba(255, 100, 0, .92) 0%,
+    rgba(255, 200, 0, .96) 50%,
+    rgba(255, 60, 30, .92) 100%);
+  border: 2px solid #fff8c0;
+  border-radius: 30px;
+  box-shadow:
+    0 0 0 2px rgba(255,255,255,.4),
+    0 0 30px rgba(255,180,30,.85),
+    0 0 80px rgba(255,100,0,.6),
+    inset 0 0 20px rgba(255,255,255,.4);
+  text-shadow: 0 2px 6px rgba(0,0,0,.55);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 30;
+  transition: opacity .35s ease-out, transform .55s cubic-bezier(.34, 1.6, .64, 1);
+}
+.slv2-fake-trigger-banner.visible{
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+  animation: slv2FakeBannerFloat 1.6s ease-in-out 0.55s infinite alternate;
+}
+@keyframes slv2FakeBannerFloat{
+  from { transform: translate(-50%, -50%) scale(1)    rotate(-1deg); }
+  to   { transform: translate(-50%, -53%) scale(1.05) rotate(1deg);  }
+}
+.slv2-fake-trigger-pre{
+  font-size: 26px;
+  filter: drop-shadow(0 0 8px #fff);
+  animation: slv2FakeBannerSparkle 1s ease-in-out infinite alternate;
+}
+@keyframes slv2FakeBannerSparkle{
+  from { transform: scale(.85) rotate(-12deg); opacity: .6; }
+  to   { transform: scale(1.2) rotate(12deg);  opacity: 1; }
+}
+.slv2-fake-trigger-main{
+  background: linear-gradient(180deg, #fff 0%, #fffaa6 50%, #ffd84d 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 900;
+}
+
+/* Legacy fake-spinning / fake-landed (kept for back-compat) */
 .slv2-sym.slv2-fake-spinning{
-  filter: blur(0 0.6px) brightness(1.05);
-  animation: slv2FakeBlur 0.08s linear infinite alternate;
-  will-change: transform;
+  filter: blur(2.2px) brightness(1.08);
+  animation: slv2FakeBlur 0.05s linear infinite alternate;
+  will-change: transform, filter;
 }
 @keyframes slv2FakeBlur{
-  from { transform: translateY(-1.5px); }
-  to   { transform: translateY(1.5px); }
+  from { transform: translateY(-2.5px); }
+  to   { transform: translateY(2.5px); }
 }
 .slv2-sym.slv2-fake-landed{
-  animation: slv2FakeLand 0.55s cubic-bezier(.34, 1.6, .64, 1);
+  animation: slv2FakeLand 0.65s cubic-bezier(.34, 1.7, .6, 1);
 }
 @keyframes slv2FakeLand{
-  0%   { transform: translateY(-8px) scale(.85); opacity: 0.4; }
-  50%  { transform: translateY(2px) scale(1.18); opacity: 1;
-         filter: brightness(1.3) drop-shadow(0 0 12px #ffd700); }
-  100% { transform: translateY(0) scale(1); }
+  0%   { transform: translateY(-12px) scale(.7); opacity: 0.3;
+         filter: blur(3px) brightness(2); }
+  40%  { transform: translateY(3px) scale(1.25); opacity: 1;
+         filter: blur(0) brightness(1.5) drop-shadow(0 0 18px #ffd700)
+                 drop-shadow(0 0 36px #ff8800); }
+  70%  { transform: translateY(-2px) scale(1.1);
+         filter: blur(0) brightness(1.2); }
+  100% { transform: translateY(0) scale(1);
+         filter: blur(0) brightness(1); }
 }
 
 /* Wheel symbols that already landed pulse golden during suspense */
@@ -9893,7 +10070,17 @@ function slv2ClosePaytable(ev){
 
 // ---------- SPIN ENGINE ----------
 function slv2Spin(){
+  // ─── HARD GUARDS — block re-entry during any animated sequence ─────
+  // Without these, a double-click or programmatic call could launch a
+  // new spin while a wheel/FS/vault reveal is mid-flight, leaving the
+  // grid + button state inconsistent.
   if(SL2.spinning) return;
+  if(SL2.fakeRevealActive) return;     // auto-scatter wheel reveal in progress
+  if(SL2.scatterIntroActive) return;   // bot-scatter → FS intro animating
+  if(SL2.pendingWheelTrigger) return;  // natural wheel scatter detected, waiting to open
+  if(SL2.bonusWheelOpen) return;       // bonus wheel overlay visible
+  if(SL2.vaultOpen) return;            // vault mini-game open
+  if(SL2.fsIntroActive) return;        // FS countdown ring playing
 
   // ─── VIDEO WARMUP (first spin only) ─────────────────────────────
   // The user gesture from clicking SPIN is our chance to "prime" the bonus
@@ -10322,8 +10509,14 @@ function slv2ProcessSpinResult(){
 
 function slv2FinishSpin(fsTriggered){
   SL2.spinning = false;
-  var spinBtn = document.getElementById('slv2-spin-btn');
-  if(spinBtn) spinBtn.disabled = false;
+  // ─── Spin button stays DISABLED until truly idle ───────────────
+  // Previously this was re-enabled here unconditionally, allowing the
+  // player to click Spin again during the 500ms gap before a wheel
+  // scatter intro opened — which would trigger a fresh spin underneath
+  // the bonus sequence. Now the button only re-enables at the very
+  // end of finishSpin when no bonus is pending, or via the bonus-close
+  // handlers (slv2BonusWheelClose, slv2VaultClose, slv2FsEnd) which
+  // each call slv2EnableSpinIfIdle().
   // Restore the marquee from its quiet state
   var slvRoot = document.querySelector('.slv2');
   if(slvRoot) slvRoot.classList.remove('is-spinning');
@@ -10428,6 +10621,33 @@ function slv2FinishSpin(fsTriggered){
       setTimeout(slv2Spin, 600);
     }
   }
+  // ─── Truly idle — safe to re-enable the spin button ─────────────
+  slv2EnableSpinIfIdle();
+}
+
+// Re-enable the Spin button only when NO bonus / scatter sequence is in
+// flight. Called at the end of slv2FinishSpin and from the close-handlers
+// of every bonus path (wheel, vault, FS end, fake reveal). Guards against
+// the click-spin-while-scatter-plays bug where reels would start another
+// spin underneath the bonus animation.
+function slv2EnableSpinIfIdle(){
+  if(SL2.spinning) return;
+  if(SL2.pendingFsTrigger) return;
+  if(SL2.pendingWheelTrigger) return;
+  if(SL2.fsActive) return;
+  if(SL2.bonusWheelOpen) return;
+  if(SL2.vaultOpen) return;
+  if(SL2.fakeRevealActive) return;
+  var spinBtn = document.getElementById('slv2-spin-btn');
+  if(spinBtn) spinBtn.disabled = false;
+}
+
+// Force-disable the spin button (used at the start of every scatter /
+// bonus sequence so a stray click during animations doesn't trigger a
+// new spin underneath).
+function slv2DisableSpin(){
+  var spinBtn = document.getElementById('slv2-spin-btn');
+  if(spinBtn) spinBtn.disabled = true;
 }
 
 
@@ -10703,6 +10923,8 @@ function slv2CascadeStep(wins){
 
 // ---------- FREE SPINS ----------
 function slv2TriggerFreeSpinsIntro(count){
+  slv2DisableSpin();
+  SL2.fsIntroActive = true;   // gates slv2Spin until FS round actually starts
   SL2.fsCount = count;
   SL2.fsRemaining = count;
   SL2.fsTotal = 0;
@@ -10745,6 +10967,7 @@ function slv2StartFreeSpins(){
   if(fsVid){ try { fsVid.pause(); } catch(e){} }
   if(intro) intro.classList.remove('visible');
   SL2.fsActive = true;
+  SL2.fsIntroActive = false;   // FS round starting — intro overlay no longer blocking
   SL2.stickyWilds = [];  // reset sticky wild positions for this FS run
   var cab = document.querySelector('.slv2-cabinet');
   if(cab) cab.classList.add('fs-active');
@@ -10790,7 +11013,10 @@ function slv2CloseFsSummary(){
     } else {
       slv2StopAuto();
     }
+    return;
   }
+  // FS done, no auto — re-enable Spin
+  slv2EnableSpinIfIdle();
 }
 
 function slv2UpdateFsUI(){
@@ -11041,6 +11267,8 @@ function slv2BonusWheelBuild(){
 function slv2BonusWheelTrigger(){
   if(SL2.bonusActive) return;
   SL2.bonusActive = true;
+  SL2.bonusWheelOpen = true;
+  slv2DisableSpin();
   // Track for "Wheel Hunter" weekly + "Casino Royale" season quest
   slv2SendSlotEvent('wheel_trigger');
   slv2BonusWheelBuild();
@@ -11605,6 +11833,7 @@ function slv2BonusWheelClose(){
   // Cancel any in-flight wheel rotation animation
   if(SL2._wheelRafId){ cancelAnimationFrame(SL2._wheelRafId); SL2._wheelRafId = null; }
   SL2.bonusActive = false;
+  SL2.bonusWheelOpen = false;
   // ─── FS RESUME ─────────────────────────────────────────────────
   // If the wheel was triggered DURING free spins (scatter retrigger), resume
   // the FS round. fsRemaining may have been bumped by an FS segment landing.
@@ -11619,7 +11848,10 @@ function slv2BonusWheelClose(){
   // Resume auto-spin if it was running
   if(SL2.autoActive && SL2.autoRemaining > 0){
     setTimeout(slv2Spin, 800);
+    return;
   }
+  // Truly idle now — re-enable Spin
+  slv2EnableSpinIfIdle();
 }
 
 // Brief on-screen celebration when an FS retrigger gives extra spins.
@@ -11643,6 +11875,8 @@ function slv2ShowFsRetriggerToast(extra){
 function slv2VaultTrigger(){
   if(SL2.bonusActive) return;
   SL2.bonusActive = true;
+  SL2.vaultOpen = true;
+  slv2DisableSpin();
   SL2.vaultPickedIdx = null;
   // Track for "Vault Cracker" weekly quest
   slv2SendSlotEvent('vault_open');
@@ -11831,6 +12065,7 @@ function slv2VaultClose(){
     ov.classList.remove('video-intro-active');  // cleanup
   }
   SL2.bonusActive = false;
+  SL2.vaultOpen = false;
   SL2.vaultPickedIdx = null;
   SL2.vaultPickGated = false;
   // Reset vault hover/disabled state so the next round starts clean
@@ -11851,7 +12086,10 @@ function slv2VaultClose(){
   }
   if(SL2.autoActive && SL2.autoRemaining > 0){
     setTimeout(slv2Spin, 800);
+    return;
   }
+  // Truly idle — re-enable spin
+  slv2EnableSpinIfIdle();
 }
 
 // ================================================================
@@ -11991,35 +12229,43 @@ function slv2ResetBonusCounter(){
 // visible cells, morph them into wheel symbols with the same gold pulse +
 // suspense audio used for real scatters, then open the bonus overlay.
 function slv2FakeWheelScatterReveal(){
-  // ─── NATURAL-LOOKING WHEEL LANDING ─────────────────────────────────
-  // Per user feedback: the previous "magical morph" of 3 cells into wheel
-  // symbols looked anomalous. New approach: animate a brief mini-spin on
-  // 3 cells (across 3 different reels, staggered left-to-right), with
-  // each cell cycling through random symbols at high speed, then locking
-  // on the wheel symbol with a thunk — exactly like a real reel stop.
+  // ─── V3: cinematic auto-scatter reveal ─────────────────────────────
+  // The previous version just swapped symbol images rapidly inside each
+  // cell — fast but visually choppy. V3 builds a real mini-reel inside
+  // each picked cell that scrolls VERTICALLY through filler symbols,
+  // matching the motion of a true spinning reel. Stages per cell:
+  //   1. PRE-FLASH (200ms)  — golden pulse on the cell ("incoming!")
+  //   2. SCROLL    (~1.2s)  — vertical translateY of mini-strip + blur
+  //   3. SLAM      (260ms)  — final wheel symbol drops in with bounce
+  //   4. PARTICLES + lock pulse
+  // After all 3 wheels are locked: golden energy beams connect them,
+  // "WHEEL TRIGGERED" text pops up, cabinet shakes hard for impact.
   //
-  // Picks 3 cells from 3 DIFFERENT reels (one per reel, on random rows)
-  // so the wheel scatter pattern looks like 3 wheels just-landed across
-  // the grid — the natural way scatters fall in a real spin.
+  // CRITICAL: SL2.fakeRevealActive locks the Spin button out so a stray
+  // click during the 2-3s reveal sequence can't start a new spin
+  // underneath the animation. Cleared at the very end before opening
+  // the bonus wheel overlay.
+  SL2.fakeRevealActive = true;
+  slv2DisableSpin();
+
   var allSymbols = ['btc','bot','wheel','gblogo','gem','seven','bell','bolt','star','spade'];
-  // Random pick 3 of the 5 reels (sorted left-to-right for staggered timing)
+  var fillerPool = allSymbols.filter(function(s){ return s !== 'wheel' && s !== 'bot'; });
+  // Pick 3 distinct reels sorted L→R for staggered wave effect
   var reelChoices = [0,1,2,3,4].sort(function(){ return Math.random() - 0.5; }).slice(0,3).sort();
   var picks = reelChoices.map(function(r){
     return { reel: r, row: Math.floor(Math.random() * 3) };
   });
 
-  // Cabinet enters suspense + cinematic scale-in
+  // Cabinet enters suspense (tier-1 base; escalates as wheels land)
   var cab = document.querySelector('.slv2-cabinet');
   if(cab){
-    cab.classList.add('wheel-suspense');
-    cab.classList.add('tier-1');
+    cab.classList.add('wheel-suspense', 'tier-1');
   }
   var slotScreen = document.getElementById('slots');
   if(slotScreen){
     slotScreen.classList.add('suspense-active', 'suspense-tier-1');
   }
 
-  // Build each cell's "fake spin" — symbol cycle + final wheel landing
   picks.forEach(function(p, idxOuter){
     var strip = document.getElementById('slv2-strip-' + p.reel);
     if(!strip) return;
@@ -12030,74 +12276,126 @@ function slv2FakeWheelScatterReveal(){
     p.origClass = cell.className;
     p.origHTML  = cell.innerHTML;
 
-    // Staggered start (left-to-right): 0ms, 250ms, 500ms
-    var startDelay = idxOuter * 250;
-    // Spin duration per cell (slightly variable for organic feel)
-    var spinDur = 900 + idxOuter * 250;  // 900, 1150, 1400ms
-    // Ticks across the duration — decelerating gap (cubic)
-    var ticks = [];
-    var t = 0;
-    while(t < spinDur){
-      var prog = t / spinDur;
-      var gap = 45 + Math.pow(prog, 2.4) * 130;
-      ticks.push(t);
-      t += gap;
-      if(ticks.length > 40) break;
-    }
-    // Add motion-blur class for the spin
+    var startDelay   = idxOuter * 480;   // staggered start
+    var preFlashMs   = 220;
+    var scrollMs     = 1100 + idxOuter * 260;  // 1100 / 1360 / 1620
+    var slamMs       = 260;
+    var totalCellMs  = preFlashMs + scrollMs + slamMs;
+
     setTimeout(function(){
-      cell.classList.add('slv2-fake-spinning');
-      // Cycle through random symbols at each tick
-      ticks.forEach(function(delay, tickIdx){
-        setTimeout(function(){
-          var sym = allSymbols[Math.floor(Math.random() * allSymbols.length)];
-          cell.className = 'slv2-sym sym-' + sym + ' slv2-fake-spinning';
-          cell.innerHTML = slv2SymHTML(sym);
-        }, delay);
-      });
-      // Final reel-stop sound + wheel lock at the end of the spin
+      // ─── STAGE 1: PRE-FLASH ────────────────────────────────────
+      // Cell pulses gold briefly to signal "something's coming here"
+      cell.classList.add('slv2-fake-preflash');
+      try { slv2PlayTone(660 + idxOuter * 80, 0.06, 'sine', 0.10); } catch(e){}
+
       setTimeout(function(){
-        cell.classList.remove('slv2-fake-spinning');
-        cell.className = 'slv2-sym sym-wheel wheel-locked slv2-fake-landed';
-        cell.innerHTML = slv2WheelSVG();
-        slv2Sound('reel-stop');
-        // Audio: per-wheel crescendo layer (reuses suspense system)
-        slv2PlayWheelSuspenseLayer(idxOuter);
-        // Particle burst
-        slv2SpawnWheelBurst(cell);
-        // Bump tier visuals as each new wheel lands
-        if(cab){
-          cab.classList.remove('tier-1','tier-2','tier-3');
-          cab.classList.add('tier-' + (idxOuter + 1));
-          if(idxOuter >= 1) cab.classList.add('tier-max');
+        cell.classList.remove('slv2-fake-preflash');
+
+        // ─── STAGE 2: VERTICAL SCROLL ───────────────────────────
+        // Build a mini-strip inside the cell that contains many filler
+        // symbols stacked vertically, then animate translateY at high
+        // velocity with motion blur. This LOOKS like a real reel spinning
+        // — not just symbols swapping in place.
+        var nMini = 14;
+        var miniH = 66;   // matches SL2_SYM_H so symbols look identical
+        var miniStripHTML = '';
+        for(var ms = 0; ms < nMini; ms++){
+          var sym = fillerPool[Math.floor(Math.random() * fillerPool.length)];
+          var inner = slv2SymHTML(sym);
+          miniStripHTML += '<div class="slv2-fake-mini-cell" data-sym="' + sym + '">' + inner + '</div>';
         }
-        if(slotScreen){
-          slotScreen.classList.remove('suspense-tier-1','suspense-tier-2','suspense-tier-3');
-          slotScreen.classList.add('suspense-tier-' + (idxOuter + 1));
+        // Cell becomes a vertical scroll container
+        cell.classList.add('slv2-fake-spin-container');
+        cell.innerHTML = '<div class="slv2-fake-mini-strip" id="slv2-fake-mini-' + p.reel + '">' + miniStripHTML + '</div>';
+        var miniStrip = cell.querySelector('.slv2-fake-mini-strip');
+        if(miniStrip){
+          // Start ABOVE the visible area, scroll DOWN past the cell
+          var scrollDistance = (nMini - 1) * miniH;
+          miniStrip.style.transform = 'translateY(-' + scrollDistance + 'px)';
+          // Force reflow before applying transition
+          // eslint-disable-next-line no-unused-expressions
+          void miniStrip.offsetWidth;
+          miniStrip.style.transition = 'transform ' + scrollMs + 'ms linear, filter ' + scrollMs + 'ms ease-out';
+          miniStrip.style.filter = 'blur(2.8px)';
+          // Scroll endpoint puts the bottom-most cell flush with the visible area
+          miniStrip.style.transform = 'translateY(0px)';
+          // Approach beep right before snap
+          setTimeout(function(){
+            try { slv2PlayTone(1100 + idxOuter * 80, 0.07, 'triangle', 0.09); } catch(e){}
+            // Drop blur in the final 80ms of scroll
+            if(miniStrip) miniStrip.style.filter = 'blur(0px)';
+          }, scrollMs - 80);
         }
-        // Start heartbeat after 2nd wheel lands
-        if(idxOuter === 1 && !SL2._wheelHeartbeatId){
-          SL2._wheelHeartbeatId = setInterval(slv2PlayHeartbeatThump, 580);
-        }
-        // Clean the temporary "landed" pop class
+
+        // ─── STAGE 3: SLAM — final wheel drops in ───────────────
         setTimeout(function(){
-          if(cell) cell.classList.remove('slv2-fake-landed');
-        }, 700);
-      }, spinDur);
+          // Replace mini-strip with the wheel symbol via a slam animation
+          cell.classList.remove('slv2-fake-spin-container');
+          cell.innerHTML = slv2WheelSVG();
+          cell.className = 'slv2-sym sym-wheel wheel-locked slv2-fake-slam';
+          // Strobe flash overlay (same as real wheel suspense)
+          cell.classList.add('wheel-strobe');
+          (function(c2){ setTimeout(function(){ if(c2) c2.classList.remove('wheel-strobe'); }, 800); })(cell);
+          // Slam impact audio — sharper than reel-stop
+          try { slv2PlayTone(540, 0.10, 'square', 0.14); } catch(e){}
+          try { slv2PlayTone(90, 0.18, 'sine', 0.26); } catch(e){}      // visceral sub-bass
+          try { slv2PlayTone(1760, 0.10, 'triangle', 0.08); } catch(e){} // crystal ping
+          // Per-wheel crescendo + particle burst
+          slv2PlayWheelSuspenseLayer(idxOuter);
+          slv2SpawnWheelBurst(cell);
+          // Tier escalation per wheel
+          if(cab){
+            cab.classList.remove('tier-1','tier-2','tier-3');
+            cab.classList.add('tier-' + (idxOuter + 1));
+            if(idxOuter >= 1) cab.classList.add('tier-max');
+          }
+          if(slotScreen){
+            slotScreen.classList.remove('suspense-tier-1','suspense-tier-2','suspense-tier-3');
+            slotScreen.classList.add('suspense-tier-' + (idxOuter + 1));
+          }
+          // Start heartbeat after the 2nd wheel
+          if(idxOuter === 1 && !SL2._wheelHeartbeatId){
+            SL2._wheelHeartbeatId = setInterval(slv2PlayHeartbeatThump, 580);
+          }
+          // Clean transient slam class so re-animation can run on next reveal
+          setTimeout(function(){
+            if(cell) cell.classList.remove('slv2-fake-slam');
+          }, 800);
+          // After the LAST wheel lands, draw connecting beams + show
+          // the WHEEL TRIGGERED banner. Beams stay visible during the
+          // linger period, then fade out before bonus wheel opens.
+          if(idxOuter === picks.length - 1){
+            setTimeout(function(){
+              slv2DrawWheelTriggerBeams(picks);
+              slv2ShowWheelTriggerBanner();
+              // Cabinet hard-shake on the climax
+              if(cab){
+                cab.classList.add('slv2-fake-climax-shake');
+                setTimeout(function(){
+                  if(cab) cab.classList.remove('slv2-fake-climax-shake');
+                }, 700);
+              }
+            }, 80);
+          }
+        }, scrollMs);
+      }, preFlashMs);
     }, startDelay);
   });
 
-  // Total reveal time: last reel starts at 500ms, spins for 1400ms = 1900ms
-  // Then linger for ~800ms so player savors the 3-wheel grid, then open
-  var totalRevealMs = 500 + 1400 + 800;
+  // Total reveal time: last reel starts at picks.length*480ms,
+  // takes preFlash+scroll+slam for its biggest stage, plus linger for beams
+  var lastIdx = picks.length - 1;
+  var lastEnd = lastIdx * 480 + 220 + (1100 + lastIdx * 260) + 260;
+  var lingerMs = 1100;
   setTimeout(function(){
-    // Smooth fade-out: scale + dim
+    // Smooth fade-out of the locked cells + beams
     picks.forEach(function(p){
       if(!p.cell) return;
       p.cell.style.transition = 'transform .35s ease-in, opacity .35s ease-in';
       p.cell.style.transform  = 'scale(.85)';
       p.cell.style.opacity    = '0.45';
     });
+    slv2FadeOutWheelTriggerBeams();
     setTimeout(function(){
       picks.forEach(function(p){
         if(!p.cell) return;
@@ -12107,17 +12405,98 @@ function slv2FakeWheelScatterReveal(){
         p.cell.style.transform  = '';
         p.cell.style.opacity    = '';
       });
-      // Cleanup all suspense classes
+      slv2RemoveWheelTriggerBeams();
       slv2ClearAnticipation();
-      // Stop heartbeat
       if(SL2._wheelHeartbeatId){
         clearInterval(SL2._wheelHeartbeatId);
         SL2._wheelHeartbeatId = null;
       }
-      // Open the bonus wheel
       slv2BonusWheelTrigger();
+      SL2.fakeRevealActive = false;
     }, 380);
-  }, totalRevealMs);
+  }, lastEnd + lingerMs);
+}
+
+// ─── HELPER: draw SVG energy beams between locked wheel cells ──────
+// After all 3 fake wheels lock, gold lines connect them with pulsing
+// flow — visually reinforcing "3 wheels detected = wheel bonus triggered".
+function slv2DrawWheelTriggerBeams(picks){
+  var grid = document.getElementById('slv2-reels');
+  if(!grid || picks.length < 2) return;
+  // Remove any leftover beams from a previous reveal
+  slv2RemoveWheelTriggerBeams();
+  var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('id', 'slv2-fake-beams');
+  svg.setAttribute('class', 'slv2-fake-beams');
+  svg.setAttribute('viewBox', '0 0 500 240');
+  svg.setAttribute('preserveAspectRatio', 'none');
+  // Compute cell centers in SVG viewBox coordinates (5 reels × 3 rows)
+  // viewBox 500×240 → reel center X = (reelIdx + 0.5) * 100; row center Y = (row + 0.5) * 80
+  var pts = picks.map(function(p){
+    return { x: (p.reel + 0.5) * 100, y: (p.row + 0.5) * 80 };
+  });
+  // Sort points L→R to draw a clean polyline
+  pts.sort(function(a, b){ return a.x - b.x; });
+  // Build a path that connects them — slightly curved for organic feel
+  var d = 'M ' + pts[0].x + ' ' + pts[0].y;
+  for(var i = 1; i < pts.length; i++){
+    var midX = (pts[i-1].x + pts[i].x) / 2;
+    var midY = (pts[i-1].y + pts[i].y) / 2 - 12; // slight upward bow
+    d += ' Q ' + midX + ' ' + midY + ' ' + pts[i].x + ' ' + pts[i].y;
+  }
+  // Layer 1: glow halo
+  var glow = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  glow.setAttribute('d', d);
+  glow.setAttribute('class', 'slv2-fake-beam-glow');
+  svg.appendChild(glow);
+  // Layer 2: bright core line
+  var core = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  core.setAttribute('d', d);
+  core.setAttribute('class', 'slv2-fake-beam-core');
+  svg.appendChild(core);
+  // Layer 3: flowing energy dot that travels along the path
+  // (uses CSS keyframes + offset-path)
+  var dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  dot.setAttribute('class', 'slv2-fake-beam-dot');
+  dot.setAttribute('r', '4');
+  dot.setAttribute('cx', pts[0].x);
+  dot.setAttribute('cy', pts[0].y);
+  svg.appendChild(dot);
+  grid.appendChild(svg);
+  // Force layout flush then add visible class for fade-in
+  // eslint-disable-next-line no-unused-expressions
+  void svg.offsetWidth;
+  svg.classList.add('visible');
+}
+
+function slv2FadeOutWheelTriggerBeams(){
+  var svg = document.getElementById('slv2-fake-beams');
+  if(svg) svg.classList.remove('visible');
+}
+function slv2RemoveWheelTriggerBeams(){
+  var svg = document.getElementById('slv2-fake-beams');
+  if(svg && svg.parentNode) svg.parentNode.removeChild(svg);
+  var bnr = document.getElementById('slv2-fake-trigger-banner');
+  if(bnr && bnr.parentNode) bnr.parentNode.removeChild(bnr);
+}
+
+// ─── HELPER: floating "WHEEL TRIGGERED!" banner over the cabinet ───
+function slv2ShowWheelTriggerBanner(){
+  var cab = document.querySelector('.slv2-cabinet');
+  if(!cab) return;
+  // Remove any leftover banner first
+  var old = document.getElementById('slv2-fake-trigger-banner');
+  if(old && old.parentNode) old.parentNode.removeChild(old);
+  var bnr = document.createElement('div');
+  bnr.id = 'slv2-fake-trigger-banner';
+  bnr.className = 'slv2-fake-trigger-banner';
+  bnr.innerHTML = '<span class="slv2-fake-trigger-pre">\u2728</span>' +
+                  '<span class="slv2-fake-trigger-main">WHEEL TRIGGERED</span>' +
+                  '<span class="slv2-fake-trigger-pre">\u2728</span>';
+  cab.appendChild(bnr);
+  // eslint-disable-next-line no-unused-expressions
+  void bnr.offsetWidth;
+  bnr.classList.add('visible');
 }
 
 // Helper: render a single symbol's HTML body — must match the rendering
@@ -12495,148 +12874,193 @@ function slv2SlowDownReel(reelIdx, extraMs){
   if(!SL2.reelSpinning || !SL2.reelSpinning[reelIdx]) return;
   var strip = document.getElementById('slv2-strip-' + reelIdx);
   if(!strip) return;
-  var targetOffset = (SL2.reelFinalOffsets || [])[reelIdx];
-  if(targetOffset === undefined || targetOffset === null) return;
+  var oldTargetOffset = (SL2.reelFinalOffsets || [])[reelIdx];
+  if(oldTargetOffset === undefined || oldTargetOffset === null) return;
 
-  // Get current Y from the running matrix transform
+  // ─── Read current Y from running transform ────────────────────
   var currentY = 0;
   try {
     var matrixStr = window.getComputedStyle(strip).transform;
     if(matrixStr && matrixStr !== 'none'){
-      var m = matrixStr.match(/matrix\(([^)]+)\)/) || matrixStr.match(/matrix3d\(([^)]+)\)/);
-      if(m){
-        var vals = m[1].split(',').map(parseFloat);
+      var mm = matrixStr.match(/matrix\(([^)]+)\)/) || matrixStr.match(/matrix3d\(([^)]+)\)/);
+      if(mm){
+        var vals = mm[1].split(',').map(parseFloat);
         currentY = vals.length === 6 ? vals[5] : (vals[13] || 0);
       }
     }
-  } catch(e){ /* fall through, currentY=0 */ }
+  } catch(e){}
 
-  // If already very close to target, skip slowdown (would jitter)
-  var distance = Math.abs(targetOffset - currentY);
-  if(distance < 25) return;
+  // Distance already covered would be (currentY - oldTargetOffset) negative? Math:
+  // currentY is becoming MORE negative as the reel scrolls down (translateY decreases).
+  // oldTargetOffset is also negative (large negative target).
+  // If currentY > oldTargetOffset (less negative) → reel is still travelling toward target.
+  if(currentY <= oldTargetOffset + 25) return; // already at/past target
 
-  // STACK CUMULATIVE — tier = how many wheel-discoveries have stacked
+  // Stack cumulative slowdown — tier scales how many EXTRA symbols
+  // the player has to watch scroll past before the wheel can land.
   var cumulativeMs = parseInt(strip.dataset.slowdownMs || '0', 10);
   cumulativeMs += extraMs;
   strip.dataset.slowdownMs = cumulativeMs;
 
-  // Derive tier from cumulative ms:
-  //   1 wheel  → ~1000ms cumulative → tier 1 (gentle 3-step)
-  //   2 wheels → ~2700ms cumulative → tier 2 (5-step with false stop)
-  //   3 wheels → ~5200ms cumulative → tier 3 (6-step double false stop)
-  var tier = cumulativeMs < 1500 ? 1 :
-             cumulativeMs < 3500 ? 2 : 3;
+  // ─── KEY CHANGE — instead of slowing the reel, EXTEND ITS JOURNEY ──
+  // Push the wheel symbol much further down the strip and let the reel
+  // keep scrolling at near-full speed through random filler symbols.
+  // The motion blur (`.spinning` class) stays active so the player
+  // CAN'T see what's coming — only at the very last moment does the
+  // wheel slot into the center cell. This is the real-slot feel:
+  // suspense = "more spinning to go", not "the reel crawls".
+  //
+  // Each NEW wheel discovery extends the journey by a fixed ~22 symbols
+  // (≈ 1.1 seconds of full-speed scroll). With max 3 wheels findable on
+  // reels 0-2, total extra journey on reel 4 caps at ~66 symbols / ~3.3s —
+  // long enough for serious suspense, short enough to stay engaging.
+  // tier is still used downstream by visuals/audio (see anticipation handler)
+  // but the symbol-extension itself is constant per call.
+  var tier = cumulativeMs < 1500 ? 1 : cumulativeMs < 3500 ? 2 : 3;
+  var extraSymbols = 22;
 
-  // Snap to current position so step crawl starts cleanly
+  var symbols = SL2.stripSyms[reelIdx];
+  var oldTargetIdx = SL2.positions[reelIdx];
+  var newTargetIdx = oldTargetIdx + extraSymbols;
+
+  // Extend strip array + DOM if needed (append random filler symbols)
+  while(symbols.length <= newTargetIdx + 3){
+    var poolSym = SL2_SYMS[Math.floor(Math.random() * SL2_SYMS.length)];
+    // Avoid spawning wheel/bot in the filler region — they'd be misleading
+    // or trigger detection at the wrong indices
+    while(poolSym === 'wheel' || poolSym === 'bot'){
+      poolSym = SL2_SYMS[Math.floor(Math.random() * SL2_SYMS.length)];
+    }
+    symbols.push(poolSym);
+    var div = document.createElement('div');
+    div.className = 'slv2-sym sym-' + poolSym;
+    if(poolSym === 'btc'){
+      div.innerHTML = slv2GbLogoHTML();
+    } else if(poolSym === 'gblogo'){
+      div.innerHTML = slv2BtcCoinHTML();
+    } else {
+      div.textContent = SL2_CHAR[poolSym];
+    }
+    strip.appendChild(div);
+  }
+
+  // Replace the OLD wheel cell with a filler symbol (it's no longer the target)
+  if(symbols[oldTargetIdx] === 'wheel'){
+    var fillerSym = SL2_SYMS[Math.floor(Math.random() * SL2_SYMS.length)];
+    while(fillerSym === 'wheel' || fillerSym === 'bot'){
+      fillerSym = SL2_SYMS[Math.floor(Math.random() * SL2_SYMS.length)];
+    }
+    symbols[oldTargetIdx] = fillerSym;
+    var oldCell = strip.children[oldTargetIdx];
+    if(oldCell){
+      oldCell.className = 'slv2-sym sym-' + fillerSym;
+      if(fillerSym === 'btc'){
+        oldCell.innerHTML = slv2GbLogoHTML();
+      } else if(fillerSym === 'gblogo'){
+        oldCell.innerHTML = slv2BtcCoinHTML();
+      } else {
+        oldCell.textContent = SL2_CHAR[fillerSym];
+      }
+    }
+  }
+  // Place wheel at the NEW further-down target
+  symbols[newTargetIdx] = 'wheel';
+  var newCell = strip.children[newTargetIdx];
+  if(newCell){
+    newCell.className = 'slv2-sym sym-wheel';
+    newCell.innerHTML = slv2WheelSVG();
+  }
+
+  // Update tracked position + offset
+  SL2.positions[reelIdx] = newTargetIdx;
+  var newTargetOffset = -((newTargetIdx - 1) * SL2_SYM_H);
+  SL2.reelFinalOffsets[reelIdx] = newTargetOffset;
+
+  // ─── PHASE 1 — high-velocity LINEAR scroll through the filler ──
+  // Snap to current position, then animate at constant high velocity.
+  // No deceleration here — the reel feels like it's STILL spinning fast.
   strip.style.transition = 'none';
   strip.style.transform = 'translateY(' + currentY + 'px)';
-  // Force reflow
   // eslint-disable-next-line no-unused-expressions
   void strip.offsetWidth;
 
-  // ─── DETACH the transitionend listener ─────────────────────────
-  // The step-crawl uses multiple sequential transitions. Each one would
-  // fire transitionend → finalize, prematurely ending the spin. Detach
-  // it now and call finalize manually after the final step completes.
+  // Detach old transitionend listener (would fire prematurely on phase 1 end)
   if(strip._slv2OnTrans){
     strip.removeEventListener('transitionend', strip._slv2OnTrans);
   }
-  // Cancel the safety timer too — step-crawl manages its own completion
   if(SL2.reelTimers[reelIdx]){
     clearTimeout(SL2.reelTimers[reelIdx]);
     SL2.reelTimers[reelIdx] = null;
   }
 
-  slv2StepCrawlReel(reelIdx, currentY, targetOffset, tier);
-}
+  // Total remaining distance, split 82% linear + 18% lock
+  var totalDistance = currentY - newTargetOffset;        // positive
+  var phase1Distance = totalDistance * 0.82;
+  var phase1EndY = currentY - phase1Distance;            // intermediate Y
 
-// ─── STEP-CRAWL ────────────────────────────────────────────────────
-// Fundamentally different motion: instead of a single smooth deceleration
-// from current Y to target, the reel advances in DISCRETE chunks with
-// pauses between them. Each step has a click sound. The final step is a
-// "jerk" lock-in. This emulates the physical feel of a real reel coming
-// to rest, where mechanical detents catch each symbol — and crucially,
-// tier-2 and tier-3 patterns include FALSE STOPS where the reel appears
-// to settle, then suddenly lurches forward one more position. This is
-// the "near miss → JERK forward" pattern that's psychologically the most
-// addictive mechanic in real slot machines.
-function slv2StepCrawlReel(reelIdx, fromY, toY, tier){
-  var strip = document.getElementById('slv2-strip-' + reelIdx);
-  if(!strip){
-    if(SL2.reelFinalize && SL2.reelFinalize[reelIdx]) SL2.reelFinalize[reelIdx]('crawl-no-strip');
-    return;
-  }
+  // Velocity tuned to feel like a "real" full-speed spin segment
+  //   ≈ 1.35 px/ms → ~20 symbols/sec (matches original spin peak velocity)
+  var velocity = 1.35;
+  var phase1Dur = Math.max(phase1Distance / velocity, 600);
+  var phase2Dur = 320;  // sharp final lock-in (~5 symbols of decel)
 
-  // Step patterns by tier. Each step: { pct: 0..1 of journey, dur: ms, pause: ms after, click: hz }
-  // tier 1: 3 gentle steps (1 wheel discovered)
-  // tier 2: 5 steps with false stop near 97% (2 wheels)
-  // tier 3: 6 steps with DOUBLE false stop (3 wheels — maximum drama)
-  var PATTERNS = {
-    1: [
-      { pct: 0.55, dur: 650, pause: 200, click: 380, ease: 'cubic-bezier(.22,.6,.32,1)'  },
-      { pct: 0.85, dur: 450, pause: 280, click: 460, ease: 'cubic-bezier(.18,.55,.28,1)' },
-      { pct: 1.00, dur: 380, pause: 0,   click: 540, ease: 'cubic-bezier(.12,.7,.28,1)'  }
-    ],
-    2: [
-      { pct: 0.45, dur: 650, pause: 220, click: 380, ease: 'cubic-bezier(.22,.6,.32,1)'  },
-      { pct: 0.72, dur: 480, pause: 320, click: 440, ease: 'cubic-bezier(.18,.55,.28,1)' },
-      { pct: 0.90, dur: 380, pause: 450, click: 520, ease: 'cubic-bezier(.14,.5,.22,1)'  },
-      { pct: 0.97, dur: 300, pause: 580, click: 620, ease: 'cubic-bezier(.10,.45,.20,1)' }, // near miss
-      { pct: 1.00, dur: 240, pause: 0,   click: 760, ease: 'cubic-bezier(.4,1.6,.6,1)'   }  // final jerk (overshoot)
-    ],
-    3: [
-      { pct: 0.38, dur: 700, pause: 280, click: 380, ease: 'cubic-bezier(.22,.6,.32,1)'  },
-      { pct: 0.62, dur: 550, pause: 380, click: 440, ease: 'cubic-bezier(.18,.55,.28,1)' },
-      { pct: 0.82, dur: 420, pause: 480, click: 520, ease: 'cubic-bezier(.14,.5,.22,1)'  },
-      { pct: 0.92, dur: 360, pause: 650, click: 620, ease: 'cubic-bezier(.10,.45,.20,1)' }, // false stop 1
-      { pct: 0.97, dur: 280, pause: 780, click: 720, ease: 'cubic-bezier(.08,.4,.18,1)'  }, // false stop 2
-      { pct: 1.00, dur: 220, pause: 0,   click: 880, ease: 'cubic-bezier(.4,1.7,.6,1)'   }  // final lurch (overshoot bounce)
-    ]
-  };
-  var pattern = PATTERNS[tier] || PATTERNS[1];
+  // Keep .spinning class so motion blur stays active during phase 1
+  strip.classList.add('spinning');
+  // The default .spinning blur animation is tied to the ORIGINAL --spin-dur
+  // and ends at blur(0) when that duration elapses. Our extended phase 1
+  // likely outlives that, so we override the animation and manually apply
+  // a strong blur for the high-velocity scroll. Phase 2 will clear it.
+  strip.style.animation = 'none';
+  strip.style.filter    = 'blur(3.2px)';
 
-  // Track timer IDs so we can cancel if the spin aborts mid-crawl
+  // PHASE 1: LINEAR scroll — fast, constant, no ease (motion blur masks symbols)
+  strip.style.transition = 'transform ' + phase1Dur + 'ms linear';
+  strip.style.transform = 'translateY(' + phase1EndY + 'px)';
+
   if(!SL2._crawlTimers) SL2._crawlTimers = {};
   if(SL2._crawlTimers[reelIdx]){
     SL2._crawlTimers[reelIdx].forEach(function(t){ clearTimeout(t); });
   }
   SL2._crawlTimers[reelIdx] = [];
 
-  function executeStep(i){
-    if(i >= pattern.length){
-      // All steps done. Snap to exact final position (in case rounding drift),
-      // then invoke the per-reel finalize stored by slv2SpinReel.
+  // ─── PHASE 2 — quick final lock (the moment of truth) ──────────
+  var p1Timer = setTimeout(function(){
+    // Brief "approach" tone right before lock — anticipation cue
+    try { slv2PlayTone(880, 0.06, 'triangle', 0.08); } catch(e){}
+    // Sharp ease-out for the last 18% of distance
+    strip.style.transition = 'transform ' + phase2Dur + 'ms cubic-bezier(.10, .55, .25, 1), filter ' + phase2Dur + 'ms ease-out';
+    strip.style.transform = 'translateY(' + newTargetOffset + 'px)';
+    // Drop blur over phase 2 — the wheel reveal needs to be razor-sharp
+    strip.style.filter = 'blur(0px)';
+    // Final lock impact sounds — fire 25ms before the visual lands
+    var thumpTimer = setTimeout(function(){
+      try { slv2PlayTone(540, 0.08, 'square', 0.12); } catch(e){}
+      try { slv2PlayTone(110, 0.14, 'sine', 0.22); } catch(e){}  // visceral bass thump
+    }, phase2Dur - 25);
+    SL2._crawlTimers[reelIdx].push(thumpTimer);
+    // Trigger finalize after phase 2 ends (with small buffer)
+    var p2Timer = setTimeout(function(){
       strip.style.transition = 'none';
-      strip.style.transform = 'translateY(' + toY + 'px)';
-      // Cleanup crawl timer state
+      strip.style.transform = 'translateY(' + newTargetOffset + 'px)';
+      // Clean up inline blur/animation overrides so next spin starts fresh
+      strip.style.animation = '';
+      strip.style.filter    = '';
       SL2._crawlTimers[reelIdx] = [];
       if(SL2.reelFinalize && SL2.reelFinalize[reelIdx]){
-        SL2.reelFinalize[reelIdx]('step-crawl-complete');
+        SL2.reelFinalize[reelIdx]('extended-spin-complete');
       }
-      return;
-    }
-    var step = pattern[i];
-    var newY = fromY + (toY - fromY) * step.pct;
-    strip.style.transition = 'transform ' + step.dur + 'ms ' + step.ease;
-    strip.style.transform = 'translateY(' + newY + 'px)';
-
-    // Click sound at the moment the symbol "snaps" into position
-    var clickT = setTimeout(function(){
-      try { slv2PlayTone(step.click, 0.05, 'square', 0.085); } catch(e){}
-      // Bass thump under the last 2 steps when in tier-2/3 — visceral kick
-      if(tier >= 2 && i >= pattern.length - 2){
-        try { slv2PlayTone(110, 0.10, 'sine', 0.20); } catch(e){}
-      }
-    }, step.dur);
-    SL2._crawlTimers[reelIdx].push(clickT);
-
-    // Schedule next step after this step's full duration + pause
-    var nextT = setTimeout(function(){ executeStep(i + 1); }, step.dur + step.pause);
-    SL2._crawlTimers[reelIdx].push(nextT);
-  }
-
-  executeStep(0);
+    }, phase2Dur + 30);
+    SL2._crawlTimers[reelIdx].push(p2Timer);
+  }, phase1Dur);
+  SL2._crawlTimers[reelIdx].push(p1Timer);
 }
+
+// ─── (slv2StepCrawlReel REMOVED — replaced by extended-spin above) ───
+// The previous step-crawl approach revealed the final position too early
+// because the reel slowed dramatically while staying within the visible
+// strip area. The new approach extends the strip and keeps full velocity
+// for the bulk of the journey, so the player can't predict where it
+// will land until the very last moment.
 
 function slv2CheckWheelAnticipation(maxReelIdx){
   // Threshold: EVEN 1 wheel triggers the suspense — every wheel on the first
