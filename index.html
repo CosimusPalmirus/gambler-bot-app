@@ -9297,11 +9297,20 @@ function slv2AudioDest(){
 // currently blocked by an in-flight scatter/wheel/FS/vault animation,
 // poll until those clear instead of silently no-op'ing. Caps polling
 // at 12s so a stuck overlay can't lock auto-mode forever.
-function slv2QueueSpin(delayMs){
+function slv2QueueSpin(delayMs, options){
   var delay = typeof delayMs === 'number' ? delayMs : 600;
+  // requireAuto = true means "this is an auto-spin retry; bail out if the
+  // player stopped auto-mode while we were polling". Default is FALSE so
+  // one-shot callers (FS start, manual auto kickoff) always fire.
+  var requireAuto = !!(options && options.requireAuto);
   var pollStart = performance.now();
   function tryFire(){
-    if(!SL2 || !SL2.autoActive){ return; }
+    if(!SL2) return;
+    // Only abort on autoActive=false if explicitly an auto-retry context.
+    // ─── BUG FIX: previously this check was unconditional, which blocked
+    // slv2StartFreeSpins from launching the first FS spin when the player
+    // wasn't in auto-mode (game appeared "frozen" after FS intro). ───
+    if(requireAuto && !SL2.autoActive) return;
     var blocked = SL2.spinning || SL2.fakeRevealActive || SL2.scatterIntroActive ||
                   SL2.pendingWheelTrigger || SL2.bonusWheelOpen || SL2.vaultOpen ||
                   SL2.fsIntroActive;
@@ -9310,9 +9319,11 @@ function slv2QueueSpin(delayMs){
       return;
     }
     if(performance.now() - pollStart > 12000){
-      // Stuck too long — abort auto-mode rather than spinning forever
-      SL2.autoActive = false;
-      if(typeof slv2EnableSpinIfIdle === 'function') slv2EnableSpinIfIdle();
+      // Stuck too long — abort auto-mode if it was running, otherwise bail
+      if(SL2.autoActive){
+        SL2.autoActive = false;
+        if(typeof slv2EnableSpinIfIdle === 'function') slv2EnableSpinIfIdle();
+      }
       return;
     }
     setTimeout(tryFire, 220);
@@ -10781,7 +10792,7 @@ function slv2FinishSpin(fsTriggered){
         slv2StopAuto();
         return;
       }
-      slv2QueueSpin(600);
+      slv2QueueSpin(600, { requireAuto: true });
     }
   }
   // ─── Truly idle — safe to re-enable the spin button ─────────────
@@ -11184,7 +11195,7 @@ function slv2CloseFsSummary(){
     if(SL2.autoRemaining > 0){
       var rem = document.getElementById('slv2-auto-rem');
       if(rem) rem.textContent = SL2.autoRemaining;
-      slv2QueueSpin(600);
+      slv2QueueSpin(600, { requireAuto: true });
     } else {
       slv2StopAuto();
     }
@@ -11220,8 +11231,8 @@ function slv2StartAuto(n){
   var rem = document.getElementById('slv2-auto-rem');
   if(banner) banner.classList.add('visible');
   if(rem) rem.textContent = n;
-  // Lock bet/turbo during auto
-  slv2QueueSpin(300);
+  // Lock bet/turbo during auto — requireAuto guards against user stopping mid-delay
+  slv2QueueSpin(300, { requireAuto: true });
 }
 
 function slv2StopAuto(){
@@ -12030,7 +12041,7 @@ function slv2BonusWheelClose(){
   }
   // Resume auto-spin if it was running
   if(SL2.autoActive && SL2.autoRemaining > 0){
-    slv2QueueSpin(800);
+    slv2QueueSpin(800, { requireAuto: true });
     return;
   }
   // Truly idle now — re-enable Spin
@@ -12272,7 +12283,7 @@ function slv2VaultClose(){
     return;
   }
   if(SL2.autoActive && SL2.autoRemaining > 0){
-    slv2QueueSpin(800);
+    slv2QueueSpin(800, { requireAuto: true });
     return;
   }
   // Truly idle — re-enable spin
@@ -13163,31 +13174,54 @@ function slv2SlowDownReel(reelIdx, extraMs, cascadeSteps){
     strip.appendChild(div);
   }
 
-  // Replace the OLD wheel cell with a filler symbol (it's no longer the target)
-  if(symbols[oldTargetIdx] === 'wheel'){
-    var fillerSym = SL2_SYMS[Math.floor(Math.random() * SL2_SYMS.length)];
-    while(fillerSym === 'wheel' || fillerSym === 'bot'){
-      fillerSym = SL2_SYMS[Math.floor(Math.random() * SL2_SYMS.length)];
-    }
-    symbols[oldTargetIdx] = fillerSym;
-    var oldCell = strip.children[oldTargetIdx];
-    if(oldCell){
-      oldCell.className = 'slv2-sym sym-' + fillerSym;
-      if(fillerSym === 'btc'){
-        oldCell.innerHTML = slv2GbLogoHTML();
-      } else if(fillerSym === 'gblogo'){
-        oldCell.innerHTML = slv2BtcCoinHTML();
-      } else {
-        oldCell.textContent = SL2_CHAR[fillerSym];
-      }
+  // ─── CRITICAL FIX — preserve the original target symbol ─────────
+  // PREVIOUS BUG: this function used to hard-code symbols[newTargetIdx] = 'wheel'
+  // regardless of what the reel was actually rolling for. Result: any single
+  // wheel that appeared naturally on reel 0/1/2 would force ALL remaining
+  // reels to land on wheel too, producing a guaranteed 3+ wheel scatter
+  // trigger on every spin where even ONE wheel showed up early. Players
+  // reported "wheel scatters every 2-3 spins" because of this.
+  //
+  // The correct behavior is: extend the journey with random fillers so the
+  // suspense is real, but the reel lands on the SAME symbol it was always
+  // going to land on. Now the only natural scatter trigger is genuine 3+
+  // wheel landings (~0.86% per spin) plus the timed trigger every 45-75 spins.
+  var originalTarget = symbols[oldTargetIdx];
+
+  // Replace the OLD target cell with a filler so the player sees random
+  // scroll between phase 1 and the new lock position. Doesn't change the
+  // outcome — the reel will scroll PAST this position toward newTargetIdx.
+  var fillerSym = SL2_SYMS[Math.floor(Math.random() * SL2_SYMS.length)];
+  while(fillerSym === 'wheel' || fillerSym === 'bot'){
+    fillerSym = SL2_SYMS[Math.floor(Math.random() * SL2_SYMS.length)];
+  }
+  symbols[oldTargetIdx] = fillerSym;
+  var oldCell = strip.children[oldTargetIdx];
+  if(oldCell){
+    oldCell.className = 'slv2-sym sym-' + fillerSym;
+    if(fillerSym === 'btc'){
+      oldCell.innerHTML = slv2GbLogoHTML();
+    } else if(fillerSym === 'gblogo'){
+      oldCell.innerHTML = slv2BtcCoinHTML();
+    } else {
+      oldCell.textContent = SL2_CHAR[fillerSym];
     }
   }
-  // Place wheel at the NEW further-down target
-  symbols[newTargetIdx] = 'wheel';
+  // Place the ORIGINAL target at the NEW further-down position so the
+  // outcome the spin determined still lands, just after a longer journey.
+  symbols[newTargetIdx] = originalTarget;
   var newCell = strip.children[newTargetIdx];
   if(newCell){
-    newCell.className = 'slv2-sym sym-wheel';
-    newCell.innerHTML = slv2WheelSVG();
+    newCell.className = 'slv2-sym sym-' + originalTarget;
+    if(originalTarget === 'btc'){
+      newCell.innerHTML = slv2GbLogoHTML();
+    } else if(originalTarget === 'gblogo'){
+      newCell.innerHTML = slv2BtcCoinHTML();
+    } else if(originalTarget === 'wheel'){
+      newCell.innerHTML = slv2WheelSVG();
+    } else {
+      newCell.textContent = SL2_CHAR[originalTarget];
+    }
   }
 
   // Update tracked position + offset
