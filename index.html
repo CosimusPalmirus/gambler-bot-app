@@ -3842,6 +3842,21 @@ body{position:relative;}
     0 0 0 1px rgba(0,0,0,.6),
     0 1px 3px rgba(0,0,0,.5);
 }
+/* Disabled state — used while a spin / scatter / bonus animation runs
+   to make it visually obvious the player can't change bet mid-spin */
+.slv2-bet:disabled,
+.slv2-bet-row.locked .slv2-bet:not(.active){
+  opacity:0.45;
+  filter:grayscale(0.55) brightness(0.7);
+  cursor:not-allowed;
+  pointer-events:none;
+}
+.slv2-bet-row.locked .slv2-bet.active{
+  /* Active chip stays prominent so the player sees the locked-in value */
+  opacity:0.85;
+  cursor:not-allowed;
+  pointer-events:none;
+}
 .slv2-bet.active{
   border-color:var(--gb-green);
   transform:translateY(-1px);
@@ -9235,8 +9250,8 @@ var SL2 = {
 // Constants for animation
 var SL2_STRIP_LEN = 80;       // symbols per strip
 var SL2_SYM_H = 66;           // symbol height in px
-var SL2_SPIN_BASE = 1500;     // base spin duration ms
-var SL2_SPIN_STAGGER = 200;   // ms between each reel stop (Task 4 — was 250)
+var SL2_SPIN_BASE = 1400;     // base spin duration ms
+var SL2_SPIN_STAGGER = 380;   // ms between each reel stop (was 200ms — too tight; reels now visibly stop one at a time)
 var SL2_TURBO_MULT = 0.4;     // turbo multiplier
 function initSlots(){ slv2Init(); }
 // ================================================================
@@ -9248,10 +9263,133 @@ function slv2EnsureAudio(){
   if(SL2.audioCtx) return SL2.audioCtx;
   try {
     var Ctx = window.AudioContext || window.webkitAudioContext;
-    if(Ctx) SL2.audioCtx = new Ctx();
+    if(Ctx){
+      SL2.audioCtx = new Ctx();
+      // ─── MASTER OUTPUT CHAIN ────────────────────────────────────
+      // Every sound source should route through this chain instead of
+      // connecting directly to ctx.destination. The compressor tames
+      // peaks when multiple sound layers play simultaneously (suspense
+      // crescendo + heartbeat + per-step clicks + bass thump + cymbal
+      // can easily stack 5-8 voices) so the master doesn't clip.
+      var comp = SL2.audioCtx.createDynamicsCompressor();
+      comp.threshold.value = -10;  // start compressing at -10dB
+      comp.knee.value      = 8;    // soft knee for natural sound
+      comp.ratio.value     = 6;    // 6:1 compression ratio
+      comp.attack.value    = 0.003;
+      comp.release.value   = 0.18;
+      var masterGain = SL2.audioCtx.createGain();
+      masterGain.gain.value = 0.92; // global mix level (slight headroom)
+      comp.connect(masterGain).connect(SL2.audioCtx.destination);
+      SL2.audioMaster = comp;
+    }
   } catch(e){}
   return SL2.audioCtx;
 }
+// Returns the master output node so callers route through limiter+gain
+// instead of connecting straight to ctx.destination. Falls back to raw
+// destination if the master chain failed to build.
+function slv2AudioDest(){
+  if(!SL2.audioCtx) slv2EnsureAudio();
+  return (SL2 && SL2.audioMaster) || (SL2.audioCtx && SL2.audioCtx.destination);
+}
+
+// Schedule the next spin (auto-mode or manual retry). If the slot is
+// currently blocked by an in-flight scatter/wheel/FS/vault animation,
+// poll until those clear instead of silently no-op'ing. Caps polling
+// at 12s so a stuck overlay can't lock auto-mode forever.
+function slv2QueueSpin(delayMs){
+  var delay = typeof delayMs === 'number' ? delayMs : 600;
+  var pollStart = performance.now();
+  function tryFire(){
+    if(!SL2 || !SL2.autoActive){ return; }
+    var blocked = SL2.spinning || SL2.fakeRevealActive || SL2.scatterIntroActive ||
+                  SL2.pendingWheelTrigger || SL2.bonusWheelOpen || SL2.vaultOpen ||
+                  SL2.fsIntroActive;
+    if(!blocked){
+      slv2Spin();
+      return;
+    }
+    if(performance.now() - pollStart > 12000){
+      // Stuck too long — abort auto-mode rather than spinning forever
+      SL2.autoActive = false;
+      if(typeof slv2EnableSpinIfIdle === 'function') slv2EnableSpinIfIdle();
+      return;
+    }
+    setTimeout(tryFire, 220);
+  }
+  setTimeout(tryFire, delay);
+}
+
+// ─── EMERGENCY HARD-RESET ─────────────────────────────────────────
+// Nukes every spin-related state flag, cancels in-flight timers and
+// animations, and removes transient DOM (sparks, beams, banners). Used
+// when the slot needs to recover from a stuck state — e.g. the page
+// returns from background after a long suspension. Safe to call at
+// any time; idempotent.
+function slv2HardResetSpinState(){
+  // 1. Clear all gating flags
+  SL2.spinning            = false;
+  SL2.fakeRevealActive    = false;
+  SL2.scatterIntroActive  = false;
+  SL2.pendingWheelTrigger = false;
+  SL2.fsIntroActive       = false;
+  // Note: bonusWheelOpen/vaultOpen/fsActive aren't reset here because
+  // those have proper close handlers; force-resetting could leave the
+  // overlays visible.
+  // 2. Cancel all interval/timer state
+  if(SL2._wheelHeartbeatId){
+    clearInterval(SL2._wheelHeartbeatId);
+    SL2._wheelHeartbeatId = null;
+  }
+  if(SL2._crawlTimers){
+    for(var ci in SL2._crawlTimers){
+      if(SL2._crawlTimers[ci]) SL2._crawlTimers[ci].forEach(function(t){ clearTimeout(t); });
+      SL2._crawlTimers[ci] = [];
+    }
+  }
+  if(SL2.reelTimers){
+    for(var ri in SL2.reelTimers){
+      if(SL2.reelTimers[ri]) clearTimeout(SL2.reelTimers[ri]);
+      SL2.reelTimers[ri] = null;
+    }
+  }
+  if(SL2.reelWatchdogs){
+    for(var rwi in SL2.reelWatchdogs){
+      if(SL2.reelWatchdogs[rwi]) clearTimeout(SL2.reelWatchdogs[rwi]);
+      SL2.reelWatchdogs[rwi] = null;
+    }
+  }
+  if(SL2.reelSpinning){
+    for(var rsi in SL2.reelSpinning) SL2.reelSpinning[rsi] = false;
+  }
+  // 3. Cleanup transient suspense visuals
+  if(typeof slv2ClearAnticipation === 'function') slv2ClearAnticipation();
+  // 4. Remove fake-reveal DOM detritus
+  if(typeof slv2RemoveWheelTriggerBeams === 'function') slv2RemoveWheelTriggerBeams();
+  // 5. Re-enable spin if appropriate (only when no overlay is open)
+  if(!SL2.bonusWheelOpen && !SL2.vaultOpen && !SL2.fsActive){
+    if(typeof slv2EnableSpin === 'function') slv2EnableSpin();
+  }
+}
+// Wire up to the visibility API — if the page is hidden for a long
+// time (mobile background → resume), pending timers may have been
+// throttled or killed by the browser. A hard reset on return prevents
+// the slot from being stuck in a half-animated state.
+(function(){
+  if(typeof document === 'undefined' || typeof document.addEventListener !== 'function') return;
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState === 'visible' && SL2 && (SL2.spinning || SL2.fakeRevealActive)){
+      // Give in-flight animations a chance to finish naturally first.
+      // If we're STILL stuck 4 seconds after returning to foreground, kick
+      // a hard-reset so the user can spin again.
+      setTimeout(function(){
+        if(SL2.spinning || SL2.fakeRevealActive){
+          slv2HardResetSpinState();
+        }
+      }, 4000);
+    }
+  });
+})();
 function slv2PlayTone(freq, durSec, type, vol){
   if(!SL2.soundsEnabled) return;
   var ctx = slv2EnsureAudio();
@@ -9263,7 +9401,7 @@ function slv2PlayTone(freq, durSec, type, vol){
     osc.frequency.value = freq;
     gain.gain.value = 0;
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(slv2AudioDest());
     var t0 = ctx.currentTime;
     var v = vol || 0.15;
     gain.gain.setValueAtTime(0, t0);
@@ -9297,7 +9435,7 @@ function slv2GetReverb(){
     var wet = ctx.createGain();
     wet.gain.value = 0.42;
     convolver.connect(wet);
-    wet.connect(ctx.destination);
+    wet.connect(slv2AudioDest());
     SL2.reverbNode = convolver;
     SL2.reverbWet  = wet;
     return convolver;
@@ -9316,7 +9454,7 @@ function slv2PlayToneEx(freq, durSec, type, vol, opts){
     osc.frequency.value = freq;
     gain.gain.value = 0;
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(slv2AudioDest());
     if(opts.reverb){
       var rev = slv2GetReverb();
       if(rev){
@@ -9357,7 +9495,7 @@ function slv2PlayNoise(durSec, vol, filterFreq, q, reverb){
     filt.Q.value = q || 1.4;
     var gain = ctx.createGain();
     gain.gain.value = vol || 0.06;
-    src.connect(filt); filt.connect(gain); gain.connect(ctx.destination);
+    src.connect(filt); filt.connect(gain); gain.connect(slv2AudioDest());
     if(reverb){
       var rev = slv2GetReverb();
       if(rev){
@@ -9704,7 +9842,7 @@ function gPlayNoiseBuf(ctx, durSec, filterFreq, gen){
     filt.type = 'lowpass';
     filt.frequency.value = filterFreq;
     src.connect(filt);
-    filt.connect(ctx.destination);
+    filt.connect(slv2AudioDest());
     src.start();
   } catch(e){}
 }
@@ -10216,14 +10354,22 @@ function slv2Spin(){
             var newWheels = wheelsFound - prevCount;
             SL2._wheelCountLastDetected = wheelsFound;
             if(newWheels > 0){
-              // Each NEW wheel discovery adds a tier of slowdown.
-              // Escalating ms values produce a clear "even slower!" feeling.
+              // Each NEW wheel discovery adds a tier of slowdown (affects
+              // visuals + audio escalation downstream). The cascade pattern
+              // below makes remaining reels stop ONE AT A TIME by extending
+              // each next reel by progressively more symbols.
               var TIER_MS = [1000, 1700, 2500, 3000];
               for(var nw = 0; nw < newWheels; nw++){
                 var tier = prevCount + nw;            // 0,1,2 → which-th wheel
                 var addMs = TIER_MS[tier] || 3000;    // cap at tier 3
+                // CASCADE: closest still-spinning reel extends by 1 chunk,
+                // next by 2 chunks, then 3, then 4. So reel R+1 lands first,
+                // then R+2 well after, then R+3 even later, R+4 longest.
+                // Player experiences each subsequent reel as a separate
+                // "moment of truth" with real breathing room between them.
                 for(var r2 = reelIdx + 1; r2 <= 4; r2++){
-                  slv2SlowDownReel(r2, addMs);
+                  var cascadeSteps = r2 - reelIdx;  // 1, 2, 3, 4
+                  slv2SlowDownReel(r2, addMs, cascadeSteps);
                 }
               }
             }
@@ -10301,7 +10447,12 @@ function slv2SpinReel(reelIdx, targetSymbol, durationMs, cb){
     if(symbols[i] === targetSymbol){ targetIdx = i; break; }
   }
   if(targetIdx === null){
-    // Strip ran out — rebuild and force place
+    // Strip ran out — rebuild and force place. This usually happens when
+    // a previous spin extended the strip for suspense (wheel pushed far
+    // down), leaving SL2.positions pointing past SL2_STRIP_LEN. After
+    // rebuild we MUST snap the strip transform to a sane starting Y so
+    // the next animation begins on visible content (otherwise the player
+    // sees a one-frame flash of empty space before the spin kicks in).
     slv2BuildStrip(reelIdx);
     strip = document.getElementById('slv2-strip-' + reelIdx);
     symbols = SL2.stripSyms[reelIdx];
@@ -10321,6 +10472,17 @@ function slv2SpinReel(reelIdx, targetSymbol, durationMs, cb){
         cell.textContent = SL2_CHAR[targetSymbol];
       }
     }
+    // Snap to a sane starting position before the new spin animates.
+    // Pick a Y that puts a random symbol in the visible center and
+    // ensures the spin has a healthy distance to travel.
+    var resetStartIdx = 4 + Math.floor(Math.random() * 6);
+    var resetY = -((resetStartIdx - 1) * SL2_SYM_H);
+    strip.style.transition = 'none';
+    strip.style.animation  = '';      // clear any stale animation overrides
+    strip.style.filter     = '';      // clear stale blur
+    strip.style.transform  = 'translateY(' + resetY + 'px)';
+    // eslint-disable-next-line no-unused-expressions
+    void strip.offsetWidth;            // force reflow so the new transition starts fresh
   }
   SL2.positions[reelIdx] = targetIdx;
   var finalOffset = -((targetIdx - 1) * SL2_SYM_H);
@@ -10588,7 +10750,7 @@ function slv2FinishSpin(fsTriggered){
 
   // FS auto-continue
   if(SL2.fsActive && SL2.fsRemaining > 0){
-    setTimeout(slv2Spin, 800);
+    slv2QueueSpin(800);
     return;
   }
 
@@ -10618,7 +10780,7 @@ function slv2FinishSpin(fsTriggered){
         slv2StopAuto();
         return;
       }
-      setTimeout(slv2Spin, 600);
+      slv2QueueSpin(600);
     }
   }
   // ─── Truly idle — safe to re-enable the spin button ─────────────
@@ -10640,14 +10802,20 @@ function slv2EnableSpinIfIdle(){
   if(SL2.fakeRevealActive) return;
   var spinBtn = document.getElementById('slv2-spin-btn');
   if(spinBtn) spinBtn.disabled = false;
+  // Unlock bet selector row too — player can change bet between spins
+  var betRow = document.querySelector('.slv2-bet-row');
+  if(betRow) betRow.classList.remove('locked');
 }
 
 // Force-disable the spin button (used at the start of every scatter /
 // bonus sequence so a stray click during animations doesn't trigger a
-// new spin underneath).
+// new spin underneath). Also locks bet-row to give visual feedback that
+// the player can't change bet mid-animation.
 function slv2DisableSpin(){
   var spinBtn = document.getElementById('slv2-spin-btn');
   if(spinBtn) spinBtn.disabled = true;
+  var betRow = document.querySelector('.slv2-bet-row');
+  if(betRow) betRow.classList.add('locked');
 }
 
 
@@ -10974,7 +11142,7 @@ function slv2StartFreeSpins(){
   var fsCard = document.getElementById('slv2-fs-card');
   if(fsCard) fsCard.classList.add('active');
   slv2UpdateFsUI();
-  setTimeout(slv2Spin, 600);
+  slv2QueueSpin(600);
 }
 
 function slv2EndFreeSpins(){
@@ -11009,7 +11177,7 @@ function slv2CloseFsSummary(){
     if(SL2.autoRemaining > 0){
       var rem = document.getElementById('slv2-auto-rem');
       if(rem) rem.textContent = SL2.autoRemaining;
-      setTimeout(slv2Spin, 600);
+      slv2QueueSpin(600);
     } else {
       slv2StopAuto();
     }
@@ -11046,7 +11214,7 @@ function slv2StartAuto(n){
   if(banner) banner.classList.add('visible');
   if(rem) rem.textContent = n;
   // Lock bet/turbo during auto
-  setTimeout(slv2Spin, 300);
+  slv2QueueSpin(300);
 }
 
 function slv2StopAuto(){
@@ -11365,7 +11533,7 @@ function slv2PlayWheelSpinAudio(durationMs, rotations){
       gain.gain.setValueAtTime(0.0001, when);
       gain.gain.exponentialRampToValueAtTime(vol, when + 0.002);
       gain.gain.exponentialRampToValueAtTime(0.001, when + 0.05);
-      osc.connect(gain).connect(ctx.destination);
+      osc.connect(gain).connect(slv2AudioDest());
       osc.start(when);
       osc.stop(when + 0.06);
     }
@@ -11389,7 +11557,7 @@ function slv2PlayWheelSpinAudio(durationMs, rotations){
     noiseGain.gain.exponentialRampToValueAtTime(0.10, t0 + 0.3);
     noiseGain.gain.setValueAtTime(0.10, t0 + (durationMs / 1000) * 0.7);
     noiseGain.gain.exponentialRampToValueAtTime(0.001, t0 + durationMs / 1000);
-    noise.connect(lp).connect(noiseGain).connect(ctx.destination);
+    noise.connect(lp).connect(noiseGain).connect(slv2AudioDest());
     noise.start(t0);
     noise.stop(t0 + durationMs / 1000 + 0.1);
 
@@ -11404,7 +11572,7 @@ function slv2PlayWheelSpinAudio(durationMs, rotations){
     thudG.gain.setValueAtTime(0.0001, lockTime);
     thudG.gain.exponentialRampToValueAtTime(0.32, lockTime + 0.008);
     thudG.gain.exponentialRampToValueAtTime(0.001, lockTime + 0.3);
-    thud.connect(thudG).connect(ctx.destination);
+    thud.connect(thudG).connect(slv2AudioDest());
     thud.start(lockTime);
     thud.stop(lockTime + 0.35);
     // High crystal ding (overlaid for sparkle)
@@ -11415,7 +11583,7 @@ function slv2PlayWheelSpinAudio(durationMs, rotations){
     dingG.gain.setValueAtTime(0.0001, lockTime + 0.04);
     dingG.gain.exponentialRampToValueAtTime(0.14, lockTime + 0.06);
     dingG.gain.exponentialRampToValueAtTime(0.001, lockTime + 0.7);
-    ding.connect(dingG).connect(ctx.destination);
+    ding.connect(dingG).connect(slv2AudioDest());
     ding.start(lockTime + 0.04);
     ding.stop(lockTime + 0.75);
   } catch(e){}
@@ -11438,7 +11606,7 @@ function slv2PlayWheelOpenFanfare(){
       gain.gain.setValueAtTime(0.0001, startT);
       gain.gain.exponentialRampToValueAtTime(0.16, startT + 0.04);
       gain.gain.exponentialRampToValueAtTime(0.001, startT + 0.45);
-      osc.connect(gain).connect(ctx.destination);
+      osc.connect(gain).connect(slv2AudioDest());
       osc.start(startT);
       osc.stop(startT + 0.5);
     });
@@ -11457,7 +11625,7 @@ function slv2PlayWheelOpenFanfare(){
     noise.buffer = buf;
     noiseGain.gain.setValueAtTime(0.18, t);
     noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
-    noise.connect(filter).connect(noiseGain).connect(ctx.destination);
+    noise.connect(filter).connect(noiseGain).connect(slv2AudioDest());
     noise.start(t);
     // Sparkle bells (high overtones, delayed)
     [1760, 2093, 2637, 3136].forEach(function(freq, i){
@@ -11469,7 +11637,7 @@ function slv2PlayWheelOpenFanfare(){
       gain.gain.setValueAtTime(0.0001, startT);
       gain.gain.exponentialRampToValueAtTime(0.08, startT + 0.02);
       gain.gain.exponentialRampToValueAtTime(0.001, startT + 0.55);
-      osc.connect(gain).connect(ctx.destination);
+      osc.connect(gain).connect(slv2AudioDest());
       osc.start(startT);
       osc.stop(startT + 0.6);
     });
@@ -11482,7 +11650,7 @@ function slv2PlayWheelOpenFanfare(){
     bassGain.gain.setValueAtTime(0.0001, t);
     bassGain.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
     bassGain.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
-    bass.connect(bassGain).connect(ctx.destination);
+    bass.connect(bassGain).connect(slv2AudioDest());
     bass.start(t);
     bass.stop(t + 0.6);
   } catch(e){}
@@ -11799,7 +11967,7 @@ function slv2PlayJackpotCelebration(){
       gain.gain.setValueAtTime(0.0001, startT);
       gain.gain.exponentialRampToValueAtTime(0.18, startT + 0.05);
       gain.gain.exponentialRampToValueAtTime(0.001, startT + 0.7);
-      osc.connect(gain).connect(ctx.destination);
+      osc.connect(gain).connect(slv2AudioDest());
       osc.start(startT);
       osc.stop(startT + 0.8);
     });
@@ -11813,7 +11981,7 @@ function slv2PlayJackpotCelebration(){
       gain.gain.setValueAtTime(0.0001, startT);
       gain.gain.exponentialRampToValueAtTime(0.10, startT + 0.02);
       gain.gain.exponentialRampToValueAtTime(0.001, startT + 0.5);
-      osc.connect(gain).connect(ctx.destination);
+      osc.connect(gain).connect(slv2AudioDest());
       osc.start(startT);
       osc.stop(startT + 0.55);
     }
@@ -11839,7 +12007,7 @@ function slv2BonusWheelClose(){
   // the FS round. fsRemaining may have been bumped by an FS segment landing.
   if(SL2.fsActive){
     if(SL2.fsRemaining > 0){
-      setTimeout(slv2Spin, 800);
+      slv2QueueSpin(800);
     } else {
       slv2EndFreeSpins();
     }
@@ -11847,7 +12015,7 @@ function slv2BonusWheelClose(){
   }
   // Resume auto-spin if it was running
   if(SL2.autoActive && SL2.autoRemaining > 0){
-    setTimeout(slv2Spin, 800);
+    slv2QueueSpin(800);
     return;
   }
   // Truly idle now — re-enable Spin
@@ -12078,14 +12246,14 @@ function slv2VaultClose(){
   // resume the FS round when the vault closes.
   if(SL2.fsActive){
     if(SL2.fsRemaining > 0){
-      setTimeout(slv2Spin, 800);
+      slv2QueueSpin(800);
     } else {
       slv2EndFreeSpins();
     }
     return;
   }
   if(SL2.autoActive && SL2.autoRemaining > 0){
-    setTimeout(slv2Spin, 800);
+    slv2QueueSpin(800);
     return;
   }
   // Truly idle — re-enable spin
@@ -12190,7 +12358,7 @@ function slv2PlayFsRollAnimation(finalCount, onDone){
             g.gain.setValueAtTime(0, ctx.currentTime);
             g.gain.linearRampToValueAtTime(0.22, ctx.currentTime + 0.02);
             g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.55);
-            osc.connect(g).connect(ctx.destination);
+            osc.connect(g).connect(slv2AudioDest());
             osc.start(ctx.currentTime);
             osc.stop(ctx.currentTime + 0.6);
           }
@@ -12870,12 +13038,18 @@ function slv2ClearAnticipation(){
 //   1st wheel  →  +1000ms total
 //   2nd wheel  →  +1700ms more on top  (cumulative ~2700ms)
 //   3rd wheel  →  +2500ms more on top  (cumulative ~5200ms — agony!)
-function slv2SlowDownReel(reelIdx, extraMs){
+function slv2SlowDownReel(reelIdx, extraMs, cascadeSteps){
   if(!SL2.reelSpinning || !SL2.reelSpinning[reelIdx]) return;
   var strip = document.getElementById('slv2-strip-' + reelIdx);
   if(!strip) return;
   var oldTargetOffset = (SL2.reelFinalOffsets || [])[reelIdx];
   if(oldTargetOffset === undefined || oldTargetOffset === null) return;
+  // cascadeSteps controls how many "+22 symbol" chunks to add. Default 1
+  // (legacy callers). When a wheel is found on reel R, the spin loop now
+  // passes increasing cascadeSteps to subsequent reels so they cascade:
+  // reel R+1 extends by 1 chunk, R+2 by 2, R+3 by 3 — making them stop
+  // ONE AT A TIME with growing pauses instead of all stopping together.
+  if(typeof cascadeSteps !== 'number' || cascadeSteps < 1) cascadeSteps = 1;
 
   // ─── Read current Y from running transform ────────────────────
   var currentY = 0;
@@ -12910,14 +13084,13 @@ function slv2SlowDownReel(reelIdx, extraMs){
   // wheel slot into the center cell. This is the real-slot feel:
   // suspense = "more spinning to go", not "the reel crawls".
   //
-  // Each NEW wheel discovery extends the journey by a fixed ~22 symbols
-  // (≈ 1.1 seconds of full-speed scroll). With max 3 wheels findable on
-  // reels 0-2, total extra journey on reel 4 caps at ~66 symbols / ~3.3s —
-  // long enough for serious suspense, short enough to stay engaging.
-  // tier is still used downstream by visuals/audio (see anticipation handler)
-  // but the symbol-extension itself is constant per call.
+  // Each NEW wheel discovery extends the journey by ~22 symbols PER cascadeStep
+  // (≈ 1.1 seconds per step of full-speed scroll). With cascade ramping per
+  // subsequent reel and max 3 wheels findable on reels 0-2, total extra
+  // journey on reel 4 can reach ~88 symbols / ~4.4 seconds — true one-at-a-
+  // time stop timing with maximum suspense between each reel landing.
   var tier = cumulativeMs < 1500 ? 1 : cumulativeMs < 3500 ? 2 : 3;
-  var extraSymbols = 22;
+  var extraSymbols = 22 * cascadeSteps;
 
   var symbols = SL2.stripSyms[reelIdx];
   var oldTargetIdx = SL2.positions[reelIdx];
@@ -13172,17 +13345,26 @@ function slv2CheckWheelAnticipation(maxReelIdx){
 // a new wheel symbol locks in during the suspense.
 function slv2SpawnWheelBurst(cellEl){
   if(!cellEl) return;
+  // Build all 8 sparks into a DocumentFragment first, then append to the
+  // cell in one shot — single reflow instead of 8 successive insertions.
+  // Cleanup uses the animationend event (fires when @keyframes completes)
+  // so we don't leak setTimeout callbacks if the spin gets aborted.
+  var frag = document.createDocumentFragment();
   for(var p = 0; p < 8; p++){
     var spark = document.createElement('div');
     spark.className = 'slv2-wheel-spark';
     var angle = (p / 8) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
-    var dist = 45 + Math.random() * 30;
+    var dist  = 45 + Math.random() * 30;
     spark.style.setProperty('--tx', Math.cos(angle) * dist + 'px');
     spark.style.setProperty('--ty', Math.sin(angle) * dist + 'px');
     spark.style.animationDelay = (p * 18) + 'ms';
-    cellEl.appendChild(spark);
-    (function(s){ setTimeout(function(){ if(s.parentNode) s.parentNode.removeChild(s); }, 900); })(spark);
+    // Auto-remove when the keyframe animation completes
+    spark.addEventListener('animationend', function(ev){
+      if(ev.target && ev.target.parentNode) ev.target.parentNode.removeChild(ev.target);
+    }, { once: true });
+    frag.appendChild(spark);
   }
+  cellEl.appendChild(frag);
 }
 
 // Slow chest-thumping heartbeat — adds anxiety during the wait for the
@@ -13202,7 +13384,7 @@ function slv2PlayHeartbeatThump(){
         o.frequency.exponentialRampToValueAtTime(freq * 0.5, ctx.currentTime + 0.18);
         g.gain.setValueAtTime(vol, ctx.currentTime);
         g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22);
-        o.connect(g).connect(ctx.destination);
+        o.connect(g).connect(slv2AudioDest());
         o.start(ctx.currentTime);
         o.stop(ctx.currentTime + 0.25);
       }, delay);
@@ -13220,70 +13402,143 @@ function slv2PlayWheelSuspenseLayer(layerIdx){
   if(!SL2.soundsEnabled) return;
   var ctx = slv2EnsureAudio();
   if(!ctx) return;
+  var dest = slv2AudioDest();
   try {
     var now = ctx.currentTime;
-    // Layer config — pitch, duration, and timbre scale with layer index
-    var layers = [
-      // Layer 0 — 1st wheel: deep menacing bass climb
-      { startFreq: 110, endFreq: 480, dur: 1.6, vol: 0.20, type: 'sawtooth', harmonic: 1.5 },
-      // Layer 1 — 2nd wheel: mid bell + brighter climb
-      { startFreq: 220, endFreq: 1200, dur: 1.6, vol: 0.18, type: 'triangle', harmonic: 2.0 },
-      // Layer 2 — 3rd wheel: shrill descending tension + cymbal sweep
-      { startFreq: 440, endFreq: 2400, dur: 1.6, vol: 0.16, type: 'square', harmonic: 3.0 }
+    var sr  = ctx.sampleRate;
+
+    // ─── 1. SUB-BASS BOOM ────────────────────────────────────────
+    // Instant impact when a wheel is discovered — visceral physical
+    // "thump" that signals "SOMETHING JUST HAPPENED". Pitch climbs
+    // slightly per wheel found (40Hz → 55Hz → 70Hz) for escalation.
+    var boomFreq = 38 + layerIdx * 14;
+    var boom = ctx.createOscillator();
+    var boomG = ctx.createGain();
+    boom.type = 'sine';
+    boom.frequency.setValueAtTime(boomFreq * 2.2, now);
+    boom.frequency.exponentialRampToValueAtTime(boomFreq, now + 0.06);
+    boomG.gain.setValueAtTime(0, now);
+    boomG.gain.linearRampToValueAtTime(0.48, now + 0.005);
+    boomG.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+    boom.connect(boomG).connect(dest);
+    boom.start(now); boom.stop(now + 0.5);
+
+    // ─── 2. RISING WHOOSH ────────────────────────────────────────
+    // Filtered white noise sweeping band-pass from low → high. Gives
+    // a "drawing in breath" sensation that builds toward the bell hit.
+    var whooshLen = Math.floor(sr * 1.4);
+    var whooshBuf = ctx.createBuffer(1, whooshLen, sr);
+    var wData = whooshBuf.getChannelData(0);
+    for(var wi = 0; wi < whooshLen; wi++){
+      // Fade IN (amplitude grows toward end of sweep)
+      var t = wi / whooshLen;
+      wData[wi] = (Math.random() * 2 - 1) * Math.pow(t, 0.7) * 0.55;
+    }
+    var whoosh = ctx.createBufferSource();
+    whoosh.buffer = whooshBuf;
+    var whooshFilt = ctx.createBiquadFilter();
+    whooshFilt.type = 'bandpass';
+    whooshFilt.Q.value = 3.5;
+    whooshFilt.frequency.setValueAtTime(180 + layerIdx * 60, now);
+    whooshFilt.frequency.exponentialRampToValueAtTime(2400 + layerIdx * 600, now + 1.3);
+    var whooshG = ctx.createGain();
+    whooshG.gain.setValueAtTime(0, now);
+    whooshG.gain.linearRampToValueAtTime(0.20 + layerIdx * 0.05, now + 0.5);
+    whooshG.gain.exponentialRampToValueAtTime(0.001, now + 1.4);
+    whoosh.connect(whooshFilt).connect(whooshG).connect(dest);
+    whoosh.start(now);
+    whoosh.stop(now + 1.5);
+
+    // ─── 3. CASINO BELL CHIME ────────────────────────────────────
+    // Iconic "ding!" — three harmonics (fundamental + octave + fifth-octave)
+    // resonating with bell-like decay. Pitch shifts up per wheel for
+    // ascending major-arpeggio feel across the 3 wheels.
+    var bellRoot = 880 * Math.pow(1.122, layerIdx);  // 880, 988, 1109 — major 2nd steps
+    var bellHarmonics = [
+      { mult: 1.0,  vol: 0.28 },
+      { mult: 2.0,  vol: 0.14 },
+      { mult: 3.0,  vol: 0.07 },
+      { mult: 4.05, vol: 0.04 }  // slightly stretched for bell shimmer
     ];
-    var L = layers[Math.min(layerIdx, 2)];
-    // Primary pad
-    var osc = ctx.createOscillator();
-    var gain = ctx.createGain();
-    osc.type = L.type;
-    osc.frequency.setValueAtTime(L.startFreq, now);
-    osc.frequency.exponentialRampToValueAtTime(L.endFreq, now + L.dur);
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(L.vol, now + L.dur * 0.75);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + L.dur + 0.2);
-    osc.connect(gain).connect(ctx.destination);
-    osc.start(now);
-    osc.stop(now + L.dur + 0.3);
-    // Harmonic shimmer
-    var osc2 = ctx.createOscillator();
-    var gain2 = ctx.createGain();
-    osc2.type = 'triangle';
-    osc2.frequency.setValueAtTime(L.startFreq * L.harmonic, now);
-    osc2.frequency.exponentialRampToValueAtTime(L.endFreq * L.harmonic, now + L.dur);
-    gain2.gain.setValueAtTime(0.0001, now);
-    gain2.gain.exponentialRampToValueAtTime(L.vol * 0.55, now + L.dur * 0.85);
-    gain2.gain.exponentialRampToValueAtTime(0.001, now + L.dur + 0.2);
-    osc2.connect(gain2).connect(ctx.destination);
-    osc2.start(now);
-    osc2.stop(now + L.dur + 0.3);
-    // Immediate impact stinger for the discovery moment — bright ping
-    var ping = ctx.createOscillator();
-    var pingG = ctx.createGain();
-    ping.type = 'triangle';
-    ping.frequency.value = 1568 + layerIdx * 392;  // C6, E6, G6
-    pingG.gain.setValueAtTime(0.30, now);
-    pingG.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-    ping.connect(pingG).connect(ctx.destination);
-    ping.start(now);
-    ping.stop(now + 0.4);
-    // For layer 2 (3rd wheel), add a cymbal swell for max drama
+    bellHarmonics.forEach(function(h){
+      var bell = ctx.createOscillator();
+      var bellG = ctx.createGain();
+      bell.type = 'sine';
+      bell.frequency.value = bellRoot * h.mult;
+      bellG.gain.setValueAtTime(0, now + 0.08);
+      bellG.gain.linearRampToValueAtTime(h.vol, now + 0.10);
+      bellG.gain.exponentialRampToValueAtTime(0.001, now + 1.6);
+      bell.connect(bellG).connect(dest);
+      bell.start(now + 0.08);
+      bell.stop(now + 1.7);
+    });
+
+    // ─── 4. SUSTAINED TENSION PAD (from 2nd wheel onward) ─────────
+    // Low detuned sawtooth pair with slow filter sweep — sits in the
+    // background creating ongoing dread for the wait between reels.
+    if(layerIdx >= 1){
+      var padRoot = 130 + layerIdx * 18;  // 148, 166 Hz
+      var pad1 = ctx.createOscillator();
+      var pad2 = ctx.createOscillator();
+      var padLP = ctx.createBiquadFilter();
+      var padG  = ctx.createGain();
+      pad1.type = 'sawtooth'; pad2.type = 'sawtooth';
+      pad1.frequency.value = padRoot;
+      pad2.frequency.value = padRoot * 1.005;  // slight detune for fatness
+      padLP.type = 'lowpass';
+      padLP.Q.value = 0.8;
+      padLP.frequency.setValueAtTime(380, now);
+      padLP.frequency.exponentialRampToValueAtTime(900 + layerIdx * 300, now + 1.8);
+      pad1.connect(padLP);
+      pad2.connect(padLP);
+      padLP.connect(padG).connect(dest);
+      padG.gain.setValueAtTime(0, now);
+      padG.gain.linearRampToValueAtTime(0.11 + layerIdx * 0.04, now + 0.5);
+      padG.gain.linearRampToValueAtTime(0.07, now + 1.7);
+      padG.gain.exponentialRampToValueAtTime(0.001, now + 2.2);
+      pad1.start(now); pad2.start(now);
+      pad1.stop(now + 2.3); pad2.stop(now + 2.3);
+    }
+
+    // ─── 5. CYMBAL SWELL (3rd wheel = max drama) ──────────────────
     if(layerIdx >= 2){
-      var sr = ctx.sampleRate;
-      var bufLen = Math.floor(sr * 0.8);
-      var buf = ctx.createBuffer(1, bufLen, sr);
-      var data = buf.getChannelData(0);
-      for(var i = 0; i < bufLen; i++){
-        var t = i / sr;
-        data[i] = (Math.random() * 2 - 1) * Math.exp(-t * 1.5) * 0.30;
+      var cyLen = Math.floor(sr * 1.6);
+      var cyBuf = ctx.createBuffer(1, cyLen, sr);
+      var cyData = cyBuf.getChannelData(0);
+      for(var ci = 0; ci < cyLen; ci++){
+        var ct = ci / sr;
+        cyData[ci] = (Math.random() * 2 - 1) * Math.exp(-ct * 1.0) * 0.45;
       }
-      var src = ctx.createBufferSource();
-      src.buffer = buf;
-      var filt = ctx.createBiquadFilter();
-      filt.type = 'highpass';
-      filt.frequency.setValueAtTime(800, now);
-      filt.frequency.exponentialRampToValueAtTime(4000, now + 0.8);
-      src.connect(filt).connect(ctx.destination);
-      src.start(now);
+      var cy = ctx.createBufferSource();
+      cy.buffer = cyBuf;
+      var cyHP = ctx.createBiquadFilter();
+      cyHP.type = 'highpass';
+      cyHP.frequency.setValueAtTime(1200, now);
+      cyHP.frequency.exponentialRampToValueAtTime(6500, now + 1.0);
+      var cyG = ctx.createGain();
+      cyG.gain.setValueAtTime(0, now);
+      cyG.gain.linearRampToValueAtTime(0.32, now + 0.4);
+      cyG.gain.exponentialRampToValueAtTime(0.001, now + 1.6);
+      cy.connect(cyHP).connect(cyG).connect(dest);
+      cy.start(now);
+      cy.stop(now + 1.7);
+      // Orchestral hit on 3rd wheel — short brassy stab right at the boom
+      var brass = ctx.createOscillator();
+      var brass2 = ctx.createOscillator();
+      var brassG = ctx.createGain();
+      brass.type = 'sawtooth'; brass2.type = 'square';
+      brass.frequency.value = 220;
+      brass2.frequency.value = 165;  // perfect fifth below
+      var brassLP = ctx.createBiquadFilter();
+      brassLP.type = 'lowpass';
+      brassLP.frequency.value = 1800;
+      brass.connect(brassLP); brass2.connect(brassLP);
+      brassLP.connect(brassG).connect(dest);
+      brassG.gain.setValueAtTime(0, now);
+      brassG.gain.linearRampToValueAtTime(0.18, now + 0.015);
+      brassG.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+      brass.start(now); brass2.start(now);
+      brass.stop(now + 0.7); brass2.stop(now + 0.7);
     }
   } catch(e){}
 }
@@ -15005,7 +15260,7 @@ function pkTone(ctx, freq, dur, type, vol){
     osc.type = type || 'sine';
     osc.frequency.value = freq;
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(slv2AudioDest());
     var t0 = ctx.currentTime;
     gain.gain.setValueAtTime(0, t0);
     gain.gain.linearRampToValueAtTime(vol || 0.15, t0 + 0.006);
@@ -15032,9 +15287,9 @@ function pkPlayBuf(ctx, gen, durSec, filterType, filterFreq){
       filt.type = filterType;
       filt.frequency.value = filterFreq || 2000;
       src.connect(filt);
-      filt.connect(ctx.destination);
+      filt.connect(slv2AudioDest());
     } else {
-      src.connect(ctx.destination);
+      src.connect(slv2AudioDest());
     }
     src.start();
   } catch(e){}
@@ -16394,7 +16649,7 @@ function plPegBounceSound(ball){
     osc.type = 'triangle';
     osc.frequency.value = pitch;
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(slv2AudioDest());
     var t0 = ctx.currentTime;
     gain.gain.setValueAtTime(0, t0);
     gain.gain.linearRampToValueAtTime(vol, t0 + 0.002);
