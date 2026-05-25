@@ -5198,6 +5198,69 @@ body{position:relative;}
   100% { transform: translate(1px, 1px); }
 }
 
+/* ─── ESCALATING TIER VIGNETTE ─────────────────────────────────────
+   Each new wheel found ramps up the screen darkening + tint shift.
+   tier-1 = subtle gold cast | tier-2 = stronger amber + reds creep in
+   tier-3 = full red-gold inferno vignette */
+#slots.suspense-tier-1::before{
+  background: radial-gradient(ellipse at 50% 40%,
+              rgba(0,0,0,0) 25%,
+              rgba(0,0,0,.4) 70%,
+              rgba(30,15,0,.85) 100%);
+}
+#slots.suspense-tier-2::before{
+  background: radial-gradient(ellipse at 50% 40%,
+              rgba(0,0,0,0) 22%,
+              rgba(40,20,0,.55) 60%,
+              rgba(60,15,0,.92) 100%);
+}
+#slots.suspense-tier-3::before{
+  background: radial-gradient(ellipse at 50% 40%,
+              rgba(0,0,0,0) 18%,
+              rgba(80,30,0,.65) 55%,
+              rgba(120,10,0,.95) 100%);
+  animation: slv2VignetteTier3 0.7s ease-in-out infinite alternate;
+}
+@keyframes slv2VignetteTier3{
+  from { filter: brightness(1); }
+  to   { filter: brightness(1.18) saturate(1.2); }
+}
+
+/* Cabinet shake intensity by tier */
+.slv2-cabinet.wheel-suspense.tier-1{
+  animation: slv2CabinetSuspense 0.6s ease-in-out infinite alternate;
+}
+.slv2-cabinet.wheel-suspense.tier-2{
+  animation: slv2CabinetSuspense 0.5s ease-in-out infinite alternate,
+             slv2CabinetTremorLight 0.16s linear infinite;
+}
+.slv2-cabinet.wheel-suspense.tier-3{
+  animation: slv2CabinetSuspense 0.4s ease-in-out infinite alternate,
+             slv2CabinetTremor 0.10s linear infinite;
+}
+@keyframes slv2CabinetTremorLight{
+  0%,100% { transform: translate(0, 0); }
+  50%     { transform: translate(0.5px, -0.5px); }
+}
+
+/* Wheel-spark particles — gold dots fly outward from each newly locked wheel symbol */
+.slv2-wheel-spark{
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #fff8d0, #ffd700 50%, #ff8800);
+  box-shadow: 0 0 8px #ffd700, 0 0 16px #ff8800;
+  pointer-events: none;
+  z-index: 6;
+  animation: slv2WheelSpark 0.9s cubic-bezier(.4, 0, .2, 1) backwards;
+}
+@keyframes slv2WheelSpark{
+  0%   { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+  15%  { transform: translate(-50%, -50%) scale(1.4); opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--tx, 0)), calc(-50% + var(--ty, 0))) scale(0.3); opacity: 0; }
+}
+
 /* Wheel symbols that already landed pulse golden during suspense */
 .slv2-sym.sym-wheel.wheel-locked{
   animation: slv2WheelLocked 0.5s ease-in-out infinite alternate !important;
@@ -6229,6 +6292,72 @@ body{position:relative;}
   height:280px;
   filter:drop-shadow(0 8px 30px rgba(0,0,0,.7)) drop-shadow(0 0 30px rgba(255,170,0,.5));
 }
+/* ─── FS RANDOM ROLL OVERLAY ───────────────────────────────────────
+   Slot-machine-style number counter that rolls 5-15 with bet-tier
+   weighting and lands on the final value. Visible when an fs_random
+   segment is selected on the wheel. */
+.slv2-fs-roll{
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%) scale(0.5);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 25;
+  text-align: center;
+  background: radial-gradient(ellipse at center, rgba(20, 80, 30, .96) 0%, rgba(0, 0, 0, .96) 75%);
+  border: 3px solid #39ff14;
+  border-radius: 24px;
+  padding: 22px 38px;
+  box-shadow:
+    0 0 0 1px rgba(57, 255, 20, .5),
+    0 0 50px rgba(57, 255, 20, .6),
+    0 0 120px rgba(57, 255, 20, .3),
+    inset 0 0 30px rgba(57, 255, 20, .15);
+  transition: opacity .35s ease-out, transform .45s cubic-bezier(.34, 1.5, .64, 1);
+}
+.slv2-fs-roll.visible{
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+.slv2-fs-roll-label{
+  font-family: 'Russo One', sans-serif;
+  font-size: 13px;
+  letter-spacing: 4px;
+  color: #86efac;
+  text-shadow: 0 0 8px rgba(57, 255, 20, .8);
+}
+.slv2-fs-roll-num{
+  font-family: 'Russo One', sans-serif;
+  font-size: 86px;
+  font-weight: 900;
+  line-height: 1.05;
+  color: #fff;
+  text-shadow:
+    0 0 12px rgba(57, 255, 20, 1),
+    0 0 30px rgba(57, 255, 20, .8),
+    0 0 60px rgba(57, 255, 20, .5);
+  margin: 4px 0;
+  font-variant-numeric: tabular-nums;
+  display: inline-block;
+  min-width: 80px;
+}
+.slv2-fs-roll-num.locked{
+  animation: slv2FsRollLocked .8s cubic-bezier(.34, 1.5, .64, 1);
+}
+@keyframes slv2FsRollLocked{
+  0%   { transform: scale(1); color: #fff; }
+  30%  { transform: scale(1.4); color: #ffd700;
+         text-shadow: 0 0 30px #ffd700, 0 0 60px #ff8800, 0 0 100px #ff8800; }
+  100% { transform: scale(1.15); color: #ffd700;
+         text-shadow: 0 0 24px #ffd700, 0 0 48px #ff8800; }
+}
+.slv2-fs-roll-sub{
+  font-family: 'Orbitron', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: rgba(255, 255, 255, .7);
+  margin-top: 2px;
+}
 .slv2-bw-segment{
   cursor:default;
   transition:filter 0.3s;
@@ -7143,6 +7272,13 @@ body{position:relative;}
         </div>
         <button class="slv2-bw-spin-btn" id="slv2-bw-spin" onclick="slv2BonusWheelSpin()">SPIN THE WHEEL</button>
         <div class="slv2-bw-result" id="slv2-bw-result"></div>
+        <!-- FS roll dialog: shows when fs_random segment is hit. Slot-machine-style
+             number rolling from 5-15, decelerating to land on the rolled value. -->
+        <div class="slv2-fs-roll" id="slv2-fs-roll">
+          <div class="slv2-fs-roll-label">FREE SPINS</div>
+          <div class="slv2-fs-roll-num" id="slv2-fs-roll-num">5</div>
+          <div class="slv2-fs-roll-sub" id="slv2-fs-roll-sub">rolling\u2026</div>
+        </div>
         <button class="slv2-bw-collect" id="slv2-bw-collect" onclick="slv2BonusWheelClose()" style="display:none;">COLLECT</button>
       </div>
     </div>
@@ -8584,23 +8720,17 @@ var SL2_REEL = [
   'btc'
 ];  // total: 30 symbols per reel
 // Payouts (multiplier on per-line bet) — 5-of-a-kind, 4-of-a-kind, 3-of-a-kind
-// ─── BALANCE PASS 2 (post-user-test rebalance) ──────────────────────
-// Previous paytable allowed a tester to grow €10 bets into €10k in one day
-// of play — RTP was way too high (~110%). The user explicitly requested
-// the game be centered on the WHEEL SCATTER, with paylines giving only
-// modest wins. Paytable cut ~50% across the board; the wheel is now the
-// real value driver (bet-tier-balanced — see SL2_WHEEL_TIERS below).
-//
-// New "ceiling" for a base-game win on €10 bet (€1/line, 10 lines):
-//   5 wilds across one payline = €25000  (was €50000)
-//   3-of-a-kind low symbols    = few € per line (was €10s)
-var SL2_PAY_5 = {'btc':2500,'gblogo':500,'gem':400,'seven':250,'bell':100,'bolt':50, 'star':25, 'spade':10 };
-var SL2_PAY_4 = {'btc':250, 'gblogo':75, 'gem':60, 'seven':37, 'bell':20, 'bolt':10, 'star':5,  'spade':2  };
-var SL2_PAY_3 = {'btc':30,  'gblogo':15, 'gem':12, 'seven':8,  'bell':5,  'bolt':3,  'star':1.5,'spade':0.5};
-// Scatter (bot symbol anywhere on grid) — also trimmed. Wheel scatter is the
-// main bonus driver; bot scatter is just an FS bumper.
-var SL2_SCATTER_PAY = {3:2, 4:8, 5:40};         // bet multiplier (was 5/25/100)
-var SL2_SCATTER_FS  = {3:5, 4:8, 5:12};         // free spins triggered (was 8/12/18)
+// ─── BALANCE PASS 3 — small bump up after pass-2 was too punishing ──
+// Pass 2 cut paytable to ~50% of original, but playtesting showed RTP
+// was too low (players "only losing money"). Bumped to ~70% of original
+// — combined with the tiered wheel, total RTP target is ~85-92%.
+// Big prizes still gated to the wheel per user spec.
+var SL2_PAY_5 = {'btc':3500,'gblogo':700,'gem':550,'seven':350,'bell':140,'bolt':70, 'star':35, 'spade':14 };
+var SL2_PAY_4 = {'btc':350, 'gblogo':105,'gem':84, 'seven':52, 'bell':28, 'bolt':14, 'star':7,  'spade':3  };
+var SL2_PAY_3 = {'btc':42,  'gblogo':21, 'gem':17, 'seven':11, 'bell':7,  'bolt':4,  'star':2.1,'spade':0.7};
+// Scatter (bot symbol anywhere on grid) — also slightly bumped from pass 2
+var SL2_SCATTER_PAY = {3:3, 4:12, 5:60};        // bet multiplier
+var SL2_SCATTER_FS  = {3:6, 4:10, 5:15};        // free spins triggered
 
 // ─── BET-TIERED WHEEL CONFIGS ──────────────────────────────────────
 // Per user spec: "la wheel a seconda della puntata dovrebbe avere
@@ -8619,35 +8749,36 @@ var SL2_SCATTER_FS  = {3:5, 4:8, 5:12};         // free spins triggered (was 8/1
 var SL2_WHEEL_TIERS = {
   LOW: {
     label: 'LOW',
-    // Avg payout ~5× — bulk of segments in 2-6× range, max 15×
+    // 2 FS segments (per user request). FS count is rolled 5-15 with bet-weighted
+    // distribution when one of these lands. Cash values bumped slightly vs pass-2.
     segments: [
       { type:'cash',    value:3,   weight:18, color:'#5fc7ff', label:'3×'     },
-      { type:'cash',    value:4,   weight:16, color:'#5fc7ff', label:'4×'     },
-      { type:'cash',    value:2,   weight:14, color:'#5fc7ff', label:'2×'     },
-      { type:'cash',    value:5,   weight:12, color:'#7dd3fc', label:'5×'     },
+      { type:'cash',    value:4,   weight:15, color:'#5fc7ff', label:'4×'     },
+      { type:'cash',    value:2,   weight:13, color:'#5fc7ff', label:'2×'     },
+      { type:'cash',    value:5,   weight:11, color:'#7dd3fc', label:'5×'     },
       { type:'cash',    value:6,   weight:9,  color:'#7dd3fc', label:'6×'     },
-      { type:'cash',    value:3,   weight:9,  color:'#5fc7ff', label:'3×'     },
-      { type:'fs',      value:8,   weight:6,  color:'#39ff14', label:'8 FS'   },
+      { type:'cash',    value:8,   weight:7,  color:'#7dd3fc', label:'8×'     },
+      { type:'fs_random',          weight:6,  color:'#39ff14', label:'FS'     },
       { type:'chest',              weight:5,  color:'#a855f7', label:'🔑'      },
-      { type:'cash',    value:8,   weight:4,  color:'#7dd3fc', label:'8×'     },
+      { type:'fs_random',          weight:4,  color:'#22c55e', label:'FS'     },
+      { type:'cash',    value:10,  weight:4,  color:'#ff8844', label:'10×'    },
       { type:'mystery',            weight:4,  color:'#e879f9', label:'?'      },
-      { type:'cash',    value:10,  weight:2,  color:'#ff8844', label:'10×'    },
-      { type:'cash',    value:15,  weight:1,  color:'#ffd700', label:'15×'    }
+      { type:'cash',    value:15,  weight:2,  color:'#ffd700', label:'15×'    }
     ]
   },
   MID: {
     label: 'MID',
-    // Avg payout ~6× — slightly higher variance, max 30× + jackpot
     segments: [
-      { type:'cash',    value:3,   weight:16, color:'#5fc7ff', label:'3×'     },
-      { type:'cash',    value:4,   weight:14, color:'#5fc7ff', label:'4×'     },
-      { type:'cash',    value:5,   weight:12, color:'#7dd3fc', label:'5×'     },
-      { type:'cash',    value:3,   weight:11, color:'#5fc7ff', label:'3×'     },
+      { type:'cash',    value:3,   weight:15, color:'#5fc7ff', label:'3×'     },
+      { type:'cash',    value:4,   weight:13, color:'#5fc7ff', label:'4×'     },
+      { type:'cash',    value:5,   weight:11, color:'#7dd3fc', label:'5×'     },
       { type:'cash',    value:6,   weight:10, color:'#7dd3fc', label:'6×'     },
-      { type:'cash',    value:8,   weight:8,  color:'#7dd3fc', label:'8×'     },
-      { type:'fs',      value:10,  weight:6,  color:'#39ff14', label:'10 FS'  },
+      { type:'cash',    value:8,   weight:9,  color:'#7dd3fc', label:'8×'     },
+      { type:'cash',    value:3,   weight:8,  color:'#5fc7ff', label:'3×'     },
+      { type:'fs_random',          weight:6,  color:'#39ff14', label:'FS'     },
       { type:'chest',              weight:6,  color:'#a855f7', label:'🔑'      },
       { type:'cash',    value:12,  weight:5,  color:'#ff8844', label:'12×'    },
+      { type:'fs_random',          weight:5,  color:'#22c55e', label:'FS'     },
       { type:'mystery',            weight:5,  color:'#e879f9', label:'?'      },
       { type:'cash',    value:20,  weight:3,  color:'#ff8844', label:'20×'    },
       { type:'cash',    value:30,  weight:1,  color:'#ffd700', label:'30×'    },
@@ -8656,18 +8787,17 @@ var SL2_WHEEL_TIERS = {
   },
   HIGH: {
     label: 'HIGH',
-    // Avg payout ~7× — long-tail high variance. Most spins are 3-8×, but
-    // rare 50/100/200× hits give the big-roller real upside. Max 200× + jackpot.
     segments: [
-      { type:'cash',    value:3,   weight:16, color:'#5fc7ff', label:'3×'     },
-      { type:'cash',    value:4,   weight:14, color:'#5fc7ff', label:'4×'     },
-      { type:'cash',    value:5,   weight:12, color:'#7dd3fc', label:'5×'     },
+      { type:'cash',    value:3,   weight:14, color:'#5fc7ff', label:'3×'     },
+      { type:'cash',    value:4,   weight:12, color:'#5fc7ff', label:'4×'     },
+      { type:'cash',    value:5,   weight:11, color:'#7dd3fc', label:'5×'     },
       { type:'cash',    value:6,   weight:10, color:'#7dd3fc', label:'6×'     },
       { type:'cash',    value:8,   weight:9,  color:'#7dd3fc', label:'8×'     },
-      { type:'cash',    value:3,   weight:8,  color:'#5fc7ff', label:'3×'     },
-      { type:'cash',    value:12,  weight:7,  color:'#ff8844', label:'12×'    },
-      { type:'fs',      value:12,  weight:6,  color:'#39ff14', label:'12 FS'  },
+      { type:'cash',    value:3,   weight:7,  color:'#5fc7ff', label:'3×'     },
+      { type:'cash',    value:12,  weight:6,  color:'#ff8844', label:'12×'    },
+      { type:'fs_random',          weight:6,  color:'#39ff14', label:'FS'     },
       { type:'chest',              weight:6,  color:'#a855f7', label:'🔑'      },
+      { type:'fs_random',          weight:5,  color:'#22c55e', label:'FS'     },
       { type:'cash',    value:25,  weight:4,  color:'#ff8844', label:'25×'    },
       { type:'mystery',            weight:5,  color:'#e879f9', label:'?'      },
       { type:'cash',    value:50,  weight:2,  color:'#ffd700', label:'50×'    },
@@ -8676,6 +8806,30 @@ var SL2_WHEEL_TIERS = {
     ]
   }
 };
+// Roll a random FS count (5-15) weighted by bet tier.
+// LOW skews low (5-9), MID balanced, HIGH skews high (10-15).
+function slv2RollRandomFsCount(){
+  var tier = SL2.bwTier || 'MID';
+  // Build a weighted distribution. Same range (5-15), different bias.
+  var weights;
+  if(tier === 'LOW'){
+    // skew low: 5 is most likely, 15 nearly impossible
+    weights = [22, 20, 17, 13, 10, 7, 5, 3, 2, 1, 0.5];
+  } else if(tier === 'HIGH'){
+    // skew high: 15 is most likely, 5 nearly impossible
+    weights = [0.5, 1, 2, 3, 5, 7, 10, 13, 17, 20, 22];
+  } else {
+    // MID: bell curve around 10
+    weights = [4, 7, 10, 13, 15, 16, 15, 13, 10, 7, 4];
+  }
+  var total = weights.reduce(function(a,b){return a+b;}, 0);
+  var r = Math.random() * total;
+  for(var i = 0; i < weights.length; i++){
+    r -= weights[i];
+    if(r <= 0) return 5 + i;
+  }
+  return 10; // safety fallback
+}
 // Pick the wheel tier for the player's current bet
 function slv2WheelTierForBet(bet){
   if(bet <= 2)       return 'LOW';
@@ -9685,6 +9839,13 @@ function slv2Spin(){
   // Reset escalating wheel-suspense tracker (each new wheel found on
   // reels 0-2 increases the slowdown intensity on remaining reels)
   SL2._wheelCountLastDetected = 0;
+  // Reset per-spin audio layer counter (each new wheel adds a layer)
+  SL2._wheelAnticipationLayersPlayed = 0;
+  // Stop any heartbeat from a previous spin (will restart if 2+ wheels found)
+  if(SL2._wheelHeartbeatId){
+    clearInterval(SL2._wheelHeartbeatId);
+    SL2._wheelHeartbeatId = null;
+  }
   // Clear grid — each reel's stop callback re-populates its row. Without
   // this reset, stale 'wheel' values from the previous spin would leak
   // into the anticipation check and trigger false positives.
@@ -11101,6 +11262,32 @@ function slv2BonusWheelSpin(){
         }, 1500);
       }
     }
+    else if(seg.type === 'fs_random'){
+      // Animated FS-count roll — display rolls fast then slows on the final
+      // value. The result is rolled now (so we can land precisely), but
+      // shown to the player through a 1.6s deceleration animation.
+      var rolledFs = slv2RollRandomFsCount();
+      if(result) result.textContent = '';
+      slv2PlayFsRollAnimation(rolledFs, function(){
+        // After animation completes, award the FS as if it were a standard FS segment
+        slv2Sound('big-win');
+        if(SL2.fsActive){
+          SL2.fsRemaining = (SL2.fsRemaining || 0) + rolledFs;
+          SL2.fsCount     = (SL2.fsCount     || 0) + rolledFs;
+          slv2UpdateFsUI();
+          slv2SendSlotEvent('fs_round', { count: rolledFs, retrigger: true });
+          setTimeout(function(){
+            slv2ShowFsRetriggerToast(rolledFs);
+            slv2BonusWheelClose();
+          }, 1200);
+        } else {
+          setTimeout(function(){
+            slv2BonusWheelClose();
+            setTimeout(function(){ slv2TriggerFreeSpinsIntro(rolledFs); }, 350);
+          }, 1200);
+        }
+      });
+    }
     else if(seg.type === 'chest'){
       // Trigger the vault game — close wheel and open vault
       if(result) result.textContent = 'VAULT UNLOCKED!';
@@ -11549,6 +11736,90 @@ function slv2MaybeTriggerBonus(spinHadWin){
 }
 
 // Reset counter + re-randomize next wheel trigger threshold (35..70 spins)
+// Animated FS-count reveal: numbers cycle rapidly through 5-15 then decelerate
+// to land precisely on the rolled value. ~1.7s total — punchy but with enough
+// suspense for the player to read the result. Includes per-tick audio + final
+// "lock" pop on the chosen number.
+function slv2PlayFsRollAnimation(finalCount, onDone){
+  var box = document.getElementById('slv2-fs-roll');
+  var num = document.getElementById('slv2-fs-roll-num');
+  var sub = document.getElementById('slv2-fs-roll-sub');
+  if(!box || !num){ if(onDone) onDone(); return; }
+  // Reveal box with bounce
+  box.classList.remove('visible');
+  num.classList.remove('locked');
+  num.textContent = '5';
+  if(sub) sub.textContent = 'rolling\u2026';
+  // Force reflow so transition runs
+  void box.offsetWidth;
+  box.classList.add('visible');
+  // Cycle pattern: start fast (~50ms per tick), decelerate cubically to land
+  var totalDuration = 1700;
+  var ticks = [];
+  var t = 0;
+  var i = 0;
+  // Compute tick timings: cubic ease-out — gap between ticks grows over time
+  while(t < totalDuration){
+    var progress = t / totalDuration;
+    // Gap: from ~45ms → ~280ms across the duration
+    var gap = 45 + Math.pow(progress, 2.6) * 240;
+    ticks.push(t);
+    t += gap;
+    i++;
+    if(i > 200) break;
+  }
+  // Final tick should land EXACTLY on finalCount — replace the last sequence
+  // entry with a slightly extended pause + final reveal.
+  var lastTickAt = ticks[ticks.length - 1];
+  ticks.push(lastTickAt + 280);  // give it some space for the lock
+  // Schedule each tick
+  ticks.forEach(function(delay, idx){
+    setTimeout(function(){
+      var isFinal = (idx === ticks.length - 1);
+      if(isFinal){
+        num.textContent = String(finalCount);
+        num.classList.add('locked');
+        if(sub) sub.textContent = 'FREE SPINS!';
+        // Land sound — bright ding
+        try {
+          var ctx = slv2EnsureAudio();
+          if(ctx){
+            var osc = ctx.createOscillator();
+            var g   = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(1568, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(3136, ctx.currentTime + 0.18);
+            g.gain.setValueAtTime(0, ctx.currentTime);
+            g.gain.linearRampToValueAtTime(0.22, ctx.currentTime + 0.02);
+            g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.55);
+            osc.connect(g).connect(ctx.destination);
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 0.6);
+          }
+        } catch(e){}
+        // Wait a moment for the player to enjoy the result, then continue
+        setTimeout(function(){
+          box.classList.remove('visible');
+          if(onDone) onDone();
+        }, 950);
+      } else {
+        // Cycle through a random value 5-15 (visual roll — different each tick)
+        var roll = 5 + Math.floor(Math.random() * 11);
+        num.textContent = String(roll);
+        // Tick audio — pitch rises gently as we slow down
+        try {
+          var ctx2 = slv2EnsureAudio();
+          if(ctx2){
+            var prog = idx / ticks.length;
+            var freq = 800 + prog * 600;
+            slv2PlayTone(freq, 0.04, 'triangle', 0.07);
+          }
+        } catch(e){}
+      }
+    }, delay);
+  });
+}
+
 function slv2ResetBonusCounter(){
   SL2.spinsSinceLastBonus = 0;
   SL2.nextBonusAt = 25 + Math.floor(Math.random() * 21); // 25..45 inclusive
@@ -11950,13 +12221,14 @@ function slv2ClearAnticipation(){
   document.querySelectorAll('.wheel-locked').forEach(function(el){ el.classList.remove('wheel-locked'); });
   var cab = document.querySelector('.slv2-cabinet');
   if(cab){
-    cab.classList.remove('wheel-suspense');
-    cab.classList.remove('tier-max');
+    cab.classList.remove('wheel-suspense', 'tier-max', 'tier-1', 'tier-2', 'tier-3');
   }
-  // Remove screen vignette
+  // Remove screen vignette + tier classes
   var slotScreen = document.getElementById('slots');
-  if(slotScreen) slotScreen.classList.remove('suspense-active');
-  // Stop any in-flight suspense audio
+  if(slotScreen){
+    slotScreen.classList.remove('suspense-active', 'suspense-tier-1', 'suspense-tier-2', 'suspense-tier-3');
+  }
+  // Stop any in-flight suspense audio + heartbeat
   slv2StopWheelSuspense();
 }
 
@@ -12101,74 +12373,180 @@ function slv2CheckWheelAnticipation(maxReelIdx){
     var cab = document.querySelector('.slv2-cabinet');
     if(cab){
       cab.classList.add('wheel-suspense');
-      // Tier escalation: 2+ wheels = max-drama tremor
+      // Tier escalation: more wheels = more drama
+      cab.classList.remove('tier-1','tier-2','tier-3','tier-max');
+      cab.classList.add('tier-' + Math.min(wheelCount, 3));
       if(wheelCount >= 2) cab.classList.add('tier-max');
     }
     // Activate global vignette via screen-level class
     var slotScreen = document.getElementById('slots');
-    if(slotScreen) slotScreen.classList.add('suspense-active');
-    // Lock pulse on the wheel symbols already landed
+    if(slotScreen){
+      slotScreen.classList.add('suspense-active');
+      slotScreen.classList.remove('suspense-tier-1','suspense-tier-2','suspense-tier-3');
+      slotScreen.classList.add('suspense-tier-' + Math.min(wheelCount, 3));
+    }
+    // Lock pulse on the wheel symbols already landed + spawn a particle burst per wheel
     wheelCells.forEach(function(c){
       var strip = document.getElementById('slv2-strip-' + c.reel);
       if(!strip) return;
       var cellIdx = SL2.positions[c.reel] + (c.row - 1);
       var cell = strip.children[cellIdx];
-      if(cell) cell.classList.add('wheel-locked');
+      if(cell && !cell.classList.contains('wheel-locked')){
+        cell.classList.add('wheel-locked');
+        // ✨ NEW: particle burst on first appearance — gold sparks shooting outward
+        slv2SpawnWheelBurst(cell);
+      }
     });
-    // Audio: play crescendo ONCE per spin (multiple wheels on different reels
-    // don't restack the audio). Use a flag on the SL2 state.
-    if(!SL2._wheelAnticipationAudioPlayed){
-      SL2._wheelAnticipationAudioPlayed = true;
-      slv2PlayWheelSuspense();
+    // ─── PER-WHEEL AUDIO CRESCENDO ────────────────────────────────
+    // Each NEW wheel discovered triggers a NEW audio layer with higher
+    // pitch + extra harmonic richness. Up to 3 layers (one per wheel).
+    var prevWheelCount = SL2._wheelAnticipationLayersPlayed || 0;
+    if(wheelCount > prevWheelCount){
+      var newLayers = wheelCount - prevWheelCount;
+      for(var nl = 0; nl < newLayers; nl++){
+        var layerIdx = prevWheelCount + nl;       // 0, 1, 2 for the 1st, 2nd, 3rd wheel
+        slv2PlayWheelSuspenseLayer(layerIdx);
+      }
+      SL2._wheelAnticipationLayersPlayed = wheelCount;
+    }
+    // ─── HEARTBEAT — kicks in once we have 2+ wheels ──────────────
+    // A slow thumping pulse plays under the layers, building anxiety
+    // while the player waits for reel 3 and 4 to land.
+    if(wheelCount >= 2 && !SL2._wheelHeartbeatId){
+      SL2._wheelHeartbeatId = setInterval(slv2PlayHeartbeatThump, 580);
     }
     return wheelCount;
   }
   return 0;
 }
 
-// Rising synth pad — frequency ramps low→high + volume crescendo,
-// continues until cleared (when last reel lands and result resolves).
-// Duration ~1.1s to fit the window between reel 2 stop and reel 4 stop.
-function slv2PlayWheelSuspense(){
+// Spawn a small gold spark burst from a cell — adds visual punch when
+// a new wheel symbol locks in during the suspense.
+function slv2SpawnWheelBurst(cellEl){
+  if(!cellEl) return;
+  for(var p = 0; p < 8; p++){
+    var spark = document.createElement('div');
+    spark.className = 'slv2-wheel-spark';
+    var angle = (p / 8) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+    var dist = 45 + Math.random() * 30;
+    spark.style.setProperty('--tx', Math.cos(angle) * dist + 'px');
+    spark.style.setProperty('--ty', Math.sin(angle) * dist + 'px');
+    spark.style.animationDelay = (p * 18) + 'ms';
+    cellEl.appendChild(spark);
+    (function(s){ setTimeout(function(){ if(s.parentNode) s.parentNode.removeChild(s); }, 900); })(spark);
+  }
+}
+
+// Slow chest-thumping heartbeat — adds anxiety during the wait for the
+// final reels when 2+ wheels are already locked.
+function slv2PlayHeartbeatThump(){
   if(!SL2.soundsEnabled) return;
   var ctx = slv2EnsureAudio();
   if(!ctx) return;
   try {
-    // Pad #1: sustained tone climbing in pitch
-    var osc1 = ctx.createOscillator();
-    var gain1 = ctx.createGain();
-    osc1.type = 'sawtooth';
-    osc1.frequency.setValueAtTime(140, ctx.currentTime);
-    osc1.frequency.exponentialRampToValueAtTime(720, ctx.currentTime + 1.1);
-    gain1.gain.setValueAtTime(0.0001, ctx.currentTime);
-    gain1.gain.exponentialRampToValueAtTime(0.20, ctx.currentTime + 0.9);
-    gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.3);
-    osc1.connect(gain1).connect(ctx.destination);
-    osc1.start(ctx.currentTime);
-    osc1.stop(ctx.currentTime + 1.35);
-    // Pad #2: shimmer fifth above, slight detune for richness
+    // Double-thump: lub-DUB pattern
+    function thump(freq, vol, delay){
+      setTimeout(function(){
+        var o = ctx.createOscillator();
+        var g = ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(freq, ctx.currentTime);
+        o.frequency.exponentialRampToValueAtTime(freq * 0.5, ctx.currentTime + 0.18);
+        g.gain.setValueAtTime(vol, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22);
+        o.connect(g).connect(ctx.destination);
+        o.start(ctx.currentTime);
+        o.stop(ctx.currentTime + 0.25);
+      }, delay);
+    }
+    thump(75, 0.32, 0);    // lub
+    thump(60, 0.24, 130);  // DUB (slightly lower, softer)
+  } catch(e){}
+}
+
+// ─── PER-WHEEL CRESCENDO LAYER ─────────────────────────────────────
+// Plays one layer of the suspense soundscape. Layers stack — each new
+// wheel found adds another, richer, higher-pitched layer on top of
+// the existing audio. Up to 3 layers (one per wheel on reels 0-2).
+function slv2PlayWheelSuspenseLayer(layerIdx){
+  if(!SL2.soundsEnabled) return;
+  var ctx = slv2EnsureAudio();
+  if(!ctx) return;
+  try {
+    var now = ctx.currentTime;
+    // Layer config — pitch, duration, and timbre scale with layer index
+    var layers = [
+      // Layer 0 — 1st wheel: deep menacing bass climb
+      { startFreq: 110, endFreq: 480, dur: 1.6, vol: 0.20, type: 'sawtooth', harmonic: 1.5 },
+      // Layer 1 — 2nd wheel: mid bell + brighter climb
+      { startFreq: 220, endFreq: 1200, dur: 1.6, vol: 0.18, type: 'triangle', harmonic: 2.0 },
+      // Layer 2 — 3rd wheel: shrill descending tension + cymbal sweep
+      { startFreq: 440, endFreq: 2400, dur: 1.6, vol: 0.16, type: 'square', harmonic: 3.0 }
+    ];
+    var L = layers[Math.min(layerIdx, 2)];
+    // Primary pad
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = L.type;
+    osc.frequency.setValueAtTime(L.startFreq, now);
+    osc.frequency.exponentialRampToValueAtTime(L.endFreq, now + L.dur);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(L.vol, now + L.dur * 0.75);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + L.dur + 0.2);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + L.dur + 0.3);
+    // Harmonic shimmer
     var osc2 = ctx.createOscillator();
     var gain2 = ctx.createGain();
     osc2.type = 'triangle';
-    osc2.frequency.setValueAtTime(210, ctx.currentTime);
-    osc2.frequency.exponentialRampToValueAtTime(1080, ctx.currentTime + 1.1);
-    gain2.gain.setValueAtTime(0.0001, ctx.currentTime);
-    gain2.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.9);
-    gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.3);
+    osc2.frequency.setValueAtTime(L.startFreq * L.harmonic, now);
+    osc2.frequency.exponentialRampToValueAtTime(L.endFreq * L.harmonic, now + L.dur);
+    gain2.gain.setValueAtTime(0.0001, now);
+    gain2.gain.exponentialRampToValueAtTime(L.vol * 0.55, now + L.dur * 0.85);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + L.dur + 0.2);
     osc2.connect(gain2).connect(ctx.destination);
-    osc2.start(ctx.currentTime);
-    osc2.stop(ctx.currentTime + 1.35);
-    // Build accent ticks accelerating toward final reel land — riser pattern
-    SL2._wheelSuspenseOsc = [osc1, osc2];
-    var beats = [0.10, 0.25, 0.38, 0.49, 0.58, 0.66, 0.73, 0.79, 0.84, 0.89, 0.93];
-    beats.forEach(function(t, i){
-      setTimeout(function(){
-        if(!SL2._wheelSuspenseOsc) return; // cancelled
-        slv2PlayTone(660 + i * 60, 0.04, 'square', 0.07);
-      }, t * 1000);
-    });
+    osc2.start(now);
+    osc2.stop(now + L.dur + 0.3);
+    // Immediate impact stinger for the discovery moment — bright ping
+    var ping = ctx.createOscillator();
+    var pingG = ctx.createGain();
+    ping.type = 'triangle';
+    ping.frequency.value = 1568 + layerIdx * 392;  // C6, E6, G6
+    pingG.gain.setValueAtTime(0.30, now);
+    pingG.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    ping.connect(pingG).connect(ctx.destination);
+    ping.start(now);
+    ping.stop(now + 0.4);
+    // For layer 2 (3rd wheel), add a cymbal swell for max drama
+    if(layerIdx >= 2){
+      var sr = ctx.sampleRate;
+      var bufLen = Math.floor(sr * 0.8);
+      var buf = ctx.createBuffer(1, bufLen, sr);
+      var data = buf.getChannelData(0);
+      for(var i = 0; i < bufLen; i++){
+        var t = i / sr;
+        data[i] = (Math.random() * 2 - 1) * Math.exp(-t * 1.5) * 0.30;
+      }
+      var src = ctx.createBufferSource();
+      src.buffer = buf;
+      var filt = ctx.createBiquadFilter();
+      filt.type = 'highpass';
+      filt.frequency.setValueAtTime(800, now);
+      filt.frequency.exponentialRampToValueAtTime(4000, now + 0.8);
+      src.connect(filt).connect(ctx.destination);
+      src.start(now);
+    }
   } catch(e){}
 }
+
+// Legacy function kept for compat — calls the layer 0 of the new system
+function slv2PlayWheelSuspense(){
+  slv2PlayWheelSuspenseLayer(0);
+}
+
+// (Old slv2PlayWheelSuspense removed — replaced by slv2PlayWheelSuspenseLayer
+//  above which plays per-wheel crescendo layers instead of one fixed track)
 
 function slv2StopWheelSuspense(){
   if(SL2._wheelSuspenseOsc){
@@ -12178,6 +12556,11 @@ function slv2StopWheelSuspense(){
       });
     } catch(e){}
     SL2._wheelSuspenseOsc = null;
+  }
+  // Stop heartbeat thump loop if running
+  if(SL2._wheelHeartbeatId){
+    clearInterval(SL2._wheelHeartbeatId);
+    SL2._wheelHeartbeatId = null;
   }
 }
 
