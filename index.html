@@ -4039,7 +4039,7 @@ body{position:relative;}
       var(--gb-gold-warm) 65%,
       var(--gb-gold-deep) 100%);
   text-shadow:0 1px 0 rgba(255,255,255,.4), 0 -1px 0 rgba(0,0,0,.18);
-  transition:transform .08s, box-shadow .15s, filter .15s;
+  transition:transform .08s, box-shadow .15s, filter .15s, background .25s;
   display:flex;
   align-items:center;
   justify-content:center;
@@ -4056,6 +4056,56 @@ body{position:relative;}
     0 0 48px rgba(57,255,20,.2);
   -webkit-tap-highlight-color:transparent;
   z-index:1;
+}
+/* ─── STOP MODE — red/orange while reels are spinning ──────────────
+   Pulse animation draws attention to the now-actionable STOP button so
+   the player notices they can manually halt the reels (used during
+   wheel anticipation to skill-stop on 3 wheels). */
+.slv2-spin-big.stop-mode{
+  background:
+    radial-gradient(ellipse at 50% -10%, rgba(255,255,255,.55) 0%, transparent 45%),
+    radial-gradient(ellipse at 50% 110%, rgba(80,0,0,.35) 0%, transparent 50%),
+    linear-gradient(180deg, #ffcccc 0%, #ff5544 28%, #cc1010 70%, #800808 100%);
+  color: #fff;
+  text-shadow:
+    0 1px 0 rgba(0,0,0,.5),
+    0 0 8px rgba(255,80,40,.7);
+  box-shadow:
+    inset 0 2px 0 rgba(255,255,255,.6),
+    inset 0 -5px 10px rgba(80,0,0,.55),
+    inset 0 0 0 2px rgba(255,255,255,.15),
+    0 4px 0 #500808,
+    0 8px 0 #200000,
+    0 14px 22px rgba(0,0,0,.6),
+    0 0 28px rgba(255,80,40,.7),
+    0 0 60px rgba(255,40,20,.4);
+  animation: slv2SpinStopPulse 0.7s ease-in-out infinite alternate;
+}
+@keyframes slv2SpinStopPulse{
+  from{
+    transform: scale(1);
+    box-shadow:
+      inset 0 2px 0 rgba(255,255,255,.6),
+      inset 0 -5px 10px rgba(80,0,0,.55),
+      inset 0 0 0 2px rgba(255,255,255,.15),
+      0 4px 0 #500808,
+      0 8px 0 #200000,
+      0 14px 22px rgba(0,0,0,.6),
+      0 0 28px rgba(255,80,40,.7),
+      0 0 60px rgba(255,40,20,.4);
+  }
+  to{
+    transform: scale(1.03);
+    box-shadow:
+      inset 0 2px 0 rgba(255,255,255,.7),
+      inset 0 -5px 12px rgba(80,0,0,.6),
+      inset 0 0 0 2px rgba(255,255,255,.25),
+      0 4px 0 #500808,
+      0 8px 0 #200000,
+      0 14px 26px rgba(0,0,0,.7),
+      0 0 42px rgba(255,120,60,.9),
+      0 0 80px rgba(255,40,20,.6);
+  }
 }
 /* Sliding shine sweep */
 .slv2-spin-big::before{
@@ -7496,7 +7546,7 @@ body{position:relative;}
         <div class="slv2-side-icon">🔁</div>
         <div class="slv2-side-lbl">AUTO</div>
       </button>
-      <button class="slv2-spin-big" id="slv2-spin-btn" onclick="slv2Spin()">
+      <button class="slv2-spin-big" id="slv2-spin-btn" onclick="slv2SpinOrStop()">
         <span class="slv2-spin-icon">🎰</span>
         <span class="slv2-spin-txt">SPIN</span>
         <span class="slv2-spin-bet" id="slv2-spin-bet">€1.00</span>
@@ -9273,7 +9323,7 @@ var SL2 = {
 // Constants for animation
 var SL2_STRIP_LEN = 80;       // symbols per strip
 var SL2_SYM_H = 66;           // symbol height in px
-var SL2_SPIN_BASE = 1400;     // base spin duration ms
+var SL2_SPIN_BASE = 1100;     // base spin duration ms (faster — gives skill-stop real challenge)
 var SL2_SPIN_STAGGER = 380;   // ms between each reel stop (was 200ms — too tight; reels now visibly stop one at a time)
 var SL2_TURBO_MULT = 0.4;     // turbo multiplier
 function initSlots(){ slv2Init(); }
@@ -10242,6 +10292,54 @@ function slv2ClosePaytable(ev){
 
 
 // ---------- SPIN ENGINE ----------
+// ─── DISPATCHER — SPIN button click handler ──────────────────────
+// Decides between starting a new spin and quick-stopping the current one.
+// Always wired to the SPIN button (replaces the old direct slv2Spin call).
+function slv2SpinOrStop(){
+  // Block clicks while an overlay-driven sequence is animating
+  if(SL2.fakeRevealActive)    return;
+  if(SL2.bonusWheelOpen)      return;
+  if(SL2.vaultOpen)           return;
+  if(SL2.fsIntroActive)       return;
+  if(SL2.scatterIntroActive)  return;
+  if(SL2.pendingWheelTrigger) return;
+  // Spin is in progress → check if any reel is still spinning → quick-stop
+  if(SL2.spinning){
+    var anySpinning = false;
+    if(SL2.reelSpinning){
+      for(var r = 0; r < 5; r++){
+        if(SL2.reelSpinning[r]){ anySpinning = true; break; }
+      }
+    }
+    if(anySpinning){
+      slv2QuickStopAllReels();
+      return;
+    }
+    // SL2.spinning is true but no reels are still spinning — must be
+    // mid-cascade or processing wins, ignore click.
+    return;
+  }
+  // Truly idle — start a new spin
+  slv2Spin();
+}
+
+// Visual: switch SPIN button into STOP mode while reels are spinning
+function slv2SetSpinButtonMode(mode){
+  var btn = document.getElementById('slv2-spin-btn');
+  if(!btn) return;
+  var icon = btn.querySelector('.slv2-spin-icon');
+  var txt  = btn.querySelector('.slv2-spin-txt');
+  if(mode === 'stop'){
+    btn.classList.add('stop-mode');
+    if(icon) icon.textContent = '✋';
+    if(txt)  txt.textContent  = 'STOP';
+  } else {
+    btn.classList.remove('stop-mode');
+    if(icon) icon.textContent = '🎰';
+    if(txt)  txt.textContent  = 'SPIN';
+  }
+}
+
 function slv2Spin(){
   // ─── HARD GUARDS — block re-entry during any animated sequence ─────
   // Without these, a double-click or programmatic call could launch a
@@ -10303,8 +10401,14 @@ function slv2Spin(){
   SL2.spinning = true;
   SL2.cascadeLevel = 0;
   SL2.cascadeWinTotal = 0;
-  var spinBtn = document.getElementById('slv2-spin-btn');
-  if(spinBtn) spinBtn.disabled = true;
+  // ─── QUICK-STOP: keep button clickable, switch to STOP visual mode ──
+  // Previously the button was disabled during spin so accidental clicks
+  // wouldn't double-fire. Now it stays clickable so the player can manually
+  // halt the reels via the same button — slv2SpinOrStop() routes correctly
+  // by checking SL2.spinning. Bet row still locks (no bet change mid-spin).
+  slv2SetSpinButtonMode('stop');
+  var betRow = document.querySelector('.slv2-bet-row');
+  if(betRow) betRow.classList.add('locked');
   // Task: visually quiet the marquee while reels are in motion (focus on reels)
   var slvRoot = document.querySelector('.slv2');
   if(slvRoot) slvRoot.classList.add('is-spinning');
@@ -10557,6 +10661,19 @@ function slv2SpinReel(reelIdx, targetSymbol, durationMs, cb){
       } catch(e){}
     }
     strip.classList.remove('spinning');
+    // ─── PER-REEL ANTICIPATION CLEANUP ──────────────────────────────
+    // `.wheel-anticipating` applies `filter: blur(1.8px) !important` and
+    // an infinite keyframe. Without removing it on per-reel stop, a reel
+    // that lands AFTER anticipation started keeps spinning visually until
+    // slv2ClearAnticipation runs on the last-reel landing. Strip + col
+    // both need it cleared.
+    strip.classList.remove('wheel-anticipating');
+    strip.style.filter = 'blur(0)';      // explicit override of any !important
+    strip.style.willChange = 'auto';     // release GPU layer hint
+    var parentCol = strip.parentElement;
+    if(parentCol){
+      parentCol.classList.remove('wheel-anticipating-col', 'anticipating-col');
+    }
     // Trigger bounce
     strip.style.transition = 'none';
     strip.classList.add('stopped');
@@ -10827,6 +10944,100 @@ function slv2FinishSpin(fsTriggered){
 // of every bonus path (wheel, vault, FS end, fake reveal). Guards against
 // the click-spin-while-scatter-plays bug where reels would start another
 // spin underneath the bonus animation.
+// ─── QUICK-STOP — manually halt all spinning reels at current position ──
+// When invoked (via the SPIN button being re-clicked during a spin), each
+// still-spinning reel snaps to whatever symbol is closest to the visible
+// center cell RIGHT NOW. The grid is recomputed from these positions, so
+// the player's timing literally determines the outcome.
+//
+// Why this is hard to abuse for guaranteed wins:
+//   • Reels scroll at ~26 cells/sec with motion blur — player can't
+//     reliably read what's coming through the strip.
+//   • When wheel anticipation is active, wheels are sprinkled into the
+//     extension at only ~9% — so even hitting "stop now!" doesn't
+//     guarantee a wheel center cell.
+//   • Quick-stop preserves the strip state — symbols visible after stop
+//     are exactly what was on the strip at that position.
+function slv2QuickStopAllReels(){
+  if(!SL2.spinning) return;
+  // Visual feedback: brief flash on SPIN button + sound
+  try { slv2PlayTone(880, 0.05, 'square', 0.10); } catch(e){}
+  try { slv2PlayTone(440, 0.04, 'square', 0.08); } catch(e){}
+  for(var r = 0; r < 5; r++){
+    if(!SL2.reelSpinning || !SL2.reelSpinning[r]) continue;
+    var strip = document.getElementById('slv2-strip-' + r);
+    if(!strip) continue;
+    var symbols = SL2.stripSyms[r];
+    if(!symbols || symbols.length < 3) continue;
+    // Read CURRENT visual translateY from the live computed transform.
+    // The browser may be mid-transition — getComputedStyle returns the
+    // interpolated value at THIS frame, which is what skill-stop needs.
+    var transformStr = window.getComputedStyle(strip).transform;
+    var currentY = 0;
+    if(transformStr && transformStr !== 'none'){
+      // matrix(a, b, c, d, tx, ty) — we want ty
+      var match = transformStr.match(/matrix.*\((.+)\)/);
+      if(match){
+        var nums = match[1].split(',').map(function(s){ return parseFloat(s.trim()); });
+        // For matrix(): ty is index 5; for matrix3d(): index 13
+        currentY = nums.length === 6 ? nums[5] : nums.length === 16 ? nums[13] : 0;
+      }
+    }
+    // Snap to the nearest valid CENTER symbol index based on current Y
+    // (visible window starts at -((nearestIdx - 1) * SL2_SYM_H))
+    var nearestIdx = Math.round(-currentY / SL2_SYM_H) + 1;
+    nearestIdx = Math.max(1, Math.min(symbols.length - 2, nearestIdx));
+    var snapY = -((nearestIdx - 1) * SL2_SYM_H);
+    // Cancel ALL pending timers for this reel (slowdown crawl, watchdog, etc.)
+    if(SL2._crawlTimers && SL2._crawlTimers[r]){
+      SL2._crawlTimers[r].forEach(function(t){ clearTimeout(t); });
+      SL2._crawlTimers[r] = [];
+    }
+    if(SL2.reelTimers && SL2.reelTimers[r]){
+      clearTimeout(SL2.reelTimers[r]);
+      SL2.reelTimers[r] = null;
+    }
+    if(SL2.reelWatchdogs && SL2.reelWatchdogs[r]){
+      clearTimeout(SL2.reelWatchdogs[r]);
+      SL2.reelWatchdogs[r] = null;
+    }
+    // Detach transitionend so it doesn't double-fire on the snap
+    if(strip._slv2OnTrans){
+      strip.removeEventListener('transitionend', strip._slv2OnTrans);
+    }
+    // Quick snap animation — 180ms ease-out with blur fading
+    strip.style.transition = 'transform 180ms cubic-bezier(0.22, 0.85, 0.40, 1), filter 120ms ease-out';
+    strip.style.transform = 'translateY(' + snapY + 'px)';
+    strip.style.filter = 'blur(0px)';
+    // Update tracked position so SL2.grid reflects the skill-stopped result
+    SL2.positions[r] = nearestIdx;
+    if(SL2.reelFinalOffsets) SL2.reelFinalOffsets[r] = snapY;
+    // After the snap settles, run the same finalize as a natural stop
+    (function(reelIdx, stripEl){
+      var finalizeT = setTimeout(function(){
+        // Cleanup blur + classes
+        stripEl.classList.remove('spinning');
+        stripEl.classList.remove('wheel-anticipating');
+        stripEl.style.filter = 'blur(0)';
+        stripEl.style.willChange = 'auto';
+        var col = stripEl.parentElement;
+        if(col) col.classList.remove('wheel-anticipating-col', 'anticipating-col');
+        SL2.reelSpinning[reelIdx] = false;
+        // Mechanical click on stop for tactile feedback
+        try { slv2PlayTone(180 + Math.random() * 30, 0.03, 'square', 0.08); } catch(e){}
+        try { slv2PlayTone(95, 0.10, 'sine', 0.16); } catch(e){}
+        // Fire the spin-result callback (computes grid + wins after all reels stop)
+        if(SL2.reelFinalize && SL2.reelFinalize[reelIdx]){
+          try { SL2.reelFinalize[reelIdx]('quick-stop'); } catch(e){}
+        }
+      }, 200);
+      if(!SL2._crawlTimers) SL2._crawlTimers = {};
+      SL2._crawlTimers[reelIdx] = SL2._crawlTimers[reelIdx] || [];
+      SL2._crawlTimers[reelIdx].push(finalizeT);
+    })(r, strip);
+  }
+}
+
 function slv2EnableSpinIfIdle(){
   if(SL2.spinning) return;
   if(SL2.pendingFsTrigger) return;
@@ -10837,6 +11048,8 @@ function slv2EnableSpinIfIdle(){
   if(SL2.fakeRevealActive) return;
   var spinBtn = document.getElementById('slv2-spin-btn');
   if(spinBtn) spinBtn.disabled = false;
+  // Switch button back to SPIN mode (was STOP during the spin)
+  slv2SetSpinButtonMode('spin');
   // Unlock bet selector row too — player can change bet between spins
   var betRow = document.querySelector('.slv2-bet-row');
   if(betRow) betRow.classList.remove('locked');
@@ -13180,13 +13393,33 @@ function slv2SlowDownReel(reelIdx, extraMs, cascadeSteps){
   // ─── PERF: batch all new cells into one DocumentFragment → single
   // reflow instead of one per appendChild. Saves 20-80 forced layouts
   // depending on cascadeSteps; major fps win on big extensions. ───
+  //
+  // ─── SKILL-STOP ZONE — sprinkle wheels in mid-extension only ───
+  // The player can manually quick-stop reels via the SPIN button. To
+  // give that skill-stop meaning, we sprinkle wheels into the EXTENSION
+  // filler region at ~9% rate — but ONLY in the cells the natural
+  // landing won't expose (i.e. NOT the last 3 cells). This way:
+  //   • Auto-spin (no stop) → reel lands at `newTargetIdx` with the
+  //     pre-determined random target; natural odds unchanged.
+  //   • Quick-stop in the middle → reel snaps to current cell, which
+  //     has ~9% chance of being a wheel → skill chance to assemble 3.
+  //   • Hard to time because the strip scrolls at ~26 cells/sec with
+  //     heavy motion blur — the player can't easily read what's coming.
+  var sprinkleEndIdx = newTargetIdx - 3;
   var extensionFrag = null;
   while(symbols.length <= newTargetIdx + 3){
-    var poolSym = SL2_SYMS[Math.floor(Math.random() * SL2_SYMS.length)];
-    // Avoid spawning wheel/bot in the filler region — they'd be misleading
-    // or trigger detection at the wrong indices
-    while(poolSym === 'wheel' || poolSym === 'bot'){
+    var poolSym;
+    var canSprinkle = symbols.length < sprinkleEndIdx;
+    if(canSprinkle && Math.random() < 0.09){
+      // ~9% sprinkle rate — generous enough to make skill-stop fun, low
+      // enough that hitting 3+ requires real timing on fast-spinning reels
+      poolSym = 'wheel';
+    } else {
       poolSym = SL2_SYMS[Math.floor(Math.random() * SL2_SYMS.length)];
+      // Avoid spawning wheel/bot near the END (where natural landing happens)
+      while(poolSym === 'wheel' || poolSym === 'bot'){
+        poolSym = SL2_SYMS[Math.floor(Math.random() * SL2_SYMS.length)];
+      }
     }
     symbols.push(poolSym);
     var div = document.createElement('div');
@@ -13195,6 +13428,8 @@ function slv2SlowDownReel(reelIdx, extraMs, cascadeSteps){
       div.innerHTML = slv2GbLogoHTML();
     } else if(poolSym === 'gblogo'){
       div.innerHTML = slv2BtcCoinHTML();
+    } else if(poolSym === 'wheel'){
+      div.innerHTML = slv2WheelSVG();
     } else {
       div.textContent = SL2_CHAR[poolSym];
     }
@@ -13379,6 +13614,12 @@ function slv2SlowDownReel(reelIdx, extraMs, cascadeSteps){
       // REMOVE the `.spinning` class entirely and explicitly zero the
       // filter inline so no residual blur is left.
       strip.classList.remove('spinning');
+      // Also clear .wheel-anticipating which applies its own blur(1.8px) !important
+      strip.classList.remove('wheel-anticipating');
+      var parentCol = strip.parentElement;
+      if(parentCol){
+        parentCol.classList.remove('wheel-anticipating-col', 'anticipating-col');
+      }
       strip.classList.add('stopped');
       strip.style.animation = '';
       strip.style.filter    = 'blur(0)';   // explicit zero — overrides any class rule
