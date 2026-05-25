@@ -9364,6 +9364,7 @@ function slv2HardResetSpinState(){
   }
   // 3. Cleanup transient suspense visuals
   if(typeof slv2ClearAnticipation === 'function') slv2ClearAnticipation();
+  if(typeof slv2StopRouletteTicker === 'function') slv2StopRouletteTicker();
   // 4. Remove fake-reveal DOM detritus
   if(typeof slv2RemoveWheelTriggerBeams === 'function') slv2RemoveWheelTriggerBeams();
   // 5. Re-enable spin if appropriate (only when no overlay is open)
@@ -13001,6 +13002,8 @@ window.addEventListener('DOMContentLoaded', function(){
 });
 
 function slv2ClearAnticipation(){
+  // Stop the roulette click train if running
+  if(typeof slv2StopRouletteTicker === 'function') slv2StopRouletteTicker();
   document.querySelectorAll('.anticipating-col').forEach(function(el){ el.classList.remove('anticipating-col'); });
   document.querySelectorAll('.anticipating').forEach(function(el){ el.classList.remove('anticipating'); });
   // Wheel-specific classes
@@ -13166,29 +13169,46 @@ function slv2SlowDownReel(reelIdx, extraMs, cascadeSteps){
     SL2.reelTimers[reelIdx] = null;
   }
 
-  // Total remaining distance, split 82% linear + 18% lock
+  // ═══ GOLDFINGER 3-PHASE DECELERATION ════════════════════════════
+  // Phase 1 (60% distance): LINEAR fast scroll, heavy blur — pure spin.
+  // Phase 2 (25% distance): CUBIC EASE-OUT, blur fading — visible decel.
+  // Phase 3 (15% distance): SLOW crawl, no blur, mechanical CLICKS per
+  //                          symbol as it passes — anticipation peak.
+  // Lock: hard mechanical thunk on final touchdown.
+  //
+  // Splits more weight to phases 2-3 vs the old 82/18 split, so the
+  // player ACTUALLY SEES the reel slow down before landing instead of
+  // being snapped from blur to lock. Per-symbol clicks during phase 3
+  // give the iconic stepper-motor "tick-tick-tick" feel.
   var totalDistance = currentY - newTargetOffset;        // positive
-  var phase1Distance = totalDistance * 0.82;
-  var phase1EndY = currentY - phase1Distance;            // intermediate Y
 
-  // Velocity tuned to feel like a "real" full-speed spin segment
-  //   ≈ 1.35 px/ms → ~20 symbols/sec (matches original spin peak velocity)
-  var velocity = 1.35;
-  var phase1Dur = Math.max(phase1Distance / velocity, 600);
-  var phase2Dur = 320;  // sharp final lock-in (~5 symbols of decel)
+  // VELOCITY-BASED PHASE BUDGETS — durations scale with distance so the
+  // visible feel is the same whether the extension is 22 or 88 symbols.
+  // Phase 1 carries most distance at peak velocity ~1.45px/ms.
+  // Phase 2 covers 25% with cubic ease-out, ~700ms.
+  // Phase 3 is fixed ~650ms — that's where the suspense lives.
+  var p1Dist = totalDistance * 0.60;
+  var p2Dist = totalDistance * 0.25;
+  var p3Dist = totalDistance - p1Dist - p2Dist;          // ~15%
+
+  var p1EndY = currentY - p1Dist;
+  var p2EndY = currentY - p1Dist - p2Dist;
+  // p3EndY = newTargetOffset
+
+  var velocity = 1.45;
+  var phase1Dur = Math.max(p1Dist / velocity, 500);
+  var phase2Dur = 700;
+  var phase3Dur = 650;                                   // visible crawl
 
   // Keep .spinning class so motion blur stays active during phase 1
   strip.classList.add('spinning');
-  // The default .spinning blur animation is tied to the ORIGINAL --spin-dur
-  // and ends at blur(0) when that duration elapses. Our extended phase 1
-  // likely outlives that, so we override the animation and manually apply
-  // a strong blur for the high-velocity scroll. Phase 2 will clear it.
+  // Override default blur animation; manually control filter across phases
   strip.style.animation = 'none';
   strip.style.filter    = 'blur(3.2px)';
 
-  // PHASE 1: LINEAR scroll — fast, constant, no ease (motion blur masks symbols)
+  // PHASE 1: LINEAR scroll — fast, constant, heavy blur (full-speed feel)
   strip.style.transition = 'transform ' + phase1Dur + 'ms linear';
-  strip.style.transform = 'translateY(' + phase1EndY + 'px)';
+  strip.style.transform = 'translateY(' + p1EndY + 'px)';
 
   if(!SL2._crawlTimers) SL2._crawlTimers = {};
   if(SL2._crawlTimers[reelIdx]){
@@ -13196,36 +13216,65 @@ function slv2SlowDownReel(reelIdx, extraMs, cascadeSteps){
   }
   SL2._crawlTimers[reelIdx] = [];
 
-  // ─── PHASE 2 — quick final lock (the moment of truth) ──────────
+  // ─── PHASE 2 — CUBIC EASE-OUT decel, blur fades ───────────────
+  // Player starts seeing symbols crystallize as the reel slows.
   var p1Timer = setTimeout(function(){
-    // Brief "approach" tone right before lock — anticipation cue
-    try { slv2PlayTone(880, 0.06, 'triangle', 0.08); } catch(e){}
-    // Sharp ease-out for the last 18% of distance
-    strip.style.transition = 'transform ' + phase2Dur + 'ms cubic-bezier(.10, .55, .25, 1), filter ' + phase2Dur + 'ms ease-out';
+    strip.style.transition = 'transform ' + phase2Dur + 'ms cubic-bezier(0.22, 0.85, 0.40, 1), ' +
+                             'filter '    + phase2Dur + 'ms ease-out';
+    strip.style.transform = 'translateY(' + p2EndY + 'px)';
+    strip.style.filter    = 'blur(0.6px)';                // sharp-ish
+    // First approach cue at the start of visible deceleration
+    try { slv2PlayTone(660, 0.05, 'triangle', 0.07); } catch(e){}
+  }, phase1Dur);
+  SL2._crawlTimers[reelIdx].push(p1Timer);
+
+  // ─── PHASE 3 — SLOW final crawl with per-symbol mechanical clicks ──
+  // The last ~10 symbols pass visibly slowly. Each click is a stepper
+  // tick, building physical-machine suspense. Bond/Goldfinger feel.
+  var p2Timer = setTimeout(function(){
+    strip.style.transition = 'transform ' + phase3Dur + 'ms cubic-bezier(0.30, 0.10, 0.20, 1), ' +
+                             'filter '    + (phase3Dur * 0.4) + 'ms ease-out';
     strip.style.transform = 'translateY(' + newTargetOffset + 'px)';
-    // Drop blur over phase 2 — the wheel reveal needs to be razor-sharp
-    strip.style.filter = 'blur(0px)';
-    // Final lock impact sounds — fire 25ms before the visual lands
-    var thumpTimer = setTimeout(function(){
-      try { slv2PlayTone(540, 0.08, 'square', 0.12); } catch(e){}
-      try { slv2PlayTone(110, 0.14, 'sine', 0.22); } catch(e){}  // visceral bass thump
-    }, phase2Dur - 25);
-    SL2._crawlTimers[reelIdx].push(thumpTimer);
-    // Trigger finalize after phase 2 ends (with small buffer)
-    var p2Timer = setTimeout(function(){
+    strip.style.filter    = 'blur(0px)';                  // razor sharp
+    // Schedule mechanical clicks at the rate symbols pass the center.
+    // With cubic ease-out, click intervals INCREASE as the reel slows.
+    var symbolsInP3 = Math.max(1, Math.floor(p3Dist / SL2_SYM_H));
+    for(var s = 1; s <= symbolsInP3; s++){
+      // Inverse of cubic ease-out: when y=t (fraction of distance), x=?
+      // y ≈ 1 - (1 - x)^3  →  x = 1 - (1 - y)^(1/3)
+      var fracDist = s / symbolsInP3;
+      var fracTime = 1 - Math.pow(1 - fracDist, 1/3);
+      var clickAt = fracTime * phase3Dur;
+      // Click volume scales DOWN as the reel slows (mimics losing inertia)
+      var clickVol = 0.45 - (s / symbolsInP3) * 0.25;
+      var clickT = setTimeout((function(v){
+        return function(){ slv2PlayStepperClick(v); };
+      })(clickVol), clickAt);
+      SL2._crawlTimers[reelIdx].push(clickT);
+    }
+    // Final mechanical THUNK — the reel slamming into place
+    var thunkT = setTimeout(function(){
+      // Low resonant impact (stepper motor stop)
+      try { slv2PlayTone(95, 0.18, 'sine', 0.28); } catch(e){}      // bass thump
+      try { slv2PlayTone(380, 0.07, 'square', 0.10); } catch(e){}   // mechanical click
+      // Subtle "metal" overtone on the impact
+      try { slv2PlayTone(1480, 0.045, 'triangle', 0.06); } catch(e){}
+    }, phase3Dur - 30);
+    SL2._crawlTimers[reelIdx].push(thunkT);
+    // Finalize after phase 3 ends
+    var p3Timer = setTimeout(function(){
       strip.style.transition = 'none';
       strip.style.transform = 'translateY(' + newTargetOffset + 'px)';
-      // Clean up inline blur/animation overrides so next spin starts fresh
       strip.style.animation = '';
       strip.style.filter    = '';
       SL2._crawlTimers[reelIdx] = [];
       if(SL2.reelFinalize && SL2.reelFinalize[reelIdx]){
         SL2.reelFinalize[reelIdx]('extended-spin-complete');
       }
-    }, phase2Dur + 30);
-    SL2._crawlTimers[reelIdx].push(p2Timer);
-  }, phase1Dur);
-  SL2._crawlTimers[reelIdx].push(p1Timer);
+    }, phase3Dur + 30);
+    SL2._crawlTimers[reelIdx].push(p3Timer);
+  }, phase1Dur + phase2Dur);
+  SL2._crawlTimers[reelIdx].push(p2Timer);
 }
 
 // ─── (slv2StepCrawlReel REMOVED — replaced by extended-spin above) ───
@@ -13256,6 +13305,9 @@ function slv2CheckWheelAnticipation(maxReelIdx){
     }
   }
   if(wheelCount >= 1){
+    // Start the roulette click train — runs continuously under remaining
+    // reels until the last reel lands or anticipation clears.
+    slv2StartRouletteTicker();
     // Apply gold anticipation visual to all reels right of this one that are
     // still spinning. We DON'T know which reel triggered the check, so just
     // apply to any reel index > maxWheelReel + 1 that is currently spinning.
@@ -13407,139 +13459,271 @@ function slv2PlayWheelSuspenseLayer(layerIdx){
     var now = ctx.currentTime;
     var sr  = ctx.sampleRate;
 
-    // ─── 1. SUB-BASS BOOM ────────────────────────────────────────
-    // Instant impact when a wheel is discovered — visceral physical
-    // "thump" that signals "SOMETHING JUST HAPPENED". Pitch climbs
-    // slightly per wheel found (40Hz → 55Hz → 70Hz) for escalation.
-    var boomFreq = 38 + layerIdx * 14;
-    var boom = ctx.createOscillator();
-    var boomG = ctx.createGain();
-    boom.type = 'sine';
-    boom.frequency.setValueAtTime(boomFreq * 2.2, now);
-    boom.frequency.exponentialRampToValueAtTime(boomFreq, now + 0.06);
-    boomG.gain.setValueAtTime(0, now);
-    boomG.gain.linearRampToValueAtTime(0.48, now + 0.005);
-    boomG.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
-    boom.connect(boomG).connect(dest);
-    boom.start(now); boom.stop(now + 0.5);
+    // ═══ GOLDFINGER / BOND ORCHESTRAL SUSPENSE ════════════════════
+    // Layered orchestral audio inspired by the James Bond Goldfinger
+    // slot at Casino Monte-Carlo. Each wheel adds another instrument:
+    //   wheel 1 → timpani thump + low brass stab (Em — mysterious)
+    //   wheel 2 → adds sustained tremolo strings (Em add9 — anxious)
+    //   wheel 3 → ascending Bond riff + cymbal crash + tutti chord
+    //
+    // Built with Web Audio oscillators voiced as orchestra:
+    //   • Brass  = sawtooth+square through warm lowpass ~1800Hz
+    //   • Strings= 2 detuned sawtooths through brighter lowpass ~3200Hz
+    //   • Timpani= sine with pitch-drop envelope + noise-burst attack
+    //   • Cymbal = filtered noise burst with highpass sweep
 
-    // ─── 2. RISING WHOOSH ────────────────────────────────────────
-    // Filtered white noise sweeping band-pass from low → high. Gives
-    // a "drawing in breath" sensation that builds toward the bell hit.
-    var whooshLen = Math.floor(sr * 1.4);
-    var whooshBuf = ctx.createBuffer(1, whooshLen, sr);
-    var wData = whooshBuf.getChannelData(0);
-    for(var wi = 0; wi < whooshLen; wi++){
-      // Fade IN (amplitude grows toward end of sweep)
-      var t = wi / whooshLen;
-      wData[wi] = (Math.random() * 2 - 1) * Math.pow(t, 0.7) * 0.55;
+    // ─── 1. TIMPANI THUMP — orchestral impact ──────────────────────
+    // Low resonant kick on every wheel. Pitch climbs slightly per wheel
+    // so the 3 thumps form an ascending rumble line.
+    var tympFreq = 78 + layerIdx * 12;       // ~E2 / F2 / F#2
+    var tymp = ctx.createOscillator();
+    var tympG = ctx.createGain();
+    tymp.type = 'sine';
+    tymp.frequency.setValueAtTime(tympFreq * 2.2, now);
+    tymp.frequency.exponentialRampToValueAtTime(tympFreq, now + 0.075);
+    tympG.gain.setValueAtTime(0, now);
+    tympG.gain.linearRampToValueAtTime(0.52, now + 0.004);
+    tympG.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+    tymp.connect(tympG).connect(dest);
+    tymp.start(now); tymp.stop(now + 0.6);
+    // Stick-hit texture (very brief noise envelope for percussive attack)
+    var attLen = Math.floor(sr * 0.035);
+    var attBuf = ctx.createBuffer(1, attLen, sr);
+    var attData = attBuf.getChannelData(0);
+    for(var ai = 0; ai < attLen; ai++){
+      attData[ai] = (Math.random() * 2 - 1) * Math.pow(1 - ai / attLen, 3) * 0.55;
     }
-    var whoosh = ctx.createBufferSource();
-    whoosh.buffer = whooshBuf;
-    var whooshFilt = ctx.createBiquadFilter();
-    whooshFilt.type = 'bandpass';
-    whooshFilt.Q.value = 3.5;
-    whooshFilt.frequency.setValueAtTime(180 + layerIdx * 60, now);
-    whooshFilt.frequency.exponentialRampToValueAtTime(2400 + layerIdx * 600, now + 1.3);
-    var whooshG = ctx.createGain();
-    whooshG.gain.setValueAtTime(0, now);
-    whooshG.gain.linearRampToValueAtTime(0.20 + layerIdx * 0.05, now + 0.5);
-    whooshG.gain.exponentialRampToValueAtTime(0.001, now + 1.4);
-    whoosh.connect(whooshFilt).connect(whooshG).connect(dest);
-    whoosh.start(now);
-    whoosh.stop(now + 1.5);
+    var att = ctx.createBufferSource();
+    att.buffer = attBuf;
+    var attFilt = ctx.createBiquadFilter();
+    attFilt.type = 'lowpass';
+    attFilt.frequency.value = 700;
+    att.connect(attFilt).connect(dest);
+    att.start(now);
 
-    // ─── 3. CASINO BELL CHIME ────────────────────────────────────
-    // Iconic "ding!" — three harmonics (fundamental + octave + fifth-octave)
-    // resonating with bell-like decay. Pitch shifts up per wheel for
-    // ascending major-arpeggio feel across the 3 wheels.
-    var bellRoot = 880 * Math.pow(1.122, layerIdx);  // 880, 988, 1109 — major 2nd steps
-    var bellHarmonics = [
-      { mult: 1.0,  vol: 0.28 },
-      { mult: 2.0,  vol: 0.14 },
-      { mult: 3.0,  vol: 0.07 },
-      { mult: 4.05, vol: 0.04 }  // slightly stretched for bell shimmer
+    // ─── 2. LOW BRASS STAB — Bond-style minor chord punch ──────────
+    // Different chord voicing per wheel for dramatic progression:
+    //   1st: E minor      (E2 B2 E3 G3)
+    //   2nd: F# half-dim  (F#2 C3 F#3 A3)   — tension rises
+    //   3rd: G major      (G2 D3 G3 B3)     — resolution arrives
+    var BRASS_CHORDS = [
+      [82.41, 123.47, 164.81, 196.00],   // E minor — mystery
+      [92.50, 138.59, 185.00, 220.00],   // F#° — anxiety
+      [98.00, 146.83, 196.00, 246.94]    // G major — climax
     ];
-    bellHarmonics.forEach(function(h){
-      var bell = ctx.createOscillator();
-      var bellG = ctx.createGain();
-      bell.type = 'sine';
-      bell.frequency.value = bellRoot * h.mult;
-      bellG.gain.setValueAtTime(0, now + 0.08);
-      bellG.gain.linearRampToValueAtTime(h.vol, now + 0.10);
-      bellG.gain.exponentialRampToValueAtTime(0.001, now + 1.6);
-      bell.connect(bellG).connect(dest);
-      bell.start(now + 0.08);
-      bell.stop(now + 1.7);
+    var brassNotes = BRASS_CHORDS[Math.min(layerIdx, 2)];
+    brassNotes.forEach(function(f, ni){
+      // Sawtooth+square for brass grit, both through one warm lowpass
+      var saw = ctx.createOscillator();
+      var sqr = ctx.createOscillator();
+      var brassG = ctx.createGain();
+      var brassLP = ctx.createBiquadFilter();
+      saw.type = 'sawtooth';
+      sqr.type = 'square';
+      saw.frequency.value = f;
+      sqr.frequency.value = f * 1.004;     // tiny detune for fatness
+      brassLP.type = 'lowpass';
+      brassLP.Q.value = 0.8;
+      // Filter "opens" briefly on attack for that brass blat
+      brassLP.frequency.setValueAtTime(700, now + 0.05);
+      brassLP.frequency.linearRampToValueAtTime(2200, now + 0.10);
+      brassLP.frequency.linearRampToValueAtTime(1600, now + 0.55);
+      saw.connect(brassLP);
+      sqr.connect(brassLP);
+      brassLP.connect(brassG).connect(dest);
+      // Slightly delayed attack on each note for "blat" articulation,
+      // highest note quietest (avoids shrill stack)
+      var v = (0.14 - ni * 0.018);
+      brassG.gain.setValueAtTime(0, now + 0.05);
+      brassG.gain.linearRampToValueAtTime(v, now + 0.10);
+      brassG.gain.linearRampToValueAtTime(v * 0.55, now + 0.70);
+      brassG.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
+      saw.start(now + 0.05); sqr.start(now + 0.05);
+      saw.stop(now + 1.6);   sqr.stop(now + 1.6);
     });
 
-    // ─── 4. SUSTAINED TENSION PAD (from 2nd wheel onward) ─────────
-    // Low detuned sawtooth pair with slow filter sweep — sits in the
-    // background creating ongoing dread for the wait between reels.
+    // ─── 3. SUSTAINED STRINGS TREMOLO — anxiety (2nd wheel+) ───────
+    // High strings shimmer with tremolo amplitude modulation. Sits on
+    // top of the brass providing continuous string-section dread.
     if(layerIdx >= 1){
-      var padRoot = 130 + layerIdx * 18;  // 148, 166 Hz
-      var pad1 = ctx.createOscillator();
-      var pad2 = ctx.createOscillator();
-      var padLP = ctx.createBiquadFilter();
-      var padG  = ctx.createGain();
-      pad1.type = 'sawtooth'; pad2.type = 'sawtooth';
-      pad1.frequency.value = padRoot;
-      pad2.frequency.value = padRoot * 1.005;  // slight detune for fatness
-      padLP.type = 'lowpass';
-      padLP.Q.value = 0.8;
-      padLP.frequency.setValueAtTime(380, now);
-      padLP.frequency.exponentialRampToValueAtTime(900 + layerIdx * 300, now + 1.8);
-      pad1.connect(padLP);
-      pad2.connect(padLP);
-      padLP.connect(padG).connect(dest);
-      padG.gain.setValueAtTime(0, now);
-      padG.gain.linearRampToValueAtTime(0.11 + layerIdx * 0.04, now + 0.5);
-      padG.gain.linearRampToValueAtTime(0.07, now + 1.7);
-      padG.gain.exponentialRampToValueAtTime(0.001, now + 2.2);
-      pad1.start(now); pad2.start(now);
-      pad1.stop(now + 2.3); pad2.stop(now + 2.3);
+      var STRING_VOICINGS = [
+        [659.25, 783.99, 987.77],          // E5 G5 B5 (over Em)
+        [698.46, 880.00, 1108.73]          // F5 A5 C#6 (over F#°)
+      ];
+      var stringNotes = STRING_VOICINGS[Math.min(layerIdx - 1, 1)];
+      stringNotes.forEach(function(f){
+        var s1 = ctx.createOscillator();
+        var s2 = ctx.createOscillator();
+        var strLP = ctx.createBiquadFilter();
+        var strG  = ctx.createGain();
+        s1.type = 'sawtooth';
+        s2.type = 'sawtooth';
+        s1.frequency.value = f;
+        s2.frequency.value = f * 1.007;   // detune for chorused strings
+        strLP.type = 'lowpass';
+        strLP.Q.value = 0.7;
+        strLP.frequency.value = 3400;
+        s1.connect(strLP); s2.connect(strLP);
+        strLP.connect(strG).connect(dest);
+        // Tremolo: gain oscillates 12 Hz over 1.8s using a small ramp grid
+        strG.gain.setValueAtTime(0, now + 0.18);
+        strG.gain.linearRampToValueAtTime(0.05, now + 0.50);
+        var TREM_STEPS = 22, TREM_DUR = 1.8;
+        for(var ts = 1; ts <= TREM_STEPS; ts++){
+          var phaseT = ts / TREM_STEPS;
+          var amp = 0.045 + 0.025 * Math.sin(ts * 1.6);
+          strG.gain.linearRampToValueAtTime(amp, now + 0.50 + phaseT * TREM_DUR);
+        }
+        strG.gain.exponentialRampToValueAtTime(0.001, now + 2.5);
+        s1.start(now + 0.18); s2.start(now + 0.18);
+        s1.stop(now + 2.6);   s2.stop(now + 2.6);
+      });
     }
 
-    // ─── 5. CYMBAL SWELL (3rd wheel = max drama) ──────────────────
+    // ─── 4. ASCENDING BOND LICK — climax riff (3rd wheel only) ─────
+    // Iconic Bond chromatic/minor riff sequence, semitone steps with
+    // a Bb-natural at the top for that "Bond suspense" flavor.
     if(layerIdx >= 2){
+      var BOND_RIFF = [
+        { f: 196.00, t: 0.18 },   // G3
+        { f: 220.00, t: 0.32 },   // A3
+        { f: 233.08, t: 0.46 },   // Bb3 — Bond signature interval
+        { f: 261.63, t: 0.60 },   // C4
+        { f: 311.13, t: 0.78 },   // Eb4 — surf-guitar Bond bend
+        { f: 392.00, t: 0.96 }    // G4 — octave above start
+      ];
+      BOND_RIFF.forEach(function(n){
+        var lk = ctx.createOscillator();
+        var lkSqr = ctx.createOscillator();  // square sub for grit
+        var lkG = ctx.createGain();
+        var lkLP = ctx.createBiquadFilter();
+        lk.type = 'sawtooth';
+        lkSqr.type = 'square';
+        lk.frequency.value = n.f;
+        lkSqr.frequency.value = n.f * 0.5;   // sub-octave for fatness
+        lkLP.type = 'lowpass';
+        lkLP.Q.value = 1.4;
+        lkLP.frequency.value = 2600;
+        lk.connect(lkLP); lkSqr.connect(lkLP);
+        lkLP.connect(lkG).connect(dest);
+        var startT = now + n.t;
+        lkG.gain.setValueAtTime(0, startT);
+        lkG.gain.linearRampToValueAtTime(0.17, startT + 0.015);
+        lkG.gain.linearRampToValueAtTime(0.12, startT + 0.10);
+        lkG.gain.exponentialRampToValueAtTime(0.001, startT + 0.32);
+        lk.start(startT);    lkSqr.start(startT);
+        lk.stop(startT + 0.35); lkSqr.stop(startT + 0.35);
+      });
+
+      // Big cymbal crash to cap the lick
       var cyLen = Math.floor(sr * 1.6);
       var cyBuf = ctx.createBuffer(1, cyLen, sr);
       var cyData = cyBuf.getChannelData(0);
       for(var ci = 0; ci < cyLen; ci++){
         var ct = ci / sr;
-        cyData[ci] = (Math.random() * 2 - 1) * Math.exp(-ct * 1.0) * 0.45;
+        cyData[ci] = (Math.random() * 2 - 1) * Math.exp(-ct * 0.95) * 0.5;
       }
       var cy = ctx.createBufferSource();
       cy.buffer = cyBuf;
       var cyHP = ctx.createBiquadFilter();
       cyHP.type = 'highpass';
-      cyHP.frequency.setValueAtTime(1200, now);
-      cyHP.frequency.exponentialRampToValueAtTime(6500, now + 1.0);
+      cyHP.frequency.setValueAtTime(2400, now + 0.96);
+      cyHP.frequency.exponentialRampToValueAtTime(8000, now + 1.8);
       var cyG = ctx.createGain();
-      cyG.gain.setValueAtTime(0, now);
-      cyG.gain.linearRampToValueAtTime(0.32, now + 0.4);
-      cyG.gain.exponentialRampToValueAtTime(0.001, now + 1.6);
+      cyG.gain.setValueAtTime(0, now + 0.96);
+      cyG.gain.linearRampToValueAtTime(0.34, now + 1.20);
+      cyG.gain.exponentialRampToValueAtTime(0.001, now + 2.4);
       cy.connect(cyHP).connect(cyG).connect(dest);
-      cy.start(now);
-      cy.stop(now + 1.7);
-      // Orchestral hit on 3rd wheel — short brassy stab right at the boom
-      var brass = ctx.createOscillator();
-      var brass2 = ctx.createOscillator();
-      var brassG = ctx.createGain();
-      brass.type = 'sawtooth'; brass2.type = 'square';
-      brass.frequency.value = 220;
-      brass2.frequency.value = 165;  // perfect fifth below
-      var brassLP = ctx.createBiquadFilter();
-      brassLP.type = 'lowpass';
-      brassLP.frequency.value = 1800;
-      brass.connect(brassLP); brass2.connect(brassLP);
-      brassLP.connect(brassG).connect(dest);
-      brassG.gain.setValueAtTime(0, now);
-      brassG.gain.linearRampToValueAtTime(0.18, now + 0.015);
-      brassG.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
-      brass.start(now); brass2.start(now);
-      brass.stop(now + 0.7); brass2.stop(now + 0.7);
+      cy.start(now + 0.96);
+      cy.stop(now + 2.5);
     }
+  } catch(e){}
+}
+
+// ─── ROULETTE CLICK TRAIN ─────────────────────────────────────────
+// Continuous mechanical click sound that runs between reel landings
+// while wheels are being discovered. Starts fast (24 clicks/sec) and
+// decelerates over time (down to 6/sec) — like a roulette wheel slowing.
+// Adds physical-machine background tension while the player waits for
+// each subsequent reel to land. Iconic Vegas/Goldfinger atmosphere.
+function slv2StartRouletteTicker(){
+  if(SL2._rouletteTickerId) return;        // already running
+  SL2._rouletteTickerStart = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  function tick(){
+    if(!SL2._rouletteTickerId) return;     // stopped
+    if(!SL2.soundsEnabled){
+      SL2._rouletteTickerId = setTimeout(tick, 200);
+      return;
+    }
+    // Lower-pitched roulette-style click (slightly deeper than stepper click)
+    try {
+      var ctx = slv2EnsureAudio();
+      if(ctx){
+        var dest = slv2AudioDest();
+        var sr   = ctx.sampleRate;
+        var len  = Math.floor(sr * 0.025);
+        var buf  = ctx.createBuffer(1, len, sr);
+        var data = buf.getChannelData(0);
+        for(var i = 0; i < len; i++){
+          data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i/len, 5) * 0.32;
+        }
+        var click = ctx.createBufferSource();
+        click.buffer = buf;
+        var bp = ctx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.frequency.value = 1600;
+        bp.Q.value = 4;
+        click.connect(bp).connect(dest);
+        click.start(ctx.currentTime);
+      }
+    } catch(e){}
+    // Decelerate over 3 seconds: 24 → 6 clicks/sec
+    var now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    var elapsed = now - SL2._rouletteTickerStart;
+    var t = Math.min(elapsed / 3500, 1);
+    var bps = 24 - t * 18;                  // 24 → 6
+    var nextDelay = 1000 / Math.max(bps, 5);
+    SL2._rouletteTickerId = setTimeout(tick, nextDelay);
+  }
+  SL2._rouletteTickerId = setTimeout(tick, 40);
+}
+function slv2StopRouletteTicker(){
+  if(SL2._rouletteTickerId){
+    clearTimeout(SL2._rouletteTickerId);
+    SL2._rouletteTickerId = null;
+  }
+}
+
+// ─── MECHANICAL STEPPER CLICK ─────────────────────────────────────
+// Short woodblock-style click — the iconic "tick" of a mechanical
+// slot or roulette stepper motor. Played as each symbol passes the
+// center cell during the visible deceleration phase, building real
+// physical-machine suspense (like the Goldfinger slot's stepper feel).
+function slv2PlayStepperClick(intensity){
+  if(!SL2.soundsEnabled) return;
+  var ctx = slv2EnsureAudio();
+  if(!ctx) return;
+  try {
+    var dest = slv2AudioDest();
+    var now = ctx.currentTime;
+    var sr = ctx.sampleRate;
+    var len = Math.floor(sr * 0.030);
+    var buf = ctx.createBuffer(1, len, sr);
+    var data = buf.getChannelData(0);
+    var v = intensity || 0.55;
+    for(var i = 0; i < len; i++){
+      var t = i / len;
+      // Sharp exponential decay — pure transient
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 6) * v;
+    }
+    var click = ctx.createBufferSource();
+    click.buffer = buf;
+    var bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 2400;
+    bp.Q.value = 5.5;
+    click.connect(bp).connect(dest);
+    click.start(now);
   } catch(e){}
 }
 
