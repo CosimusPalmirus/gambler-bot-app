@@ -9227,7 +9227,7 @@ var SL2 = {
   bonusActive: false,        // any bonus modal currently open
   // ---- TIMED RANDOM BONUS (Task 6) ----
   spinsSinceLastBonus: 0,
-  nextBonusAt: 25 + Math.floor(Math.random() * 21), // random 25..45 (wheel trigger — more frequent for wheel-centric balance)
+  nextBonusAt: 45 + Math.floor(Math.random() * 31), // random 45..75 (wheel trigger — reduced from 25-45 which felt too frequent)
   // Sticky wilds (during FS): array of {reel, row} positions where wild is locked
   stickyWilds: [],
   // Wheel bonus config
@@ -11104,7 +11104,11 @@ function slv2TriggerFreeSpinsIntro(count){
   var countEl = document.getElementById('slv2-fs-intro-count');
   if(countEl) countEl.textContent = count;
   if(intro) intro.classList.add('visible');
-  slv2RestartVideo('slv2-fs-intro-video');
+  // Only play video if it's actually loaded (saves the 3s wait on broken videos)
+  var fsIntroVid = document.getElementById('slv2-fs-intro-video');
+  var fsHasVideo = !!(fsIntroVid && fsIntroVid.getAttribute('src') &&
+                      parseInt((fsIntroVid.dataset && fsIntroVid.dataset.failCount) || '0', 10) < 3);
+  if(fsHasVideo) slv2RestartVideo('slv2-fs-intro-video');
   slv2Sound('free-spins');
   // Stop auto spin during FS intro - will continue after FS
   if(SL2.autoActive){
@@ -11119,7 +11123,9 @@ function slv2TriggerFreeSpinsIntro(count){
     startBtn.style.cursor = 'not-allowed';
     startBtn.textContent = 'GET READY...';
   }
-  slv2RunCountdown('slv2-fs-intro', 3, function(){
+  // Countdown — 3s with video, 1s skip-ahead without
+  var fsCountdownSec = fsHasVideo ? 3 : 1;
+  slv2RunCountdown('slv2-fs-intro', fsCountdownSec, function(){
     if(startBtn){
       startBtn.disabled = false;
       startBtn.style.opacity = '';
@@ -11442,14 +11448,22 @@ function slv2BonusWheelTrigger(){
   slv2SendSlotEvent('wheel_trigger');
   slv2BonusWheelBuild();
   var ov = document.getElementById('slv2-bonus-wheel');
+  // ─── VIDEO AVAILABILITY CHECK — fast-skip when no cinematic ──────
+  // If the wheel video has no src (Higgsfield URL not configured) or has
+  // failed loading 3+ times, the 5-second video-intro wait would just be
+  // an empty pause. Skip straight to the wheel reveal with a brief 800ms
+  // crossfade so the player isn't left staring at a blank overlay.
+  var bwVid = document.getElementById('slv2-bw-video');
+  var hasVideo = !!(bwVid && bwVid.getAttribute('src') &&
+                    parseInt((bwVid.dataset && bwVid.dataset.failCount) || '0', 10) < 3);
   if(ov){
     ov.classList.add('visible');
-    // Lock the wheel + spin button out of view so the video plays unobstructed.
-    // CSS hides .slv2-bw-stage / .slv2-bw-spin-btn while this class is on;
-    // we remove it when the countdown completes (below).
-    ov.classList.add('video-intro-active');
+    // Only lock the wheel out of view if there's actually a video to watch
+    if(hasVideo){
+      ov.classList.add('video-intro-active');
+    }
   }
-  slv2RestartVideo('slv2-bw-video');
+  if(hasVideo) slv2RestartVideo('slv2-bw-video');
   var btn = document.getElementById('slv2-bw-spin');
   var collect = document.getElementById('slv2-bw-collect');
   var result = document.getElementById('slv2-bw-result');
@@ -11471,9 +11485,9 @@ function slv2BonusWheelTrigger(){
   slv2PlayWheelOpenFanfare();
   slv2Sound('scatter');
 
-  // Run a visible 5-second countdown ring so the player knows they're
-  // watching the cinematic, then the SPIN button activates AND wheel reveals.
-  slv2RunCountdown('slv2-bonus-wheel', 5, function(){
+  // Countdown duration — full 5s with video, short 800ms without
+  var countdownSec = hasVideo ? 5 : 1;
+  slv2RunCountdown('slv2-bonus-wheel', countdownSec, function(){
     // Reveal the wheel + spin button now that the video moment is over
     if(ov){
       ov.classList.remove('video-intro-active');
@@ -11605,7 +11619,7 @@ function slv2PlayWheelOpenFanfare(){
       osc.frequency.value = freq;
       var startT = t + i * 0.12;
       gain.gain.setValueAtTime(0.0001, startT);
-      gain.gain.exponentialRampToValueAtTime(0.16, startT + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.10, startT + 0.05);  // toned down (was 0.16)
       gain.gain.exponentialRampToValueAtTime(0.001, startT + 0.45);
       osc.connect(gain).connect(slv2AudioDest());
       osc.start(startT);
@@ -11624,7 +11638,7 @@ function slv2PlayWheelOpenFanfare(){
     filter.type = 'highpass';
     filter.frequency.value = 3500;
     noise.buffer = buf;
-    noiseGain.gain.setValueAtTime(0.18, t);
+    noiseGain.gain.setValueAtTime(0.12, t);  // softer cymbal (was 0.18)
     noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
     noise.connect(filter).connect(noiseGain).connect(slv2AudioDest());
     noise.start(t);
@@ -11636,7 +11650,7 @@ function slv2PlayWheelOpenFanfare(){
       osc.frequency.value = freq;
       var startT = t + 0.55 + i * 0.07;
       gain.gain.setValueAtTime(0.0001, startT);
-      gain.gain.exponentialRampToValueAtTime(0.08, startT + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.055, startT + 0.025);  // softer sparkle (was 0.08)
       gain.gain.exponentialRampToValueAtTime(0.001, startT + 0.55);
       osc.connect(gain).connect(slv2AudioDest());
       osc.start(startT);
@@ -12124,12 +12138,15 @@ function slv2VaultTrigger(){
   if(collect) collect.style.display = 'none';
 
   var ov = document.getElementById('slv2-vault-game');
+  // Skip cinematic gating if no video loaded — same logic as wheel/FS
+  var vgVid = document.getElementById('slv2-vg-video');
+  var vgHasVideo = !!(vgVid && vgVid.getAttribute('src') &&
+                      parseInt((vgVid.dataset && vgVid.dataset.failCount) || '0', 10) < 3);
   if(ov){
     ov.classList.add('visible');
-    // Hide the vault icons + result + collect while the cinematic video plays
-    ov.classList.add('video-intro-active');
+    if(vgHasVideo) ov.classList.add('video-intro-active');
   }
-  slv2RestartVideo('slv2-vg-video');
+  if(vgHasVideo) slv2RestartVideo('slv2-vg-video');
   slv2Sound('free-spins');
 
   // Gate the picks for 3.5s — the player should see the cinematic before
@@ -12143,7 +12160,8 @@ function slv2VaultTrigger(){
     v.style.pointerEvents = 'none';
     v.style.transition = 'opacity .5s ease-out';
   });
-  slv2RunCountdown('slv2-vault-game', 3, function(){
+  var vgCountdownSec = vgHasVideo ? 3 : 1;
+  slv2RunCountdown('slv2-vault-game', vgCountdownSec, function(){
     // Reveal the vaults + pause the video so it doesn't loop behind them
     if(ov){
       ov.classList.remove('video-intro-active');
@@ -12389,7 +12407,7 @@ function slv2PlayFsRollAnimation(finalCount, onDone){
 
 function slv2ResetBonusCounter(){
   SL2.spinsSinceLastBonus = 0;
-  SL2.nextBonusAt = 25 + Math.floor(Math.random() * 21); // 25..45 inclusive
+  SL2.nextBonusAt = 45 + Math.floor(Math.random() * 31); // 45..75 inclusive (less frequent for better pacing)
 }
 
 // ===== "FAKE SCATTER REVEAL" — timed wheel trigger spectacle =====
@@ -12863,7 +12881,8 @@ function slv2SetVideoSrc(elemId, url){
   v.dataset.intendedSrc = url;
   v.dataset.failCount = v.dataset.failCount || '0';
 
-  // Attach error/play listeners to diagnose silent failures + toggle title vis
+  // Attach error/play listeners to diagnose silent failures + toggle title vis.
+  // onerror/onloadeddata are properties (auto-overwrite) so safe each call.
   v.onerror = function(){
     var failCount = parseInt(v.dataset.failCount || '0', 10) + 1;
     v.dataset.failCount = failCount;
@@ -12881,19 +12900,27 @@ function slv2SetVideoSrc(elemId, url){
     console.info('[slv2 video] loaded:', url);
     v.dataset.failCount = '0';  // reset fail counter on success
   };
-  // When the video actually starts playing → mark overlay so CSS hides titles
-  v.addEventListener('playing', function(){
-    if(overlay) overlay.classList.add('has-video');
-  });
-  v.addEventListener('pause', function(){
-    // Don't strip has-video on manual pause from slv2BonusWheelClose etc.
-    // (the overlay is closing anyway and the next open will re-add the class).
-    // Keep this lightweight — just refresh visibility for natural pause/end.
-    if(overlay && v.ended) overlay.classList.remove('has-video');
-  });
-  v.addEventListener('ended', function(){
-    if(overlay) overlay.classList.remove('has-video');
-  });
+
+  // ─── IDEMPOTENT addEventListener — fix for stacking bug ──────────
+  // Previously each slv2SetVideoSrc call appended NEW playing/pause/ended
+  // listeners without removing old ones, causing memory growth + multiple
+  // identical class toggles per event. Now we attach exactly ONCE per video.
+  if(!v._slv2ListenersAttached){
+    v._slv2ListenersAttached = true;
+    v.addEventListener('playing', function(){
+      var ov2 = v.closest && v.closest('.slv2-fs-intro, .slv2-fs-summary, .slv2-bonus-wheel, .slv2-vault-game');
+      if(ov2) ov2.classList.add('has-video');
+    });
+    v.addEventListener('pause', function(){
+      // Only strip has-video on natural end-pause, not when overlay-close paused it
+      var ov2 = v.closest && v.closest('.slv2-fs-intro, .slv2-fs-summary, .slv2-bonus-wheel, .slv2-vault-game');
+      if(ov2 && v.ended) ov2.classList.remove('has-video');
+    });
+    v.addEventListener('ended', function(){
+      var ov2 = v.closest && v.closest('.slv2-fs-intro, .slv2-fs-summary, .slv2-bonus-wheel, .slv2-vault-game');
+      if(ov2) ov2.classList.remove('has-video');
+    });
+  }
 
   v.setAttribute('src', url);
   v.muted = true;
@@ -12903,7 +12930,10 @@ function slv2SetVideoSrc(elemId, url){
   var p = v.play();
   if(p && typeof p.catch === 'function'){
     p.catch(function(err){
-      console.warn('[slv2 video] autoplay blocked for', url, '—', err && err.name);
+      // Suppress AbortError noise (happens when src changes mid-play)
+      if(err && err.name !== 'AbortError'){
+        console.warn('[slv2 video] autoplay blocked for', url, '—', err && err.name);
+      }
       // Don't strip has-video — restart can retry with a fresh user gesture
     });
   }
@@ -12925,24 +12955,37 @@ function slv2RestartVideo(elemId){
   if(!v.getAttribute('src')) return;  // truly nothing to play
   // Ensure the overlay can mount the video visually
   v.style.display = 'block';
-  try {
-    v.currentTime = 0;
-    v.classList.remove('ended');
-    // ATTEMPT 1: unmuted play (works if there's a recent user gesture window —
-    // typically true since the player just clicked SPIN before the bonus triggered).
-    // If the browser blocks unmuted autoplay we fall back to muted instantly.
-    v.muted = false;
-    v.volume = 0.6;  // not too loud relative to game sounds
-    var p = v.play();
-    if(p && typeof p.catch === 'function'){
-      p.catch(function(err){
-        // ATTEMPT 2: fall back to muted autoplay (always allowed)
-        v.muted = true;
-        v.currentTime = 0;
-        v.play().catch(function(){});
-      });
-    }
-  } catch(e){}
+  // ─── PROMISE RACE FIX — pause first, await any in-flight play ─────
+  // If a previous play() promise is still pending, calling pause()+play()
+  // synchronously can cause AbortError + the new play() can be rejected.
+  // Best practice: pause(), wait for the previous promise (if any) to
+  // settle, THEN seek + play.
+  try { v.pause(); } catch(e){}
+  // Defer the seek+play one frame so the pause is processed first
+  requestAnimationFrame(function(){
+    try {
+      v.currentTime = 0;
+      v.classList.remove('ended');
+      // ATTEMPT 1: unmuted play (works if there's a recent user gesture window —
+      // typically true since the player just clicked SPIN before the bonus triggered).
+      v.muted = false;
+      v.volume = 0.6;  // not too loud relative to game sounds
+      var p = v.play();
+      // Track this play() so close handlers can wait for it cleanly
+      v._slv2ActivePlay = p;
+      if(p && typeof p.catch === 'function'){
+        p.catch(function(err){
+          if(err && err.name === 'AbortError') return;  // expected on rapid restart
+          // ATTEMPT 2: fall back to muted autoplay (always allowed)
+          v.muted = true;
+          v.currentTime = 0;
+          var p2 = v.play();
+          v._slv2ActivePlay = p2;
+          if(p2 && p2.catch) p2.catch(function(){});
+        });
+      }
+    } catch(e){}
+  });
 }
 
 // Attach onended handlers to video elements once page is loaded
@@ -13246,7 +13289,7 @@ function slv2SlowDownReel(reelIdx, extraMs, cascadeSteps){
       var fracTime = 1 - Math.pow(1 - fracDist, 1/3);
       var clickAt = fracTime * phase3Dur;
       // Click volume scales DOWN as the reel slows (mimics losing inertia)
-      var clickVol = 0.45 - (s / symbolsInP3) * 0.25;
+      var clickVol = 0.28 - (s / symbolsInP3) * 0.15;  // softer per-symbol clicks
       var clickT = setTimeout((function(v){
         return function(){ slv2PlayStepperClick(v); };
       })(clickVol), clickAt);
@@ -13255,8 +13298,8 @@ function slv2SlowDownReel(reelIdx, extraMs, cascadeSteps){
     // Final mechanical THUNK — the reel slamming into place
     var thunkT = setTimeout(function(){
       // Low resonant impact (stepper motor stop)
-      try { slv2PlayTone(95, 0.18, 'sine', 0.28); } catch(e){}      // bass thump
-      try { slv2PlayTone(380, 0.07, 'square', 0.10); } catch(e){}   // mechanical click
+      try { slv2PlayTone(95, 0.16, 'sine', 0.18); } catch(e){}      // bass thump (softer)
+      try { slv2PlayTone(380, 0.07, 'square', 0.07); } catch(e){}   // mechanical click (softer)
       // Subtle "metal" overtone on the impact
       try { slv2PlayTone(1480, 0.045, 'triangle', 0.06); } catch(e){}
     }, phase3Dur - 30);
@@ -13482,7 +13525,7 @@ function slv2PlayWheelSuspenseLayer(layerIdx){
     tymp.frequency.setValueAtTime(tympFreq * 2.2, now);
     tymp.frequency.exponentialRampToValueAtTime(tympFreq, now + 0.075);
     tympG.gain.setValueAtTime(0, now);
-    tympG.gain.linearRampToValueAtTime(0.52, now + 0.004);
+    tympG.gain.linearRampToValueAtTime(0.32, now + 0.008);  // toned down (was 0.52)
     tympG.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
     tymp.connect(tympG).connect(dest);
     tymp.start(now); tymp.stop(now + 0.6);
@@ -13491,7 +13534,7 @@ function slv2PlayWheelSuspenseLayer(layerIdx){
     var attBuf = ctx.createBuffer(1, attLen, sr);
     var attData = attBuf.getChannelData(0);
     for(var ai = 0; ai < attLen; ai++){
-      attData[ai] = (Math.random() * 2 - 1) * Math.pow(1 - ai / attLen, 3) * 0.55;
+      attData[ai] = (Math.random() * 2 - 1) * Math.pow(1 - ai / attLen, 3) * 0.32;  // toned down (was 0.55)
     }
     var att = ctx.createBufferSource();
     att.buffer = attBuf;
@@ -13526,14 +13569,14 @@ function slv2PlayWheelSuspenseLayer(layerIdx){
       brassLP.Q.value = 0.8;
       // Filter "opens" briefly on attack for that brass blat
       brassLP.frequency.setValueAtTime(700, now + 0.05);
-      brassLP.frequency.linearRampToValueAtTime(2200, now + 0.10);
+      brassLP.frequency.linearRampToValueAtTime(2000, now + 0.12);  // less brass blat
       brassLP.frequency.linearRampToValueAtTime(1600, now + 0.55);
       saw.connect(brassLP);
       sqr.connect(brassLP);
       brassLP.connect(brassG).connect(dest);
       // Slightly delayed attack on each note for "blat" articulation,
       // highest note quietest (avoids shrill stack)
-      var v = (0.14 - ni * 0.018);
+      var v = (0.09 - ni * 0.012);  // toned down (was 0.14 - 0.018)
       brassG.gain.setValueAtTime(0, now + 0.05);
       brassG.gain.linearRampToValueAtTime(v, now + 0.10);
       brassG.gain.linearRampToValueAtTime(v * 0.55, now + 0.70);
@@ -13567,7 +13610,7 @@ function slv2PlayWheelSuspenseLayer(layerIdx){
         strLP.connect(strG).connect(dest);
         // Tremolo: gain oscillates 12 Hz over 1.8s using a small ramp grid
         strG.gain.setValueAtTime(0, now + 0.18);
-        strG.gain.linearRampToValueAtTime(0.05, now + 0.50);
+        strG.gain.linearRampToValueAtTime(0.035, now + 0.55);  // softer strings
         var TREM_STEPS = 22, TREM_DUR = 1.8;
         for(var ts = 1; ts <= TREM_STEPS; ts++){
           var phaseT = ts / TREM_STEPS;
@@ -13608,8 +13651,8 @@ function slv2PlayWheelSuspenseLayer(layerIdx){
         lkLP.connect(lkG).connect(dest);
         var startT = now + n.t;
         lkG.gain.setValueAtTime(0, startT);
-        lkG.gain.linearRampToValueAtTime(0.17, startT + 0.015);
-        lkG.gain.linearRampToValueAtTime(0.12, startT + 0.10);
+        lkG.gain.linearRampToValueAtTime(0.11, startT + 0.020);  // toned down (was 0.17)
+        lkG.gain.linearRampToValueAtTime(0.075, startT + 0.10);  // softer hold
         lkG.gain.exponentialRampToValueAtTime(0.001, startT + 0.32);
         lk.start(startT);    lkSqr.start(startT);
         lk.stop(startT + 0.35); lkSqr.stop(startT + 0.35);
@@ -13621,7 +13664,7 @@ function slv2PlayWheelSuspenseLayer(layerIdx){
       var cyData = cyBuf.getChannelData(0);
       for(var ci = 0; ci < cyLen; ci++){
         var ct = ci / sr;
-        cyData[ci] = (Math.random() * 2 - 1) * Math.exp(-ct * 0.95) * 0.5;
+        cyData[ci] = (Math.random() * 2 - 1) * Math.exp(-ct * 0.95) * 0.32;  // softer (was 0.5)
       }
       var cy = ctx.createBufferSource();
       cy.buffer = cyBuf;
@@ -13631,7 +13674,7 @@ function slv2PlayWheelSuspenseLayer(layerIdx){
       cyHP.frequency.exponentialRampToValueAtTime(8000, now + 1.8);
       var cyG = ctx.createGain();
       cyG.gain.setValueAtTime(0, now + 0.96);
-      cyG.gain.linearRampToValueAtTime(0.34, now + 1.20);
+      cyG.gain.linearRampToValueAtTime(0.20, now + 1.30);  // softer cymbal (was 0.34)
       cyG.gain.exponentialRampToValueAtTime(0.001, now + 2.4);
       cy.connect(cyHP).connect(cyG).connect(dest);
       cy.start(now + 0.96);
@@ -13665,7 +13708,7 @@ function slv2StartRouletteTicker(){
         var buf  = ctx.createBuffer(1, len, sr);
         var data = buf.getChannelData(0);
         for(var i = 0; i < len; i++){
-          data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i/len, 5) * 0.32;
+          data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i/len, 5) * 0.20;  // softer ticker (was 0.32)
         }
         var click = ctx.createBufferSource();
         click.buffer = buf;
@@ -13710,7 +13753,7 @@ function slv2PlayStepperClick(intensity){
     var len = Math.floor(sr * 0.030);
     var buf = ctx.createBuffer(1, len, sr);
     var data = buf.getChannelData(0);
-    var v = intensity || 0.55;
+    var v = intensity || 0.32;  // softer stepper click (was 0.55)
     for(var i = 0; i < len; i++){
       var t = i / len;
       // Sharp exponential decay — pure transient
