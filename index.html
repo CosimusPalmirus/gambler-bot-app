@@ -10,6 +10,64 @@
 <meta name="build-version" content="2026-05-22-PERF-R4-BAL">
 <title>Gambler Bot</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+ * TELEGRAM AUTH MONKEY-PATCH — auto-add initData to backend fetches
+ * ═══════════════════════════════════════════════════════════════════
+ * Wraps window.fetch() globally. Any request to the backend domain
+ * automatically receives the X-Telegram-Init-Data header carrying the
+ * signed Telegram WebApp initData. The backend uses this to verify
+ * user_id without trusting the request body.
+ *
+ * - Original fetch behavior preserved for non-backend URLs (fonts,
+ *   cdn, telegram api, etc.)
+ * - Idempotent: if caller already set the header, we don't overwrite
+ * - Falls back gracefully outside Telegram (initData empty → header
+ *   absent → backend in legacy mode still works with warning logs)
+ * ═══════════════════════════════════════════════════════════════════ */
+(function() {
+  'use strict';
+  var BACKEND_DOMAIN = 'factoid-spinal-dispatch.ngrok-free.dev';
+  var ORIGINAL_FETCH = window.fetch.bind(window);
+  function getInitData() {
+    return (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || '';
+  }
+  window.fetch = function(input, init) {
+    init = init || {};
+    var url = (typeof input === 'string') ? input : (input && input.url) || '';
+    var isBackend = url.indexOf(BACKEND_DOMAIN) !== -1;
+    if (isBackend) {
+      init.headers = init.headers || {};
+      // Convert Headers object to plain dict if necessary
+      if (init.headers instanceof Headers) {
+        var h = {};
+        init.headers.forEach(function(v, k) { h[k] = v; });
+        init.headers = h;
+      }
+      // Always inject ngrok bypass
+      if (!init.headers['ngrok-skip-browser-warning'] && !init.headers['Ngrok-Skip-Browser-Warning']) {
+        init.headers['ngrok-skip-browser-warning'] = '1';
+      }
+      // Inject initData header (signed by Telegram)
+      var initData = getInitData();
+      if (initData && !init.headers['X-Telegram-Init-Data'] && !init.headers['x-telegram-init-data']) {
+        init.headers['X-Telegram-Init-Data'] = initData;
+      }
+    }
+    return ORIGINAL_FETCH(input, init);
+  };
+  // Helper: expose current verified user_id (read directly from SDK; the backend
+  // re-verifies cryptographically so this is safe for client-side UX only)
+  window.getCurrentTelegramUserId = function() {
+    var t = window.Telegram && window.Telegram.WebApp;
+    if (t && t.initDataUnsafe && t.initDataUnsafe.user) {
+      return String(t.initDataUnsafe.user.id);
+    }
+    return null;
+  };
+  console.log('[tg_auth] fetch patched — initData header will be auto-added to ' + BACKEND_DOMAIN + ' requests');
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Orbitron:wght@400;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
