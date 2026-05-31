@@ -8800,7 +8800,7 @@ function renderCard(c,hidden){
   return'<div class="card'+(c.red?' red':'')+'"><div class="card-r">'+c.r+'</div><div class="card-s">'+c.s+'</div></div>';
 }
 
-var BJ={deck:[],hands:[],activeHand:0,dealer:[],bet:0,active:false};
+var BJ={deck:[],hands:[],activeHand:0,dealer:[],bet:0,active:false,busy:false};
 function initBJ(){
   buildBets('bj-bets','bj');
   document.getElementById('bj-dealer-cards').innerHTML='';
@@ -8841,88 +8841,91 @@ function setBJActions(state){
     a.innerHTML='<button class="action-btn" onclick="bjDeal()">🃏 PLAY AGAIN</button>';
   }
 }
-function bjDeal(){
-  var bet=currentBet.bj;
-  if(!hasFunds(bet)){toast('Insufficient balance','err');return;}
-  BJ.deck=deck();
-  BJ.hands=[{cards:[BJ.deck.pop(),BJ.deck.pop()],bet:bet,done:false,bust:false,won:false,doubled:false,blackjack:false}];
-  BJ.dealer=[BJ.deck.pop(),BJ.deck.pop()];
-  BJ.activeHand=0;BJ.active=true;BJ.bet=bet;
-  placeBet(bet,'bj');
-  // Initial deal audio — chip in, 4 cards dealt staggered
-  gSound('chip');
-  setTimeout(function(){ gSound('card'); }, 120);
-  setTimeout(function(){ gSound('card'); }, 240);
-  setTimeout(function(){ gSound('card'); }, 360);
-  setTimeout(function(){ gSound('card'); }, 480);
-  var dealerBJ = (handVal(BJ.dealer) === 21);
-  BJ.dealerBlackjack = dealerBJ;
-  var playerBJ = (handVal(BJ.hands[0].cards) === 21);
-  if(playerBJ) BJ.hands[0].blackjack = true;
-  bjRenderHands(true);
-  if(dealerBJ){
-    BJ.hands[0].done = true;
-    bjDealerPlay();
-    return;
-  }
-  if(playerBJ){
-    // Player natural 21 — celebrate
-    setTimeout(function(){ gSound('blackjack-21'); }, 600);
-    bjStand();
-    return;
-  }
-  setBJActions('play');
+// ════ Server-authoritative blackjack (added by bj_client_patch) ════
+// The deck + dealer hole card live ONLY on the server; we render what each
+// action returns. The old client kept the whole deck (and hole card) in the
+// browser — readable from the console. Now they're secret.
+function bjFetch(path, payload){
+  fetch(BACKEND+path,{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify(payload)})
+    .then(function(r){return r.json();}).then(function(d){ bjApply(d); })
+    .catch(function(e){ BJ.busy=false; toast('Network error','err'); if(typeof loadBalance==='function')loadBalance(); });
 }
-function bjHit(){
-  if(!BJ.active)return;
-  var h=BJ.hands[BJ.activeHand];
-  h.cards.push(BJ.deck.pop());
-  gSound('card');         // card slide
-  bjRenderHands(true);
-  if(handVal(h.cards)>21){
-    setTimeout(function(){ gSound('bust'); }, 180);
-    h.done=true;h.bust=true;bjNextHand();
+function bjApply(d){
+  BJ.busy=false;
+  if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); if(typeof loadBalance==='function')loadBalance(); return; }
+  BJ.hands=d.hands.map(function(h){ return {cards:h.cards,bet:h.bet_eur,done:h.done,bust:h.bust,won:h.won,push:h.push,blackjack:h.blackjack,doubled:h.doubled}; });
+  BJ.activeHand=d.active_hand||0;
+  if(d.btc!==undefined)S.btc=d.btc;
+  if(d.total_bet_eur!==undefined)S.totalBet=d.total_bet_eur;
+  if(d.state==='done'){
+    BJ.dealer=d.dealer; BJ.dealerBlackjack=d.dealer_bj; BJ.active=false;
+    if(d.wins!==undefined)S.wins=d.wins; if(d.losses!==undefined)S.losses=d.losses;
+    if(d.biggest_win_eur!==undefined)S.biggestWin=d.biggest_win_eur;
+    refresh(); if(CUR==='profile')renderProfile();
+    gSound('card-flip');
+    bjRenderHands(false);
+    bjShowOutcome(d);
+    setBJActions('done');
   } else {
+    BJ.dealer=[d.dealer_up,{hidden:true}]; BJ.active=true;
+    refresh();
+    bjRenderHands(true);
     setBJActions('play');
   }
 }
-function bjDouble(){
-  if(!BJ.active)return;
-  var h=BJ.hands[BJ.activeHand];
-  if(h.cards.length!==2||h.doubled||!hasFunds(h.bet))return;
-  placeBet(h.bet,'bj');
-  gSound('chip-stack');   // doubling = more chips
-  h.bet*=2;h.doubled=true;
-  h.cards.push(BJ.deck.pop());
-  setTimeout(function(){ gSound('card'); }, 200);
-  if(handVal(h.cards)>21){
-    h.bust=true;
-    setTimeout(function(){ gSound('bust'); }, 350);
+function bjShowOutcome(d){
+  var totalBet=BJ.hands.reduce(function(a,h){return a+h.bet;},0);
+  var won=d.won_eur||0;
+  if(won>totalBet+0.001){
+    var profit=won-totalBet;
+    setTimeout(function(){ var ratio=won/totalBet; if(ratio>=2.4)gSound('win-big'); else if(ratio>=1.8)gSound('win-medium'); else gSound('win-small'); },600);
+    toast('🎉 Won €'+profit.toFixed(2),'ok');
+  } else if(Math.abs(won-totalBet)<=0.001 && won>0){
+    setTimeout(function(){ gSound('push'); },600);
+    toast('🤝 Push — €'+totalBet.toFixed(2)+' returned','warn');
+  } else if(won>0){
+    setTimeout(function(){ gSound('win-small'); },600);
+    toast('Won €'+won.toFixed(2),'ok');
+  } else {
+    setTimeout(function(){ gSound('lose'); },600);
+    toast(BJ.dealerBlackjack?'⚫ Dealer Blackjack':'Dealer wins','err');
   }
-  h.done=true;
-  bjRenderHands(true);
-  bjNextHand();
 }
-function bjSplit(){
-  if(!BJ.active)return;
-  var h=BJ.hands[BJ.activeHand];
-  if(h.cards.length!==2||cardVal(h.cards[0])!==cardVal(h.cards[1])||BJ.hands.length>=4||!hasFunds(h.bet))return;
-  placeBet(h.bet,'bj');
-  gSound('chip-stack');
+function bjDeal(){
+  if(BJ.busy)return;
+  var bet=currentBet.bj;
+  if(!hasFunds(bet)){toast('Insufficient balance','err');return;}
+  if(!S.userId){toast('Open in Telegram to play','err');return;}
+  BJ.busy=true; BJ.bet=bet;
+  gSound('chip');
   setTimeout(function(){ gSound('card'); }, 120);
   setTimeout(function(){ gSound('card'); }, 240);
-  var newHand={cards:[h.cards.pop(),BJ.deck.pop()],bet:h.bet,done:false,bust:false,won:false,doubled:false};
-  h.cards.push(BJ.deck.pop());
-  BJ.hands.splice(BJ.activeHand+1,0,newHand);
-  bjRenderHands(true);
-  setBJActions('play');
+  bjFetch('/bj/deal',{user_id:S.userId,bet_btc:eurToBtc(bet)});
+}
+function bjHit(){
+  if(BJ.busy||!BJ.active)return;
+  BJ.busy=true; gSound('card');
+  bjFetch('/bj/hit',{user_id:S.userId});
+}
+function bjDouble(){
+  if(BJ.busy||!BJ.active)return;
+  var h=BJ.hands[BJ.activeHand];
+  if(!h||h.cards.length!==2||h.doubled||!hasFunds(h.bet))return;
+  BJ.busy=true; gSound('chip-stack');
+  bjFetch('/bj/double',{user_id:S.userId});
+}
+function bjSplit(){
+  if(BJ.busy||!BJ.active)return;
+  var h=BJ.hands[BJ.activeHand];
+  if(!h||h.cards.length!==2||cardVal(h.cards[0])!==cardVal(h.cards[1])||BJ.hands.length>=4||!hasFunds(h.bet))return;
+  BJ.busy=true; gSound('chip-stack');
+  setTimeout(function(){ gSound('card'); }, 120);
+  bjFetch('/bj/split',{user_id:S.userId});
 }
 function bjStand(){
-  if(!BJ.active)return;
-  var h=BJ.hands[BJ.activeHand];
-  gSound('tick');         // small confirmation
-  h.done=true;
-  bjNextHand();
+  if(BJ.busy||!BJ.active)return;
+  BJ.busy=true; gSound('tick');
+  bjFetch('/bj/stand',{user_id:S.userId});
 }
 function bjNextHand(){
   for(var i=BJ.activeHand+1;i<BJ.hands.length;i++){
