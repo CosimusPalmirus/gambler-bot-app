@@ -10201,11 +10201,14 @@ function slv2ContributeJackpot(betEur){
   })
   .then(function(r){ return r.json(); })
   .then(function(data){
-    if(data && typeof data.pool_btc === 'number'){
-      // Update local display with the new pool size (saves a poll round-trip)
-      SL2.jackpotEur = data.pool_btc * rate;
+    // Use the server-computed pool_eur (same source as the 8s poll) so the figure
+    // is consistent. The old code recomputed pool_btc*window.S.btcRate with a wrong
+    // rate var (undefined → 90000), showing a different number while spinning.
+    if(data && typeof data.pool_eur === 'number'){
+      SL2.jackpotEur = data.pool_eur;
       slv2UpdateJackpotDisplay();
     }
+    // if the endpoint doesn't return pool_eur, leave the display to the poll.
   })
   .catch(function(){ /* fire-and-forget */ });
 }
@@ -10966,8 +10969,14 @@ function slv2ProcessSpinResult(){
   } else {
     var lwElse = document.getElementById('slv2-last-win');
     if(lwElse){
-      lwElse.className = 'slv2-stat-val lose';
-      lwElse.textContent = '-\u20ac' + SL2.bet.toFixed(2);
+      if(SL2.fsActive){
+        // Free spins are free \u2014 a no-win spin is NOT a loss, don't show a minus.
+        lwElse.className = 'slv2-stat-val';
+        lwElse.textContent = '\u20ac0.00';
+      } else {
+        lwElse.className = 'slv2-stat-val lose';
+        lwElse.textContent = '-\u20ac' + SL2.bet.toFixed(2);
+      }
     }
     if(!SL2.fsActive){
       loseBet(SL2.bet, 'slots');
@@ -17616,12 +17625,12 @@ function plPhysicsLoop(){
         }
       } else { b.stuckFrames = 0; }
 
-      // Server-authoritative steer: ease the ball's X toward its target bucket as it
-      // nears the floor. PURELY positional (no velocity change) so the ball never
-      // loses momentum or "magnets" onto a peg. The pull ramps up lower down.
-      if(b.targetX != null && b.y > PL.BOTTOM_Y - 70){
-        var prog = Math.min(1, (b.y - (PL.BOTTOM_Y - 70)) / 70);
-        b.x += (b.targetX - b.x) * (0.05 + 0.25 * prog);
+      // Server-authoritative steer: VERY gently ease the ball's X toward its target
+      // bucket over a long lower zone. Purely positional, low max factor (~0.10) so
+      // it reads as a natural drift, never the fast "piloted" snap onto a hole.
+      if(b.targetX != null && b.y > PL.BOTTOM_Y - 150){
+        var prog = Math.min(1, (b.y - (PL.BOTTOM_Y - 150)) / 150);
+        b.x += (b.targetX - b.x) * (0.018 + 0.08 * prog);
       }
 
       // Landing
