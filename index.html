@@ -17161,28 +17161,47 @@ function plDrop(eur){
     toast('Layout exhausted \u2014 change risk level to start a new layout', 'err', 1800);
     return;
   }
+  if(PL.inFlight){ return; }   // one ball at a time (server-authoritative)
   if(!PL.boardReady){ plBuildBoard(); PL.boardReady = true; }
   if((S.btc * S.rate) < eur){ toast('Insufficient balance','err'); return; }
-  if(!placeBet(eur, 'plinko')) return;
+  if(!S.userId){ toast('Open in Telegram to play','err'); return; }
+  PL.inFlight = true;
   PL.lastDropTs = now;
+  S.btc = Math.max(0, S.btc - eurToBtc(eur)); refresh();
 
   document.getElementById('pl-bal').textContent = '\u20ac' + (S.btc * S.rate).toFixed(2);
 
-  // First ball of a flight: randomize pegs + slot values for the new flight.
-  // NOTE: launchesThisLayout does NOT reset here. The counter only resets when
-  // the player explicitly switches risk level (LOW/MEDIUM/HIGH) — this prevents
-  // exploiting a learned peg layout by firing 10, waiting them out, firing 10
-  // more on the same level.
-  if(PL.balls.length === 0){
+  // The SERVER decides the slot mapping + landing slot. The client only animates.
+  fetch(BACKEND + '/play/plinko', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},
+    body:JSON.stringify({user_id:S.userId, bet_btc:eurToBtc(eur), risk:PL.risk})
+  }).then(function(r){return r.json();}).then(function(d){
+    if(!d || d.error){
+      PL.inFlight = false;
+      toast('⚠️ ' + ((d && d.error) || 'Network error - retry'), 'err');
+      if(typeof loadBalance === 'function') loadBalance();
+      return;
+    }
     plGenerateRandomPegs();
     plRenderSlotDividers();
-    PL.currentSlots = plShuffleArray(PL.paytables[PL.risk]);
+    PL.currentSlots = d.slots;
     PL.revealed = true;
     plRenderSlots();
-  }
+    plLaunchBall(eur, d);
+  }).catch(function(e){
+    PL.inFlight = false;
+    toast('Network error', 'err');
+    if(typeof loadBalance === 'function') loadBalance();
+  });
+}
 
+// Create the SVG ball + physics state, steered toward the server-decided slot.
+function plLaunchBall(eur, d){
+  var slotW = PL.W / PL.NUM_SLOTS;
+  var targetX = (d.slot + 0.5) * slotW;
   var startX = PL.dropPositions[PL.dropZone] || 160;
-  startX += (Math.random() - 0.5) * 8;  // jitter per-ball so they don't stack
+  startX += (Math.random() - 0.5) * 8;  // jitter so the drop looks organic
 
   var ballId = ++PL.ballIdSeq;
   var ball = {
@@ -17194,13 +17213,15 @@ function plDrop(eur){
     vy: 0,
     trail: [],
     settled: false,
-    stuckFrames: 0
+    stuckFrames: 0,
+    targetSlot: d.slot,
+    targetX: targetX,
+    srv: d                  // authoritative result to apply on landing
   };
   PL.balls.push(ball);
   PL.launchesThisLayout++;
   plUpdateFlightMeter();
 
-  // Create SVG circle for this ball
   var ballsGroup = document.getElementById('pl-balls-group');
   if(ballsGroup){
     var c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
@@ -17213,7 +17234,6 @@ function plDrop(eur){
     ballsGroup.appendChild(c);
   }
 
-  // Start physics loop only if not already running
   if(!PL.animFrame){
     plPhysicsLoop();
   }
@@ -17387,11 +17407,20 @@ function plPhysicsLoop(){
         }
       } else { b.stuckFrames = 0; }
 
+      // Server-authoritative steer: gently pull the ball toward the decided slot
+      // as it nears the bottom so the visual matches the settled payout.
+      if(b.targetX != null && b.y > PL.BOTTOM_Y - 120){
+        var sdx = b.targetX - b.x;
+        b.vx += sdx * 0.05;
+        b.vx *= 0.86;
+        if(b.y > PL.BOTTOM_Y - 22){ b.x += sdx * 0.4; }  // final snap into the bucket
+      }
+
       // Landing
       if(b.y >= PL.BOTTOM_Y){
         b.settled = true;
-        var slotIdx = Math.floor(b.x / slotW);
-        slotIdx = Math.max(0, Math.min(PL.NUM_SLOTS - 1, slotIdx));
+        var slotIdx = (b.targetSlot != null) ? b.targetSlot
+                      : Math.max(0, Math.min(PL.NUM_SLOTS - 1, Math.floor(b.x / slotW)));
         plLandBall(b, slotIdx);
       }
     }
@@ -17417,6 +17446,7 @@ function plPhysicsLoop(){
       PL.animFrame = requestAnimationFrame(step);
     } else {
       PL.animFrame = null;
+      PL.inFlight = false;   // ready for the next drop
       // Hide buckets again — next flight shuffles fresh
       PL.revealed = false;
       PL.currentSlots = null;
@@ -17485,8 +17515,16 @@ function plLandBall(b, slotIdx){
   if(PL.recent.length > 10) PL.recent.pop();
   plRenderRecent();
 
+  // Apply the authoritative balance/stats the server already settled.
+  var _d = b.srv || {};
+  if(_d.btc !== undefined) S.btc = _d.btc;
+  if(_d.wins !== undefined) S.wins = _d.wins;
+  if(_d.losses !== undefined) S.losses = _d.losses;
+  if(_d.total_bet_eur !== undefined) S.totalBet = _d.total_bet_eur;
+  if(_d.biggest_win_eur !== undefined) S.biggestWin = _d.biggest_win_eur;
+  refresh(); if(CUR === 'profile') renderProfile();
+
   if(multi > 0){
-    winBet(payout_eur, 'plinko');
     if(multi >= 1){
       var profit = eur * (multi - 1);
       toast('\uD83D\uDD25 ' + multi + 'x! +\u20ac' + profit.toFixed(2), 'ok', 2000);
@@ -17498,7 +17536,6 @@ function plLandBall(b, slotIdx){
       toast(multi + 'x \u2014 -\u20ac' + lossEur.toFixed(2), 'err', 1500);
     }
   } else {
-    loseBet(eur, 'plinko');
     toast('\uD83D\uDC80 0x \u2014 -\u20ac' + eur, 'err', 1200);
   }
   document.getElementById('pl-bal').textContent = '\u20ac' + (S.btc * S.rate).toFixed(2);
