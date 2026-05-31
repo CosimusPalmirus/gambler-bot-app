@@ -14491,136 +14491,162 @@ var SC_SYMS=[
   {icon:'💵',mult:0.1, w:4},  // cash x0.1 (filler — tiny win)
   {icon:'💣',mult:0,   w:5}   // 5 bombs in 16 cells (was 3)
 ];
-var SC={board:[],revealed:[],bet:2,won:0,active:false};
+var SC={cells:{},revealed:[],bet:2,won:0,active:false,busy:false,exploded:null};
 function initScratch(){
   buildBets('sc-bets','scratch');
   SC.bet=currentBet.scratch;
   renderScratch();
 }
+function scBoomAnim(idx){
+  setTimeout(function(){
+    var grid=document.getElementById('sc-grid');
+    if(!grid)return;
+    var cells=grid.querySelectorAll('.sc-cell-v2');
+    var exploded=cells[idx];
+    if(exploded){
+      exploded.classList.add('exploded');
+      var emojis=['💥','🔥','✨','⚡','💥','🔥','✨','⚡','💥','🔥','✨','⚡'];
+      for(var i=0;i<12;i++){
+        var p=document.createElement('div');
+        p.className='bomb-particle';
+        p.textContent=emojis[i];
+        var angle=(i/12)*Math.PI*2 + (Math.random()*.5-.25);
+        var dist=70+Math.random()*40;
+        p.style.setProperty('--tx',Math.cos(angle)*dist+'px');
+        p.style.setProperty('--ty',Math.sin(angle)*dist+'px');
+        p.style.animationDelay=(i*0.015)+'s';
+        p.style.fontSize=(14+Math.random()*8)+'px';
+        exploded.appendChild(p);
+        setTimeout((function(_p){return function(){if(_p.parentNode)_p.parentNode.removeChild(_p);};})(p),1100+i*15);
+      }
+    }
+    grid.classList.add('board-shake');
+    setTimeout(function(){grid.classList.remove('board-shake');},520);
+  },50);
+}
 function renderScratch(){
   var g=document.getElementById('sc-grid');
   if(!g)return;
-  if(!SC.board.length){
+  if(!SC.active && SC.revealed.length===0){
     g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--txt3);font-size:11px;">Press NEW CARD to start scratching!</div>';
     return;
   }
   g.innerHTML='';
-  SC.board.forEach(function(sym,idx){
-    var rev=SC.revealed.indexOf(idx)>=0;
-    var s=SC_SYMS[sym];
-    var bomb=s.mult===0;
-    var cell=document.createElement('div');
-    cell.className='sc-cell-v2'+(rev?(bomb?' rev bomb':' rev win'):'');
-    cell.innerHTML='<div class="sc-cover">★<span class="sc-cover-mini">TREASURE</span></div>'+
-      '<div class="sc-face">'+(rev?
-        '<div class="sc-face-icon">'+s.icon+'</div><div class="sc-face-mult">'+(bomb?'BOOM':'x'+s.mult)+'</div>'
-        :'')+'</div>';
-    if(!rev){
-      cell.onclick=function(){
-        if(!SC.active||SC.revealed.indexOf(idx)>=0)return;
-        cell.classList.add('flipping');
-        setTimeout(function(){scReveal(idx);},220);
-      };
-    }
-    g.appendChild(cell);
-  });
+  for(var _idx=0; _idx<16; _idx++){
+    (function(idx){
+      var has=(idx in SC.cells);
+      var s=has?SC_SYMS[SC.cells[idx]]:null;
+      var bomb=has && s.mult===0;
+      var cell=document.createElement('div');
+      cell.className='sc-cell-v2'+(has?(bomb?' rev bomb':' rev win'):'');
+      cell.innerHTML='<div class="sc-cover">★<span class="sc-cover-mini">TREASURE</span></div>'+
+        '<div class="sc-face">'+(has?
+          '<div class="sc-face-icon">'+s.icon+'</div><div class="sc-face-mult">'+(bomb?'BOOM':'x'+s.mult)+'</div>'
+          :'')+'</div>';
+      if(!has){
+        cell.onclick=function(){
+          if(!SC.active||SC.busy||(idx in SC.cells))return;
+          cell.classList.add('flipping');
+          setTimeout(function(){scReveal(idx);},220);
+        };
+      }
+      g.appendChild(cell);
+    })(_idx);
+  }
 }
 function scNew(){
-  if(SC.active)return;
+  if(SC.active||SC.busy)return;
   var bet=currentBet.scratch;
   if(!hasFunds(bet)){toast('Insufficient balance','err');return;}
-  SC.bet=bet;SC.active=true;SC.won=0;SC.revealed=[];
-  placeBet(bet,'scratch');
-  gSound('ticket');   // new ticket buzz
-  var cells=[];
-  // 5 bombs + 11 prize cells (harder, better house edge)
-  for(var b=0;b<5;b++)cells.push(5);
-  var totW=11; // sum of prize-symbol weights (1+1+2+3+4)
-  for(var p=0;p<11;p++){
-    var r=Math.random()*totW,c=0,k;
-    for(k=0;k<5;k++){c+=SC_SYMS[k].w;if(r<=c)break;}
-    cells.push(k);
-  }
-  for(var i=cells.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=cells[i];cells[i]=cells[j];cells[j]=t;}
-  SC.board=cells;
-  document.getElementById('sc-win').textContent='€0.00';
-  document.getElementById('sc-status').textContent='Scratch cells! Cash out anytime.';
-  document.getElementById('sc-cashout').style.display='';
-  document.getElementById('sc-new').style.display='none';
-  renderScratch();
+  if(!S.userId){toast('Open in Telegram to play','err');return;}
+  SC.busy=true;
+  fetch(BACKEND+'/scratch/new',{
+    method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},
+    body:JSON.stringify({user_id:S.userId,bet_btc:eurToBtc(bet)})
+  }).then(function(r){return r.json();}).then(function(d){
+    SC.busy=false;
+    if(!d||d.error){toast('⚠️ '+((d&&d.error)||'error'),'err');if(typeof loadBalance==='function')loadBalance();return;}
+    SC.bet=bet;SC.active=true;SC.won=0;SC.revealed=[];SC.cells={};SC.exploded=null;
+    if(d.btc!==undefined)S.btc=d.btc;
+    if(d.total_bet_eur!==undefined)S.totalBet=d.total_bet_eur;
+    refresh();if(CUR==='profile')renderProfile();
+    gSound('ticket');
+    document.getElementById('sc-win').textContent='€0.00';
+    document.getElementById('sc-status').textContent='Scratch cells! Cash out anytime.';
+    document.getElementById('sc-cashout').style.display='';
+    document.getElementById('sc-new').style.display='none';
+    renderScratch();
+  }).catch(function(e){SC.busy=false;toast('Network error','err');if(typeof loadBalance==='function')loadBalance();});
 }
 function scReveal(idx){
-  if(!SC.active||SC.revealed.indexOf(idx)>=0)return;
-  SC.revealed.push(idx);
-  // Scratchy scrape sound on every reveal
+  if(!SC.active||SC.busy||(idx in SC.cells))return;
+  SC.busy=true;
   gSound('scratch');
-  var sym=SC.board[idx];
-  if(SC_SYMS[sym].mult===0){
-    SC.active=false;
-    SC.exploded=idx;
-    SC.board.forEach(function(_,i){if(SC.revealed.indexOf(i)<0)SC.revealed.push(i);});
+  fetch(BACKEND+'/scratch/reveal',{
+    method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},
+    body:JSON.stringify({user_id:S.userId,cell:idx})
+  }).then(function(r){return r.json();}).then(function(d){
+    SC.busy=false;
+    if(!d||d.error){toast('⚠️ '+((d&&d.error)||'error'),'err');return;}
+    SC.revealed.push(idx);
+    SC.cells[idx]=d.sym;
+    if(d.bomb){
+      SC.active=false;SC.exploded=idx;
+      if(d.board){for(var i=0;i<d.board.length;i++){SC.cells[i]=d.board[i];}}
+      if(d.btc!==undefined)S.btc=d.btc;
+      if(d.losses!==undefined)S.losses=d.losses;
+      refresh();if(CUR==='profile')renderProfile();
+      renderScratch();
+      gSound('explosion');
+      scBoomAnim(idx);
+      document.getElementById('sc-status').textContent='💣 BOOM! You lost!';
+      document.getElementById('sc-cashout').style.display='none';
+      document.getElementById('sc-new').style.display='';
+      toast('💣 BOOM! Lost €'+SC.bet,'err');
+      return;
+    }
+    setTimeout(function(){ gSound('match'); }, 140);
+    if(d.won_eur!==undefined)SC.won=d.won_eur;
+    document.getElementById('sc-win').textContent='€'+SC.won.toFixed(2);
     renderScratch();
-    // BOOM — explosion sound on bomb reveal
-    gSound('explosion');
-    setTimeout(function(){
-      var grid=document.getElementById('sc-grid');
-      if(!grid)return;
-      var cells=grid.querySelectorAll('.sc-cell-v2');
-      var exploded=cells[idx];
-      if(exploded){
-        exploded.classList.add('exploded');
-        var emojis=['\uD83D\uDCA5','\uD83D\uDD25','\u2728','\u26A1','\uD83D\uDCA5','\uD83D\uDD25','\u2728','\u26A1','\uD83D\uDCA5','\uD83D\uDD25','\u2728','\u26A1'];
-        for(var i=0;i<12;i++){
-          var p=document.createElement('div');
-          p.className='bomb-particle';
-          p.textContent=emojis[i];
-          var angle=(i/12)*Math.PI*2 + (Math.random()*.5-.25);
-          var dist=70+Math.random()*40;
-          p.style.setProperty('--tx',Math.cos(angle)*dist+'px');
-          p.style.setProperty('--ty',Math.sin(angle)*dist+'px');
-          p.style.animationDelay=(i*0.015)+'s';
-          p.style.fontSize=(14+Math.random()*8)+'px';
-          exploded.appendChild(p);
-          setTimeout((function(_p){return function(){if(_p.parentNode)_p.parentNode.removeChild(_p);};})(p),1100+i*15);
-        }
-      }
-      grid.classList.add('board-shake');
-      setTimeout(function(){grid.classList.remove('board-shake');},520);
-    },50);
-    document.getElementById('sc-status').textContent='\uD83D\uDCA3 BOOM! You lost!';
-    document.getElementById('sc-cashout').style.display='none';
-    document.getElementById('sc-new').style.display='';
-    loseBet(SC.bet,'scratch');
-    toast('\uD83D\uDCA3 BOOM! Lost \u20ac'+SC.bet,'err');
-    return;
-  }
-  // Match found — happy ding (a tiny delay after the scratch sound)
-  setTimeout(function(){ gSound('match'); }, 140);
-  SC.won+=SC.bet*SC_SYMS[sym].mult;
-  document.getElementById('sc-win').textContent='\u20ac'+SC.won.toFixed(2);
-  renderScratch();
-  var safeRevealed=SC.revealed.filter(function(i){return SC.board[i]!==5;});
-  if(safeRevealed.length>=11){
-    SC.won*=2;
-    document.getElementById('sc-win').textContent='\u20ac'+SC.won.toFixed(2);
-    document.getElementById('sc-status').textContent='\uD83C\uDF89 PERFECT CLEAR! 2x bonus!';
-    gSound('win-big');   // perfect clear celebration
-    setTimeout(scCashout,500);
-  }
+    if(d.perfect){
+      SC.active=false;
+      if(d.btc!==undefined)S.btc=d.btc;
+      if(d.wins!==undefined)S.wins=d.wins;
+      if(d.biggest_win_eur!==undefined)S.biggestWin=d.biggest_win_eur;
+      refresh();if(CUR==='profile')renderProfile();
+      document.getElementById('sc-win').textContent='€'+SC.won.toFixed(2);
+      document.getElementById('sc-status').textContent='🎉 PERFECT CLEAR! 2x bonus!';
+      gSound('win-big');
+      setTimeout(function(){gSound('cashout');},220);
+      toast('💰 Won €'+SC.won.toFixed(2),'ok');
+      document.getElementById('sc-cashout').style.display='none';
+      document.getElementById('sc-new').style.display='';
+    }
+  }).catch(function(e){SC.busy=false;toast('Network error','err');});
 }
 function scCashout(){
-  if(!SC.active||SC.won<=0){
-    if(SC.won<=0)toast('Nothing to cash out yet','warn');
-    return;
-  }
-  SC.active=false;
-  winBet(SC.won,'scratch');
-  // Cash register payout sound
-  gSound('cashout');
-  toast('💰 Won €'+SC.won.toFixed(2),'ok');
-  document.getElementById('sc-status').textContent='Won €'+SC.won.toFixed(2)+'! 🎉';
-  document.getElementById('sc-cashout').style.display='none';
-  document.getElementById('sc-new').style.display='';
+  if(!SC.active||SC.busy)return;
+  if(SC.won<=0){toast('Nothing to cash out yet','warn');return;}
+  SC.busy=true;
+  fetch(BACKEND+'/scratch/cashout',{
+    method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},
+    body:JSON.stringify({user_id:S.userId})
+  }).then(function(r){return r.json();}).then(function(d){
+    SC.busy=false;
+    if(!d||d.error){toast('⚠️ '+((d&&d.error)||'error'),'err');return;}
+    SC.active=false;
+    if(d.btc!==undefined)S.btc=d.btc;
+    if(d.wins!==undefined)S.wins=d.wins;
+    if(d.biggest_win_eur!==undefined)S.biggestWin=d.biggest_win_eur;
+    if(d.won_eur!==undefined)SC.won=d.won_eur;
+    refresh();if(CUR==='profile')renderProfile();
+    gSound('cashout');
+    toast('💰 Won €'+SC.won.toFixed(2),'ok');
+    document.getElementById('sc-status').textContent='Won €'+SC.won.toFixed(2)+'! 🎉';
+    document.getElementById('sc-cashout').style.display='none';
+    document.getElementById('sc-new').style.display='';
+  }).catch(function(e){SC.busy=false;toast('Network error','err');});
 }
 
 var CR={state:'idle',mult:1,crashAt:0,startTime:0,raf:null,bet:2,hasBet:false,auto:0,history:[]};
@@ -17161,45 +17187,59 @@ function plDrop(eur){
     toast('Layout exhausted \u2014 change risk level to start a new layout', 'err', 1800);
     return;
   }
-  if(PL.inFlight){ return; }   // one ball at a time (server-authoritative)
   if(!PL.boardReady){ plBuildBoard(); PL.boardReady = true; }
   if((S.btc * S.rate) < eur){ toast('Insufficient balance','err'); return; }
   if(!S.userId){ toast('Open in Telegram to play','err'); return; }
-  PL.inFlight = true;
   PL.lastDropTs = now;
+
+  // Establish the cosmetic bucket layout once per flight; multi-ball share it.
+  if(PL.currentSlots === null){
+    plGenerateRandomPegs();
+    plRenderSlotDividers();
+    PL.currentSlots = plShuffleArray(PL.paytables[PL.risk]);
+    PL.revealed = true;
+    plRenderSlots();
+  }
+
+  // Optimistic deduction + count the launch up-front so rapid fire respects the cap.
   S.btc = Math.max(0, S.btc - eurToBtc(eur)); refresh();
+  PL.launchesThisLayout++;
+  plUpdateFlightMeter();
 
   document.getElementById('pl-bal').textContent = '\u20ac' + (S.btc * S.rate).toFixed(2);
 
-  // The SERVER decides the slot mapping + landing slot. The client only animates.
+  // The SERVER decides this ball's multiplier (authoritative payout). The client
+  // keeps its own cosmetic bucket layout and steers the ball to a matching bucket.
   fetch(BACKEND + '/play/plinko', {
     method:'POST',
     headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},
     body:JSON.stringify({user_id:S.userId, bet_btc:eurToBtc(eur), risk:PL.risk})
   }).then(function(r){return r.json();}).then(function(d){
     if(!d || d.error){
-      PL.inFlight = false;
+      PL.launchesThisLayout = Math.max(0, PL.launchesThisLayout - 1); plUpdateFlightMeter();
+      S.btc = Math.max(0, S.btc + eurToBtc(eur)); refresh();   // refund optimistic deduction
       toast('⚠️ ' + ((d && d.error) || 'Network error - retry'), 'err');
       if(typeof loadBalance === 'function') loadBalance();
       return;
     }
-    plGenerateRandomPegs();
-    plRenderSlotDividers();
-    PL.currentSlots = d.slots;
-    PL.revealed = true;
-    plRenderSlots();
     plLaunchBall(eur, d);
   }).catch(function(e){
-    PL.inFlight = false;
+    PL.launchesThisLayout = Math.max(0, PL.launchesThisLayout - 1); plUpdateFlightMeter();
+    S.btc = Math.max(0, S.btc + eurToBtc(eur)); refresh();
     toast('Network error', 'err');
     if(typeof loadBalance === 'function') loadBalance();
   });
 }
 
-// Create the SVG ball + physics state, steered toward the server-decided slot.
+// Create the SVG ball + physics state, steered toward a bucket whose multiplier
+// matches the server-decided one (the layout is cosmetic; payout is authoritative).
 function plLaunchBall(eur, d){
   var slotW = PL.W / PL.NUM_SLOTS;
-  var targetX = (d.slot + 0.5) * slotW;
+  var slots = PL.currentSlots || PL.paytables[PL.risk];
+  var matches = [];
+  for(var mi = 0; mi < slots.length; mi++){ if(slots[mi] === d.multi) matches.push(mi); }
+  var targetSlot = matches.length ? matches[Math.floor(Math.random() * matches.length)] : 0;
+  var targetX = (targetSlot + 0.5) * slotW;
   var startX = PL.dropPositions[PL.dropZone] || 160;
   startX += (Math.random() - 0.5) * 8;  // jitter so the drop looks organic
 
@@ -17214,13 +17254,11 @@ function plLaunchBall(eur, d){
     trail: [],
     settled: false,
     stuckFrames: 0,
-    targetSlot: d.slot,
+    targetSlot: targetSlot,
     targetX: targetX,
     srv: d                  // authoritative result to apply on landing
   };
   PL.balls.push(ball);
-  PL.launchesThisLayout++;
-  plUpdateFlightMeter();
 
   var ballsGroup = document.getElementById('pl-balls-group');
   if(ballsGroup){
@@ -17407,13 +17445,12 @@ function plPhysicsLoop(){
         }
       } else { b.stuckFrames = 0; }
 
-      // Server-authoritative steer: gently pull the ball toward the decided slot
-      // as it nears the bottom so the visual matches the settled payout.
-      if(b.targetX != null && b.y > PL.BOTTOM_Y - 120){
-        var sdx = b.targetX - b.x;
-        b.vx += sdx * 0.05;
-        b.vx *= 0.86;
-        if(b.y > PL.BOTTOM_Y - 22){ b.x += sdx * 0.4; }  // final snap into the bucket
+      // Server-authoritative steer: ease the ball's X toward its target bucket as it
+      // nears the floor. PURELY positional (no velocity change) so the ball never
+      // loses momentum or "magnets" onto a peg. The pull ramps up lower down.
+      if(b.targetX != null && b.y > PL.BOTTOM_Y - 70){
+        var prog = Math.min(1, (b.y - (PL.BOTTOM_Y - 70)) / 70);
+        b.x += (b.targetX - b.x) * (0.05 + 0.25 * prog);
       }
 
       // Landing
@@ -17515,9 +17552,11 @@ function plLandBall(b, slotIdx){
   if(PL.recent.length > 10) PL.recent.pop();
   plRenderRecent();
 
-  // Apply the authoritative balance/stats the server already settled.
+  // Credit THIS ball's server-settled payout as a DELTA (the bet was already
+  // deducted optimistically at drop). A delta keeps multi-ball balances correct
+  // regardless of the order balls land vs. the order the server processed them.
   var _d = b.srv || {};
-  if(_d.btc !== undefined) S.btc = _d.btc;
+  if(_d.won_btc !== undefined) S.btc = Math.max(0, S.btc + _d.won_btc);
   if(_d.wins !== undefined) S.wins = _d.wins;
   if(_d.losses !== undefined) S.losses = _d.losses;
   if(_d.total_bet_eur !== undefined) S.totalBet = _d.total_bet_eur;
