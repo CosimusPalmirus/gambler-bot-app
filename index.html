@@ -9331,6 +9331,9 @@ var SL2_LINES = [
 // State
 var SL2 = {
   bet: 1,
+  // ── server-authoritative render: the round script from /play/slots ──
+  srv: null, srvMode: false, srvCols: null, srvWheel: null,
+  srvTumbles: null, srvTumbleCursor: 0, srvCascCur: null, srvFsWheelCursor: 0,
   spinning: false,
   turbo: false,
   // grid: 2D array [reel][row] of symbols (5 reels x 3 rows)
@@ -9457,7 +9460,8 @@ function slv2QueueSpin(delayMs, options){
                   SL2.pendingWheelTrigger || SL2.bonusWheelOpen || SL2.vaultOpen ||
                   SL2.fsIntroActive;
     if(!blocked){
-      slv2Spin();
+      if(SL2.srvMode && !SL2.fsActive){ slv2SpinFetch(); }   // auto-spin: new paid round
+      else { slv2Spin(); }                                    // FS: consume the server sequence
       return;
     }
     if(performance.now() - pollStart > 12000){
@@ -10364,6 +10368,78 @@ function slv2ClosePaytable(ev){
 // ─── DISPATCHER — SPIN button click handler ──────────────────────
 // Decides between starting a new spin and quick-stopping the current one.
 // Always wired to the SPIN button (replaces the old direct slv2Spin call).
+// ════ Server-authoritative slots helpers (added by slots_client_patch) ════
+// Fetch the whole round from the backend, then replay it with the existing
+// animation engine. The bet is settled server-side; we deduct optimistically
+// for display and reconcile to the authoritative balance when the round ends.
+function slv2SpinFetch(){
+  if(SL2.spinning) return;
+  var bet = SL2.bet;
+  if(!hasFunds(bet)){ toast('Insufficient balance', 'err'); slv2StopAuto(); return; }
+  if(!S.userId){ toast('Open in Telegram to play', 'err'); slv2StopAuto(); return; }
+  var btn = document.getElementById('slv2-spin-btn'); if(btn) btn.disabled = true;
+  fetch(BACKEND + '/play/slots', {
+    method:'POST', headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},
+    body:JSON.stringify({user_id:S.userId, bet_btc:eurToBtc(bet)})
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if(btn) btn.disabled = false;
+    if(!d || d.error){
+      toast('⚠️ ' + ((d && d.error) || 'Network error - retry'), 'err');
+      slv2StopAuto();
+      if(typeof loadBalance === 'function') loadBalance();
+      return;
+    }
+    SL2.srv = { round: d.round, cursor: 0, wheelShown: false,
+                finalBtc: d.btc, jackpot: !!d.jackpot,
+                wins: d.wins, losses: d.losses,
+                total_bet_eur: d.total_bet_eur, biggest_win_eur: d.biggest_win_eur };
+    SL2.srvMode = true;
+    SL2.srvFsWheelCursor = 0;
+    SL2.srvWheel = null;
+    // contribute to the shared jackpot pool (parity with old slv2ContributeJackpot)
+    if(typeof slv2ContributeJackpot === 'function'){ try{ slv2ContributeJackpot(bet); }catch(e){} }
+    // optimistic display deduction; final balance reconciled at round end
+    S.btc = Math.max(0, S.btc - eurToBtc(bet)); refresh();
+    slv2Spin();
+  }).catch(function(e){
+    if(btn) btn.disabled = false;
+    toast('Network error', 'err');
+    slv2StopAuto();
+    if(typeof loadBalance === 'function') loadBalance();
+  });
+}
+
+// Stamp a symbol into a strip cell (mirrors the cell-render in slv2SpinReel).
+function slv2StampCell(strip, symbols, idx, sym){
+  if(idx < 0 || idx >= symbols.length) return;
+  symbols[idx] = sym;
+  var cell = strip.children[idx];
+  if(!cell) return;
+  cell.className = 'slv2-sym sym-' + sym;
+  if(sym === 'btc'){ cell.innerHTML = slv2GbLogoHTML(); }
+  else if(sym === 'gblogo'){ cell.innerHTML = slv2BtcCoinHTML(); }
+  else if(sym === 'wheel'){ cell.innerHTML = slv2WheelSVG(); }
+  else { cell.textContent = SL2_CHAR[sym]; }
+}
+
+// Reconcile the authoritative balance/stats at the end of a server round.
+// (Local winBet/loseBet during the round only update the display — syncBalance
+// is suppressed for slots in server mode — and sum to the server total by the
+// self-consistency proof, but we snap to the server's truth to be safe.)
+function slv2SrvReconcile(){
+  if(!SL2.srvMode || !SL2.srv) return;
+  var s = SL2.srv;
+  // On a jackpot round the /jackpot/win flow owns the balance — don't clobber it.
+  if(!s.jackpot && s.finalBtc !== undefined) S.btc = s.finalBtc;
+  if(s.wins !== undefined) S.wins = s.wins;
+  if(s.losses !== undefined) S.losses = s.losses;
+  if(s.total_bet_eur !== undefined) S.totalBet = s.total_bet_eur;
+  if(s.biggest_win_eur !== undefined) S.biggestWin = s.biggest_win_eur;
+  SL2.srvMode = false; SL2.srv = null; SL2.srvCols = null; SL2.srvWheel = null;
+  SL2.srvTumbles = null; SL2.srvCascCur = null;
+  refresh(); if(CUR === 'profile') renderProfile();
+}
+
 function slv2SpinOrStop(){
   // Block clicks while an overlay-driven sequence is animating
   if(SL2.fakeRevealActive)    return;
@@ -10381,15 +10457,15 @@ function slv2SpinOrStop(){
       }
     }
     if(anySpinning){
-      slv2QuickStopAllReels();
+      if(!SL2.srvMode) slv2QuickStopAllReels();   // skill-stop disabled when server-authoritative
       return;
     }
     // SL2.spinning is true but no reels are still spinning — must be
     // mid-cascade or processing wins, ignore click.
     return;
   }
-  // Truly idle — start a new spin
-  slv2Spin();
+  // Truly idle — fetch the server-authoritative round, then animate it.
+  slv2SpinFetch();
 }
 
 // Visual: switch SPIN button into STOP mode while reels are spinning
@@ -10461,7 +10537,7 @@ function slv2Spin(){
       slv2StopAuto();
       return;
     }
-    if(!placeBet(bet, 'slots')){ slv2StopAuto(); return; }
+    if(!SL2.srvMode){ if(!placeBet(bet, 'slots')){ slv2StopAuto(); return; } }
     // Contribute 1% of bet to the cross-player progressive jackpot pool
     // (backend handles BTC conversion and atomic write)
     slv2ContributeJackpot(bet);
@@ -10496,10 +10572,19 @@ function slv2Spin(){
   var lw = document.getElementById('slv2-last-win');
   if(lw){ lw.className = 'slv2-stat-val'; lw.textContent = '...'; }
 
-  // Pre-decide outcome for each reel: pick a target middle-row symbol (weighted by reel)
+  // Pre-decide outcome for each reel.
   var targets = [];
-  for(var i = 0; i < 5; i++){
-    targets.push(SL2_REEL[Math.floor(Math.random() * SL2_REEL.length)]);
+  if(SL2.srvMode && SL2.srv){
+    var _ss = SL2.srv.round.spins[SL2.srv.cursor++] ||
+              {cols:[['spade','spade','spade'],['spade','spade','spade'],['spade','spade','spade'],['spade','spade','spade'],['spade','spade','spade']], tumbles:[]};
+    SL2.srvCols = _ss.cols;
+    SL2.srvTumbles = _ss.tumbles || [];
+    SL2.srvTumbleCursor = 0;
+    for(var i = 0; i < 5; i++){ targets.push(_ss.cols[i][1]); }   // middle row drives the reel target
+  } else {
+    for(var i = 0; i < 5; i++){
+      targets.push(SL2_REEL[Math.floor(Math.random() * SL2_REEL.length)]);
+    }
   }
 
   // Compute durations (with turbo)
@@ -10693,6 +10778,14 @@ function slv2SpinReel(reelIdx, targetSymbol, durationMs, cb){
     void strip.offsetWidth;            // force reflow so the new transition starts fresh
   }
   SL2.positions[reelIdx] = targetIdx;
+  // Server-authoritative: stamp the exact server column into the 3 visible cells
+  // so slv2UpdateGridFromStrip (and the anticipation system) read the server grid.
+  if(SL2.srvMode && SL2.srvCols && SL2.srvCols[reelIdx]){
+    var _col = SL2.srvCols[reelIdx];
+    slv2StampCell(strip, symbols, targetIdx - 1, _col[0]);
+    slv2StampCell(strip, symbols, targetIdx,     _col[1]);
+    slv2StampCell(strip, symbols, targetIdx + 1, _col[2]);
+  }
   var finalOffset = -((targetIdx - 1) * SL2_SYM_H);
   // Remember target offset so slv2SlowDownReel can extend the transition later
   SL2.reelFinalOffsets = SL2.reelFinalOffsets || [];
@@ -11115,6 +11208,7 @@ function slv2EnableSpinIfIdle(){
   if(SL2.bonusWheelOpen) return;
   if(SL2.vaultOpen) return;
   if(SL2.fakeRevealActive) return;
+  slv2SrvReconcile();
   var spinBtn = document.getElementById('slv2-spin-btn');
   if(spinBtn) spinBtn.disabled = false;
   // Switch button back to SPIN mode (was STOP during the spin)
@@ -11308,6 +11402,10 @@ function slv2RenderWins(wins){
 function slv2CascadeStep(wins){
   if(!wins || wins.length === 0){ slv2FinishSpin(SL2.pendingFsTrigger || 0); return; }
 
+  if(SL2.srvMode){
+    SL2.srvCascCur = (SL2.srvTumbles && SL2.srvTumbleCursor < SL2.srvTumbles.length)
+                     ? SL2.srvTumbles[SL2.srvTumbleCursor++] : null;
+  }
   SL2.cascadeLevel++;
   // Mark winning cells as exploding
   var winningCells = {};
@@ -11343,7 +11441,13 @@ function slv2CascadeStep(wins){
           var idx = SL2.positions[r] + (row - 1);
           var sym = strip.children[idx];
           if(sym){
-            var newSym = SL2_REEL[Math.floor(Math.random() * SL2_REEL.length)];
+            var newSym;
+            if(SL2.srvMode){
+              var _rf = (SL2.srvCascCur && SL2.srvCascCur.refill) ? SL2.srvCascCur.refill[r + ',' + row] : null;
+              newSym = _rf || SL2_REEL[Math.floor(Math.random() * SL2_REEL.length)];
+            } else {
+              newSym = SL2_REEL[Math.floor(Math.random() * SL2_REEL.length)];
+            }
             SL2.stripSyms[r][idx] = newSym;
             sym.className = 'slv2-sym sym-' + newSym + ' dropping-in';
             if(newSym === 'btc'){
@@ -11657,18 +11761,30 @@ function slv2BonusWheelBuild(){
   // result calc later uses the same set the player saw spinning.
   var bet = SL2.bet || 1;
   var tier = slv2WheelTierForBet(bet);
+  // Server-authoritative: bind the current server wheel (base/forced = round.wheel,
+  // during FS = the next fs_wheels entry) and adopt its tier.
+  if(SL2.srvMode && SL2.srv){
+    SL2.srvWheel = SL2.fsActive
+      ? (SL2.srv.round.fs_wheels[SL2.srvFsWheelCursor++] || SL2.srv.round.wheel)
+      : SL2.srv.round.wheel;
+    if(SL2.srvWheel && SL2.srvWheel.tier) tier = SL2.srvWheel.tier;
+    if(SL2.srv) SL2.srv.wheelShown = true;
+  }
   SL2.bwTier = tier;
-  // Deep-clone the tier segments so shuffling doesn't mutate the source
   var segments = SL2_WHEEL_TIERS[tier].segments.map(function(s){
     return {
       type: s.type, value: s.value, weight: s.weight,
       color: s.color, label: s.label
     };
   });
-  // Shuffle so position is random per game
-  for(var i = segments.length - 1; i > 0; i--){
-    var j = Math.floor(Math.random() * (i + 1));
-    var tmp = segments[i]; segments[i] = segments[j]; segments[j] = tmp;
+  if(SL2.srvMode && SL2.srvWheel && SL2.srvWheel.order){
+    var _src = segments;
+    segments = SL2.srvWheel.order.map(function(oi){ return _src[oi]; });
+  } else {
+    for(var i = segments.length - 1; i > 0; i--){
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = segments[i]; segments[i] = segments[j]; segments[j] = tmp;
+    }
   }
   SL2.bwSegments = segments;
   // Update the subtitle to advertise the current tier's max payout
@@ -11998,14 +12114,19 @@ function slv2BonusWheelSpin(){
 
   // Pick winning segment using each segment's declared weight (typed segments —
   // cash/fs/chest/mystery — so we can't infer weight from a number anymore)
-  var weights = SL2.bwSegments.map(function(seg){ return seg.weight || 1; });
-  var totalW = weights.reduce(function(a,b){return a+b;}, 0);
-  var roll = Math.random() * totalW;
-  var winIdx = 0;
-  var acc = 0;
-  for(var i = 0; i < weights.length; i++){
-    acc += weights[i];
-    if(roll <= acc){ winIdx = i; break; }
+  var winIdx;
+  if(SL2.srvMode && SL2.srvWheel && SL2.srvWheel.win_idx != null){
+    winIdx = SL2.srvWheel.win_idx;
+  } else {
+    var weights = SL2.bwSegments.map(function(seg){ return seg.weight || 1; });
+    var totalW = weights.reduce(function(a,b){return a+b;}, 0);
+    var roll = Math.random() * totalW;
+    winIdx = 0;
+    var acc = 0;
+    for(var i = 0; i < weights.length; i++){
+      acc += weights[i];
+      if(roll <= acc){ winIdx = i; break; }
+    }
   }
 
   var segAngle = 360 / SL2.WHEEL_SEGMENTS;
@@ -12153,7 +12274,8 @@ function slv2BonusWheelSpin(){
       // Animated FS-count roll — display rolls fast then slows on the final
       // value. The result is rolled now (so we can land precisely), but
       // shown to the player through a 1.6s deceleration animation.
-      var rolledFs = slv2RollRandomFsCount();
+      var rolledFs = (SL2.srvMode && SL2.srvWheel && SL2.srvWheel.result && SL2.srvWheel.result.fs != null)
+        ? SL2.srvWheel.result.fs : slv2RollRandomFsCount();
       if(result) result.textContent = '';
       slv2PlayFsRollAnimation(rolledFs, function(){
         // After animation completes, award the FS as if it were a standard FS segment
@@ -12190,8 +12312,9 @@ function slv2BonusWheelSpin(){
       // weighted toward the low end (random² × cap).
       var tierCap = (SL2.bwTier === 'HIGH') ? 200 :
                     (SL2.bwTier === 'MID')  ? 40  : 8;
-      var r1 = Math.random(), r2 = Math.random();
-      var mystMulti = Math.max(1, Math.floor(r1 * r2 * tierCap));
+      var mystMulti = (SL2.srvMode && SL2.srvWheel && SL2.srvWheel.result && SL2.srvWheel.result.mystery_mult != null)
+        ? SL2.srvWheel.result.mystery_mult
+        : Math.max(1, Math.floor(Math.random() * Math.random() * tierCap));
       var mystAmount = SL2.bet * mystMulti;
       SL2.totalWonThisSession += mystAmount;
       winBet(mystAmount, 'slots');
@@ -12425,6 +12548,9 @@ function slv2VaultTrigger(){
     var j = Math.floor(Math.random() * (i + 1));
     var tmp = prizes[i]; prizes[i] = prizes[j]; prizes[j] = tmp;
   }
+  if(SL2.srvMode && SL2.srvWheel && SL2.srvWheel.result && SL2.srvWheel.result.vault){
+    prizes = SL2.srvWheel.result.vault.prizes.map(function(p){ return {type:p[0], value:p[1]}; });
+  }
   SL2.vaultPrizes = prizes;
 
   // Reset vault UI — show generic "?" until picked, reveal prize type on reveal
@@ -12510,7 +12636,8 @@ function slv2VaultPick(idx){
     }
   });
 
-  var prize = SL2.vaultPrizes[idx];
+  var prize = (SL2.srvMode && SL2.srvWheel && SL2.srvWheel.result && SL2.srvWheel.result.vault)
+    ? SL2.vaultPrizes[SL2.srvWheel.result.vault.win_idx] : SL2.vaultPrizes[idx];
   var result = document.getElementById('slv2-vg-result');
   var collect = document.getElementById('slv2-vg-collect');
 
@@ -12599,31 +12726,30 @@ function slv2VaultClose(){
 // BONUS TRIGGER LOGIC — called after each spin result
 // ================================================================
 function slv2MaybeTriggerBonus(spinHadWin){
-  // Don't trigger during FS
   if(SL2.fsActive) return false;
   if(SL2.bonusActive) return false;
-
-  // Track losing streak (anti-frustration safety net) + overall spin count
+  // Server-authoritative: the server owns the wheel "hunt". Open a FORCED wheel
+  // when the round script says so (base grid had <3 scatters); the natural 3+
+  // scatter trigger is handled via pendingWheelTrigger. The losing-streak vault
+  // is disabled here in server mode (it is not modelled in the engine RTP).
+  if(SL2.srvMode){
+    if(SL2.srv && SL2.srv.round && SL2.srv.round.wheel && SL2.srv.round.wheel.forced && !SL2.srv.wheelShown){
+      SL2.srv.wheelShown = true;
+      slv2FakeWheelScatterReveal();
+      return true;
+    }
+    return false;
+  }
   if(!spinHadWin) SL2.losingStreak++;
   else SL2.losingStreak = 0;
   SL2.spinCount++;
-
-  // ---- COUNTER-BASED RANDOM TRIGGER (every 35–70 spins) ----
-  // The wheel timer fires "as if" 3 wheel scatters just landed on the reels.
-  // First we visually "convert" 3 random visible cells to wheel symbols with
-  // suspense pulse + audio, THEN open the bonus overlay — so the timed trigger
-  // feels organic, like the player just got a natural scatter.
   SL2.spinsSinceLastBonus++;
   if(SL2.spinsSinceLastBonus >= SL2.nextBonusAt){
-    slv2FakeWheelScatterReveal();   // 1.5s spectacle THEN open wheel
+    slv2FakeWheelScatterReveal();
     slv2ResetBonusCounter();
     SL2.losingStreak = 0;
     return true;
   }
-
-  // ---- SECONDARY: anti-frustration vault on very long losing streak ----
-  // Kept as a rare safety net (1 in ~200 spins) so players don't tilt out
-  // during a brutal cold streak. Independent of the wheel timer.
   if(SL2.losingStreak >= SL2.VAULT_LOSING_THRESHOLD){
     if(Math.random() < SL2.VAULT_LOSING_CHANCE){
       SL2.losingStreak = 0;
@@ -12632,7 +12758,6 @@ function slv2MaybeTriggerBonus(spinHadWin){
       return true;
     }
   }
-
   return false;
 }
 
@@ -15566,6 +15691,7 @@ function setBalanceStatus(text,kind){
 }
 
 function syncBalance(deltaBtc,bet,won,lost,game){
+  if(game === 'slots' && typeof SL2 !== 'undefined' && SL2.srvMode){ return Promise.resolve(); }
   if(!S.userId){
     // No user binding — local-only state, but warn that nothing is saved
     setBalanceStatus('NO USER (open in Telegram)','offline');
