@@ -16179,7 +16179,7 @@ function pkStart(ante){
   if(PK.phase!=='idle') return;
   if(!hasFunds(ante)){ toast('Insufficient balance','err'); return; }
   PK.ante=ante; PK.pot=0; PK.pBet=0; PK.dBet=0; PK.pTotal=0; PK.dTotal=0;
-  PK.raisesThisStreet=0; PK.result=null; PK.awaiting='player';
+  PK.raisesThisStreet=0; PK.result=null; PK.awaiting='player'; PK.allIn=false;
   var deck=pkBuildDeck();
   PK.player=[deck.pop(),deck.pop()];
   PK.dealer=[deck.pop(),deck.pop()];
@@ -16228,9 +16228,10 @@ function pkPlayerAction(act){
   }
   if(act==='bet'){
     if(toCall>0) return;
-    var amt=PK.ante;
-    if(!hasFunds(amt)){ toast('Insufficient for bet','err'); return; }
+    var amt=Math.min(PK.ante, pkRemainEur());   // clamp to stack → all-in if short
+    if(amt<=0){ toast('No funds to bet','err'); return; }
     placeBet(amt,'poker'); PK.pTotal+=amt; PK.pBet+=amt;
+    if(amt<PK.ante-1e-9 || pkRemainEur()<0.01) PK.allIn=true;
     pkSound('raise'); pkAnimateChipsToPot(amt,'#ffd700'); pkPulsePotEx(amt);
     PK.awaiting='dealer'; pkUpdateButtons(); pkUpdateBetInfo();
     pkSetStatus('Dealer is thinking...',false);
@@ -16239,19 +16240,27 @@ function pkPlayerAction(act){
   }
   if(act==='call'){
     if(toCall<=0) return;
-    if(!hasFunds(toCall)){ toast('Insufficient to call','err'); return; }
-    placeBet(toCall,'poker'); PK.pTotal+=toCall; PK.pBet+=toCall;
-    pkSound('call'); pkAnimateChipsToPot(toCall,'#5fc7ff'); pkPulsePotEx(toCall);
+    var pay=Math.min(toCall, pkRemainEur());     // all-in call for less if short
+    if(pay<=0){ pkPlayerAction('fold'); return; } // nothing left to call → fold
+    placeBet(pay,'poker'); PK.pTotal+=pay; PK.pBet+=pay;
+    pkSound('call'); pkAnimateChipsToPot(pay,'#5fc7ff'); pkPulsePotEx(pay);
+    if(pay<toCall-1e-9){                          // uncalled dealer chips return to dealer
+      var ex=toCall-pay; PK.dTotal-=ex; PK.pot-=ex; PK.allIn=true;
+    }
+    if(pkRemainEur()<0.01) PK.allIn=true;
     pkUpdateBetInfo();
-    pkEndStreet();
+    pkEndStreet();   // pkEndStreet runs the board out when PK.allIn
     return;
   }
   if(act==='raise'){
     if(PK.raisesThisStreet>=1) return;
+    var rem=pkRemainEur();
+    if(rem<=toCall+1e-9){ pkPlayerAction('call'); return; } // can't afford a real raise → (all-in) call
     var need=toCall + PK.ante;
-    if(!hasFunds(need)){ toast('Insufficient to raise','err'); return; }
-    placeBet(need,'poker'); PK.pTotal+=need; PK.pBet+=need; PK.raisesThisStreet++;
-    pkSound('raise'); pkAnimateChipsToPot(need,'#ffd700'); pkPulsePotEx(need);
+    var pay=Math.min(need, rem);                 // clamp raise to stack
+    placeBet(pay,'poker'); PK.pTotal+=pay; PK.pBet+=pay; PK.raisesThisStreet++;
+    if(pay<need-1e-9 || pkRemainEur()<0.01) PK.allIn=true;
+    pkSound('raise'); pkAnimateChipsToPot(pay,'#ffd700'); pkPulsePotEx(pay);
     var tbl=document.querySelector('.pk-table'); if(tbl){tbl.classList.remove('raise-flash');void tbl.offsetWidth;tbl.classList.add('raise-flash');setTimeout(function(){tbl.classList.remove('raise-flash');},700);}
     PK.awaiting='dealer'; pkUpdateButtons(); pkUpdateBetInfo();
     pkSetStatus('Dealer is thinking...',false);
@@ -16456,7 +16465,7 @@ function pkConfetti(){
 function pkReset(){
   PK.phase='idle'; PK.ante=0; PK.pot=0; PK.pBet=0; PK.dBet=0; PK.pTotal=0; PK.dTotal=0;
   PK.raisesThisStreet=0; PK.player=[]; PK.dealer=[]; PK.community=[]; PK.revealedCommunity=0;
-  PK.result=null; PK.awaiting='player';
+  PK.result=null; PK.awaiting='player'; PK.allIn=false;
   var ov=document.getElementById('pk-showdown'); if(ov)ov.classList.remove('visible');
   var tbl=document.querySelector('.pk-table'); if(tbl)tbl.classList.remove('raise-flash','win-glow','lose-fade');
   var pot=document.getElementById('pk-pot'); if(pot)pot.classList.remove('pulse');
@@ -16477,6 +16486,21 @@ function pkSetStatus(txt,decision){
   var st=document.getElementById('pk-status');
   if(st){ st.textContent=txt; if(decision) st.classList.add('decision'); else st.classList.remove('decision'); }
 }
+// Remaining player balance in EUR — used to clamp commits and drive all-in.
+function pkRemainEur(){ return S.btc * S.rate; }
+// Tidy EUR for button labels (no trailing .00).
+function pkFmtEur(x){ return (+(x).toFixed(2)).toString(); }
+// All-in: no more betting — reveal the rest of the board, then showdown.
+function pkRunOut(){
+  PK.awaiting='none'; pkUpdateButtons();
+  pkSetStatus('All-in — running it out...',false);
+  var step=function(){
+    if(PK.revealedCommunity>=5){ setTimeout(pkShowdown,400); return; }
+    var from=PK.revealedCommunity, to=from+1;
+    pkAnimateReveal(from,to,function(){ PK.revealedCommunity=to; pkRender(); pkSound('reveal'); setTimeout(step,500); });
+  };
+  step();
+}
 function pkBeginStreet(){
   PK.awaiting='player';
   PK.pBet=0; PK.dBet=0; PK.raisesThisStreet=0;
@@ -16486,6 +16510,7 @@ function pkBeginStreet(){
 function pkEndStreet(){
   PK.awaiting='none';
   pkUpdateButtons();
+  if(PK.allIn){ pkRunOut(); return; }   // no more betting once someone is all-in
   if(PK.phase==='flop'){
     PK.phase='turn';
     setTimeout(function(){ pkAnimateReveal(3,4,function(){ PK.revealedCommunity=4; pkRender(); pkSound('reveal'); setTimeout(pkBeginStreet,450); }); },500);
@@ -16530,10 +16555,12 @@ function pkDealerAct(){
   var toCall=Math.max(0, PK.pBet-PK.dBet);
   var strength=pkDealerStrength();
   var r=Math.random();
+  // Cap the dealer's extra chips so the player can always cover the call.
+  var raiseExtra=Math.min(PK.ante, pkRemainEur());
   if(toCall>0){
     if(strength>=0.66){
-      if(PK.raisesThisStreet<1 && r<0.5){
-        pkDealerCommit(toCall+PK.ante,'raise'); PK.raisesThisStreet++;
+      if(PK.raisesThisStreet<1 && r<0.5 && raiseExtra>=0.01){
+        pkDealerCommit(toCall+raiseExtra,'raise'); PK.raisesThisStreet++;
         PK.awaiting='player'; pkUpdateButtons(); pkUpdateBetInfo();
         pkSetStatus('🔥 Dealer RAISES! CALL, RAISE or FOLD',true);
         return;
@@ -16547,11 +16574,11 @@ function pkDealerAct(){
       pkDealerFold(); return;
     }
   } else {
-    if(strength>=0.60 || (strength<0.40 && r<0.22)){   // value bet OR bluff
-      pkDealerCommit(PK.ante,'bet');
+    if((strength>=0.60 || (strength<0.40 && r<0.22)) && raiseExtra>=0.01){   // value bet OR bluff
+      pkDealerCommit(raiseExtra,'bet');
       PK.awaiting='player'; pkUpdateButtons(); pkUpdateBetInfo();
       var bluff=(strength<0.40);
-      pkSetStatus((bluff?'Dealer BETS €':'💰 Dealer BETS €')+PK.ante+' — CALL, RAISE or FOLD',true);
+      pkSetStatus((bluff?'Dealer BETS €':'💰 Dealer BETS €')+pkFmtEur(raiseExtra)+' — CALL, RAISE or FOLD',true);
       return;
     }
     pkSound('tick');
@@ -16601,15 +16628,24 @@ function pkUpdateButtons(){
   if(PK.awaiting==='player'){
     actRow.style.display='';
     var toCall=Math.max(0, PK.dBet-PK.pBet);
+    var rem=pkRemainEur();
     var html='';
     if(toCall>0){
       html+='<button class="pk-action fold" onclick="pkPlayerAction(\'fold\')">FOLD</button>';
-      html+='<button class="pk-action check" onclick="pkPlayerAction(\'call\')">CALL €'+toCall+'</button>';
-      if(PK.raisesThisStreet<1) html+='<button class="pk-action raise" onclick="pkPlayerAction(\'raise\')">RAISE €'+(toCall+PK.ante)+'</button>';
+      if(rem<toCall-1e-9){
+        html+='<button class="pk-action allin" onclick="pkPlayerAction(\'call\')">ALL-IN €'+pkFmtEur(rem)+'</button>';
+      } else {
+        html+='<button class="pk-action check" onclick="pkPlayerAction(\'call\')">CALL €'+pkFmtEur(toCall)+'</button>';
+        if(PK.raisesThisStreet<1 && rem>toCall+1e-9) html+='<button class="pk-action raise" onclick="pkPlayerAction(\'raise\')">RAISE €'+pkFmtEur(Math.min(toCall+PK.ante,rem))+'</button>';
+      }
       actRow.className='pk-action-row';
     } else {
       html+='<button class="pk-action check" onclick="pkPlayerAction(\'check\')">CHECK</button>';
-      html+='<button class="pk-action raise" onclick="pkPlayerAction(\'bet\')">BET €'+PK.ante+'</button>';
+      if(rem<PK.ante-1e-9){
+        html+='<button class="pk-action allin" onclick="pkPlayerAction(\'bet\')">ALL-IN €'+pkFmtEur(rem)+'</button>';
+      } else {
+        html+='<button class="pk-action raise" onclick="pkPlayerAction(\'bet\')">BET €'+pkFmtEur(PK.ante)+'</button>';
+      }
       actRow.className='pk-action-row two';
     }
     actRow.innerHTML=html;
