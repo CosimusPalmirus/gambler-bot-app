@@ -2399,34 +2399,45 @@ body{position:relative;}
   display:flex;align-items:center;justify-content:center;
 }
 .wh-pointer{
-  position:absolute;top:-4px;left:50%;transform:translateX(-50%);
-  width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;
-  border-top:24px solid #ffd700;
-  filter:drop-shadow(0 2px 6px rgba(0,0,0,.7));
+  position:absolute;top:-6px;left:50%;transform:translateX(-50%);
+  width:0;height:0;border-left:13px solid transparent;border-right:13px solid transparent;
+  border-top:26px solid #ffd700;
+  filter:drop-shadow(0 2px 5px rgba(0,0,0,.8)) drop-shadow(0 0 6px rgba(255,215,0,.6));
   z-index:10;
 }
 .wh-pointer::after{
-  content:'';position:absolute;top:-28px;left:-6px;width:12px;height:12px;
-  background:radial-gradient(circle,#ffd700,#b45309);border-radius:50%;
-  box-shadow:0 0 10px rgba(255,215,0,.8);
+  content:'';position:absolute;top:-30px;left:-7px;width:14px;height:14px;
+  background:radial-gradient(circle at 35% 30%,#fffae0,#ffd700 45%,#b45309);
+  border-radius:50%;border:1px solid #fff;
+  box-shadow:0 0 12px rgba(255,215,0,.9);
 }
 .wh-wheel{
   width:260px;height:260px;border-radius:50%;
-  border:6px solid #ffd700;
-  box-shadow:0 0 30px rgba(245,158,11,.5), inset 0 0 20px rgba(0,0,0,.6), 0 8px 30px rgba(0,0,0,.7);
+  border:5px solid #ffd700;
+  box-shadow:
+    0 0 0 1px #6e4600,
+    0 0 34px rgba(255,215,0,.55),
+    0 0 64px rgba(57,255,20,.18),
+    inset 0 0 22px rgba(0,0,0,.65),
+    0 10px 34px rgba(0,0,0,.7);
   transition:transform 4s cubic-bezier(0.2, 0.85, 0.3, 1);
   position:relative;
 }
 .wh-wheel svg{width:100%;height:100%;display:block;}
 .wh-center{
   position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-  width:48px;height:48px;border-radius:50%;
-  background:radial-gradient(circle,#ffd700 30%, #b45309 100%);
+  width:46px;height:46px;border-radius:50%;
+  background:radial-gradient(circle at 34% 28%, #fffae0 0%, #ffd700 42%, #8a5a00 100%);
   border:3px solid #fff;
-  box-shadow:0 0 14px rgba(255,215,0,.8);
+  box-shadow:
+    0 0 16px rgba(255,215,0,.85),
+    inset 0 -3px 6px rgba(0,0,0,.35),
+    inset 0 3px 5px rgba(255,255,255,.5),
+    0 4px 10px rgba(0,0,0,.5);
   z-index:5;
   display:flex;align-items:center;justify-content:center;
-  font-size:22px;
+  font-size:20px;
+  filter:drop-shadow(0 0 4px rgba(255,215,0,.5));
 }
 
 .wh-result-display{
@@ -14312,6 +14323,7 @@ function rlSpin(){
   document.getElementById('rl-spin').disabled=true;
   buildRouletteWheel();
   gSound('chip-stack');
+  S.btc=Math.max(0,S.btc-eurToBtc(totalBet)); refresh();   // optimistic: show bet deducted now (server is authoritative)
   var payload=RL.bets.map(function(b){return {type:b.type,nums:b.nums||[],amount_btc:eurToBtc(b.amount)};});
   fetch(BACKEND+'/play/roulette',{
     method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},
@@ -14408,6 +14420,7 @@ function dcRoll(){
   btn.disabled=true;
   gSound('chip');
   gSound('dice-roll',{duration:1300});
+  S.btc=Math.max(0,S.btc-eurToBtc(bet)); refresh();   // optimistic: show bet deducted now (server is authoritative)
   var d1=document.getElementById('dc-d1'),d2=document.getElementById('dc-d2');
   var totalEl=document.getElementById('dc-total');
   var statusEl=document.getElementById('dc-status');
@@ -17633,42 +17646,63 @@ function whRenderWheel(){
   var n = segments.length;
   var segAngle = 360 / n;
   var R = 95;
-  
-  svg.innerHTML = '';
+  // NOTE: geometry preserved (wedge i centered at i*segAngle+segAngle/2 from top)
+  // so whSpin() still lands on the correct segment. This only beautifies the look.
+  var P = [];
+  P.push('<defs>'
+    +'<radialGradient id="whGloss" cx="50%" cy="30%" r="72%">'
+      +'<stop offset="0%" stop-color="#ffffff" stop-opacity="0.42"/>'
+      +'<stop offset="42%" stop-color="#ffffff" stop-opacity="0.06"/>'
+      +'<stop offset="100%" stop-color="#000000" stop-opacity="0.36"/></radialGradient>'
+    +'<radialGradient id="whHub" cx="34%" cy="28%" r="82%">'
+      +'<stop offset="0%" stop-color="#fff7c0"/>'
+      +'<stop offset="45%" stop-color="#ffd700"/>'
+      +'<stop offset="100%" stop-color="#6e4600"/></radialGradient>'
+    +'<filter id="whGlow" x="-40%" y="-40%" width="180%" height="180%">'
+      +'<feGaussianBlur stdDeviation="1.1"/></filter>'
+    +'</defs>');
+  // dark base disc just inside the gold rim
+  P.push('<circle cx="0" cy="0" r="99" fill="#241a02"/>');
+  // colored wedges with thin gold borders
   for(var i = 0; i < n; i++){
-    var seg = segments[i];
-    // Wedge from angle a1 to a2 (degrees, 0 = top, clockwise)
-    var a1 = (i * segAngle - 90) * Math.PI / 180;  // -90 to start at top
+    var s = segments[i];
+    var a1 = (i * segAngle - 90) * Math.PI / 180;
     var a2 = ((i + 1) * segAngle - 90) * Math.PI / 180;
-    var x1 = R * Math.cos(a1), y1 = R * Math.sin(a1);
-    var x2 = R * Math.cos(a2), y2 = R * Math.sin(a2);
-    var largeArc = segAngle > 180 ? 1 : 0;
-    var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', 'M 0 0 L ' + x1.toFixed(2) + ' ' + y1.toFixed(2) + ' A ' + R + ' ' + R + ' 0 ' + largeArc + ' 1 ' + x2.toFixed(2) + ' ' + y2.toFixed(2) + ' Z');
-    path.setAttribute('fill', seg.color);
-    path.setAttribute('stroke', '#000');
-    path.setAttribute('stroke-width', '0.5');
-    svg.appendChild(path);
-    
-    // Text label at middle of wedge (only if segment is wide enough)
-    if(segAngle >= 8){
-      var midAngle = (i * segAngle + segAngle/2 - 90) * Math.PI / 180;
-      var tx = (R * 0.7) * Math.cos(midAngle);
-      var ty = (R * 0.7) * Math.sin(midAngle);
-      var rotDeg = i * segAngle + segAngle/2;
-      var text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      text.setAttribute('x', tx.toFixed(2));
-      text.setAttribute('y', ty.toFixed(2));
-      text.setAttribute('fill', seg.textColor);
-      text.setAttribute('font-family', 'Russo One, sans-serif');
-      text.setAttribute('font-size', n > 30 ? '7' : '10');
-      text.setAttribute('text-anchor', 'middle');
-      text.setAttribute('dominant-baseline', 'middle');
-      text.setAttribute('transform', 'rotate(' + (rotDeg) + ' ' + tx.toFixed(2) + ' ' + ty.toFixed(2) + ')');
-      text.textContent = seg.multi + 'x';
-      svg.appendChild(text);
+    var x1 = (R * Math.cos(a1)).toFixed(2), y1 = (R * Math.sin(a1)).toFixed(2);
+    var x2 = (R * Math.cos(a2)).toFixed(2), y2 = (R * Math.sin(a2)).toFixed(2);
+    var lg = segAngle > 180 ? 1 : 0;
+    P.push('<path d="M 0 0 L ' + x1 + ' ' + y1 + ' A ' + R + ' ' + R + ' 0 ' + lg + ' 1 ' + x2 + ' ' + y2 + ' Z" fill="' + s.color + '" stroke="rgba(255,215,0,.55)" stroke-width="0.7"/>');
+  }
+  // glossy light sweep over the whole disc
+  P.push('<circle cx="0" cy="0" r="' + R + '" fill="url(#whGloss)" pointer-events="none"/>');
+  // outer + inner gold rings
+  P.push('<circle cx="0" cy="0" r="' + R + '" fill="none" stroke="rgba(255,215,0,.85)" stroke-width="1.4"/>');
+  P.push('<circle cx="0" cy="0" r="33" fill="rgba(8,5,16,.92)" stroke="rgba(255,215,0,.5)" stroke-width="1.4"/>');
+  // labels with dark outline for readability
+  for(var j = 0; j < n; j++){
+    var sg = segments[j];
+    if(segAngle >= 7){
+      var mid = (j * segAngle + segAngle/2 - 90) * Math.PI / 180;
+      var tx = ((R * 0.72) * Math.cos(mid)).toFixed(2);
+      var ty = ((R * 0.72) * Math.sin(mid)).toFixed(2);
+      var rot = (j * segAngle + segAngle/2).toFixed(1);
+      var fs = n > 30 ? 7.5 : 12;
+      P.push('<text x="' + tx + '" y="' + ty + '" fill="' + sg.textColor + '" font-family="Russo One,Impact,sans-serif" font-size="' + fs + '" font-weight="900" text-anchor="middle" dominant-baseline="middle" transform="rotate(' + rot + ' ' + tx + ' ' + ty + ')" paint-order="stroke" stroke="rgba(0,0,0,.6)" stroke-width="1.7">' + sg.multi + 'x</text>');
     }
   }
+  // alternating casino bulbs around the rim
+  var bulbs = n > 30 ? 30 : 20;
+  for(var b = 0; b < bulbs; b++){
+    var ba = (b * (360 / bulbs)) * Math.PI / 180;
+    var bx = ((R + 2.6) * Math.cos(ba)).toFixed(2);
+    var by = ((R + 2.6) * Math.sin(ba)).toFixed(2);
+    var bc = (b % 2 === 0) ? '#fff3b0' : '#39ff14';
+    P.push('<circle cx="' + bx + '" cy="' + by + '" r="2" fill="' + bc + '" filter="url(#whGlow)"/>');
+  }
+  // 3D center hub (the static .wh-center sits on top of it)
+  P.push('<circle cx="0" cy="0" r="14" fill="url(#whHub)" stroke="#1a1200" stroke-width="1.4"/>');
+  P.push('<circle cx="-4" cy="-4.5" r="3.6" fill="rgba(255,255,255,.55)"/>');
+  svg.innerHTML = P.join('');
 }
 
 function whSetRisk(risk){
@@ -17692,6 +17726,8 @@ function whSpin(eur){
   if((S.btc*S.rate)<eur){toast('Insufficient balance','err');return;}
   if(!S.userId){toast('Open in Telegram to play','err');return;}
   WH.spinning=true; gSound('chip');
+  S.btc=Math.max(0,S.btc-eurToBtc(eur)); refresh();   // optimistic: show bet deducted now (server is authoritative)
+  document.getElementById('wh-bal').textContent='€'+(S.btc*S.rate).toFixed(2);
   var segments=WH.arranged||whBuildWheelSegments();
   fetch(BACKEND+'/play/wheel',{
     method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},
