@@ -10551,7 +10551,9 @@ function slv2Spin(){
   // wouldn't double-fire. Now it stays clickable so the player can manually
   // halt the reels via the same button — slv2SpinOrStop() routes correctly
   // by checking SL2.spinning. Bet row still locks (no bet change mid-spin).
-  slv2SetSpinButtonMode('stop');
+  // Server-authoritative: skill-stop is disabled (the reels must land on the
+  // server grid), so don't show a non-functional STOP — keep the button disabled.
+  if(SL2.srvMode){ slv2DisableSpin(); } else { slv2SetSpinButtonMode('stop'); }
   var betRow = document.querySelector('.slv2-bet-row');
   if(betRow) betRow.classList.add('locked');
   // Task: visually quiet the marquee while reels are in motion (focus on reels)
@@ -14774,7 +14776,7 @@ function scCashout(){
   }).catch(function(e){SC.busy=false;toast('Network error','err');});
 }
 
-var CR={state:'idle',mult:1,crashAt:0,startTime:0,raf:null,bet:2,hasBet:false,auto:0,history:[]};
+var CR={state:'idle',mult:1,crashAt:0,startTime:0,raf:null,bet:2,hasBet:false,auto:0,history:[],srvActive:false,srvStartMs:0,lastPoll:0,_starting:false};
 function initCrash(){
   buildBets('cr-bets','crash');
   CR.bet=currentBet.crash;
@@ -14786,9 +14788,7 @@ function crStartBetting(){
   CR.state='betting';CR.hasBet=false;CR.mult=1;
   // 5% house edge — crash distribution: 
   // P(crash >= x) = 0.95/x for x > 1.0, so 5% instant crashes
-  var r=Math.random();
-  if(r<0.05)CR.crashAt=1.0; // instant crash 5% of the time
-  else CR.crashAt=Math.min(100,0.95/(1-r));
+  CR.crashAt=0;CR.srvActive=false;  // server decides the (secret) crash point at bet time
   var md=document.getElementById('cr-mult');
   if(md){md.innerHTML='1.00<span style="font-size:24px;">x</span>';md.classList.remove('crashed');}
   var st=document.getElementById('cr-status');
@@ -14801,43 +14801,82 @@ function crAction(){
   if(CR.state==='betting'){
     var bet=currentBet.crash;
     if(!hasFunds(bet)){toast('Insufficient balance','err');return;}
-    CR.bet=bet;CR.hasBet=true;
-    placeBet(bet,'crash');
-    // 🚀 Ignition: chip + rocket whoosh
-    gSound('chip');
-    setTimeout(function(){ gSound('rocket-launch'); }, 100);
-    CR.startTime=performance.now();
-    CR.state='flying';
-    CR._lastTonePlayed = 0;  // tracks when we last played a rising-tone tick
-    document.getElementById('cr-status').textContent='✈️ FLYING — cash out!';
-    document.getElementById('cr-btn').textContent='💰 CASHOUT @ 1.00x';
-    document.getElementById('cr-btn').style.background='linear-gradient(135deg,var(--gold),var(--gold2))';
-    document.getElementById('cr-btn').style.color='#000';
-    if(CR.raf)cancelAnimationFrame(CR.raf);
-    CR.raf=requestAnimationFrame(crAnimate);
+    if(!S.userId){toast('Open in Telegram to play','err');return;}
+    if(CR._starting)return; CR._starting=true;
+    var _b0=document.getElementById('cr-btn'); if(_b0)_b0.disabled=true;
+    fetch(BACKEND+'/crash/start',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId,bet_btc:eurToBtc(bet)})})
+      .then(function(r){return r.json();}).then(function(d){
+        CR._starting=false; if(_b0)_b0.disabled=false;
+        if(!d||d.error){toast('⚠️ '+((d&&d.error)||'error'),'err');if(typeof loadBalance==='function')loadBalance();return;}
+        CR.bet=bet;CR.hasBet=true;CR.srvActive=true;CR.crashAt=0;CR.srvStartMs=d.start_ms;CR.lastPoll=0;
+        if(d.btc!==undefined)S.btc=d.btc; refresh();
+        gSound('chip');
+        setTimeout(function(){ gSound('rocket-launch'); }, 100);
+        CR.startTime=performance.now();
+        CR.state='flying';
+        CR._lastTonePlayed = 0;
+        document.getElementById('cr-status').textContent='✈️ FLYING — cash out!';
+        document.getElementById('cr-btn').textContent='💰 CASHOUT @ 1.00x';
+        document.getElementById('cr-btn').style.background='linear-gradient(135deg,var(--gold),var(--gold2))';
+        document.getElementById('cr-btn').style.color='#000';
+        if(CR.raf)cancelAnimationFrame(CR.raf);
+        CR.raf=requestAnimationFrame(crAnimate);
+      }).catch(function(e){CR._starting=false;if(_b0)_b0.disabled=false;toast('Network error','err');if(typeof loadBalance==='function')loadBalance();});
   }else if(CR.state==='flying'){
     crCashout();
   }
 }
 function crCashout(){
-  if(CR.state!=='flying'||!CR.hasBet)return;
+  if(CR.state!=='flying'||!CR.hasBet||!CR.srvActive)return;
+  CR.srvActive=false;   // lock out double cashout / further polls
   if(CR.raf){cancelAnimationFrame(CR.raf);CR.raf=null;}
-  var won=CR.bet*CR.mult;
-  CR.history.unshift({mult:CR.mult,crashed:false});
-  CR.history=CR.history.slice(0,10);
-  winBet(won,'crash');
-  // Triumphant cashout sound + win-tier celebration
-  gSound('cashout');
-  setTimeout(function(){
-    if(CR.mult >= 5)      gSound('win-big');
-    else if(CR.mult >= 2) gSound('win-medium');
-    else                  gSound('win-small');
-  }, 250);
-  toast('💰 Cashed out @ '+CR.mult.toFixed(2)+'x! +€'+won.toFixed(2),'ok');
-  CR.state='crashed';
+  fetch(BACKEND+'/crash/cashout',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId})})
+    .then(function(r){return r.json();}).then(function(d){
+      if(!d||d.error){toast('⚠️ '+((d&&d.error)||'error'),'err');if(typeof loadBalance==='function')loadBalance();setTimeout(crStartBetting,2000);return;}
+      if(d.crashed){ crDoCrash(d.crashAt, d.btc, d.losses); return; }   // too late — server says crashed
+      var mult=d.mult, won=(d.won_eur!==undefined)?d.won_eur:(CR.bet*mult);
+      CR.mult=mult; CR.crashAt=d.crashAt||mult;
+      CR.history.unshift({mult:mult,crashed:false}); CR.history=CR.history.slice(0,10);
+      if(d.btc!==undefined)S.btc=d.btc; if(d.wins!==undefined)S.wins=d.wins; if(d.biggest_win_eur!==undefined)S.biggestWin=d.biggest_win_eur;
+      refresh(); if(CUR==='profile')renderProfile();
+      gSound('cashout');
+      setTimeout(function(){ if(mult>=5)gSound('win-big'); else if(mult>=2)gSound('win-medium'); else gSound('win-small'); }, 250);
+      toast('💰 Cashed out @ '+mult.toFixed(2)+'x! +€'+won.toFixed(2),'ok');
+      CR.state='crashed';
+      var btn=document.getElementById('cr-btn');
+      if(btn){btn.textContent='Won €'+won.toFixed(2)+' — Next round...';btn.disabled=true;}
+      crRenderHist();
+      setTimeout(crStartBetting,2500);
+    }).catch(function(e){toast('Network error','err');if(typeof loadBalance==='function')loadBalance();setTimeout(crStartBetting,2500);});
+}
+// Poll the server for the SECRET crash event (the client never learns crashAt in advance).
+function crPoll(){
+  if(CR.state!=='flying'||!CR.srvActive)return;
+  fetch(BACKEND+'/crash/state',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId})})
+    .then(function(r){return r.json();}).then(function(d){
+      if(!d||d.error)return;
+      if(d.crashed && CR.state==='flying'){ crDoCrash(d.crashAt, d.btc, d.losses); }
+    }).catch(function(e){});
+}
+// Show the crash explosion (the loss was already settled server-side at /crash/start).
+function crDoCrash(crashAt, btc, losses){
+  if(CR.state!=='flying')return;
+  CR.srvActive=false;
+  if(CR.raf){cancelAnimationFrame(CR.raf);CR.raf=null;}
+  CR.mult=crashAt||CR.mult; CR.crashAt=crashAt||CR.mult; CR.state='crashed';
+  gSound('explosion');
+  document.getElementById('cr-mult').innerHTML=CR.mult.toFixed(2)+'x 💥';
+  document.getElementById('cr-mult').classList.add('crashed');
+  document.getElementById('cr-status').textContent='CRASHED at '+CR.mult.toFixed(2)+'x';
+  CR.history.unshift({mult:CR.mult,crashed:true}); CR.history=CR.history.slice(0,10);
+  if(CR.hasBet){
+    if(btc!==undefined)S.btc=btc; if(losses!==undefined)S.losses=losses; refresh();
+    setTimeout(function(){ gSound('lose'); }, 500);
+    toast('💥 Crashed! −€'+CR.bet,'err');
+  }
   var btn=document.getElementById('cr-btn');
-  if(btn){btn.textContent='Won €'+won.toFixed(2)+' — Next round...';btn.disabled=true;}
-  crRenderHist();
+  if(btn){btn.textContent='💥 Crashed — Next round...';btn.disabled=true;btn.style.background='rgba(239,68,68,.2)';}
+  crRenderHist(); crDrawCanvas();
   setTimeout(crStartBetting,2500);
 }
 function crAnimate(){
@@ -14853,7 +14892,10 @@ function crAnimate(){
     gSound('rocket-rising', {freq: pitch});
   }
   if(CR.auto>0&&CR.hasBet&&CR.mult>=CR.auto){crCashout();return;}
-  if(CR.mult>=CR.crashAt){
+  // The crash point is server-decided and secret; poll for the crash event.
+  var _pn=performance.now();
+  if(CR.srvActive && _pn-(CR.lastPoll||0)>300){ CR.lastPoll=_pn; crPoll(); }
+  if(false){  // crash now handled server-side via crPoll -> crDoCrash (dead block)
     if(CR.raf){cancelAnimationFrame(CR.raf);CR.raf=null;}
     CR.mult=CR.crashAt;CR.state='crashed';
     // 💥 EXPLOSION
