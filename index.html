@@ -14307,71 +14307,56 @@ function rlSpin(){
   if(RL.spinning)return;
   var totalBet=RL.bets.reduce(function(a,b){return a+b.amount;},0);
   if(!hasFunds(totalBet)){toast('Insufficient balance','err');return;}
+  if(!S.userId){toast('Open in Telegram to play','err');return;}
   RL.spinning=true;
   document.getElementById('rl-spin').disabled=true;
-  placeBet(totalBet,'roulette');
-  buildRouletteWheel();  // ensure segments are drawn
-  // ─── Audio: ball-rolling for the spin duration ────────────────
-  gSound('chip-stack');                          // chips going in
-  gSound('ball-roll', {duration: 4500});         // rolling sound for spin
-  // Pick result deterministically — index into wheel order
-  var resultIdx=Math.floor(Math.random()*37);
-  var result=ROULETTE_ORDER[resultIdx];
-  // Ball must end at the angle of that wheel position (not "result number" directly)
-  // Slot resultIdx is at angle (resultIdx * 360/37) clockwise from top
-  var slotAngle=resultIdx*(360/37);
-  // Ball starts at top (angle 0), needs to rotate clockwise (positive) and end at slotAngle
-  // Add several full rotations for a long spin
-  var startTime=performance.now();
-  var duration=4500;
-  var totalRotations=7;
-  var endAngle=totalRotations*360 + slotAngle;
-  var ball=document.getElementById('rl-ball-svg');
-  function frame(now){
-    var t=Math.min(1,(now-startTime)/duration);
-    var eased=1-Math.pow(1-t,3); // cubic ease-out
-    var ang=eased*endAngle;
-    if(ball){
-      // SVG transform: rotate around the wheel center (0,0) then position
-      ball.setAttribute('transform','rotate('+ang+')');
+  buildRouletteWheel();
+  gSound('chip-stack');
+  var payload=RL.bets.map(function(b){return {type:b.type,nums:b.nums||[],amount_btc:eurToBtc(b.amount)};});
+  fetch(BACKEND+'/play/roulette',{
+    method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},
+    body:JSON.stringify({user_id:S.userId,bets:payload})
+  }).then(function(r){return r.json();}).then(function(d){
+    if(!d||d.error){
+      RL.spinning=false;document.getElementById('rl-spin').disabled=false;
+      toast('⚠️ '+((d&&d.error)||'Network error - retry'),'err');
+      if(typeof loadBalance==='function')loadBalance();return;
     }
-    if(t<1)requestAnimationFrame(frame);
-  }
-  requestAnimationFrame(frame);
-  setTimeout(function(){
-    // Final thunk as the ball settles
-    gSound('ball-stop');
-    var color=getRouletteColor(result);
-    var resEl=document.getElementById('rl-result');
-    var colEl=document.getElementById('rl-color');
-    if(resEl){resEl.textContent=result;resEl.className='rl-result-num '+color;}
-    if(colEl){colEl.textContent=color.toUpperCase()+(result%2===0&&result!==0?' · EVEN':(result!==0?' · ODD':''));}
-    RL.history.unshift({n:result,c:color});
-    if(RL.history.length>10)RL.history.pop();
-    renderRlHistory();
-    var won=0;
-    RL.bets.forEach(function(b){
-      if(rlBetWins(b,result,color))won+=b.amount*b.mult;
-    });
-    if(won>0){
-      winBet(won,'roulette');
-      // Tiered win sound based on payout ratio
-      var ratio = won / totalBet;
-      setTimeout(function(){
-        if(ratio >= 18)      gSound('win-big');     // straight up or better
-        else if(ratio >= 5)  gSound('win-medium');
-        else                 gSound('win-small');
-      }, 250);
-      toast('🎉 You won €'+won.toFixed(2)+' on '+result+' '+color.toUpperCase(),'ok',3000);
-    }else{
-      loseBet(totalBet,'roulette');
-      setTimeout(function(){ gSound('lose'); }, 250);
-      toast('😞 Lost €'+totalBet+' on '+result+' '+color.toUpperCase(),'err');
-    }
-    RL.bets=[];rlRenderBets();
-    RL.spinning=false;
-    document.getElementById('rl-spin').disabled=false;
-  },4600);
+    gSound('ball-roll',{duration:4500});
+    var resultIdx=ROULETTE_ORDER.indexOf(d.result); if(resultIdx<0)resultIdx=0;
+    var slotAngle=resultIdx*(360/37), startTime=performance.now(), endAngle=7*360+slotAngle;
+    var ball=document.getElementById('rl-ball-svg');
+    (function frame(now){
+      var t=Math.min(1,(now-startTime)/4500), eased=1-Math.pow(1-t,3);
+      if(ball)ball.setAttribute('transform','rotate('+(eased*endAngle)+')');
+      if(t<1)requestAnimationFrame(frame);
+    })(startTime);
+    setTimeout(function(){
+      gSound('ball-stop');
+      var result=d.result,color=d.color;
+      var resEl=document.getElementById('rl-result'),colEl=document.getElementById('rl-color');
+      if(resEl){resEl.textContent=result;resEl.className='rl-result-num '+color;}
+      if(colEl){colEl.textContent=color.toUpperCase()+(result%2===0&&result!==0?' · EVEN':(result!==0?' · ODD':''));}
+      RL.history.unshift({n:result,c:color});if(RL.history.length>10)RL.history.pop();renderRlHistory();
+      if(d.btc!==undefined)S.btc=d.btc; if(d.wins!==undefined)S.wins=d.wins; if(d.losses!==undefined)S.losses=d.losses;
+      if(d.total_bet_eur!==undefined)S.totalBet=d.total_bet_eur; if(d.biggest_win_eur!==undefined)S.biggestWin=d.biggest_win_eur;
+      refresh(); if(CUR==='profile')renderProfile();
+      var wonEur=(d.won_btc||0)*S.rate;
+      if(d.won){
+        var ratio=wonEur/totalBet;
+        setTimeout(function(){ if(ratio>=18)gSound('win-big'); else if(ratio>=5)gSound('win-medium'); else gSound('win-small'); },250);
+        toast('🎉 +€'+wonEur.toFixed(2)+' on '+result+' '+color.toUpperCase(),'ok',3000);
+      }else{
+        setTimeout(function(){gSound('lose');},250);
+        toast('😞 Lost €'+totalBet.toFixed(2)+' on '+result+' '+color.toUpperCase(),'err');
+      }
+      RL.bets=[];rlRenderBets();
+      RL.spinning=false;document.getElementById('rl-spin').disabled=false;
+    },4600);
+  }).catch(function(e){
+    RL.spinning=false;document.getElementById('rl-spin').disabled=false;
+    toast('Network error','err'); if(typeof loadBalance==='function')loadBalance();
+  });
 }
 
 function getRouletteColor(n){
@@ -14418,55 +14403,71 @@ function dcRoll(){
   if(!DC.pick){toast('Pick a bet first','warn');return;}
   var bet=currentBet.dice;
   if(!hasFunds(bet)){toast('Insufficient balance','err');return;}
-  placeBet(bet,'dice');
-  // Audio: chip drop + tumbling clatter for the whole roll duration
+  if(!S.userId){toast('Open in Telegram to play','err');return;}
+  var btn=document.getElementById('dc-roll');
+  btn.disabled=true;
   gSound('chip');
-  gSound('dice-roll', {duration: 1300});
-  document.getElementById('dc-roll').disabled=true;
+  gSound('dice-roll',{duration:1300});
   var d1=document.getElementById('dc-d1'),d2=document.getElementById('dc-d2');
-  d1.classList.add('rolling');d2.classList.add('rolling');
-  document.getElementById('dc-status').textContent='Rolling...';
   var totalEl=document.getElementById('dc-total');
+  var statusEl=document.getElementById('dc-status');
+  d1.classList.add('rolling');d2.classList.add('rolling');
+  d1.classList.remove('landed');d2.classList.remove('landed');
+  statusEl.textContent='Rolling...';
   totalEl.className='dc-total-val';
   totalEl.textContent='...';
-  var interval=setInterval(function(){
+  var spin=setInterval(function(){
     d1.setAttribute('data-face',Math.floor(Math.random()*6)+1);
     d2.setAttribute('data-face',Math.floor(Math.random()*6)+1);
   },90);
-  setTimeout(function(){
-    clearInterval(interval);
-    var r1=Math.floor(Math.random()*6)+1,r2=Math.floor(Math.random()*6)+1;
-    d1.setAttribute('data-face',r1);d2.setAttribute('data-face',r2);
+  var resp=null, respErr=null, minDone=false;
+  function tryReveal(){
+    if(!minDone) return;
+    if(resp===null && respErr===null) return;
+    clearInterval(spin);
     d1.classList.remove('rolling');d2.classList.remove('rolling');
-    d1.classList.add('landed');d2.classList.add('landed');
-    // Solid wooden clack as dice settle
+    if(respErr || !resp || resp.error){
+      statusEl.textContent='⚠️ '+((resp&&resp.error)||'Network error - retry');
+      totalEl.textContent='-';
+      btn.disabled=false;
+      if(typeof loadBalance==='function') loadBalance();
+      return;
+    }
+    var r1=resp.d1, r2=resp.d2, sum=resp.sum;
+    d1.setAttribute('data-face',r1); d2.setAttribute('data-face',r2);
+    d1.classList.add('landed'); d2.classList.add('landed');
     gSound('dice-stop');
     setTimeout(function(){d1.classList.remove('landed');d2.classList.remove('landed');},420);
-    var sum=r1+r2;
     totalEl.textContent=sum;
-    var win=false,mult=2;
-    if(DC.pick==='lo'&&sum>=2&&sum<=6){win=true;mult=2;}
-    else if(DC.pick==='hi'&&sum>=8&&sum<=12){win=true;mult=2;}
-    else if(DC.pick==='7'&&sum===7){win=true;mult=6;}
-    if(win){
+    if(resp.btc!==undefined) S.btc=resp.btc;
+    if(resp.wins!==undefined) S.wins=resp.wins;
+    if(resp.losses!==undefined) S.losses=resp.losses;
+    if(resp.total_bet_eur!==undefined) S.totalBet=resp.total_bet_eur;
+    if(resp.biggest_win_eur!==undefined) S.biggestWin=resp.biggest_win_eur;
+    refresh();
+    if(CUR==='profile') renderProfile();
+    if(resp.won){
+      var winEur=(resp.payout_btc*S.rate);
       totalEl.classList.add('win');
-      document.getElementById('dc-status').textContent='🎉 You won €'+(bet*mult).toFixed(2)+'!';
-      winBet(bet*mult,'dice');
-      // Big win sound for Lucky Seven (×6), medium otherwise
-      setTimeout(function(){
-        if(mult >= 6) gSound('win-big');
-        else          gSound('win-medium');
-      }, 200);
-      toast('🎉 +€'+(bet*mult).toFixed(2)+' ('+sum+')','ok');
-    }else{
+      statusEl.textContent='🎉 You won €'+winEur.toFixed(2)+'! ('+sum+')';
+      setTimeout(function(){ if(resp.mult>=6) gSound('win-big'); else gSound('win-medium'); },200);
+      toast('🎉 +€'+winEur.toFixed(2)+' ('+sum+')','ok');
+    } else {
       totalEl.classList.add('lose');
-      document.getElementById('dc-status').textContent='😞 Lost €'+bet+' ('+sum+')';
-      loseBet(bet,'dice');
-      setTimeout(function(){ gSound('lose'); }, 200);
+      statusEl.textContent='😞 Lost €'+bet+' ('+sum+')';
+      setTimeout(function(){ gSound('lose'); },200);
       toast('😞 -€'+bet+' ('+sum+')','err');
     }
-    document.getElementById('dc-roll').disabled=false;
-  },1300);
+    btn.disabled=false;
+  }
+  setTimeout(function(){ minDone=true; tryReveal(); }, 1100);
+  fetch(BACKEND+'/play/dice',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},
+    body:JSON.stringify({user_id:S.userId, bet_btc:eurToBtc(bet), pick:DC.pick})
+  }).then(function(r){return r.json();})
+    .then(function(d){ resp=d; tryReveal(); })
+    .catch(function(e){ respErr=e||true; tryReveal(); });
 }
 
 var SC_SYMS=[
@@ -17687,73 +17688,45 @@ function whSetRisk(risk){
 }
 
 function whSpin(eur){
-  if(WH.spinning){ toast('Wheel still spinning','err',1200); return; }
-  if((S.btc * S.rate) < eur){ toast('Insufficient balance','err'); return; }
-  if(!placeBet(eur, 'wheel')) return;
-  WH.spinning = true;
-  document.getElementById('wh-bal').textContent = '\u20ac' + (S.btc * S.rate).toFixed(2);
-  // 🎯 chip + rolling sound for the duration of the spin
-  gSound('chip');
-  setTimeout(function(){ gSound('ball-roll', {duration: 3800}); }, 80);
-  
-  var segments = WH.arranged;
-  var n = segments.length;
-  var segAngle = 360 / n;
-  
-  // Pick winning segment index (uniform random — segments are pre-arranged by rarity)
-  var winIdx = Math.floor(Math.random() * n);
-  var seg = segments[winIdx];
-  var multi = seg.multi;
-  
-  // Compute final rotation
-  var segCenter = winIdx * segAngle + segAngle/2;
-  var rotations = 5 + Math.floor(Math.random() * 4);
-  var jitter = (Math.random() - 0.5) * (segAngle * 0.45);
-  var targetMod = ((360 - segCenter + jitter) % 360 + 360) % 360;
-  var currentMod = ((WH.currentAngle % 360) + 360) % 360;
-  var deltaToTarget = (targetMod - currentMod + 360) % 360;
-  var finalAngle = rotations * 360 + deltaToTarget;
-  WH.currentAngle += finalAngle;
-  var wheelEl = document.getElementById('wh-wheel');
-  wheelEl.style.transform = 'rotate(' + WH.currentAngle + 'deg)';
-  
-  // Update result display: "spinning..."
-  document.getElementById('wh-result').innerHTML = 
-    '<div style="font-family:Russo One,sans-serif;font-size:14px;color:#ffd700;letter-spacing:2px;">\u2728 SPINNING\u2026</div>';
-  
-  // Wait for animation to finish (4s)
-  setTimeout(function(){
-    // Final settling thunk
-    gSound('ball-stop');
-    var payout_eur = eur * multi;
-    if(multi > 0){
-      winBet(payout_eur, 'wheel');
-      var profit = eur * (multi - 1);
-      var resultClass = multi >= 10 ? 'jackpot' : 'win';
-      document.getElementById('wh-result').innerHTML = 
-        '<div class="wh-result-multi ' + resultClass + '">' + multi + 'x</div>' +
-        '<div class="wh-result-amount" style="color:#39ff14;">+\u20ac' + profit.toFixed(2) + '</div>';
-      // Tier the win sound by multiplier
-      setTimeout(function(){
-        if(multi >= 10)     gSound('win-big');     // jackpot tier
-        else if(multi >= 3) gSound('win-medium');
-        else                gSound('win-small');
-      }, 250);
-      toast(multi + 'x! +\u20ac' + profit.toFixed(2), 'ok', 2200);
-      if(multi >= 5){
-        try{tg.HapticFeedback && tg.HapticFeedback.notificationOccurred('success');}catch(e){}
+  if(WH.spinning){toast('Wheel still spinning','err',1200);return;}
+  if((S.btc*S.rate)<eur){toast('Insufficient balance','err');return;}
+  if(!S.userId){toast('Open in Telegram to play','err');return;}
+  WH.spinning=true; gSound('chip');
+  var segments=WH.arranged||whBuildWheelSegments();
+  fetch(BACKEND+'/play/wheel',{
+    method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},
+    body:JSON.stringify({user_id:S.userId,bet_btc:eurToBtc(eur),risk:WH.risk})
+  }).then(function(r){return r.json();}).then(function(d){
+    if(!d||d.error){WH.spinning=false;toast('⚠️ '+((d&&d.error)||'error'),'err');if(typeof loadBalance==='function')loadBalance();return;}
+    var multi=d.multi, matches=[]; for(var i=0;i<segments.length;i++){if(segments[i].multi===multi)matches.push(i);}
+    var winIdx=matches.length?matches[Math.floor(Math.random()*matches.length)]:0;
+    var n=segments.length,segAngle=360/n,segCenter=winIdx*segAngle+segAngle/2;
+    var rotations=5+Math.floor(Math.random()*4),jitter=(Math.random()-0.5)*(segAngle*0.45);
+    var targetMod=((360-segCenter+jitter)%360+360)%360,currentMod=((WH.currentAngle%360)+360)%360;
+    var deltaToTarget=(targetMod-currentMod+360)%360,finalAngle=rotations*360+deltaToTarget;
+    WH.currentAngle+=finalAngle;
+    document.getElementById('wh-wheel').style.transform='rotate('+WH.currentAngle+'deg)';
+    gSound('ball-roll',{duration:3800});
+    document.getElementById('wh-result').innerHTML='<div style="font-family:Russo One,sans-serif;font-size:14px;color:#ffd700;letter-spacing:2px;">✨ SPINNING…</div>';
+    setTimeout(function(){
+      gSound('ball-stop');
+      if(d.btc!==undefined)S.btc=d.btc; if(d.wins!==undefined)S.wins=d.wins; if(d.losses!==undefined)S.losses=d.losses;
+      if(d.total_bet_eur!==undefined)S.totalBet=d.total_bet_eur; if(d.biggest_win_eur!==undefined)S.biggestWin=d.biggest_win_eur;
+      refresh(); if(CUR==='profile')renderProfile();
+      if(multi>0){
+        var winEur=(d.won_btc||0)*S.rate, profit=winEur-eur, cls=multi>=10?'jackpot':'win';
+        document.getElementById('wh-result').innerHTML='<div class="wh-result-multi '+cls+'">'+multi+'x</div><div class="wh-result-amount" style="color:#39ff14;">+€'+profit.toFixed(2)+'</div>';
+        setTimeout(function(){ if(multi>=10)gSound('win-big'); else if(multi>=3)gSound('win-medium'); else gSound('win-small'); },250);
+        toast(multi+'x! +€'+profit.toFixed(2),'ok',2200);
+      }else{
+        document.getElementById('wh-result').innerHTML='<div class="wh-result-multi lose">0x</div><div class="wh-result-amount">-€'+eur.toFixed(2)+'</div>';
+        setTimeout(function(){gSound('lose');},250);
+        toast('No luck - try again','err',1500);
       }
-    }else{
-      loseBet(eur, 'wheel');
-      document.getElementById('wh-result').innerHTML = 
-        '<div class="wh-result-multi lose">0x</div>' +
-        '<div class="wh-result-amount">-\u20ac' + eur.toFixed(2) + '</div>';
-      setTimeout(function(){ gSound('lose'); }, 250);
-      toast('No luck — try again','err',1500);
-    }
-    document.getElementById('wh-bal').textContent = '\u20ac' + (S.btc * S.rate).toFixed(2);
-    WH.spinning = false;
-  }, 4100);
+      document.getElementById('wh-bal').textContent='€'+(S.btc*S.rate).toFixed(2);
+      WH.spinning=false;
+    },4100);
+  }).catch(function(e){WH.spinning=false;toast('Network error','err');if(typeof loadBalance==='function')loadBalance();});
 }
 
 function whInit(){
