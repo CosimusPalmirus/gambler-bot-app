@@ -16109,7 +16109,7 @@ function dlSearchView(mode,eur){
 function dlStartMatch(mode,eur){
   if((S.btc*S.rate)<eur){ toast('Insufficient balance','err'); return; }
   dlSearchView(mode,eur);
-  fetch(BACKEND+'/duel/app_join',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId,mode:mode,bet_btc:eurToBtc(eur),username:(S.username||'Player')})})
+  fetch(BACKEND+'/duel/app_join',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId,mode:mode,bet_btc:eurToBtc(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
     .then(function(r){return r.json();}).then(function(d){
       if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); dlCloseOverlay(); if(typeof loadBalance==='function')loadBalance(); return; }
       if(d.btc!==undefined){ S.btc=d.btc; refresh(); }
@@ -16143,20 +16143,33 @@ function dlShowResult(d){
     else { dlReveal(d); }
   });
 }
+function dlMyPhoto(){ try{ return (tg&&tg.initDataUnsafe&&tg.initDataUnsafe.user&&tg.initDataUnsafe.user.photo_url)||''; }catch(e){ return ''; } }
+function dlVsAvatar(info, isMe, fb){
+  var photo=(info&&info.photo_url)||''; if(isMe){ var m=dlMyPhoto(); if(m) photo=m; }
+  if(photo){
+    return '<div class="pvp-vs-av" style="width:62px;height:62px;border-radius:50%;overflow:hidden;margin:0 auto;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.06);">'+
+      '<img src="'+dlEsc(photo)+'" alt="" style="width:62px;height:62px;border-radius:50%;object-fit:cover;display:block;" '+
+      'onerror="this.parentNode.style.fontSize=\'40px\';this.parentNode.innerHTML=\''+fb+'\';"></div>';
+  }
+  var nm=(info&&info.name)||''; var init=nm?dlEsc(nm.charAt(0).toUpperCase()):fb;
+  return '<div class="pvp-vs-av">'+init+'</div>';
+}
 function dlVsScreen(d, onDone){
   var youP1=d.you_p1;
   var meInfo = youP1?d.p1_info:d.p2_info, opInfo = youP1?d.p2_info:d.p1_info;
-  var opName = youP1?d.p2_name:d.p1_name;
-  function card(av,name,info,side){
+  var meName = youP1?d.p1_name:d.p2_name, opName = youP1?d.p2_name:d.p1_name;
+  function card(info,name,isMe,side,fb){
     info=info||{};
-    return '<div class="pvp-vs-card '+side+'"><div class="pvp-vs-av">'+av+'</div>'+
-      '<div class="pvp-vs-nm">'+dlEsc(name)+'</div><div class="pvp-vs-lv">LV '+(info.lvl||1)+'</div>'+
-      '<div class="pvp-vs-rec">⚔ '+(info.dw||0)+'W · '+(info.dl||0)+'L</div></div>';
+    var lv=(typeof getLevel==='function')?getLevel(info.xp||0):{level:(info.lvl||1),title:'',icon:''};
+    return '<div class="pvp-vs-card '+side+'">'+dlVsAvatar(info,isMe,fb)+
+      '<div class="pvp-vs-nm">'+dlEsc(name||'Player')+'</div>'+
+      '<div class="pvp-vs-lv">'+(lv.icon?lv.icon+' ':'')+'LV '+(lv.level||1)+(lv.title?' · '+dlEsc(lv.title):'')+'</div>'+
+      '<div class="pvp-vs-rec">⚔ '+(info.dw||0)+'W · '+(info.dl||0)+'L'+((info.wins!=null)?' <span style="opacity:.6;">· 🏆 '+info.wins+'</span>':'')+'</div></div>';
   }
   dlModalHTML('<div class="pvp-vs-stage">'+
-    card('🧑','YOU',meInfo,'me')+
+    card(meInfo,meName||'YOU',true,'me','🧑')+
     '<div class="pvp-vs-clash"><span class="pvp-vs-big">VS</span><span class="pvp-vs-spark">✦</span></div>'+
-    card('👤',opName,opInfo,'op')+'</div>');
+    card(opInfo,opName,false,'op','👤')+'</div>');
   try{ gSound('chip'); }catch(e){}
   setTimeout(onDone, 1900);
 }
@@ -16268,7 +16281,7 @@ function dlBjStart(eur){
   if((S.btc*S.rate)<eur){ toast('Insufficient balance','err'); return; }
   DLBJ.bet=eur; DLBJ.shown=false;
   dlSearchView('bj',eur);
-  fetch(BACKEND+'/duel/bjl_join',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId,bet_btc:eurToBtc(eur),username:(S.username||'Player')})})
+  fetch(BACKEND+'/duel/bjl_join',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId,bet_btc:eurToBtc(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
     .then(function(r){return r.json();}).then(function(d){
       if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); dlCloseOverlay(); if(typeof loadBalance==='function')loadBalance(); return; }
       if(d.btc!==undefined){ S.btc=d.btc; refresh(); }
