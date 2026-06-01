@@ -7495,7 +7495,7 @@ body{position:relative;}
         <div class="gcard-info">Cash out before crash</div>
       </div>
       <div class="gcard plinko" onclick="go('plinko')">
-        <span class="gcard-badge gold">x1000</span>
+        <span class="gcard-badge gold">x10</span>
         <div class="gcard-icon">🪙</div>
         <div class="gcard-name">PLINKO</div>
         <div class="gcard-info">Drop the ball • Jackpot</div>
@@ -8899,7 +8899,7 @@ function placeBet(eur,game){
   syncBalance(-btc,btc,false,false,game);
   return true;
 }
-function winBet(eur,game){
+function winBet(eur,game,extra){
   var btc=eurToBtc(eur);
   S.btc+=btc;
   if(eur>(S.biggestWin||0))S.biggestWin=eur;
@@ -8907,7 +8907,7 @@ function winBet(eur,game){
   refresh();
   if(CUR==='profile')renderProfile();
   // Fire sync; backend will return authoritative state
-  syncBalance(btc,0,true,false,game);
+  syncBalance(btc,0,true,false,game,extra);
 }
 function loseBet(eur,game){
   S.losses=(S.losses||0)+1;
@@ -15887,7 +15887,7 @@ function setBalanceStatus(text,kind){
   }
 }
 
-function syncBalance(deltaBtc,bet,won,lost,game){
+function syncBalance(deltaBtc,bet,won,lost,game,extra){
   if(game === 'slots' && typeof SL2 !== 'undefined' && SL2.srvMode){ return Promise.resolve(); }
   if(!S.userId){
     // No user binding — local-only state, but warn that nothing is saved
@@ -15900,7 +15900,7 @@ function syncBalance(deltaBtc,bet,won,lost,game){
   return fetch(BACKEND+'/update_balance',{
     method:'POST',
     headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},
-    body:JSON.stringify({user_id:S.userId,delta_btc:deltaBtc,delta_bet:bet,won:won,lost:lost,game:game||'game'})
+    body:JSON.stringify(Object.assign({user_id:S.userId,delta_btc:deltaBtc,delta_bet:bet,won:won,lost:lost,game:game||'game'}, extra||{}))
   }).then(function(r){
     if(!r.ok)throw new Error('HTTP '+r.status);
     return r.json();
@@ -16101,7 +16101,7 @@ function dlPickGame(mode){
 function dlBetPick(mode,eur){ if(mode==='bj'){ dlBjStart(eur); } else { dlStartMatch(mode,eur); } }
 function dlSearchView(mode,eur){
   dlModalHTML('<div class="pvp-m-title" style="color:#ffd700;">FINDING OPPONENT</div>'+
-    '<div class="pvp-search"><div class="pvp-search-ring"></div><div class="pvp-search-ring r2"></div><div class="pvp-search-core">'+(mode==='random'?'🎰':'⚔️')+'</div></div>'+
+    '<div class="pvp-search"><div class="pvp-search-ring"></div><div class="pvp-search-ring r2"></div><div class="pvp-search-core">'+(mode==='random'?'<span style="display:inline-block;animation:spin 2.2s linear infinite;">🎡</span>':'⚔️')+'</div></div>'+
     '<div class="pvp-search-dots"><span></span><span></span><span></span></div>'+
     '<div style="text-align:center;font-size:12px;color:var(--txt2);">Matching a player betting ~€'+eur+'…</div>'+
     '<button class="pvp-m-btn" onclick="dlCancelSearch()">CANCEL & REFUND</button>');
@@ -16530,7 +16530,11 @@ var PK = {
   revealedCommunity: 0,
   result: null,
   playAction: null,   // 'call' or 'raise' — tracks how the player committed
-  potDisplay: 0       // animated pot value for smooth chip-to-pot effect
+  potDisplay: 0,      // animated pot value for smooth chip-to-pot effect
+  busy: false,        // server round-trip in flight (server-authoritative engine)
+  srvActions: [],     // actions the SERVER currently offers (drives the buttons)
+  toCallEur: 0,
+  anteEur: 0
 };
 
 // ─── POKER SOUND SYSTEM ─────────────────────────────────────────
@@ -16959,98 +16963,70 @@ function pkUpdateLabels(){
 }
 
 // ===== Game flow =====
+// ── SERVER-AUTHORITATIVE POKER ──────────────────────────────────────────────
+// The deck, dealer hole cards, dealer AI + showdown all live on the backend
+// (/poker/deal, /poker/act). This client only renders the returned state and
+// forwards the player's action — it can no longer decide a win or the payout.
+function pkApplyServer(d){
+  if(!d || d.error){ toast('⚠️ '+((d&&d.error)||'poker error'),'err'); PK.busy=false; pkUpdateButtons(); return; }
+  if(d.btc!==undefined){ S.btc=d.btc; refresh(); if(CUR==='profile')renderProfile(); }
+  PK.player=d.player||[]; PK.community=d.community||[]; PK.revealedCommunity=d.revealed||0;
+  PK.pot=(d.pot_btc||0)*S.rate; PK.pTotal=(d.p_total_btc||0)*S.rate; PK.dTotal=(d.d_total_btc||0)*S.rate;
+  PK.ante=(d.ante_btc||0)*S.rate; PK.anteEur=PK.ante; PK.toCallEur=(d.to_call_btc||0)*S.rate;
+  PK.srvActions=d.actions||[]; PK.awaiting=d.awaiting; PK.busy=false;
+  if(d.done){
+    PK.dealer=d.dealer||[]; PK.revealedCommunity=5; PK.phase='showdown';
+    PK.result={ winner:(d.result==='win'?'player':(d.result==='lose'?'dealer':'push')), reason:d.reason,
+                playerHand:(d.your_rank!=null?{rank:d.your_rank,hand:d.your_best||null}:null),
+                dealerHand:(d.dealer_rank!=null?{rank:d.dealer_rank}:null) };
+    pkRender(); pkUpdateBetInfo();
+    pkShowResult(d.result==='win'?'win':(d.result==='lose'?'lose':'push'));
+  } else {
+    PK.dealer=[{hidden:true},{hidden:true}]; PK.phase=d.phase||'flop';
+    pkRender(); pkUpdateBetInfo(); pkUpdateButtons();
+  }
+}
 function pkStart(ante){
-  if(PK.phase!=='idle') return;
+  if(PK.phase!=='idle' || PK.busy) return;
   if(!hasFunds(ante)){ toast('Insufficient balance','err'); return; }
-  PK.ante=ante; PK.pot=0; PK.pBet=0; PK.dBet=0; PK.pTotal=0; PK.dTotal=0;
-  PK.raisesThisStreet=0; PK.result=null; PK.awaiting='player'; PK.allIn=false;
-  var deck=pkBuildDeck();
-  PK.player=[deck.pop(),deck.pop()];
-  PK.dealer=[deck.pop(),deck.pop()];
-  PK.community=[deck.pop(),deck.pop(),deck.pop(),deck.pop(),deck.pop()];
-  PK.revealedCommunity=0;
-  PK.phase='preflop';
-  if(!placeBet(ante,'poker')){ PK.phase='idle'; return; }
-  PK.pTotal+=ante; PK.dTotal+=ante; PK.pot=ante*2;
+  if(!S.userId){ toast('Open in Telegram to play','err'); return; }
+  PK.busy=true; PK.ante=ante;
   pkSound('chip');
-  pkRender(); pkUpdateButtons(); pkUpdateBetInfo();
   var st=document.getElementById('pk-status'); if(st){st.textContent='Dealing...';st.classList.remove('decision');}
-  setTimeout(function(){
-    var pc=document.querySelectorAll('#pk-player-cards .pk-card, #pk-dealer-cards .pk-card');
-    pc.forEach(function(c,i){ c.classList.add('dealing'); c.style.animationDelay=(i*0.12)+'s'; setTimeout(function(){pkSound('deal');},i*120); });
-  },10);
-  setTimeout(function(){
-    PK.phase='flop';
-    pkAnimateReveal(0,3,function(){
-      PK.revealedCommunity=3; pkRender(); pkSound('reveal');
-      pkBeginStreet();
-    });
-  },1000);
+  fetch(BACKEND+'/poker/deal',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId, ante_btc:eurToBtc(ante)})})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); PK.busy=false; PK.phase='idle'; pkUpdateButtons(); if(typeof loadBalance==='function')loadBalance(); return; }
+      pkApplyServer(d);
+      pkSetStatus('Your move — CHECK is free',true);
+      setTimeout(function(){
+        var pc=document.querySelectorAll('#pk-player-cards .pk-card, #pk-dealer-cards .pk-card');
+        pc.forEach(function(c,i){ c.classList.add('dealing'); c.style.animationDelay=(i*0.12)+'s'; setTimeout(function(){pkSound('deal');},i*120); });
+      },10);
+    })
+    .catch(function(){ toast('Network error','err'); PK.busy=false; PK.phase='idle'; pkUpdateButtons(); });
 }
 
 function pkPlayerAction(act){
-  if(PK.phase==='idle'||PK.phase==='showdown') return;
+  if(PK.busy) return;
   if(PK.awaiting!=='player') return;
+  if(PK.phase==='idle'||PK.phase==='showdown') return;
+  if(!PK.srvActions || PK.srvActions.indexOf(act)<0) return;   // only server-offered actions
+  PK.busy=true;
+  var ar=document.getElementById('pk-action-row'); if(ar) ar.style.display='none';
   var st=document.getElementById('pk-status'); if(st) st.classList.remove('decision');
-  var toCall=Math.max(0, PK.dBet-PK.pBet);
-  if(act==='fold'){
-    PK.phase='showdown';
-    PK.result={winner:'dealer',reason:'fold'};
-    pkSound('fold');
-    var pc=document.querySelectorAll('#pk-player-cards .pk-card'); pc.forEach(function(c){c.classList.add('mucking');});
-    PK.awaiting='none'; pkUpdateButtons();
-    setTimeout(pkSettleFold,500);
-    return;
-  }
-  if(act==='check'){
-    if(toCall>0) return;
-    pkSound('tick');
-    PK.awaiting='dealer'; pkUpdateButtons();
-    pkSetStatus('Dealer is thinking...',false);
-    setTimeout(pkDealerAct, 750);
-    return;
-  }
-  if(act==='bet'){
-    if(toCall>0) return;
-    var amt=Math.min(PK.ante, pkRemainEur());   // clamp to stack → all-in if short
-    if(amt<=0){ toast('No funds to bet','err'); return; }
-    placeBet(amt,'poker'); PK.pTotal+=amt; PK.pBet+=amt;
-    if(amt<PK.ante-1e-9 || pkRemainEur()<0.01) PK.allIn=true;
-    pkSound('raise'); pkAnimateChipsToPot(amt,'#ffd700'); pkPulsePotEx(amt);
-    PK.awaiting='dealer'; pkUpdateButtons(); pkUpdateBetInfo();
-    pkSetStatus('Dealer is thinking...',false);
-    setTimeout(pkDealerAct,750);
-    return;
-  }
-  if(act==='call'){
-    if(toCall<=0) return;
-    var pay=Math.min(toCall, pkRemainEur());     // all-in call for less if short
-    if(pay<=0){ pkPlayerAction('fold'); return; } // nothing left to call → fold
-    placeBet(pay,'poker'); PK.pTotal+=pay; PK.pBet+=pay;
-    pkSound('call'); pkAnimateChipsToPot(pay,'#5fc7ff'); pkPulsePotEx(pay);
-    if(pay<toCall-1e-9){                          // uncalled dealer chips return to dealer
-      var ex=toCall-pay; PK.dTotal-=ex; PK.pot-=ex; PK.allIn=true;
-    }
-    if(pkRemainEur()<0.01) PK.allIn=true;
-    pkUpdateBetInfo();
-    pkEndStreet();   // pkEndStreet runs the board out when PK.allIn
-    return;
-  }
-  if(act==='raise'){
-    if(PK.raisesThisStreet>=1) return;
-    var rem=pkRemainEur();
-    if(rem<=toCall+1e-9){ pkPlayerAction('call'); return; } // can't afford a real raise → (all-in) call
-    var need=toCall + PK.ante;
-    var pay=Math.min(need, rem);                 // clamp raise to stack
-    placeBet(pay,'poker'); PK.pTotal+=pay; PK.pBet+=pay; PK.raisesThisStreet++;
-    if(pay<need-1e-9 || pkRemainEur()<0.01) PK.allIn=true;
-    pkSound('raise'); pkAnimateChipsToPot(pay,'#ffd700'); pkPulsePotEx(pay);
-    var tbl=document.querySelector('.pk-table'); if(tbl){tbl.classList.remove('raise-flash');void tbl.offsetWidth;tbl.classList.add('raise-flash');setTimeout(function(){tbl.classList.remove('raise-flash');},700);}
-    PK.awaiting='dealer'; pkUpdateButtons(); pkUpdateBetInfo();
-    pkSetStatus('Dealer is thinking...',false);
-    setTimeout(pkDealerAct,750);
-    return;
-  }
+  if(act==='fold'){ pkSound('fold'); var pc=document.querySelectorAll('#pk-player-cards .pk-card'); pc.forEach(function(c){c.classList.add('mucking');}); }
+  else if(act==='raise'||act==='bet'){ pkSound('raise'); var tbl=document.querySelector('.pk-table'); if(tbl){tbl.classList.remove('raise-flash');void tbl.offsetWidth;tbl.classList.add('raise-flash');setTimeout(function(){tbl.classList.remove('raise-flash');},700);} }
+  else if(act==='call'){ pkSound('call'); }
+  else { pkSound('tick'); }
+  if(act!=='fold') pkSetStatus('Dealer is thinking...',false);
+  fetch(BACKEND+'/poker/act',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId, action:act})})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); PK.busy=false; pkUpdateButtons(); if(typeof loadBalance==='function')loadBalance(); return; }
+      pkApplyServer(d);
+    })
+    .catch(function(){ toast('Network error','err'); PK.busy=false; pkUpdateButtons(); });
 }
 
 // Visual pop on the pot icon + update displayed amount
@@ -17206,6 +17182,7 @@ function pkShowFold(){
 }
 
 function pkHighlightWinningCards(handEval){
+  if(!handEval || !handEval.hand) return;   // server may omit the winning-card list
   // Mark the 5 winning cards in DOM
   var allCards=[].concat(PK.player).concat(PK.community);
   var allEls=[].concat(
@@ -17249,7 +17226,7 @@ function pkConfetti(){
 function pkReset(){
   PK.phase='idle'; PK.ante=0; PK.pot=0; PK.pBet=0; PK.dBet=0; PK.pTotal=0; PK.dTotal=0;
   PK.raisesThisStreet=0; PK.player=[]; PK.dealer=[]; PK.community=[]; PK.revealedCommunity=0;
-  PK.result=null; PK.awaiting='player'; PK.allIn=false;
+  PK.result=null; PK.awaiting='player'; PK.allIn=false; PK.busy=false; PK.srvActions=[];
   var ov=document.getElementById('pk-showdown'); if(ov)ov.classList.remove('visible');
   var tbl=document.querySelector('.pk-table'); if(tbl)tbl.classList.remove('raise-flash','win-glow','lose-fade');
   var pot=document.getElementById('pk-pot'); if(pot)pot.classList.remove('pulse');
@@ -17371,7 +17348,8 @@ function pkDealerAct(){
   }
 }
 function pkSettleWin(){
-  winBet(PK.pot,'poker');
+  var royal = !!(PK.result && PK.result.playerHand && PK.result.playerHand.rank === 9);
+  winBet(PK.pot, 'poker', royal ? {royal_flush:true} : null);
   pkShowResult('win');
 }
 function pkSettleLose(){
@@ -17409,29 +17387,23 @@ function pkUpdateButtons(){
   }
   if(betRow)betRow.style.display='none';
   if(again)again.style.display='none';
-  if(PK.awaiting==='player'){
+  var acts=PK.srvActions||[];
+  if(PK.awaiting==='player' && acts.length){
     actRow.style.display='';
-    var toCall=Math.max(0, PK.dBet-PK.pBet);
-    var rem=pkRemainEur();
+    var toCall=PK.toCallEur||0, ante=PK.anteEur||PK.ante||0, rem=pkRemainEur();
     var html='';
-    if(toCall>0){
-      html+='<button class="pk-action fold" onclick="pkPlayerAction(\'fold\')">FOLD</button>';
-      if(rem<toCall-1e-9){
-        html+='<button class="pk-action allin" onclick="pkPlayerAction(\'call\')">ALL-IN €'+pkFmtEur(rem)+'</button>';
-      } else {
-        html+='<button class="pk-action check" onclick="pkPlayerAction(\'call\')">CALL €'+pkFmtEur(toCall)+'</button>';
-        if(PK.raisesThisStreet<1 && rem>toCall+1e-9) html+='<button class="pk-action raise" onclick="pkPlayerAction(\'raise\')">RAISE €'+pkFmtEur(Math.min(toCall+PK.ante,rem))+'</button>';
-      }
-      actRow.className='pk-action-row';
-    } else {
-      html+='<button class="pk-action check" onclick="pkPlayerAction(\'check\')">CHECK</button>';
-      if(rem<PK.ante-1e-9){
-        html+='<button class="pk-action allin" onclick="pkPlayerAction(\'bet\')">ALL-IN €'+pkFmtEur(rem)+'</button>';
-      } else {
-        html+='<button class="pk-action raise" onclick="pkPlayerAction(\'bet\')">BET €'+pkFmtEur(PK.ante)+'</button>';
-      }
-      actRow.className='pk-action-row two';
+    if(acts.indexOf('fold')>=0) html+='<button class="pk-action fold" onclick="pkPlayerAction(\'fold\')">FOLD</button>';
+    if(acts.indexOf('check')>=0) html+='<button class="pk-action check" onclick="pkPlayerAction(\'check\')">CHECK</button>';
+    if(acts.indexOf('call')>=0){
+      if(rem<toCall-1e-9) html+='<button class="pk-action allin" onclick="pkPlayerAction(\'call\')">ALL-IN €'+pkFmtEur(rem)+'</button>';
+      else html+='<button class="pk-action check" onclick="pkPlayerAction(\'call\')">CALL €'+pkFmtEur(toCall)+'</button>';
     }
+    if(acts.indexOf('raise')>=0) html+='<button class="pk-action raise" onclick="pkPlayerAction(\'raise\')">RAISE €'+pkFmtEur(Math.min(toCall+ante,rem))+'</button>';
+    if(acts.indexOf('bet')>=0){
+      if(rem<ante-1e-9) html+='<button class="pk-action allin" onclick="pkPlayerAction(\'bet\')">ALL-IN €'+pkFmtEur(rem)+'</button>';
+      else html+='<button class="pk-action raise" onclick="pkPlayerAction(\'bet\')">BET €'+pkFmtEur(ante)+'</button>';
+    }
+    actRow.className=(acts.indexOf('call')>=0)?'pk-action-row':'pk-action-row two';
     actRow.innerHTML=html;
   } else {
     actRow.style.display='none';
