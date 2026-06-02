@@ -16671,7 +16671,12 @@ function dlInjectCSS(){
    +'.dlrr-mid{text-align:center;min-height:20px;margin:2px 0 6px;}'
    +'.dlrr-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;}'
    +'.dlrr-actions .action-btn{font-size:12px;line-height:1.15;padding:10px 4px;}'
-   +'.dlrr-bhint{font-size:8.5px;font-weight:600;opacity:.8;margin-top:2px;letter-spacing:0;}';
+   +'.dlrr-bhint{font-size:8.5px;font-weight:600;opacity:.8;margin-top:2px;letter-spacing:0;}'
+   +'.dlrr-clip-ov{position:fixed;inset:0;z-index:10000;display:none;align-items:center;justify-content:center;background:rgba(2,3,8,.92);}'
+   +'.dlrr-clip-ov.show{display:flex;animation:dlrrClipIn .2s;}@keyframes dlrrClipIn{from{opacity:0}to{opacity:1}}'
+   +'.dlrr-clip-card{position:relative;width:86%;max-width:340px;aspect-ratio:1/1;border-radius:16px;overflow:hidden;border:2px solid rgba(255,80,80,.5);box-shadow:0 16px 50px rgba(0,0,0,.75);}'
+   +'.dlrr-clip-card video{width:100%;height:100%;object-fit:cover;display:block;}'
+   +'.dlrr-clip-cap{position:absolute;left:0;right:0;bottom:0;padding:14px 10px 12px;text-align:center;font-family:Russo One,Impact,sans-serif;font-size:26px;letter-spacing:2px;background:linear-gradient(0deg,rgba(0,0,0,.88),transparent);text-shadow:0 2px 8px #000;}';
   st.textContent += '.dlrps-score{display:flex;align-items:center;justify-content:center;gap:12px;margin:6px 0;font-family:Orbitron,sans-serif;font-weight:800;}'
    +'.dlrps-sc{font-size:15px;}.dlrps-sc.you{color:#39ff14;}.dlrps-sc.opp{color:#ff8a8a;}.dlrps-vs{color:var(--txt3);}'
    +'.dlrps-reveal{display:flex;align-items:center;justify-content:center;gap:14px;margin:8px 0;}'
@@ -17168,6 +17173,23 @@ function dlRrAfterDone(d){
     if(d.you_win){ try{ tg.HapticFeedback&&tg.HapticFeedback.notificationOccurred('success'); }catch(e){} }
   }
 }
+var RR_CLIPS={self_blank:'rr_self_blank.mp4',self_live:'rr_self_live.mp4',opp_blank:'rr_opp_blank.mp4',opp_live:'rr_opp_live.mp4',reload:'rr_reload.mp4'};
+function dlRrClip(ev, onDone){
+  var key=(ev.self?'self':'opp')+'_'+(ev.live?'live':'blank');
+  var src=RR_CLIPS[key];
+  if(!src){ onDone(); return; }
+  var ov=document.getElementById('dlrr-clip-ov');
+  if(!ov){
+    ov=document.createElement('div'); ov.id='dlrr-clip-ov'; ov.className='dlrr-clip-ov';
+    ov.innerHTML='<div class="dlrr-clip-card"><video id="dlrr-clip-v" muted playsinline></video><div class="dlrr-clip-cap" id="dlrr-clip-cap"></div></div>';
+    document.body.appendChild(ov);
+  }
+  var v=document.getElementById('dlrr-clip-v'), cap=document.getElementById('dlrr-clip-cap');
+  if(cap) cap.innerHTML=ev.live?'<span style="color:#ff3b3b;">💥 BANG!</span>':'<span style="color:#9fb0c8;">🔘 click…</span>';
+  try{ if(v.getAttribute('data-src')!==src){ v.src=src; v.setAttribute('data-src',src); } v.currentTime=0; var p=v.play(); if(p&&p.catch)p.catch(function(){}); }catch(e){}
+  ov.classList.add('show');
+  setTimeout(function(){ ov.classList.remove('show'); try{ v.pause(); }catch(e){} onDone(); }, 2400);
+}
 function dlRrAction(act){
   if(DLRR.busy) return; DLRR.busy=true;
   var row=document.getElementById('dlrr-actions'); if(row) row.style.opacity='.5';
@@ -17177,10 +17199,13 @@ function dlRrAction(act){
       var row=document.getElementById('dlrr-actions'); if(row) row.style.opacity='';
       if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); return; }
       var ev=d.event||{};
-      try{ gSound(ev.live?'lose':'tick'); }catch(e){}
-      if(ev.live){ try{ tg.HapticFeedback&&tg.HapticFeedback.notificationOccurred('warning'); }catch(e){} }
-      dlRrBoard(d);
-      if(d.status==='done'||d.state==='done'){ dlRrAfterDone(d); }
+      // play the matching cinematic clip, THEN reveal the board update
+      dlRrClip(ev, function(){
+        try{ gSound(ev.live?'lose':'tick'); }catch(e){}
+        if(ev.live){ try{ tg.HapticFeedback&&tg.HapticFeedback.notificationOccurred('warning'); }catch(e){} }
+        dlRrBoard(d);
+        if(d.status==='done'||d.state==='done'){ dlRrAfterDone(d); }
+      });
     }).catch(function(){ DLRR.busy=false; toast('Network error','err'); });
 }
 function dlRrCancel(silent){
