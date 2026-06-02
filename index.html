@@ -133,6 +133,7 @@ body{position:relative;}
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;
   margin-bottom:24px;text-shadow:0 0 20px rgba(57,255,20,.3);}
 @keyframes spin{to{transform:rotate(360deg);}}
+@keyframes uiBusySpin{to{transform:rotate(360deg);}}
 .ld-txt{font-family:'Russo One';color:var(--gold);font-size:14px;letter-spacing:3px;}
 
 .hdr{display:flex;align-items:center;gap:10px;padding:14px 16px;
@@ -8431,6 +8432,10 @@ body{position:relative;}
     #grun .gr-skill-draw{height:64px;display:flex;align-items:center;justify-content:center;border-radius:12px;background:#0a0e1a;border:1px solid #2a3550;font-family:'Russo One',Impact,sans-serif;font-size:22px;letter-spacing:2px;color:#9fb0c8;margin-bottom:18px;transition:background .05s;}
     #grun .gr-skill-draw.fire{background:linear-gradient(135deg,#ff3b3b,#b81e1e);color:#fff;animation:grFireFlash .3s;}
     @keyframes grFireFlash{0%{transform:scale(1.15)}100%{transform:scale(1)}}
+    #grun .gr-boss-card{width:88%;max-width:340px;text-align:center;padding:24px 18px;border-radius:18px;background:radial-gradient(ellipse at 50% 0%,rgba(255,60,60,.22),#160808);border:2px solid rgba(255,80,80,.55);box-shadow:0 16px 50px rgba(0,0,0,.7),0 0 40px rgba(255,40,40,.25);animation:grOvlIn .25s;}
+    #grun .gr-boss-ttl{font-family:'Russo One',Impact,sans-serif;font-size:25px;letter-spacing:3px;color:#ff5b5b;text-shadow:0 0 16px rgba(255,60,60,.6);}
+    #grun .gr-boss-stage{font-family:Orbitron,monospace;font-size:10px;letter-spacing:2px;color:#ffba3c;margin:6px 0 12px;}
+    #grun .gr-boss-say{font-size:14px;font-style:italic;color:#ffd9d9;line-height:1.5;margin-bottom:18px;min-height:42px;}
   </style>
   <video class="gr-bg-vid" id="grBgVid" muted playsinline loop preload="auto"><source src="gr_descent.mp4" type="video/mp4"></video>
   <div class="game-hdr">
@@ -9058,14 +9063,14 @@ var CUR='home';
 var GR = {ante:0, view:null, busy:false, charmsMeta:{}};
 // win% + multiplier mirror the engine (gamblers_run.py) so the player sees the real odds.
 var GR_ROOMS = {
-  table:     {ic:'🃏',nm:'TABLE',      win:55, mult:1.45, d:'Steady gamble'},
-  vault:     {ic:'💎',nm:'VAULT',      win:85, mult:1.12, d:'Safe & small'},
-  highroller:{ic:'🔥',nm:'HIGH ROLLER',win:40, mult:2.08, d:'Big risk, big reward'},
-  duel:      {ic:'⚔️',nm:'RIVAL DUEL', win:48, mult:1.63, d:'Charms boost you'},
-  skill:     {ic:'🎯',nm:'SKILL TRIAL',win:50, mult:1.52, d:'Your reflexes decide!', skill:true},
+  table:     {ic:'🃏',nm:'TABLE',      win:55, mult:1.33, keep:66, d:'Steady gamble'},
+  vault:     {ic:'💎',nm:'VAULT',      win:85, mult:1.10, keep:60, d:'Safe & small'},
+  highroller:{ic:'🔥',nm:'HIGH ROLLER',win:40, mult:1.90, keep:46, d:'Big risk, big reward'},
+  duel:      {ic:'⚔️',nm:'RIVAL DUEL', win:48, mult:1.51, keep:60, d:'Charms boost you'},
+  skill:     {ic:'🎯',nm:'SKILL TRIAL',win:50, mult:1.36, keep:52, d:'Your reflexes decide!', skill:true},
   fixer:     {ic:'🤝',nm:'FIXER',      charm:true,         d:'Buy a charm'},
   shrine:    {ic:'⛩️',nm:'SHRINE',     heal:true,          d:'Restore a life · costs 35% pot'},
-  house:     {ic:'🏛️',nm:'THE HOUSE',  win:22, mult:4.5,  d:'The boss — jackpot!', boss:true}
+  house:     {ic:'🏛️',nm:'THE HOUSE',  win:22, mult:4.5,  keep:0, d:'The boss — jackpot!', boss:true}
 };
 var GR_VIDS={table:'gr_room_table.mp4',highroller:'gr_room_highroller.mp4',vault:'gr_room_vault.mp4',fixer:'gr_room_fixer.mp4',duel:'gr_room_duel.mp4',house:'gr_room_house.mp4'};
 function grRoomVideo(type){
@@ -9170,12 +9175,12 @@ function grRenderChoices(d){
     } else if(c.type==='skill'){
       body='<div class="gr-pick-odds"><span class="gr-win">SKILL</span> → pot <b>×'+m.mult+'</b></div>'+
            '<div class="gr-pick-sub">'+dlEsc(m.d||'')+'</div>'+
-           '<div class="gr-pick-risk">fail the trial → −1 ❤</div>';
+           '<div class="gr-pick-risk">fail the trial → −1 ❤ · keep '+(m.keep!=null?m.keep:50)+'% pot</div>';
       cta='PLAY ▸';
     } else if(m.win!=null){
       body='<div class="gr-pick-odds"><span class="gr-win">'+m.win+'%</span> win → pot <b>×'+m.mult+'</b></div>'+
            '<div class="gr-pick-sub">'+dlEsc(m.d||'')+'</div>'+
-           '<div class="gr-pick-risk">'+(100-m.win)+'% miss → '+(c.type==='house'?'<b style="color:#ff5b5b;">BUST</b>':'−1 ❤')+'</div>';
+           '<div class="gr-pick-risk">'+(100-m.win)+'% miss → '+(c.type==='house'?'<b style="color:#ff5b5b;">BUST</b>':'−1 ❤ · keep '+(m.keep!=null?m.keep:50)+'% pot')+'</div>';
       cta=(c.type==='house'?'FIGHT ▸':'ENTER ▸');
     } else {
       body='<div class="gr-pick-sub">'+dlEsc(m.d||'')+'</div>'; cta='ENTER ▸';
@@ -16782,7 +16787,7 @@ function dlInjectCSS(){
    +'.dlrr2-tag.you{color:#39ff14;}.dlrr2-tag.opp{color:#ff8a8a;}'
    +'.dlrr2-stage{position:relative;width:100%;display:flex;flex-direction:column;align-items:center;padding:6px 0 8px;}'
    +'.dlrr2-pot{font-family:Orbitron,sans-serif;font-size:11px;letter-spacing:1px;color:#ffd700;margin-bottom:2px;}.dlrr2-pot b{font-size:14px;}'
-   +'.dlrr2-gun{width:92px;height:154px;display:block;filter:drop-shadow(0 6px 14px rgba(0,0,0,.6));transition:transform .45s cubic-bezier(.5,0,.2,1);transform-origin:center;}'
+   +'.dlrr2-gun{width:96px;height:166px;display:block;filter:drop-shadow(0 6px 14px rgba(0,0,0,.6));transition:transform .45s cubic-bezier(.5,0,.2,1);transform-origin:center;}'
    +'#dlrr-cyl{transform-box:fill-box;transform-origin:center;}'
    +'.dlrr2-gun.spin #dlrr-cyl{animation:dlrrCylSpin .7s cubic-bezier(.2,.7,.2,1);}@keyframes dlrrCylSpin{from{transform:rotate(0)}to{transform:rotate(720deg)}}'
    +'.dlrr2-gun.recoil{animation:dlrrRecoil .22s;}@keyframes dlrrRecoil{0%{}40%{transform:scale(1.06)}100%{}}'
@@ -16875,7 +16880,7 @@ function dlPickGame(mode){
   dlModalHTML(html);
 }
 // Blackjack is a real interactive turn-based duel; dice/poker stay instant-showdown.
-function dlBetPick(mode,eur){ if(mode==='bj'){ dlBjStart(eur); } else if(mode==='rr'){ dlRrStart(eur); } else if(mode==='rps'){ dlRpsStart(eur); } else if(mode==='cards'){ dlPkdStart(eur); } else { dlStartMatch(mode,eur); } }
+function dlBetPick(mode,eur){ if(mode==='bj'){ dlBjStart(eur); } else if(mode==='rr'){ dlRrStart(eur); } else if(mode==='rps'){ dlRpsStart(eur); } else if(mode==='cards'){ dlPkdStart(eur); } else if(mode==='random'){ dlRndStart(eur); } else { dlStartMatch(mode,eur); } }
 function dlSearchView(mode,eur){
   dlModalHTML('<div class="pvp-m-title" style="color:#ffd700;">FINDING OPPONENT</div>'+
     '<div class="pvp-search"><div class="pvp-search-ring"></div><div class="pvp-search-ring r2"></div><div class="pvp-search-core">'+(mode==='random'?'<span style="display:inline-block;animation:spin 2.2s linear infinite;">🎡</span>':'⚔️')+'</div></div>'+
@@ -17288,24 +17293,50 @@ function dlRrEventText(ev,reloaded){
 // Vertical revolver (points UP toward the opponent by default). #dlrr-gun rotates to aim;
 // #dlrr-cyl spins independently on reload. Pure SVG — no videos.
 function dlRrGunSVG(){
-  return '<svg class="dlrr2-gun" id="dlrr-gun" viewBox="0 0 120 200" aria-hidden="true">'+
+  // Detailed vertical revolver: vent-rib barrel, fluted 6-chamber cylinder with real chamber depth,
+  // hammer, trigger + guard, and an angled checkered wood grip. Muzzle points UP (toward the
+  // opponent); #dlrr-gun rotates 180° to aim at YOU, #dlrr-cyl spins independently on a reload/spin.
+  var chambers='', cx=70, cy=120, rC=23;
+  for(var k=0;k<6;k++){
+    var a=(k*60)*Math.PI/180, x=(cx+rC*Math.cos(a)).toFixed(1), y=(cy+rC*Math.sin(a)).toFixed(1);
+    chambers+='<circle cx="'+x+'" cy="'+y+'" r="6.6" fill="url(#rrChamber)" stroke="#0c1018" stroke-width="1.4"/>';
+  }
+  return '<svg class="dlrr2-gun" id="dlrr-gun" viewBox="0 0 150 260" aria-hidden="true">'+
     '<defs>'+
-      '<linearGradient id="rrSteel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6c7891"/><stop offset=".5" stop-color="#cfd9ec"/><stop offset="1" stop-color="#5b6680"/></linearGradient>'+
-      '<radialGradient id="rrCyl" cx=".4" cy=".35"><stop offset="0" stop-color="#aab4c8"/><stop offset="1" stop-color="#3f4a64"/></radialGradient>'+
-      '<linearGradient id="rrGrip" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7a5224"/><stop offset="1" stop-color="#3a2810"/></linearGradient>'+
+      '<linearGradient id="rrBlue" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2b3242"/><stop offset=".48" stop-color="#aeb9d0"/><stop offset=".56" stop-color="#d3dcee"/><stop offset="1" stop-color="#232a39"/></linearGradient>'+
+      '<radialGradient id="rrCyl" cx=".38" cy=".30" r=".8"><stop offset="0" stop-color="#cdd6e8"/><stop offset=".55" stop-color="#7f8aa3"/><stop offset="1" stop-color="#2c3346"/></radialGradient>'+
+      '<radialGradient id="rrChamber" cx=".5" cy=".42" r=".6"><stop offset="0" stop-color="#05070d"/><stop offset=".65" stop-color="#141a28"/><stop offset="1" stop-color="#3a4360"/></radialGradient>'+
+      '<linearGradient id="rrGrip" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8a5a28"/><stop offset=".5" stop-color="#5a3a16"/><stop offset="1" stop-color="#301f0b"/></linearGradient>'+
     '</defs>'+
-    '<rect x="50" y="8" width="20" height="9" rx="2" fill="#dde6f5"/>'+              /* muzzle */
-    '<rect x="52" y="14" width="16" height="62" rx="3" fill="url(#rrSteel)"/>'+      /* barrel */
-    '<rect x="56" y="14" width="3" height="62" fill="rgba(255,255,255,.35)"/>'+      /* barrel shine */
-    '<path d="M44 96 L31 158 L54 158 L70 104 Z" fill="url(#rrGrip)" stroke="#2a1c0a" stroke-width="2"/>'+ /* grip */
-    '<path d="M50 112 q14 18 30 7" stroke="#3a4660" stroke-width="5" fill="none" stroke-linecap="round"/>'+ /* trigger guard */
+    /* muzzle + front sight */
+    '<rect x="63" y="3" width="6" height="8" rx="1.5" fill="#11161f"/>'+
+    '<rect x="55" y="9" width="22" height="11" rx="2.5" fill="#cfd9ec" stroke="#222a3c" stroke-width="1"/>'+
+    /* barrel with vent rib */
+    '<rect x="55" y="18" width="22" height="72" rx="3" fill="url(#rrBlue)" stroke="#1c2434" stroke-width="1.5"/>'+
+    '<rect x="63.5" y="20" width="5" height="68" rx="2" fill="rgba(0,0,0,.4)"/>'+
+    '<rect x="58" y="20" width="2.4" height="68" fill="rgba(255,255,255,.45)"/>'+
+    /* top strap over the cylinder */
+    '<rect x="48" y="86" width="44" height="14" rx="3" fill="url(#rrBlue)" stroke="#1c2434" stroke-width="1.5"/>'+
+    /* hammer at the rear */
+    '<path d="M92 104 l20 -6 q6 -1 5 5 l-3 9 q-2 5 -8 4 l-14 -4 z" fill="url(#rrBlue)" stroke="#1c2434" stroke-width="1.5"/>'+
+    /* CYLINDER (spins on #dlrr-cyl) */
     '<g id="dlrr-cyl">'+
-      '<circle cx="60" cy="92" r="28" fill="url(#rrCyl)" stroke="#2f3850" stroke-width="3"/>'+
-      '<circle cx="60" cy="70" r="5.5" fill="#1c2336"/><circle cx="79" cy="81" r="5.5" fill="#1c2336"/>'+
-      '<circle cx="79" cy="103" r="5.5" fill="#1c2336"/><circle cx="60" cy="114" r="5.5" fill="#1c2336"/>'+
-      '<circle cx="41" cy="103" r="5.5" fill="#1c2336"/><circle cx="41" cy="81" r="5.5" fill="#1c2336"/>'+
-      '<circle cx="60" cy="92" r="6" fill="#566381"/>'+
+      '<circle cx="70" cy="120" r="33" fill="url(#rrCyl)" stroke="#1c2434" stroke-width="3"/>'+
+      '<circle cx="70" cy="120" r="33" fill="none" stroke="rgba(255,255,255,.16)" stroke-width="1"/>'+
+      '<circle cx="70" cy="120" r="14" fill="none" stroke="rgba(0,0,0,.25)" stroke-width="1"/>'+
+      chambers+
+      '<circle cx="70" cy="120" r="7" fill="#5b6783" stroke="#2a3146" stroke-width="2"/>'+
+      '<circle cx="70" cy="120" r="2.4" fill="#1c2336"/>'+
     '</g>'+
+    /* frame body down toward the grip */
+    '<path d="M52 150 q-3 22 6 40 l24 0 q9 -18 6 -40 z" fill="url(#rrBlue)" stroke="#1c2434" stroke-width="1.5"/>'+
+    /* trigger guard + trigger */
+    '<path d="M58 158 q14 24 32 8" stroke="#1c2434" stroke-width="6" fill="none" stroke-linecap="round"/>'+
+    '<rect x="69" y="158" width="5.5" height="15" rx="2.5" fill="#11161f"/>'+
+    /* angled wood grip */
+    '<path d="M84 162 l34 56 q5 12 -7 16 l-28 -5 q-10 -34 -3 -62 z" fill="url(#rrGrip)" stroke="#241606" stroke-width="2"/>'+
+    '<path d="M92 178 q10 22 7 44" stroke="rgba(0,0,0,.32)" stroke-width="2" fill="none"/>'+
+    '<path d="M101 174 q9 22 6 44" stroke="rgba(0,0,0,.22)" stroke-width="1.6" fill="none"/>'+
     '</svg>';
 }
 function dlRrBoard(d){
@@ -17360,23 +17391,30 @@ function dlRrAnimate(ev, onDone){
   var flash=document.getElementById('dlrr2-flash'), fx=document.getElementById('dlrr2-fx');
   if(!stage||!gun){ onDone(); return; }
   var targetIsMe=(ev.target===DLRR.seat);       // aim DOWN at me (bottom) or UP at opponent (top)
+  var shooterIsMe=(ev.shooter===DLRR.seat);
+  // A plain-language caption so the OPPONENT's move is unmistakable on your screen.
+  var who=shooterIsMe?'YOU':'OPPONENT';
+  var at=ev.self?(shooterIsMe?'YOURSELF':'THEMSELF'):(shooterIsMe?'OPPONENT':'YOU');
+  var actLine=who+' shot '+at;
+  var capCol=shooterIsMe?'#9fd0ff':'#ffd27a';
+  function cap(resTxt,resCol){ return '<div style="font:800 11px Orbitron,sans-serif;letter-spacing:1px;color:'+capCol+';text-shadow:0 1px 3px #000;margin-bottom:3px;">'+actLine+'</div>'+resTxt; }
   gun.style.transform = targetIsMe ? 'rotate(180deg)' : 'rotate(0deg)';
   stage.classList.toggle('aim-down', targetIsMe);
   stage.classList.toggle('aim-up', !targetIsMe);
   setTimeout(function(){
     if(ev.live){
       if(flash){ flash.className='dlrr2-flash show'; setTimeout(function(){ if(flash)flash.className='dlrr2-flash'; },360); }
-      if(fx){ fx.innerHTML='<span class="bang">💥 BANG</span>'; fx.className='dlrr2-fx show'; }
+      if(fx){ fx.innerHTML=cap('<span class="bang">💥 BANG · LIVE</span>'); fx.className='dlrr2-fx show'; }
       if(stage){ stage.classList.add('shake'); setTimeout(function(){ stage.classList.remove('shake'); },420); }
       grSound('lose'); try{ tg.HapticFeedback&&tg.HapticFeedback.notificationOccurred('error'); }catch(e){}
       var lv=document.getElementById(targetIsMe?'dlrr2-you-lives':'dlrr2-opp-lives'); if(lv) lv.classList.add('hit');
     } else {
-      if(fx){ fx.innerHTML='<span class="click">🔘 CLICK</span>'; fx.className='dlrr2-fx show'; }
+      if(fx){ fx.innerHTML=cap('<span class="click">🔘 CLICK · blank</span>'); fx.className='dlrr2-fx show'; }
       if(gun){ gun.classList.add('recoil'); setTimeout(function(){ gun.classList.remove('recoil'); },240); }
       grSound('tick');
     }
-    setTimeout(function(){ if(fx)fx.className='dlrr2-fx'; if(gun)gun.style.transform=''; onDone(); }, 1150);
-  }, 520);
+    setTimeout(function(){ if(fx)fx.className='dlrr2-fx'; if(gun)gun.style.transform=''; onDone(); }, 1300);
+  }, 560);
 }
 function dlRrAfterDone(d){
   dlRrStopPoll(); dlRrStopTick();
@@ -17566,6 +17604,63 @@ function dlPkdCard(c, tog, i){
 }
 function dlPkdBacks(){ var s=''; for(var i=0;i<5;i++)s+='<div class="dlpkd-card back"></div>'; return s; }
 function dlPkdSig(d){ return (d.state||'')+'|'+(d.you_drawn?1:0)+'|'+(d.opp_drawn?1:0)+'|'+((d.you_hand||[]).map(function(c){return c.r+c.s;}).join('')); }
+// ════════ RANDOM MATCH (interactive) — matchmake 2 players, server rolls a game, enter it for real ════════
+var DLRND={poll:null,bet:0};
+function dlRndStopPoll(){ if(DLRND.poll){ clearInterval(DLRND.poll); DLRND.poll=null; } }
+function dlRndStart(eur){
+  if(!S.userId){ toast('Open in Telegram to play','err'); return; }
+  if((S.btc*S.rate)<eur){ toast('Insufficient balance','err'); return; }
+  DLRND.bet=eur;
+  dlModalHTML('<div class="pvp-m-title" style="color:#ffd700;">FINDING OPPONENT</div>'+
+    '<div class="pvp-search"><div class="pvp-search-ring"></div><div class="pvp-search-ring r2"></div><div class="pvp-search-core"><span style="display:inline-block;animation:spin 2.2s linear infinite;">🎡</span></div></div>'+
+    '<div class="pvp-search-dots"><span></span><span></span><span></span></div>'+
+    '<div style="text-align:center;font-size:12px;color:var(--txt2);">Matching you with any waiting player — then luck picks the game…</div>'+
+    '<button class="pvp-m-btn" onclick="dlRndCancel(false)">CANCEL & REFUND</button>');
+  fetch(BACKEND+'/duel/rnd_join',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId,bet_btc:eurToBtc(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
+    .then(function(r){return r.json();}).then(function(d){
+      if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); dlCloseOverlay(); if(typeof loadBalance==='function')loadBalance(); return; }
+      if(d.btc!==undefined&&d.btc!==null){ S.btc=d.btc; refresh(); }
+      if(d.status==='matched'){ dlRndEnter(d.game); return; }
+      dlRndMatchPoll();
+    }).catch(function(){ toast('Network error','err'); dlCloseOverlay(); });
+}
+function dlRndMatchPoll(){
+  dlRndStopPoll(); var start=Date.now();
+  DLRND.poll=setInterval(function(){
+    if(CUR!=='duel'){ dlRndStopPoll(); return; }
+    if(Date.now()-start>100000){ dlRndStopPoll(); toast('No opponent found — refunded','warn',2500); dlRndCancel(true); return; }
+    fetch(BACKEND+'/duel/rnd_state',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId})})
+      .then(function(r){return r.json();}).then(function(d){ if(d&&d.status==='matched'){ dlRndStopPoll(); dlRndEnter(d.game); } }).catch(function(){});
+  },1400);
+}
+function dlRndCancel(silent){
+  dlRndStopPoll();
+  fetch(BACKEND+'/duel/rnd_cancel',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId})})
+    .then(function(r){return r.json();}).then(function(d){ if(d&&d.btc!==undefined&&d.btc!==null){ S.btc=d.btc; refresh(); } if(!silent) dlCloseOverlay(); if(typeof loadBalance==='function')loadBalance(); }).catch(function(){ if(!silent) dlCloseOverlay(); });
+}
+function dlRndEnter(game){
+  dlRndStopPoll();
+  var icos={cards:'🃏',bj:'🂡',rr:'🔫',rps:'✊'}, names={cards:'POKER · 5-CARD DRAW',bj:'BLACKJACK DUEL',rr:'RUSSIAN ROULETTE',rps:'ROCK · PAPER · SCISSORS'};
+  dlModalHTML('<div class="pvp-m-title" style="color:#39ff14;">⚔️ MATCH FOUND</div>'+
+    '<div class="pvp-search"><div class="pvp-search-core" style="font-size:34px;">'+(icos[game]||'⚔️')+'</div></div>'+
+    '<div style="text-align:center;font-family:Orbitron;font-weight:800;color:#fff;letter-spacing:1px;">'+(names[game]||game)+'</div>'+
+    '<div style="text-align:center;font-size:12px;color:var(--txt2);margin-top:4px;">Entering the game…</div>');
+  try{ gSound('win-big'); }catch(e){}
+  setTimeout(function(){
+    if(game==='cards'){ DLPKD.bet=DLRND.bet; DLPKD.shown=false; DLPKD.held=[false,false,false,false,false]; DLPKD.sig=''; dlRndFetchEnter('/duel/pkd_state', dlPkdEnter); }
+    else if(game==='bj'){ DLBJ.bet=DLRND.bet; DLBJ.shown=false; DLBJ.sig=''; dlRndFetchEnter('/duel/bjl_state', dlBjEnter); }
+    else if(game==='rr'){ DLRR.bet=DLRND.bet; DLRR.shown=false; DLRR.sig=''; DLRR.lastSeq=0; dlRndFetchEnter('/duel/rr_state', dlRrEnter); }
+    else if(game==='rps'){ DLRPS.bet=DLRND.bet; DLRPS.shown=false; dlRndFetchEnter('/duel/rps_state', dlRpsEnter); }
+    else { dlCloseOverlay(); }
+  }, 1150);
+}
+function dlRndFetchEnter(stateUrl, enterFn){
+  fetch(BACKEND+stateUrl,{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId})})
+    .then(function(r){return r.json();}).then(function(d){
+      if(!d||d.error||d.status==='none'){ toast('⚠️ could not enter game','err'); dlCloseOverlay(); return; }
+      enterFn(d);
+    }).catch(function(){ toast('Network error','err'); dlCloseOverlay(); });
+}
 function dlPkdStart(eur){
   if(!S.userId){ toast('Open in Telegram to play','err'); return; }
   if((S.btc*S.rate)<eur){ toast('Insufficient balance','err'); return; }
@@ -18981,6 +19076,8 @@ function plShuffleArray(arr){
 var PL = {
   risk: 'LOW',
   inFlight: false,
+  flightActive: false,    // a flight (shared revealed layout) is in progress
+  flightStarting: false,  // the reveal request is mid-flight
   recent: [],
   dropZone: 3,  // 0..6
   boardReady: false,
@@ -19021,18 +19118,18 @@ var PL = {
   MAX_LAUNCHES_PER_LAYOUT: 10,    // NEW: total launches you can fire on a given peg layout
   launchesThisLayout: 0,          // counter — does NOT decrement when balls land
   
-  // 7 slots — payout tables tuned for symmetric Gaussian-ish landing distribution
+  // 7 slots — the MULTISET of multipliers (mirrors plinko_engine.PAYTABLES). The server SHUFFLES
+  // these into random hidden positions each drop; the values below are only a cosmetic fallback for
+  // the "?" board before the first reveal. RTP = the multiset mean (~94%) no matter where the ball
+  // lands, so the client can run 100% real random-gravity physics and the house edge still holds.
   paytables: {
-    // MUST mirror plinko_engine.PAYTABLES (server is authoritative), in FIXED positions
-    // (no shuffle). bucket 0..6, centre=3. LOW: middle 3 win small (~78% win). MEDIUM: buckets
-    // 2 & 4 win medium (~47%). HIGH: only the two corners win big & rare (~3%). RTP 95/94/91%.
-    LOW:    [0, 0, 1.3, 1.1, 1.3, 0, 0],
-    MEDIUM: [0, 0, 2.0, 0, 2.0, 0, 0],
-    HIGH:   [29, 0, 0, 0, 0, 0, 29]
+    LOW:    [2.8, 2.2, 1.6, 0.0, 0.0, 0.0, 0.0],
+    MEDIUM: [4.4, 2.2, 0.0, 0.0, 0.0, 0.0, 0.0],
+    HIGH:   [6.6, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   },
-  currentSlots: null,    // Filled from the SERVER's shuffled layout on the first ball of a flight
-  layoutSeed: null,      // per-flight seed → server shuffles the bucket layout from it
-  revealed: false        // Slot values hidden ("?") until the ball is launched
+  currentSlots: null,    // the SERVER's shuffled layout for the current ball (revealed on landing)
+  layoutSeed: null,      // fresh per-drop seed mixed into the server's secret shuffle
+  revealed: false        // Slot values hidden ("?") until the ball lands
 };
 
 function plMultiColor(m){
@@ -19234,14 +19331,12 @@ function plUpdateFlightMeter(){
 function plDrop(eur){
   // ---- Rate-limit + per-layout cap ----
   var now = Date.now();
-  if(now - PL.lastDropTs < PL.DROP_INTERVAL){
-    // Silently swallow rapid double-clicks (no toast spam)
-    return;
-  }
+  if(now - PL.lastDropTs < PL.DROP_INTERVAL) return;   // swallow rapid double-clicks
+  if(PL.inFlight){ return; }                           // a ball is already falling — wait for it
   // Per-layout launch cap — once you've fired 10 balls on this peg arrangement,
   // you must change risk level to reset (so you can't exploit a learned layout).
   if(PL.launchesThisLayout >= PL.MAX_LAUNCHES_PER_LAYOUT){
-    toast('Layout exhausted \u2014 change risk level to start a new layout', 'err', 1800);
+    toast('Max 10 balls \u2014 let them land first', 'err', 1500);
     return;
   }
   if(!PL.boardReady){ plBuildBoard(); PL.boardReady = true; }
@@ -19249,74 +19344,57 @@ function plDrop(eur){
   if(!S.userId){ toast('Open in Telegram to play','err'); return; }
   PL.lastDropTs = now;
 
-  // Start a fresh flight: new seed → the SERVER will shuffle the bucket layout. Keep the buckets
-  // HIDDEN ("?") until the first ball lands (the server reveals the layout in its response).
-  if(PL.layoutSeed === null){
-    plGenerateRandomPegs();
-    plRenderSlotDividers();
-    PL.layoutSeed = Math.floor(Math.random() * 1e15);   // <2^53 → safe as a JS number
-    PL.currentSlots = null;
-    PL.revealed = false;
-    plRenderSlots();   // shows "?"
-  }
-
-  // Optimistic deduction + count the launch up-front so rapid fire respects the cap.
-  S.btc = Math.max(0, S.btc - eurToBtc(eur)); refresh();
-  PL.launchesThisLayout++;
-  plUpdateFlightMeter();
-
-  document.getElementById('pl-bal').textContent = '\u20ac' + (S.btc * S.rate).toFixed(2);
-
-  // The SERVER decides this ball's multiplier (authoritative payout). The client
-  // keeps its own cosmetic bucket layout and steers the ball to a matching bucket.
-  fetch(BACKEND + '/play/plinko', {
-    method:'POST',
-    headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},
-    body:JSON.stringify({user_id:S.userId, bet_btc:eurToBtc(eur), risk:PL.risk, layout_seed:PL.layoutSeed, client_seed:Math.floor(Math.random()*1e15)})
-  }).then(function(r){return r.json();}).then(function(d){
-    if(!d || d.error){
-      PL.launchesThisLayout = Math.max(0, PL.launchesThisLayout - 1); plUpdateFlightMeter();
-      S.btc = Math.max(0, S.btc + eurToBtc(eur)); refresh();   // refund optimistic deduction
-      toast('⚠️ ' + ((d && d.error) || 'Network error - retry'), 'err');
-      if(typeof loadBalance === 'function') loadBalance();
-      return;
-    }
-    // First ball of the flight: the server reveals the shuffled bucket layout — show it now.
-    if((PL.currentSlots === null) && d.buckets){
-      PL.currentSlots = d.buckets.slice();
+  // MULTI-BALL FLIGHT: up to 10 balls share ONE layout that is REVEALED the instant the first ball
+  // launches (not at landing). The first drop of a flight asks the server for the shuffled layout,
+  // shows it, then launches; subsequent drops fall through the same already-revealed layout.
+  if(!PL.flightActive){
+    if(PL.flightStarting) return;        // reveal mid-request — ignore the extra tap (retap once shown)
+    PL.flightStarting = true;
+    fetch(BACKEND + '/play/plinko', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},
+      body:JSON.stringify({user_id:S.userId, risk:PL.risk, action:'reveal'})
+    }).then(function(r){return r.json();}).then(function(d){
+      PL.flightStarting = false;
+      if(!d || d.error || !d.buckets){ toast('⚠️ ' + ((d && d.error) || 'Network error'), 'err'); return; }
+      PL.currentSlots = d.buckets.slice();   // REVEAL the pot now, the moment the ball launches
       PL.revealed = true;
       plRenderSlots();
-    }
-    plLaunchBall(eur, d);
-  }).catch(function(e){
-    PL.launchesThisLayout = Math.max(0, PL.launchesThisLayout - 1); plUpdateFlightMeter();
-    S.btc = Math.max(0, S.btc + eurToBtc(eur)); refresh();
-    toast('Network error', 'err');
-    if(typeof loadBalance === 'function') loadBalance();
-  });
+      PL.flightActive = true;
+      plFireBall(eur);
+    }).catch(function(){ PL.flightStarting = false; toast('Network error', 'err'); });
+    return;
+  }
+  plFireBall(eur);   // flight already revealed → launch another ball (up to 10)
 }
 
-// Launch the ball ALONG THE SERVER'S WAYPOINTS — the provably-fair Galton path. The ball does
-// real bouncy parabolic hops peg-to-peg (no steering, no pre-chosen target on the client) and
-// lands in the server's bucket, whose fixed-position multiplier IS the authoritative payout.
-function plLaunchBall(eur, d){
-  var slotW = PL.W / PL.NUM_SLOTS;
-  var bucket = (d.bucket != null) ? d.bucket
-             : Math.max(0, PL.paytables[PL.risk].indexOf(d.multi));
-  var wp = (d.waypoints && d.waypoints.length >= 2) ? d.waypoints.map(function(p){ return [p[0], p[1]]; })
-         : [[160, 60], [(bucket + 0.5) * slotW, PL.BOTTOM_Y]];
-  wp.unshift([wp[0][0], 4]);                       // a short fall from the chute into the first peg
-  wp[wp.length - 1] = [(bucket + 0.5) * slotW, PL.BOTTOM_Y];   // land dead-centre of the bucket
+// Fire one ball into the current (already-revealed) flight: optimistic deduction + real-gravity launch.
+function plFireBall(eur){
+  if(PL.launchesThisLayout >= PL.MAX_LAUNCHES_PER_LAYOUT){ toast('Max 10 balls — let them land first', 'err', 1500); return; }
+  if((S.btc * S.rate) < eur){ toast('Insufficient balance','err'); return; }
+  S.btc = Math.max(0, S.btc - eurToBtc(eur)); refresh();   // optimistic — server settle on landing is authoritative
+  PL.launchesThisLayout++;
+  plUpdateFlightMeter();
+  var _bal = document.getElementById('pl-bal'); if(_bal) _bal.textContent = '€' + (S.btc * S.rate).toFixed(2);
+  plLaunchBall(eur);
+}
+
+// Launch one ball under REAL gravity. It starts at the chosen drop column; from there ONLY the
+// physics loop (gravity + peg collisions + random caroms) moves it — every single drop differs.
+function plLaunchBall(eur){
+  var entryX = (PL.dropPositions && PL.dropPositions[PL.dropZone] != null)
+             ? PL.dropPositions[PL.dropZone] : PL.W / 2;
+  entryX += (Math.random() - 0.5) * 10;   // tiny entry jitter so even same-column drops differ
 
   var ballId = ++PL.ballIdSeq;
   var ball = {
     id: ballId, eur: eur,
-    x: wp[0][0], y: wp[0][1], vx: 0, vy: 0,
-    trail: [], settled: false,
-    path: wp, seg: 0, segt: 0, segT: 1, tgt: [wp[0][0], wp[0][1]],
-    srvSlot: bucket, srv: d
+    x: entryX, y: 6,
+    vx: (Math.random() - 0.5) * 0.8,       // a hair of sideways drift
+    vy: 0.5,
+    trail: [], settled: false, frames: 0,
+    srv: null
   };
-  plSetupSeg(ball);                 // arm the first projectile hop
   PL.balls.push(ball);
 
   var ballsGroup = document.getElementById('pl-balls-group');
@@ -19375,57 +19453,70 @@ function plPegBounceSound(ball){
 
 // Arm a projectile hop from the ball's current spot to the next path point. Randomised flight time
 // → varied arc height + speed; contact jitter → no two bounces (or two drops) look identical.
-function plSetupSeg(b){
-  var p1 = b.path[b.seg + 1];
-  if(!p1){ b.segT = 1; b.tgt = [b.x, b.y]; return; }
-  var isLast = (b.seg + 1 >= b.path.length - 1);
-  var tx = p1[0] + (isLast ? 0 : (Math.random() - 0.5) * 13);   // graze the peg off-centre
-  var ty = p1[1];
-  var dy = Math.abs(ty - b.y);
-  var T = Math.max(11, Math.min(40, 13 + dy * 0.34)) * (0.80 + Math.random() * 0.55);
-  b.segT = T; b.segt = 0; b.tgt = [tx, ty];
-  b.vx = (tx - b.x) / T;
-  b.vy = (ty - b.y - 0.5 * PL.GRAVITY * T * T) / T;   // initial vy so gravity lands it at ty in T frames
-}
+function plSetupSeg(b){ /* legacy no-op — real-gravity physics no longer uses pre-baked path segments */ }
+
 function plPhysicsLoop(){
   function step(){
     if(PL.balls.length === 0){
       PL.animFrame = null;
       return;
     }
-    var minD = PL.BALL_R + PL.PEG_R;
-    var minDsq = minD * minD;
-    var ballMinD = PL.BALL_R * 2;
-    var ballMinDsq = ballMinD * ballMinD;
     var slotW = PL.W / PL.NUM_SLOTS;
+    var rr = PL.BALL_R + PL.PEG_R, rr2 = rr * rr;
 
     for(var bi = 0; bi < PL.balls.length; bi++){
       var b = PL.balls[bi];
       if(b.settled) continue;
+      b.frames++;
 
-      // Follow the server's provably-fair path, but with REAL projectile physics: each peg-to-peg
-      // hop is a gravity arc whose height + timing are RANDOMISED, and the contact point on each peg
-      // jitters — so the bounce looks natural and different every drop. The left/right path is the
-      // server's seeded Galton walk, so it still lands in the authoritative bucket.
-      var path = b.path;
-      if(!path || path.length < 2){ b.settled = true; plLandBall(b, b.srvSlot); continue; }
-      b.segt++;
-      b.vy += PL.GRAVITY;                     // gravity accelerates the fall within each hop
-      b.x += b.vx; b.y += b.vy;
-      if(b.segt >= b.segT){                    // reached the next peg (or the bucket)
-        b.x = b.tgt[0]; b.y = b.tgt[1];
-        b.seg++;
-        if(b.seg >= path.length - 1){
-          b.y = PL.BOTTOM_Y; b.settled = true;
-          var le = document.getElementById('pl-ball-' + b.id);
-          if(le){ le.setAttribute('cx', b.x); le.setAttribute('cy', b.y); }
-          plLandBall(b, b.srvSlot);
-        } else {
-          plPegHitAt(b.tgt[0], b.tgt[1]);      // flash the peg it bounced off
+      // ── 100% REAL random gravity ──────────────────────────────────────────────────────────
+      // Integrate true gravity, then resolve every peg as an actual circular collision with a
+      // RANDOM carom. Nothing is pre-decided or steered: where the ball lands emerges purely from
+      // the physics + Math.random below, so every single drop falls differently.
+      b.vy += PL.GRAVITY;
+      if(b.vy > PL.MAX_VY) b.vy = PL.MAX_VY;
+      b.vx *= PL.FRICTION;
+      b.x += b.vx;
+      b.y += b.vy;
+
+      // side walls
+      if(b.x < PL.BALL_R){ b.x = PL.BALL_R; b.vx = Math.abs(b.vx) * PL.BOUNCE + 0.25; }
+      else if(b.x > PL.W - PL.BALL_R){ b.x = PL.W - PL.BALL_R; b.vx = -Math.abs(b.vx) * PL.BOUNCE - 0.25; }
+
+      // peg collisions — reflect about the real contact normal + a random sideways carom
+      for(var pi = 0; pi < PL.pegs.length; pi++){
+        var p = PL.pegs[pi];
+        var dx = b.x - p.x, dy = b.y - p.y;
+        var d2 = dx * dx + dy * dy;
+        if(d2 < rr2){
+          var d = Math.sqrt(d2) || 0.0001;
+          var nx = dx / d, ny = dy / d;
+          var overlap = rr - d;
+          b.x += nx * overlap; b.y += ny * overlap;      // push the ball clear of the peg
+          var vn = b.vx * nx + b.vy * ny;
+          if(vn < 0){                                     // reflect only if moving into the peg
+            b.vx -= (1 + PL.BOUNCE) * vn * nx;
+            b.vy -= (1 + PL.BOUNCE) * vn * ny;
+          }
+          b.vx += (Math.random() - 0.5) * PL.RAND_KICK * 5;   // the genuinely-random carom
+          if(ny < -0.25){ b.vx += (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.8); }  // Galton L/R split off a peg top
+          if(b.vy < 0.4) b.vy = 0.4;                      // never stall
+          plPegHitAt(p.x, p.y);
           plPegBounceSound(b);
-          plSetupSeg(b);                       // arm the next arc with fresh randomness
         }
       }
+
+      // settle when the ball reaches the slot zone (frames cap = safety against a stuck ball)
+      if(b.y >= PL.BOTTOM_Y || b.frames > 900){
+        b.y = PL.BOTTOM_Y; b.settled = true;
+        var bucket = Math.floor(b.x / slotW);
+        if(bucket < 0) bucket = 0;
+        if(bucket >= PL.NUM_SLOTS) bucket = PL.NUM_SLOTS - 1;
+        var le = document.getElementById('pl-ball-' + b.id);
+        if(le){ le.setAttribute('cx', b.x); le.setAttribute('cy', b.y); }
+        plLandBall(b, bucket);
+      }
+
       if(!b.settled){
         var ballEl = document.getElementById('pl-ball-' + b.id);
         if(ballEl){ ballEl.setAttribute('cx', b.x); ballEl.setAttribute('cy', b.y); }
@@ -19455,8 +19546,11 @@ function plPhysicsLoop(){
       PL.animFrame = requestAnimationFrame(step);
     } else {
       PL.animFrame = null;
-      PL.inFlight = false;   // ready for the next drop
-      // Flight over — hide buckets again ("?"); the next flight shuffles a fresh random layout
+      PL.inFlight = false;
+      // Flight over (all balls landed) — end the flight + re-hide buckets ("?"); the NEXT drop reveals
+      // a fresh server-shuffled layout the moment its first ball launches.
+      PL.flightActive = false;
+      PL.flightStarting = false;
       PL.revealed = false;
       PL.currentSlots = null;
       PL.layoutSeed = null;
@@ -19512,29 +19606,55 @@ function plRenderTrail(){
 }
 
 function plLandBall(b, slotIdx){
+  if(b._sent) return; b._sent = true;
+  var eur = b.eur;
+  // The ball landed in `slotIdx` purely by REAL physics. Only NOW do we tell the server, which owns
+  // the hidden, shuffled payouts: it reveals the layout + does the authoritative settle. Because the
+  // shuffle was uniform AND secret until this instant, the reported bucket cannot beat the house edge.
+  fetch(BACKEND + '/play/plinko', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},
+    body:JSON.stringify({user_id:S.userId, bet_btc:eurToBtc(eur), risk:PL.risk, action:'settle', landed_bucket:slotIdx})
+  }).then(function(r){return r.json();}).then(function(d){
+    if(!d || d.error){
+      S.btc = Math.max(0, S.btc + eurToBtc(eur)); refresh();   // undo the optimistic deduction
+      toast('\u26a0\ufe0f ' + ((d && d.error) || 'Network error'), 'err');
+      if(typeof loadBalance === 'function') loadBalance();
+      plLandFinish(b); return;
+    }
+    // Reveal the server's shuffled bucket layout now (it was "?") and settle this drop.
+    if(d.buckets){ PL.currentSlots = d.buckets.slice(); PL.revealed = true; plRenderSlots(); }
+    b.srv = d;
+    plLandSettle(b, slotIdx, d);
+    plLandFinish(b);
+  }).catch(function(){
+    S.btc = Math.max(0, S.btc + eurToBtc(eur)); refresh();
+    toast('Network error', 'err');
+    if(typeof loadBalance === 'function') loadBalance();
+    plLandFinish(b);
+  });
+}
+
+// Apply the authoritative settle + win/loss feedback for one landed ball.
+function plLandSettle(b, slotIdx, d){
   var eur = b.eur;
   var table = PL.currentSlots || PL.paytables[PL.risk];
-  var multi = table[slotIdx];
-  var payout_eur = eur * multi;
+  var multi = (d.multi != null) ? d.multi : table[slotIdx];
   var rectEl = document.getElementById('pl-slot-rect-' + slotIdx);
-  if(rectEl){
-    rectEl.classList.add('win');
-    setTimeout(function(){ rectEl.classList.remove('win'); }, 2000);
-  }
+  if(rectEl){ rectEl.classList.add('win'); setTimeout(function(){ rectEl.classList.remove('win'); }, 2000); }
 
   PL.recent.unshift({multi: multi, slot: slotIdx});
   if(PL.recent.length > 10) PL.recent.pop();
   plRenderRecent();
 
-  // Credit THIS ball's server-settled payout as a DELTA (the bet was already
-  // deducted optimistically at drop). A delta keeps multi-ball balances correct
-  // regardless of the order balls land vs. the order the server processed them.
-  var _d = b.srv || {};
-  if(_d.won_btc !== undefined) S.btc = Math.max(0, S.btc + _d.won_btc);
-  if(_d.wins !== undefined) S.wins = _d.wins;
-  if(_d.losses !== undefined) S.losses = _d.losses;
-  if(_d.total_bet_eur !== undefined) S.totalBet = _d.total_bet_eur;
-  if(_d.biggest_win_eur !== undefined) S.biggestWin = _d.biggest_win_eur;
+  // Credit the payout as a DELTA (the bet was already deducted optimistically when this ball fired).
+  // A delta keeps multi-ball balances correct no matter what ORDER concurrent settles return in.
+  if(d.won_btc !== undefined) S.btc = Math.max(0, S.btc + d.won_btc);
+  else if(d.btc !== undefined && d.btc !== null) S.btc = d.btc;
+  if(d.wins !== undefined) S.wins = d.wins;
+  if(d.losses !== undefined) S.losses = d.losses;
+  if(d.total_bet_eur !== undefined) S.totalBet = d.total_bet_eur;
+  if(d.biggest_win_eur !== undefined) S.biggestWin = d.biggest_win_eur;
   refresh(); if(CUR === 'profile') renderProfile();
 
   if(multi > 0){
@@ -19551,15 +19671,14 @@ function plLandBall(b, slotIdx){
   } else {
     toast('\uD83D\uDC80 0x \u2014 -\u20ac' + eur, 'err', 1200);
   }
-  document.getElementById('pl-bal').textContent = '\u20ac' + (S.btc * S.rate).toFixed(2);
+  var _bal = document.getElementById('pl-bal'); if(_bal) _bal.textContent = '\u20ac' + (S.btc * S.rate).toFixed(2);
+}
 
-  // Fade out ball after landing
+// Fade the ball out once it has settled (also lets the physics loop reclaim it).
+function plLandFinish(b){
   b.landedAt = Date.now();
   var ballEl = document.getElementById('pl-ball-' + b.id);
-  if(ballEl){
-    ballEl.style.transition = 'opacity 0.8s';
-    ballEl.style.opacity = '0';
-  }
+  if(ballEl){ ballEl.style.transition = 'opacity 0.8s'; ballEl.style.opacity = '0'; }
 }
 
 // Legacy compat wrapper (in case something calls plLand)
