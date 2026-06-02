@@ -114,6 +114,8 @@ body{position:relative;}
 
 .screen{display:none;position:absolute;top:0;left:0;right:0;bottom:0;
   flex-direction:column;background:var(--bg);}
+#gb-music-btn{position:fixed;right:10px;bottom:78px;z-index:9999;width:38px;height:38px;border-radius:50%;border:1px solid rgba(255,215,0,.4);background:rgba(10,14,26,.82);color:#ffd700;font-size:17px;line-height:1;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5);backdrop-filter:blur(3px);padding:0;}
+#gb-music-btn:active{transform:scale(.9);}
 .screen.active{display:flex;}
 
 #loading{position:absolute;inset:0;z-index:1000;pointer-events:none;
@@ -8335,9 +8337,15 @@ body{position:relative;}
     #grun .gr-end-sub{font-size:12px;color:var(--txt2);margin-top:6px;}
     #grun .gr-end-pay{font-family:Orbitron,sans-serif;font-weight:800;font-size:30px;margin-top:10px;}
     #grun .gr-how{font-size:11px;color:var(--txt2);line-height:1.7;}
-    #grun{position:relative;}
     #grun .gr-bg-vid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.13;z-index:0;pointer-events:none;filter:saturate(1.15) contrast(1.05);}
     #grun .game-hdr,#grun .game-content{position:relative;z-index:1;}
+    #grun .gr-vidovl{position:absolute;inset:0;z-index:30;display:none;align-items:center;justify-content:center;background:rgba(4,6,12,.82);backdrop-filter:blur(2px);}
+    #grun .gr-vidovl.show{display:flex;animation:grOvlIn .2s;}
+    @keyframes grOvlIn{from{opacity:0}to{opacity:1}}
+    #grun .gr-vidovl-card{position:relative;width:74%;max-width:300px;aspect-ratio:1/1;border-radius:18px;overflow:hidden;border:2px solid rgba(255,180,60,.5);box-shadow:0 12px 40px rgba(255,160,40,.3),inset 0 0 0 1px rgba(0,0,0,.4);background:radial-gradient(ellipse at 50% 30%,#2a1a08,#0c0905);}
+    #grun .gr-vidovl-v,#grun #gr-vidovl-v{width:100%;height:100%;object-fit:cover;display:block;}
+    #grun .gr-vidovl-scan{position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0 2px,transparent 2px 4px);mix-blend-mode:multiply;}
+    #grun .gr-vidovl-cap{position:absolute;left:0;right:0;bottom:0;padding:10px 8px 9px;text-align:center;font-family:'Russo One',Impact,sans-serif;font-size:15px;letter-spacing:2px;color:#ffe0ac;background:linear-gradient(0deg,rgba(8,5,2,.92),transparent);text-shadow:0 2px 6px #000;}
   </style>
   <video class="gr-bg-vid" id="grBgVid" muted playsinline loop preload="auto"><source src="gr_descent.mp4" type="video/mp4"></video>
   <div class="game-hdr">
@@ -8383,6 +8391,13 @@ body{position:relative;}
       <button class="action-btn gold" id="gr-cashout" onclick="grCashout()">💰 CASH OUT €0.00</button>
     </div>
     <div id="gr-end" style="display:none;"></div>
+    <div id="gr-vidovl" class="gr-vidovl">
+      <div class="gr-vidovl-card">
+        <video id="gr-vidovl-v" muted playsinline loop preload="auto"></video>
+        <div class="gr-vidovl-scan"></div>
+        <div class="gr-vidovl-cap" id="gr-vidovl-cap"></div>
+      </div>
+    </div>
   </div>
 </div>
 <div id="lotto" class="screen">
@@ -8956,6 +8971,18 @@ var GR_ROOMS = {
   duel:{ic:'⚔️',nm:'Rival Duel',d:'Your charms give the edge'},
   house:{ic:'🏛️',nm:'THE HOUSE',d:'Beat the boss — jackpot!'}
 };
+var GR_VIDS={table:'gr_room_table.mp4',highroller:'gr_room_highroller.mp4',vault:'gr_room_vault.mp4',fixer:'gr_room_fixer.mp4',duel:'gr_room_duel.mp4',house:'gr_room_house.mp4'};
+function grRoomVideo(type){
+  var ov=document.getElementById('gr-vidovl'), v=document.getElementById('gr-vidovl-v'), cap=document.getElementById('gr-vidovl-cap');
+  if(!ov) return;
+  var meta=GR_ROOMS[type]||{};
+  if(cap) cap.textContent=((meta.ic||'')+' '+(meta.nm||'ENTERING…')).trim();
+  var src=GR_VIDS[type];
+  if(v){ try{ if(src){ if(v.getAttribute('data-src')!==src){ v.src=src; v.setAttribute('data-src',src); } v.currentTime=0; var p=v.play(); if(p&&p.catch)p.catch(function(){}); } }catch(e){} }
+  try{ GBMusic.play(GBMusic.has(type)?type:'run'); }catch(e){}    // music shifts to the chosen room
+  ov.style.display='flex'; ov.classList.add('show');
+}
+function grHideVideo(){ var ov=document.getElementById('gr-vidovl'), v=document.getElementById('gr-vidovl-v'); if(ov){ ov.classList.remove('show'); ov.style.display='none'; } if(v){ try{ v.pause(); }catch(e){} } }
 function grSound(n){ try{ if(typeof gSound==='function') gSound(n); }catch(e){} }
 function grUpdBal(){ var el=document.getElementById('gr-bal'); if(el) el.textContent='€'+(S.btc*S.rate).toFixed(2); }
 function grShow(which){
@@ -8994,6 +9021,7 @@ function grStart(){
 }
 function grRender(d){
   GR.view=d; grUpdBal();
+  try{ GBMusic.play('run'); }catch(e){}    // back on the map → restore the descent theme
   var pot=d.pot||1;
   document.getElementById('gr-pot').textContent=(+pot.toFixed(2))+'×';
   var lives=Math.max(0,d.lives||0);
@@ -9056,16 +9084,24 @@ function grEventText(ev){
 }
 function grAct(idx){
   if(GR.busy||!GR.view||GR.view.over) return;
+  var room=(GR.view.choices&&GR.view.choices[idx])||{};
   GR.busy=true; var _mp=document.getElementById('gr-map'); if(_mp)_mp.style.opacity='.4';
+  grRoomVideo(room.type);                 // play the chosen room's 64-bit clip while it resolves
+  grSound('chip');
+  var t0=Date.now();
   fetch(BACKEND+'/run/act',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId,choice_idx:idx,charm_take:true})})
     .then(function(r){return r.json();}).then(function(d){
-      GR.busy=false; if(_mp)_mp.style.opacity='1';
-      if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); return; }
-      if(d.btc!==undefined){ S.btc=d.btc; refresh(); }
-      var ev=d.event||{};
-      if(ev.bust) grSound('lose'); else if(ev.won) grSound('win-small'); else if(ev.room==='fixer'&&ev.taken) grSound('chip'); else grSound('tick');
-      if(d.over){ grEnd(d); } else { grRender(d); }
-    }).catch(function(){ GR.busy=false; if(_mp)_mp.style.opacity='1'; toast('Network error','err'); });
+      var wait=Math.max(0,1300-(Date.now()-t0));   // keep the clip up a beat for drama
+      setTimeout(function(){
+        grHideVideo();
+        GR.busy=false; if(_mp)_mp.style.opacity='1';
+        if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); return; }
+        if(d.btc!==undefined){ S.btc=d.btc; refresh(); }
+        var ev=d.event||{};
+        if(ev.bust) grSound('lose'); else if(ev.won) grSound('win-small'); else if(ev.room==='fixer'&&ev.taken) grSound('chip'); else grSound('tick');
+        if(d.over){ grEnd(d); } else { grRender(d); }
+      }, wait);
+    }).catch(function(){ grHideVideo(); GR.busy=false; if(_mp)_mp.style.opacity='1'; toast('Network error','err'); });
 }
 function grCashout(){
   if(GR.busy||!GR.view||GR.view.over) return;
@@ -9085,6 +9121,7 @@ function grEnd(d){
   if(res==='bust'){ title='💀 BUSTED'; color='#ff5b5b'; sub='The house keeps your ante.'; grSound('lose'); }
   else if(res==='beat_house'){ title='🏛️ YOU BEAT THE HOUSE!'; color='#ffd700'; sub='JACKPOT — pot ×'+(+pot.toFixed(2)); }
   else { title='💰 CASHED OUT'; color='#39ff14'; sub='Pot ×'+(+pot.toFixed(2)); }
+  try{ GBMusic.play(res==='bust'?'house':'win'); }catch(e){}
   grUpdBal();
   var end=document.getElementById('gr-end'); grShow('end');
   end.innerHTML='<div class="gr-endcard" style="border-color:'+color+';">'+
@@ -9096,6 +9133,85 @@ function grEnd(d){
   if((res==='beat_house'||(res==='cashout'&&payEur>anteEur+0.001)) && typeof pkConfetti==='function'){ try{pkConfetti();}catch(e){} }
 }
 
+// ════════ 64-BIT CHIPTUNE MUSIC ENGINE (procedural, Web Audio — no asset files) ════════
+// A tiny NES-style sequencer: each theme is a looping bass + arpeggio lead. The active
+// theme changes per SCREEN and, inside Gambler's Run, per ROOM CHOICE. Starts on the first
+// user gesture (mobile autoplay rule) and remembers a mute toggle in localStorage.
+var GBMusic=(function(){
+  var ctx=null, master=null, enabled=true, theme=null, curName=null, timer=null, step=0, booted=false;
+  function mtof(n){ return 440*Math.pow(2,(n-69)/12); }
+  // root = MIDI base; bass/lead = semitone offsets per 8-step bar; wave = lead timbre; bpm = tempo
+  var THEMES={
+    menu:      {bpm:124, root:48, wave:'square',   bass:[0,7,0,7,5,7,5,2],     lead:[24,28,31,28,24,28,31,35]},
+    run:       {bpm:98,  root:45, wave:'square',   bass:[0,0,3,3,7,5,3,0],     lead:[24,27,31,27,24,22,24,19]},
+    table:     {bpm:112, root:48, wave:'square',   bass:[0,5,7,5,0,5,7,9],     lead:[24,28,31,28,29,28,24,21]},
+    highroller:{bpm:150, root:50, wave:'square',   bass:[0,0,5,5,7,7,10,10],   lead:[26,31,34,31,38,34,31,26]},
+    vault:     {bpm:120, root:53, wave:'triangle', bass:[0,4,7,4,9,7,4,0],     lead:[28,31,36,31,33,31,28,24]},
+    fixer:     {bpm:84,  root:46, wave:'square',   bass:[0,1,3,1,6,3,1,-1],    lead:[24,25,28,25,30,28,25,22]},
+    duel:      {bpm:138, root:45, wave:'square',   bass:[0,0,7,7,3,3,7,7],     lead:[24,24,27,31,30,27,24,19]},
+    house:     {bpm:88,  root:40, wave:'sawtooth', bass:[0,0,1,1,3,3,1,0],     lead:[12,15,12,18,17,15,12,11]},
+    arena:     {bpm:144, root:48, wave:'square',   bass:[0,7,0,7,3,10,7,5],    lead:[24,27,31,34,31,27,24,22]},
+    win:       {bpm:150, root:53, wave:'square',   bass:[0,7,12,7,0,7,12,16],  lead:[28,31,36,40,36,31,36,40]}
+  };
+  var SCENE={home:'menu',grun:'run',duel:'arena',slots:'highroller',roulette:'table',wheel:'table',
+             plinko:'table',dice:'table',poker:'duel',scratch:'fixer',crash:'highroller',lotto:'vault',bj:'table'};
+  function ensure(){
+    if(ctx) return true;
+    var AC=window.AudioContext||window.webkitAudioContext; if(!AC) return false;
+    try{ ctx=new AC(); master=ctx.createGain(); master.gain.value=0.085; master.connect(ctx.destination); }catch(e){ return false; }
+    return !!ctx;
+  }
+  function blip(freq,dur,wave,vol){
+    if(!ctx||!isFinite(freq)) return;
+    try{
+      var o=ctx.createOscillator(), g=ctx.createGain(), t=ctx.currentTime;
+      o.type=wave||'square'; o.frequency.value=freq;
+      g.gain.setValueAtTime(0.0001,t); g.gain.linearRampToValueAtTime(vol||0.2,t+0.012);
+      g.gain.exponentialRampToValueAtTime(0.0008,t+dur);
+      o.connect(g); g.connect(master); o.start(t); o.stop(t+dur+0.03);
+    }catch(e){}
+  }
+  function tick(){
+    if(!theme||!enabled||!ctx) return;
+    var s=step%8, dur=theme.stepDur;
+    blip(mtof(theme.root+theme.bass[s])/2, dur*0.95, 'triangle', 0.30);     // bass
+    blip(mtof(theme.root+theme.lead[s]),    dur*0.5,  theme.wave,  0.12);    // arp lead
+    if(s%2===0) blip(mtof(theme.root+theme.lead[(s+2)%8]+7), dur*0.3, theme.wave, 0.05); // sparse harmony
+    step++;
+  }
+  function start(){
+    if(timer) clearInterval(timer); timer=null;
+    if(!enabled||!theme) return;
+    if(!ensure()) return;
+    if(ctx.state==='suspended'){ try{ ctx.resume(); }catch(e){} }
+    timer=setInterval(tick, theme.stepDur*1000);
+  }
+  function play(name){
+    if(!THEMES[name]) return;
+    if(name===curName && timer) return;
+    curName=name; var t=THEMES[name];
+    theme={root:t.root,wave:t.wave,bass:t.bass,lead:t.lead,stepDur:(60/t.bpm)/2};
+    step=0; start();
+  }
+  function boot(){
+    if(booted) return; booted=true;
+    try{ var m=localStorage.getItem('gb_music'); if(m==='off') enabled=false; }catch(e){}
+    var btn=document.createElement('button'); btn.id='gb-music-btn';
+    btn.setAttribute('aria-label','Music'); btn.textContent=enabled?'🔊':'🔇';
+    btn.onclick=function(ev){ ev.stopPropagation(); toggle(); };
+    if(document.body) document.body.appendChild(btn);
+    var kick=function(){ if(ensure()&&ctx.state==='suspended'){ try{ctx.resume();}catch(e){} } if(enabled&&!timer&&theme) start(); };
+    ['pointerdown','touchstart','click','keydown'].forEach(function(ev){ document.addEventListener(ev,kick,{once:false,passive:true}); });
+  }
+  function toggle(){
+    enabled=!enabled;
+    try{ localStorage.setItem('gb_music', enabled?'on':'off'); }catch(e){}
+    var b=document.getElementById('gb-music-btn'); if(b) b.textContent=enabled?'🔊':'🔇';
+    if(enabled){ start(); } else { if(timer){ clearInterval(timer); timer=null; } }
+  }
+  function scene(id){ boot(); play(SCENE[id]||'menu'); }
+  return {boot:boot, scene:scene, play:play, toggle:toggle, has:function(n){return !!THEMES[n];}};
+})();
 function go(id){
   var target=document.getElementById(id);
   if(!target){console.error('Screen not found:',id);return;}
@@ -9114,6 +9230,7 @@ function go(id){
     if(btns[navBtns[id]])btns[navBtns[id]].classList.add('on');
   }
   CUR=id;
+  try{ GBMusic.scene(id); }catch(e){}
   refresh();
   if(id==='bj')initBJ();
   else if(id==='slots')initSlots();
@@ -17161,6 +17278,7 @@ function initDuel(){
 }
 function init(){
   spawnBTC();
+  try{ GBMusic.scene('home'); }catch(e){}   // show the music toggle + arm the menu theme (starts on first tap)
   buildBets('bj-bets','bj');
   buildBets('slots-bets','slots');
   buildBets('rl-bets','roulette');
@@ -18356,7 +18474,8 @@ var PL = {
   FRICTION: 0.993,
   RAND_KICK: 0.28,
   MAX_VY: 4.7,         // faster terminal — no more slow-motion float (was 3.5)
-  
+  HOP_H: 13,           // how high the ball pops up between pegs (natural bounce arc)
+
   dropPositions: [40, 80, 120, 160, 200, 240, 280],
   
   pegs: [],
@@ -18373,12 +18492,12 @@ var PL = {
   
   // 7 slots — payout tables tuned for symmetric Gaussian-ish landing distribution
   paytables: {
-    // MUST mirror plinko_engine.PAYTABLES (server is authoritative). The server runs a
-    // provably-fair Galton walk → binomial bucket; the win you actually get is driven by
-    // that (centre common = low mult, edges rare = big mult). RTP ≈ 97 / 95 / 92%.
-    LOW:    [3.11, 1.45, 0.93, 0.52, 0.93, 1.45, 3.11],   // edges 3.11x
-    MEDIUM: [8.69, 2.17, 0.43, 0.22, 0.43, 2.17, 8.69],   // edges 8.69x
-    HIGH:   [15.78, 1.82, 0.18, 0.0, 0.18, 1.82, 15.78]   // edges 15.78x — rare big hit
+    // MUST mirror plinko_engine.PAYTABLES (server is authoritative), in FIXED positions
+    // (no shuffle). bucket 0..6, centre=3. LOW: middle 3 win small (~78% win). MEDIUM: buckets
+    // 2 & 4 win medium (~47%). HIGH: only the two corners win big & rare (~3%). RTP 95/94/91%.
+    LOW:    [0, 0, 1.3, 1.1, 1.3, 0, 0],
+    MEDIUM: [0, 0, 2.0, 0, 2.0, 0, 0],
+    HIGH:   [29, 0, 0, 0, 0, 0, 29]
   },
   currentSlots: null,    // Filled by shuffle on each drop
   revealed: false        // Slot values hidden until drop
@@ -18394,34 +18513,17 @@ function plMultiColor(m){
 }
 
 // Generate random peg field using Poisson-disk-style rejection sampling
+// FIXED Galton pyramid — pegs sit exactly on the server engine's grid (W=320, TOP=60, SPY=28,
+// CX=160, SPX=320/7) so the ball, animated along the server's waypoints, visibly bounces off
+// the real pegs and lands in the authoritative bucket. No randomness, no steering.
 function plGenerateRandomPegs(){
   PL.pegs = [];
-  var MIN_DIST = 33;       // generous spacing - ball never gets stuck        // min distance between pegs (must allow ball+walls to pass)
-  var MIN_DIST_SQ = MIN_DIST * MIN_DIST;
-  var MAX_ATTEMPTS_NEW = 3000;  // more attempts for denser layout
-  var FIELD_TOP = PL.TOP_PAD + 16;    // pegs start near top
-  var FIELD_BOTTOM = PL.BOTTOM_Y - 22;
-  var FIELD_LEFT = 28;       // safe distance from wall (no corner pockets)
-  var FIELD_RIGHT = PL.W - 28;
-  
-  var attempts = 0;
-  var MAX_ATTEMPTS = 3000;
-  while(PL.pegs.length < PL.NUM_PEGS && attempts < MAX_ATTEMPTS){
-    attempts++;
-    var x = FIELD_LEFT + Math.random() * (FIELD_RIGHT - FIELD_LEFT);
-    var y = FIELD_TOP + Math.random() * (FIELD_BOTTOM - FIELD_TOP);
-    var ok = true;
-    for(var i = 0; i < PL.pegs.length; i++){
-      var dx = x - PL.pegs[i].x;
-      var dy = y - PL.pegs[i].y;
-      if(dx*dx + dy*dy < MIN_DIST_SQ){ ok = false; break; }
-    }
-    if(ok){
-      PL.pegs.push({x: x, y: y});
+  var ROWS = 6, SLOTW = PL.W / PL.NUM_SLOTS, CX = PL.W / 2, TOP = 60, SPY = 28;
+  for(var r = 0; r < ROWS; r++){
+    for(var idx = 0; idx <= r; idx++){
+      PL.pegs.push({ x: CX + (idx - r / 2) * SLOTW, y: TOP + r * SPY, row: r });
     }
   }
-  
-  // Render
   var pegsG = document.getElementById('pl-pegs');
   if(!pegsG) return;
   pegsG.innerHTML = '';
@@ -18437,6 +18539,16 @@ function plGenerateRandomPegs(){
     pegsG.appendChild(c);
     PL.pegElements.push(c);
   }
+}
+// Flash the drawn peg nearest a waypoint the ball just bounced through.
+function plPegHitAt(x, y){
+  var best = -1, bd = 500;
+  for(var i = 0; i < PL.pegs.length; i++){
+    var dx = PL.pegs[i].x - x, dy = PL.pegs[i].y - y, dd = dx*dx + dy*dy;
+    if(dd < bd){ bd = dd; best = i; }
+  }
+  if(best >= 0){ var el = PL.pegElements[best]; if(el){ el.classList.add('hit');
+    (function(e){ setTimeout(function(){ e.classList.remove('hit'); }, 260); })(el); } }
 }
 
 function plRenderSlotDividers(){
@@ -18608,7 +18720,7 @@ function plDrop(eur){
   if(PL.currentSlots === null){
     plGenerateRandomPegs();
     plRenderSlotDividers();
-    PL.currentSlots = plShuffleArray(PL.paytables[PL.risk]);
+    PL.currentSlots = PL.paytables[PL.risk].slice();   // FIXED layout — bucket index = displayed mult
     PL.revealed = true;
     plRenderSlots();
   }
@@ -18643,38 +18755,25 @@ function plDrop(eur){
   });
 }
 
-// Create the SVG ball + physics state, steered toward a bucket whose multiplier
-// matches the server-decided one (the layout is cosmetic; payout is authoritative).
+// Launch the ball ALONG THE SERVER'S WAYPOINTS — the provably-fair Galton path. The ball does
+// real bouncy parabolic hops peg-to-peg (no steering, no pre-chosen target on the client) and
+// lands in the server's bucket, whose fixed-position multiplier IS the authoritative payout.
 function plLaunchBall(eur, d){
   var slotW = PL.W / PL.NUM_SLOTS;
-  var slots = PL.currentSlots || PL.paytables[PL.risk];
-  var startX = (PL.dropPositions[PL.dropZone] || 160);
-  var matches = [];
-  for(var mi = 0; mi < slots.length; mi++){ if(slots[mi] === d.multi) matches.push(mi); }
-  // Steer toward the matching bucket NEAREST the drop column → minimal sideways drift, so
-  // the ball reads as falling naturally instead of gliding across to a far bucket.
-  var targetSlot = 0, bestD = Infinity;
-  for(var mj = 0; mj < matches.length; mj++){
-    var cxj = (matches[mj] + 0.5) * slotW, ddj = Math.abs(cxj - startX);
-    if(ddj < bestD){ bestD = ddj; targetSlot = matches[mj]; }
-  }
-  var targetX = (targetSlot + 0.5) * slotW;
-  startX += (Math.random() - 0.5) * 8;  // jitter so the drop looks organic
+  var bucket = (d.bucket != null) ? d.bucket
+             : Math.max(0, PL.paytables[PL.risk].indexOf(d.multi));
+  var wp = (d.waypoints && d.waypoints.length >= 2) ? d.waypoints.map(function(p){ return [p[0], p[1]]; })
+         : [[160, 60], [(bucket + 0.5) * slotW, PL.BOTTOM_Y]];
+  wp.unshift([wp[0][0], 4]);                       // a short fall from the chute into the first peg
+  wp[wp.length - 1] = [(bucket + 0.5) * slotW, PL.BOTTOM_Y];   // land dead-centre of the bucket
 
   var ballId = ++PL.ballIdSeq;
   var ball = {
-    id: ballId,
-    eur: eur,
-    x: startX,
-    y: 6,
-    vx: (Math.random() - 0.5) * 0.6,
-    vy: 0,
-    trail: [],
-    settled: false,
-    stuckFrames: 0,
-    targetSlot: targetSlot,
-    targetX: targetX,
-    srv: d                  // authoritative result to apply on landing
+    id: ballId, eur: eur,
+    x: wp[0][0], y: wp[0][1], vx: 0, vy: 0,
+    trail: [], settled: false,
+    path: wp, seg: 0, t: 0, tStep: 0.072,    // tStep accelerates each row → gravity feel
+    srvSlot: bucket, srv: d
   };
   PL.balls.push(ball);
 
@@ -18748,135 +18847,32 @@ function plPhysicsLoop(){
       var b = PL.balls[bi];
       if(b.settled) continue;
 
-      b.vy += PL.GRAVITY;
-      if(b.vy > PL.MAX_VY) b.vy = PL.MAX_VY;
-      b.x += b.vx;
-      b.y += b.vy;
-      b.vx *= PL.FRICTION;
-      b.vy *= PL.FRICTION;
-
-      // Peg collisions
-      for(var i = 0; i < PL.pegs.length; i++){
-        var p = PL.pegs[i];
-        var dx = b.x - p.x;
-        var dy = b.y - p.y;
-        if(dx > minD || dx < -minD || dy > minD || dy < -minD) continue;
-        var dSq = dx*dx + dy*dy;
-        if(dSq < minDsq && dSq > 0.01){
-          var d = Math.sqrt(dSq);
-          var nx = dx / d;
-          var ny = dy / d;
-          b.x = p.x + nx * minD;
-          b.y = p.y + ny * minD;
-          var dot = b.vx * nx + b.vy * ny;
-          if(dot < 0){
-            b.vx = (b.vx - 2 * dot * nx) * PL.BOUNCE;
-            b.vy = (b.vy - 2 * dot * ny) * PL.BOUNCE;
-            b.vx += (Math.random() - 0.5) * PL.RAND_KICK;
-            // Sound: short tink, pitch + volume scale with ball speed.
-            // Throttled to avoid 100 simultaneous sounds when multiple
-            // balls are bouncing through dense peg fields.
-            plPegBounceSound(b);
-          }
-          var pegEl = PL.pegElements[i];
-          if(pegEl){
-            pegEl.classList.add('hit');
-            (function(el){ setTimeout(function(){ el.classList.remove('hit'); }, 280); })(pegEl);
-          }
-        }
+      // Follow the server's provably-fair waypoint path with bouncy parabolic hops.
+      var path = b.path;
+      if(!path || path.length < 2){ b.settled = true; plLandBall(b, b.srvSlot); continue; }
+      var prevX = b.x, prevY = b.y;
+      b.t += b.tStep;
+      while(b.t >= 1 && b.seg < path.length - 2){
+        b.t -= 1; b.seg++;
+        b.tStep = Math.min(0.17, b.tStep * 1.07);          // accelerate each row → gravity feel
+        plPegHitAt(path[b.seg][0], path[b.seg][1]);         // flash the peg + tink
+        plPegBounceSound(b);
       }
-
-      // Ball-to-ball collisions (elastic, both balls bounce apart)
-      for(var bj = bi + 1; bj < PL.balls.length; bj++){
-        var b2 = PL.balls[bj];
-        if(b2.settled) continue;
-        var bdx = b.x - b2.x;
-        var bdy = b.y - b2.y;
-        if(bdx > ballMinD || bdx < -ballMinD || bdy > ballMinD || bdy < -ballMinD) continue;
-        var bdSq = bdx*bdx + bdy*bdy;
-        if(bdSq < ballMinDsq && bdSq > 0.01){
-          var bd = Math.sqrt(bdSq);
-          var bnx = bdx / bd;
-          var bny = bdy / bd;
-          // Push apart
-          var overlap = (ballMinD - bd) / 2;
-          b.x += bnx * overlap;
-          b.y += bny * overlap;
-          b2.x -= bnx * overlap;
-          b2.y -= bny * overlap;
-          // Exchange velocity component along normal
-          var v1n = b.vx * bnx + b.vy * bny;
-          var v2n = b2.vx * bnx + b2.vy * bny;
-          var delta = (v1n - v2n) * 0.6;  // damped
-          b.vx -= delta * bnx;
-          b.vy -= delta * bny;
-          b2.vx += delta * bnx;
-          b2.vy += delta * bny;
-        }
-      }
-
-      // Walls
-      if(b.x < PL.BALL_R){ b.x = PL.BALL_R; b.vx = Math.abs(b.vx) * PL.BOUNCE; }
-      if(b.x > PL.W - PL.BALL_R){ b.x = PL.W - PL.BALL_R; b.vx = -Math.abs(b.vx) * PL.BOUNCE; }
-
-      // Slot dividers
-      if(b.y > PL.BOTTOM_Y - 22 && b.y < PL.BOTTOM_Y + 4){
-        for(var s = 1; s < PL.NUM_SLOTS; s++){
-          var divX = s * slotW;
-          if(Math.abs(b.x - divX) < PL.BALL_R){
-            if(b.x < divX){
-              b.x = divX - PL.BALL_R;
-              b.vx = -Math.abs(b.vx) * PL.BOUNCE;
-            } else {
-              b.x = divX + PL.BALL_R;
-              b.vx = Math.abs(b.vx) * PL.BOUNCE;
-            }
-          }
-        }
-      }
-
-      // Update SVG circle
-      var ballEl = document.getElementById('pl-ball-' + b.id);
-      if(ballEl){
-        ballEl.setAttribute('cx', b.x);
-        ballEl.setAttribute('cy', b.y);
-      }
-
-      // Per-ball trail
-      b.trail.push({x:b.x, y:b.y});
-      if(b.trail.length > 10) b.trail.shift();
-
-      // Anti-stuck per ball
-      var speed = Math.abs(b.vx) + Math.abs(b.vy);
-      var nearWall = b.x < (PL.BALL_R + 4) || b.x > (PL.W - PL.BALL_R - 4);
-      if(speed < 0.6 || (nearWall && speed < 1.2)){
-        b.stuckFrames++;
-        if(b.stuckFrames > 15){
-          b.vy += 2.5;
-          if(nearWall){
-            var pushDir = b.x < PL.W / 2 ? 1 : -1;
-            b.vx += pushDir * 1.5 + (Math.random() - 0.5) * 0.8;
-          } else {
-            b.vx += (Math.random() - 0.5) * 2;
-          }
-          b.stuckFrames = 0;
-        }
-      } else { b.stuckFrames = 0; }
-
-      // Server-authoritative steer: VERY gently ease the ball's X toward its target
-      // bucket over a long lower zone. Purely positional, low max factor (~0.10) so
-      // it reads as a natural drift, never the fast "piloted" snap onto a hole.
-      if(b.targetX != null && b.y > PL.BOTTOM_Y - 210){
-        var prog = Math.min(1, (b.y - (PL.BOTTOM_Y - 210)) / 210);
-        b.x += (b.targetX - b.x) * (0.012 + 0.09 * prog);   // gentle early drift, firm near the floor
-      }
-
-      // Landing
-      if(b.y >= PL.BOTTOM_Y){
-        b.settled = true;
-        var slotIdx = (b.targetSlot != null) ? b.targetSlot
-                      : Math.max(0, Math.min(PL.NUM_SLOTS - 1, Math.floor(b.x / slotW)));
-        plLandBall(b, slotIdx);
+      if(b.seg >= path.length - 2 && b.t >= 1){
+        b.x = path[path.length - 1][0]; b.y = PL.BOTTOM_Y; b.settled = true;
+        var le = document.getElementById('pl-ball-' + b.id);
+        if(le){ le.setAttribute('cx', b.x); le.setAttribute('cy', b.y); }
+        plLandBall(b, b.srvSlot);
+      } else {
+        var p0 = path[b.seg], p1 = path[b.seg + 1], tt = b.t;
+        b.x = p0[0] + (p1[0] - p0[0]) * tt;
+        var baseY = p0[1] + (p1[1] - p0[1]) * tt;
+        b.y = baseY - PL.HOP_H * Math.sin(Math.PI * tt);    // pop up between pegs = real bounce arc
+        b.vx = b.x - prevX; b.vy = b.y - prevY;
+        var ballEl = document.getElementById('pl-ball-' + b.id);
+        if(ballEl){ ballEl.setAttribute('cx', b.x); ballEl.setAttribute('cy', b.y); }
+        b.trail.push({x:b.x, y:b.y});
+        if(b.trail.length > 10) b.trail.shift();
       }
     }
 
