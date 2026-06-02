@@ -8432,6 +8432,11 @@ body{position:relative;}
     #grun .gr-skill-draw{height:64px;display:flex;align-items:center;justify-content:center;border-radius:12px;background:#0a0e1a;border:1px solid #2a3550;font-family:'Russo One',Impact,sans-serif;font-size:22px;letter-spacing:2px;color:#9fb0c8;margin-bottom:18px;transition:background .05s;}
     #grun .gr-skill-draw.fire{background:linear-gradient(135deg,#ff3b3b,#b81e1e);color:#fff;animation:grFireFlash .3s;}
     @keyframes grFireFlash{0%{transform:scale(1.15)}100%{transform:scale(1)}}
+    #grun .gr-skill-zone.hold{left:70%;width:15%;}
+    #grun .gr-skill-seq{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;}
+    #grun .gr-seq-pad{padding:20px 0;border:2px solid #2a3550;border-radius:13px;background:#0a0e1a;color:#5e6e88;font-family:'Russo One',Impact,sans-serif;font-size:24px;cursor:pointer;transition:transform .06s;}
+    #grun .gr-seq-pad:active{transform:scale(.95);}
+    #grun .gr-seq-pad.lit{background:linear-gradient(135deg,#39ff14,#1f9e0c);color:#06210a;border-color:#39ff14;box-shadow:0 0 18px rgba(57,255,20,.7);}
     #grun .gr-boss-card{width:88%;max-width:340px;text-align:center;padding:24px 18px;border-radius:18px;background:radial-gradient(ellipse at 50% 0%,rgba(255,60,60,.22),#160808);border:2px solid rgba(255,80,80,.55);box-shadow:0 16px 50px rgba(0,0,0,.7),0 0 40px rgba(255,40,40,.25);animation:grOvlIn .25s;}
     #grun .gr-boss-ttl{font-family:'Russo One',Impact,sans-serif;font-size:25px;letter-spacing:3px;color:#ff5b5b;text-shadow:0 0 16px rgba(255,60,60,.6);}
     #grun .gr-boss-stage{font-family:Orbitron,monospace;font-size:10px;letter-spacing:2px;color:#ffba3c;margin:6px 0 12px;}
@@ -9064,8 +9069,11 @@ var GR = {ante:0, view:null, busy:false, charmsMeta:{}};
 // win% + multiplier mirror the engine (gamblers_run.py) so the player sees the real odds.
 var GR_ROOMS = {
   table:     {ic:'🃏',nm:'TABLE',      win:55, mult:1.33, keep:66, d:'Steady gamble'},
+  street:    {ic:'🎲',nm:'STREET DICE', win:63, mult:1.31, keep:66, d:'Grindy & safe-ish'},
   vault:     {ic:'💎',nm:'VAULT',      win:85, mult:1.10, keep:60, d:'Safe & small'},
+  coinflip:  {ic:'🪙',nm:'DOUBLE OR NOTHING',win:50, mult:1.92, keep:24, d:'A true 50/50 — swingy'},
   highroller:{ic:'🔥',nm:'HIGH ROLLER',win:40, mult:1.90, keep:46, d:'Big risk, big reward'},
+  heist:     {ic:'💰',nm:'THE HEIST',  win:34, mult:2.45, keep:46, d:'The big score — rare & deep'},
   duel:      {ic:'⚔️',nm:'RIVAL DUEL', win:48, mult:1.51, keep:60, d:'Charms boost you'},
   skill:     {ic:'🎯',nm:'SKILL TRIAL',win:50, mult:1.36, keep:52, d:'Your reflexes decide!', skill:true},
   fixer:     {ic:'🤝',nm:'FIXER',      charm:true,         d:'Buy a charm'},
@@ -9079,7 +9087,14 @@ function grRoomVideo(type){
   var meta=GR_ROOMS[type]||{};
   if(cap) cap.textContent=((meta.ic||'')+' '+(meta.nm||'ENTERING…')).trim();
   var src=GR_VIDS[type];
-  if(v){ try{ if(src){ if(v.getAttribute('data-src')!==src){ v.src=src; v.setAttribute('data-src',src); } v.currentTime=0; var p=v.play(); if(p&&p.catch)p.catch(function(){}); } }catch(e){} }
+  if(v){ try{
+    if(src){ v.style.display=''; if(v.getAttribute('data-src')!==src){ v.src=src; v.setAttribute('data-src',src); } v.currentTime=0; var p=v.play(); if(p&&p.catch)p.catch(function(){}); }
+    else { v.pause(); v.style.display='none'; }   // newer rooms have no clip yet → show the caption card cleanly
+  }catch(e){} }
+  // No clip → render a big icon badge so the overlay still feels intentional.
+  var badge=document.getElementById('gr-vidovl-badge');
+  if(!badge && ov){ badge=document.createElement('div'); badge.id='gr-vidovl-badge'; badge.style.cssText='font-size:84px;filter:drop-shadow(0 6px 18px rgba(0,0,0,.6));'; if(v&&v.parentNode) v.parentNode.insertBefore(badge, v.nextSibling); else ov.insertBefore(badge, ov.firstChild); }
+  if(badge){ badge.textContent = src ? '' : (meta.ic||'❓'); badge.style.display = src ? 'none' : 'block'; }
   try{ GBMusic.play(GBMusic.has(type)?type:'run'); }catch(e){}    // music shifts to the chosen room
   ov.style.display='flex'; ov.classList.add('show');
 }
@@ -9263,10 +9278,12 @@ function grActResolve(idx, extra){
 // SKILL TRIALS — THREE genuinely hard reflex minigames (each takes a cb(win) callback). Your
 // real input decides win/loss (client-side skill); the backend caps the reward + flags impossible
 // win-rates. Tuned so even a sharp player fails often, keeping the house edge.
+// The full pool of HARD reflex/memory trials (function declarations are hoisted, so listing them
+// here before their definitions is fine). Used by both the SKILL room and THE HOUSE gauntlet.
+var GR_SKILL_GAMES=[grSkillPrecision, grSkillReaction, grSkillCombo, grSkillMash, grSkillSequence, grSkillHold];
 function grSkillGame(idx){
   if(GR.busy) return; GR.busy=true;
-  var games=[grSkillPrecision, grSkillReaction, grSkillCombo];
-  games[Math.floor(Math.random()*games.length)](function(win){ GR.busy=false; grActResolve(idx,{skill_win:win?1:0}); });
+  GR_SKILL_GAMES[Math.floor(Math.random()*GR_SKILL_GAMES.length)](function(win){ GR.busy=false; grActResolve(idx,{skill_win:win?1:0}); });
 }
 function grSkillOverlay(ttl, desc, inner){
   var ov=document.createElement('div'); ov.className='gr-skill-ov'; ov.id='gr-skill-ov';
@@ -9330,6 +9347,60 @@ function grSkillCombo(cb){
   };
   setTimeout(function(){ if(!done) fin(false); }, 8000);
 }
+// 4) RAPID FIRE — smash the button enough times before the timer bar empties.
+function grSkillMash(cb){
+  var NEED=15, T=3000;
+  var ov=grSkillOverlay('⚡ RAPID FIRE','Smash it <b style="color:#39ff14;">'+NEED+'×</b> before the bar runs out!',
+    '<div class="gr-skill-bar"><div class="gr-skill-marker" id="gr-skill-mk" style="left:0%;width:100%;background:linear-gradient(90deg,#39ff14,#1f9e0c);border-radius:8px;transform:none;"></div></div>'+
+    '<div class="gr-skill-cnt" id="gr-skill-cnt">0 / '+NEED+'</div>'+
+    '<button class="gr-skill-btn" id="gr-skill-tap">TAP! TAP! TAP!</button>');
+  var taps=0, done=false, start=Date.now(), raf=null;
+  var mk=document.getElementById('gr-skill-mk'), cnt=document.getElementById('gr-skill-cnt');
+  function loop(){ if(done)return; var el=Date.now()-start; if(mk)mk.style.width=Math.max(0,(1-el/T)*100)+'%'; if(el>=T){ fin(taps>=NEED); return; } raf=requestAnimationFrame(loop); }
+  loop();
+  function fin(win){ if(done)return; done=true; if(raf)cancelAnimationFrame(raf); grSkillDone(ov,win,cb); }
+  document.getElementById('gr-skill-tap').onclick=function(){ if(done)return; taps++; if(cnt)cnt.textContent=taps+' / '+NEED; if(taps>=NEED) fin(true); };
+}
+// 5) SAFE CRACKER — watch a 4-symbol code light up, then repeat it in order. One miss = fail.
+function grSkillSequence(cb){
+  var seq=[]; for(var s=0;s<4;s++) seq.push(Math.floor(Math.random()*4));
+  var ov=grSkillOverlay('🔢 SAFE CRACKER','Watch the code… then tap it back in order!',
+    '<div class="gr-skill-seq" id="gr-skill-seq">'+[0,1,2,3].map(function(i){return '<button class="gr-seq-pad" data-i="'+i+'">'+(i+1)+'</button>';}).join('')+'</div>'+
+    '<div class="gr-skill-cnt" id="gr-skill-cnt">Memorize…</div>');
+  var pads=ov.querySelectorAll('.gr-seq-pad'), done=false, input=[], accepting=false, step=0;
+  function flash(){
+    if(step>=seq.length){ accepting=true; var c=document.getElementById('gr-skill-cnt'); if(c)c.textContent='YOUR TURN ▸'; return; }
+    var p=pads[seq[step]]; p.classList.add('lit'); grSound('tick');
+    setTimeout(function(){ p.classList.remove('lit'); step++; setTimeout(flash, 230); }, 480);
+  }
+  setTimeout(flash, 600);
+  function fin(win){ if(done)return; done=true; grSkillDone(ov,win,cb); }
+  for(var k=0;k<pads.length;k++){ pads[k].onclick=function(){
+    if(!accepting||done) return;
+    var i=parseInt(this.getAttribute('data-i'),10), self=this;
+    this.classList.add('lit'); setTimeout(function(){ self.classList.remove('lit'); },150);
+    input.push(i);
+    if(input[input.length-1]!==seq[input.length-1]){ fin(false); return; }
+    if(input.length===seq.length) fin(true);
+  }; }
+  setTimeout(function(){ if(!done) fin(false); }, 13000);
+}
+// 6) HOLD STEADY — press & HOLD to charge; release in the green zone. Overcharge to 100% = fail.
+function grSkillHold(cb){
+  var ov=grSkillOverlay('🎚️ HOLD STEADY','HOLD to charge — release in the <b style="color:#39ff14;">green zone</b>. Don\'t max out!',
+    '<div class="gr-skill-bar"><div class="gr-skill-zone hold"></div><div class="gr-skill-marker" id="gr-skill-mk" style="left:0%;"></div></div>'+
+    '<button class="gr-skill-btn" id="gr-skill-hold">HOLD ▼</button>');
+  var mk=document.getElementById('gr-skill-mk'), pos=0, charging=false, done=false, raf=null;
+  function loop(){ if(done)return; if(charging){ pos+=1.35; if(pos>=100){ pos=100; mk.style.left='100%'; fin(false); return; } mk.style.left=pos+'%'; } raf=requestAnimationFrame(loop); }
+  loop();
+  function fin(win){ if(done)return; done=true; if(raf)cancelAnimationFrame(raf); mk.style.background=win?'#39ff14':'#ff4b4b'; grSkillDone(ov,win,cb); }
+  var btn=document.getElementById('gr-skill-hold');
+  function press(e){ if(e&&e.preventDefault)e.preventDefault(); if(!done) charging=true; }
+  function release(e){ if(e&&e.preventDefault)e.preventDefault(); if(done||!charging) return; charging=false; fin(pos>=70 && pos<=85); }
+  btn.addEventListener('mousedown',press); btn.addEventListener('touchstart',press,{passive:false});
+  btn.addEventListener('mouseup',release); btn.addEventListener('touchend',release,{passive:false});
+  setTimeout(function(){ if(!done) fin(false); }, 7000);
+}
 // ── THE HOUSE boss gauntlet: 3 hard trials in a row, with a random taunt before each. Win ALL
 //    three → beat the house (jackpot). Fail any one → bust. ──
 var GR_BOSS_TAUNTS=[
@@ -9348,8 +9419,9 @@ var GR_BOSS_TAUNTS=[
 ];
 function grBossGauntlet(idx){
   if(GR.busy) return; GR.busy=true;
-  var games=[grSkillPrecision, grSkillReaction, grSkillCombo];
+  var games=GR_SKILL_GAMES.slice();   // 3 random trials drawn from the FULL pool of 6
   for(var i=games.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=games[i];games[i]=games[j];games[j]=t; }
+  games=games.slice(0,3);
   var stage=0;
   function intro(go){
     var taunt=GR_BOSS_TAUNTS[Math.floor(Math.random()*GR_BOSS_TAUNTS.length)];
@@ -9623,9 +9695,11 @@ function handVal(h){
   while(v>21&&aces>0){v-=10;aces--;}
   return v;
 }
-function renderCard(c,hidden){
-  if(hidden)return'<div class="card back"></div>';
-  return'<div class="card'+(c.red?' red':'')+'"><div class="card-r">'+c.r+'</div><div class="card-s">'+c.s+'</div></div>';
+function renderCard(c,hidden,extra){
+  extra=extra?(' '+extra):'';
+  if(hidden)return'<div class="card back'+extra+'"></div>';
+  var red=(c.red||c.s==='♥'||c.s==='♦')?' red':'';
+  return'<div class="card'+red+extra+'"><div class="card-r">'+c.r+'</div><div class="card-s">'+c.s+'</div></div>';
 }
 
 var BJ={deck:[],hands:[],activeHand:0,dealer:[],bet:0,active:false,busy:false};
@@ -16785,12 +16859,11 @@ function dlInjectCSS(){
    +'.dlrr2-lives.hit{animation:dlrrHit .5s;}@keyframes dlrrHit{0%,100%{transform:scale(1)}30%{transform:scale(1.45);filter:brightness(1.7)}}'
    +'.dlrr2-tag{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-family:Orbitron,sans-serif;font-size:9px;font-weight:800;letter-spacing:1px;}'
    +'.dlrr2-tag.you{color:#39ff14;}.dlrr2-tag.opp{color:#ff8a8a;}'
-   +'.dlrr2-stage{position:relative;width:100%;display:flex;flex-direction:column;align-items:center;padding:6px 0 8px;}'
+   +'.dlrr2-stage{position:relative;width:100%;display:flex;flex-direction:column;align-items:center;padding:12px 0 14px;margin:6px 0;border-radius:18px;background:radial-gradient(ellipse at 50% 50%,rgba(20,60,38,.55),rgba(8,16,24,.92) 72%);border:1px solid rgba(255,215,0,.18);box-shadow:inset 0 0 40px rgba(0,0,0,.6);}'
    +'.dlrr2-pot{font-family:Orbitron,sans-serif;font-size:11px;letter-spacing:1px;color:#ffd700;margin-bottom:2px;}.dlrr2-pot b{font-size:14px;}'
-   +'.dlrr2-gun{width:96px;height:166px;display:block;filter:drop-shadow(0 6px 14px rgba(0,0,0,.6));transition:transform .45s cubic-bezier(.5,0,.2,1);transform-origin:center;}'
-   +'#dlrr-cyl{transform-box:fill-box;transform-origin:center;}'
-   +'.dlrr2-gun.spin #dlrr-cyl{animation:dlrrCylSpin .7s cubic-bezier(.2,.7,.2,1);}@keyframes dlrrCylSpin{from{transform:rotate(0)}to{transform:rotate(720deg)}}'
-   +'.dlrr2-gun.recoil{animation:dlrrRecoil .22s;}@keyframes dlrrRecoil{0%{}40%{transform:scale(1.06)}100%{}}'
+   +'.dlrr2-gun{width:122px;height:183px;object-fit:contain;display:block;filter:drop-shadow(0 8px 18px rgba(0,0,0,.7));transition:transform .45s cubic-bezier(.5,0,.2,1);transform-origin:center;-webkit-user-select:none;user-select:none;}'
+   +'.dlrr2-gun.spin{animation:dlrrCylSpin .75s cubic-bezier(.2,.7,.2,1);}@keyframes dlrrCylSpin{from{transform:rotate(0)}to{transform:rotate(720deg)}}'
+   +'.dlrr2-gun.recoil{animation:dlrrRecoil .2s;}@keyframes dlrrRecoil{0%{}45%{transform:scale(1.05)}100%{}}'
    +'.dlrr2-flash{position:absolute;left:50%;transform:translateX(-50%);width:88px;height:88px;border-radius:50%;background:radial-gradient(circle,#fff,#ffd34d 30%,#ff6a00 55%,transparent 72%);opacity:0;pointer-events:none;z-index:2;}'
    +'.dlrr2-stage.aim-up .dlrr2-flash{top:22px;}.dlrr2-stage.aim-down .dlrr2-flash{bottom:54px;top:auto;}'
    +'.dlrr2-flash.show{animation:dlrrFlash .36s;}@keyframes dlrrFlash{0%{opacity:0}25%{opacity:1}100%{opacity:0}}'
@@ -16806,6 +16879,7 @@ function dlInjectCSS(){
    +'.dlpkd-card{position:relative;width:50px;height:70px;border-radius:8px;background:#fdfdfd;color:#111;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;box-shadow:0 3px 8px rgba(0,0,0,.45);border:2px solid transparent;transition:transform .12s,border-color .12s,box-shadow .12s;}'
    +'.dlpkd-card.red{color:#e2234a;}'
    +'.dlpkd-card.back{background:repeating-linear-gradient(45deg,#3b1d6e,#3b1d6e 6px,#2a1450 6px,#2a1450 12px);border:2px solid #5b3da0;}'
+   +'.dlpkd-card.deal{animation:dlPkdDealIn .4s backwards cubic-bezier(.2,.85,.25,1);}@keyframes dlPkdDealIn{0%{transform:translateY(-52px) rotate(-12deg) scale(.78);opacity:0}70%{opacity:1}100%{transform:none;opacity:1}}'
    +'.dlpkd-card.tog{cursor:pointer;}.dlpkd-card.tog:active{transform:scale(.94);}'
    +'.dlpkd-card.held{border-color:#39ff14;box-shadow:0 0 14px rgba(57,255,20,.55);transform:translateY(-7px);}'
    +'.dlpkd-r{font-size:19px;line-height:1;}.dlpkd-s{font-size:18px;line-height:1;}'
@@ -17131,8 +17205,9 @@ function dlBjPile(p){
     return '<div class="dlbj-pile"><div class="dlbj-cards">'+backs+'</div><div class="dlbj-total">?</div></div>';
   }
   var tot=p.bust?'BUST':(''+p.total);
+  var cards=(p.cards||[]);
   return '<div class="dlbj-pile'+(p.bust?' bust':'')+(p.done?' done':'')+'"><div class="dlbj-cards">'+
-    (p.cards||[]).map(function(c){return renderCard(c);}).join('')+
+    cards.map(function(c,i){return renderCard(c,false,(i===cards.length-1)?'dl-card-in':'');}).join('')+
     '</div><div class="dlbj-total">'+tot+(p.doubled?' ×2':'')+'</div></div>';
 }
 function dlBjSide(side,label,isYou,activeTurn){
@@ -17144,6 +17219,12 @@ function dlBjBoard(d){
   DLBJ.sig=dlBjSig(d);
   var playing=(d.state!=='done');
   var you=d.you||{piles:[]}, opp=d.opp||{piles:[]};
+  // deal sound when a new card has appeared since the last render
+  try{
+    var nc=0; [you,opp].forEach(function(s){ (s.piles||[]).forEach(function(p){ nc += p.hidden?(p.count||0):((p.cards||[]).length); }); });
+    if(DLBJ._cards!=null && nc>DLBJ._cards){ grSound('chip'); }
+    DLBJ._cards=nc;
+  }catch(e){}
   var pot=((d.bet_eur||0)*2);
   var html='<div class="pvp-m-title" style="color:#ff5b5b;">🂡 BLACKJACK DUEL</div>'+
     '<div class="dlbj-pot">POT €'+pot.toFixed(2)+' · winner takes 95%</div>'+
@@ -17293,51 +17374,9 @@ function dlRrEventText(ev,reloaded){
 // Vertical revolver (points UP toward the opponent by default). #dlrr-gun rotates to aim;
 // #dlrr-cyl spins independently on reload. Pure SVG — no videos.
 function dlRrGunSVG(){
-  // Detailed vertical revolver: vent-rib barrel, fluted 6-chamber cylinder with real chamber depth,
-  // hammer, trigger + guard, and an angled checkered wood grip. Muzzle points UP (toward the
-  // opponent); #dlrr-gun rotates 180° to aim at YOU, #dlrr-cyl spins independently on a reload/spin.
-  var chambers='', cx=70, cy=120, rC=23;
-  for(var k=0;k<6;k++){
-    var a=(k*60)*Math.PI/180, x=(cx+rC*Math.cos(a)).toFixed(1), y=(cy+rC*Math.sin(a)).toFixed(1);
-    chambers+='<circle cx="'+x+'" cy="'+y+'" r="6.6" fill="url(#rrChamber)" stroke="#0c1018" stroke-width="1.4"/>';
-  }
-  return '<svg class="dlrr2-gun" id="dlrr-gun" viewBox="0 0 150 260" aria-hidden="true">'+
-    '<defs>'+
-      '<linearGradient id="rrBlue" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2b3242"/><stop offset=".48" stop-color="#aeb9d0"/><stop offset=".56" stop-color="#d3dcee"/><stop offset="1" stop-color="#232a39"/></linearGradient>'+
-      '<radialGradient id="rrCyl" cx=".38" cy=".30" r=".8"><stop offset="0" stop-color="#cdd6e8"/><stop offset=".55" stop-color="#7f8aa3"/><stop offset="1" stop-color="#2c3346"/></radialGradient>'+
-      '<radialGradient id="rrChamber" cx=".5" cy=".42" r=".6"><stop offset="0" stop-color="#05070d"/><stop offset=".65" stop-color="#141a28"/><stop offset="1" stop-color="#3a4360"/></radialGradient>'+
-      '<linearGradient id="rrGrip" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8a5a28"/><stop offset=".5" stop-color="#5a3a16"/><stop offset="1" stop-color="#301f0b"/></linearGradient>'+
-    '</defs>'+
-    /* muzzle + front sight */
-    '<rect x="63" y="3" width="6" height="8" rx="1.5" fill="#11161f"/>'+
-    '<rect x="55" y="9" width="22" height="11" rx="2.5" fill="#cfd9ec" stroke="#222a3c" stroke-width="1"/>'+
-    /* barrel with vent rib */
-    '<rect x="55" y="18" width="22" height="72" rx="3" fill="url(#rrBlue)" stroke="#1c2434" stroke-width="1.5"/>'+
-    '<rect x="63.5" y="20" width="5" height="68" rx="2" fill="rgba(0,0,0,.4)"/>'+
-    '<rect x="58" y="20" width="2.4" height="68" fill="rgba(255,255,255,.45)"/>'+
-    /* top strap over the cylinder */
-    '<rect x="48" y="86" width="44" height="14" rx="3" fill="url(#rrBlue)" stroke="#1c2434" stroke-width="1.5"/>'+
-    /* hammer at the rear */
-    '<path d="M92 104 l20 -6 q6 -1 5 5 l-3 9 q-2 5 -8 4 l-14 -4 z" fill="url(#rrBlue)" stroke="#1c2434" stroke-width="1.5"/>'+
-    /* CYLINDER (spins on #dlrr-cyl) */
-    '<g id="dlrr-cyl">'+
-      '<circle cx="70" cy="120" r="33" fill="url(#rrCyl)" stroke="#1c2434" stroke-width="3"/>'+
-      '<circle cx="70" cy="120" r="33" fill="none" stroke="rgba(255,255,255,.16)" stroke-width="1"/>'+
-      '<circle cx="70" cy="120" r="14" fill="none" stroke="rgba(0,0,0,.25)" stroke-width="1"/>'+
-      chambers+
-      '<circle cx="70" cy="120" r="7" fill="#5b6783" stroke="#2a3146" stroke-width="2"/>'+
-      '<circle cx="70" cy="120" r="2.4" fill="#1c2336"/>'+
-    '</g>'+
-    /* frame body down toward the grip */
-    '<path d="M52 150 q-3 22 6 40 l24 0 q9 -18 6 -40 z" fill="url(#rrBlue)" stroke="#1c2434" stroke-width="1.5"/>'+
-    /* trigger guard + trigger */
-    '<path d="M58 158 q14 24 32 8" stroke="#1c2434" stroke-width="6" fill="none" stroke-linecap="round"/>'+
-    '<rect x="69" y="158" width="5.5" height="15" rx="2.5" fill="#11161f"/>'+
-    /* angled wood grip */
-    '<path d="M84 162 l34 56 q5 12 -7 16 l-28 -5 q-10 -34 -3 -62 z" fill="url(#rrGrip)" stroke="#241606" stroke-width="2"/>'+
-    '<path d="M92 178 q10 22 7 44" stroke="rgba(0,0,0,.32)" stroke-width="2" fill="none"/>'+
-    '<path d="M101 174 q9 22 6 44" stroke="rgba(0,0,0,.22)" stroke-width="1.6" fill="none"/>'+
-    '</svg>';
+  // A REAL rendered revolver (rr_revolver.png) — barrel points UP (toward the opponent); #dlrr-gun
+  // rotates 180° to aim at YOU. Far more convincing than the old vector drawing.
+  return '<img class="dlrr2-gun" id="dlrr-gun" src="rr_revolver.png" alt="revolver" draggable="false">';
 }
 function dlRrBoard(d){
   DLRR.seat=(d.seat!=null)?d.seat:DLRR.seat;
@@ -17385,6 +17424,25 @@ function dlRrBoard(d){
   dlModalHTML(html);
   if(playing&&yourTurn){ DLRR.deadline=d.deadline_ms||0; dlRrStartTick(); } else { dlRrStopTick(); }
 }
+// A punchy synthesized GUNSHOT — sharp noise crack + low body thump (routed through the master limiter).
+function dlRrGunshot(){
+  var ctx=slv2EnsureAudio(); if(!ctx) return;
+  try{
+    if(ctx.state==='suspended'){ try{ ctx.resume(); }catch(e){} }
+    var dest=slv2AudioDest(), t0=ctx.currentTime;
+    // the crack — short filtered noise burst
+    var len=Math.floor(ctx.sampleRate*0.26), buf=ctx.createBuffer(1,len,ctx.sampleRate), d=buf.getChannelData(0);
+    for(var i=0;i<len;i++){ d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.3); }
+    var noise=ctx.createBufferSource(); noise.buffer=buf;
+    var nf=ctx.createBiquadFilter(); nf.type='lowpass'; nf.frequency.setValueAtTime(4200,t0); nf.frequency.exponentialRampToValueAtTime(420,t0+0.2);
+    var ng=ctx.createGain(); ng.gain.setValueAtTime(0.95,t0); ng.gain.exponentialRampToValueAtTime(0.001,t0+0.26);
+    noise.connect(nf).connect(ng).connect(dest); noise.start(t0); noise.stop(t0+0.27);
+    // the body — low sine thump that drops fast
+    var osc=ctx.createOscillator(); osc.type='sine'; osc.frequency.setValueAtTime(170,t0); osc.frequency.exponentialRampToValueAtTime(42,t0+0.19);
+    var og=ctx.createGain(); og.gain.setValueAtTime(0.0001,t0); og.gain.linearRampToValueAtTime(0.75,t0+0.006); og.gain.exponentialRampToValueAtTime(0.001,t0+0.23);
+    osc.connect(og).connect(dest); osc.start(t0); osc.stop(t0+0.25);
+  }catch(e){}
+}
 // Graphic action animation: aim the revolver at the target, then fire (flash) or click (blank).
 function dlRrAnimate(ev, onDone){
   var stage=document.getElementById('dlrr2-stage'), gun=document.getElementById('dlrr-gun');
@@ -17406,7 +17464,7 @@ function dlRrAnimate(ev, onDone){
       if(flash){ flash.className='dlrr2-flash show'; setTimeout(function(){ if(flash)flash.className='dlrr2-flash'; },360); }
       if(fx){ fx.innerHTML=cap('<span class="bang">💥 BANG · LIVE</span>'); fx.className='dlrr2-fx show'; }
       if(stage){ stage.classList.add('shake'); setTimeout(function(){ stage.classList.remove('shake'); },420); }
-      grSound('lose'); try{ tg.HapticFeedback&&tg.HapticFeedback.notificationOccurred('error'); }catch(e){}
+      dlRrGunshot(); try{ tg.HapticFeedback&&tg.HapticFeedback.notificationOccurred('error'); }catch(e){}   // BANG
       var lv=document.getElementById(targetIsMe?'dlrr2-you-lives':'dlrr2-opp-lives'); if(lv) lv.classList.add('hit');
     } else {
       if(fx){ fx.innerHTML=cap('<span class="click">🔘 CLICK · blank</span>'); fx.className='dlrr2-fx show'; }
@@ -17597,10 +17655,11 @@ function dlRpsCancel(silent){
 var DLPKD={poll:null,ticker:false,deadline:0,bet:0,busy:false,shown:false,held:[false,false,false,false,false],sig:''};
 function dlPkdStopPoll(){ if(DLPKD.poll){ clearInterval(DLPKD.poll); DLPKD.poll=null; } }
 function dlPkdStopTick(){ if(DLPKD.ticker){ clearInterval(DLPKD.ticker); DLPKD.ticker=null; } }
-function dlPkdCard(c, tog, i){
+function dlPkdCard(c, tog, i, dealMs){
   var red=(c.s==='♥'||c.s==='♦');
   var attr=tog?(' id="dlpkd-c'+i+'" onclick="dlPkdToggle('+i+')"'):'';
-  return '<div class="dlpkd-card'+(red?' red':'')+(tog?' tog':'')+'"'+attr+'><div class="dlpkd-r">'+c.r+'</div><div class="dlpkd-s">'+c.s+'</div>'+(tog?'<div class="dlpkd-keep">KEEP</div>':'')+'</div>';
+  var deal=(dealMs!=null)?' deal" style="animation-delay:'+dealMs+'ms':'';   // a fresh card flies in
+  return '<div class="dlpkd-card'+(red?' red':'')+(tog?' tog':'')+deal+'"'+attr+'><div class="dlpkd-r">'+c.r+'</div><div class="dlpkd-s">'+c.s+'</div>'+(tog?'<div class="dlpkd-keep">KEEP</div>':'')+'</div>';
 }
 function dlPkdBacks(){ var s=''; for(var i=0;i<5;i++)s+='<div class="dlpkd-card back"></div>'; return s; }
 function dlPkdSig(d){ return (d.state||'')+'|'+(d.you_drawn?1:0)+'|'+(d.opp_drawn?1:0)+'|'+((d.you_hand||[]).map(function(c){return c.r+c.s;}).join('')); }
@@ -17693,8 +17752,8 @@ function dlPkdStartPoll(){
       .then(function(r){return r.json();}).then(function(d){
         if(!d||d.error||d.status==='none') return;
         if(dlPkdSig(d)===DLPKD.sig) return;
-        dlPkdBoard(d);
-        if(d.status==='done'||d.state==='done'){ dlPkdStopPoll(); dlPkdAfterDone(d); }
+        if(d.status==='done'||d.state==='done'){ dlPkdStopPoll(); dlPkdRevealThenDone(d); }   // opponent just finished → showdown beat
+        else dlPkdBoard(d);
       }).catch(function(){});
   },1300);
 }
@@ -17703,18 +17762,25 @@ function dlPkdStartTick(){
   DLPKD.ticker=setInterval(function(){ var el=document.getElementById('dlpkd-timer'); if(!el)return; var rem=Math.max(0,Math.ceil((DLPKD.deadline-Date.now())/1000)); el.textContent=rem+'s'; if(rem<=6)el.style.color='#ff5b5b'; },300);
 }
 function dlPkdToggle(i){ DLPKD.held[i]=!DLPKD.held[i]; var el=document.getElementById('dlpkd-c'+i); if(el)el.classList.toggle('held',DLPKD.held[i]); grSound('chip'); }
-function dlPkdBoard(d){
+function dlPkdBoard(d, holdResult){
   DLPKD.sig=dlPkdSig(d);
   var playing=(d.status!=='done'&&d.state!=='done');
+  var revealing=(!playing && holdResult);    // showdown done, but hold back the opponent + result for a beat
   var youDrawn=d.you_drawn, pot=((d.bet_eur||0)*2);
+  // during the "see your hand" beat, the freshly-drawn (non-held) cards fly in, staggered
+  var dn=0;
+  function youCard(c,i){ var dm=(revealing && !DLPKD.held[i])?(dn++*130):null; return dlPkdCard(c,(playing&&!youDrawn),i,dm); }
+  var oppHidden=(playing||revealing);
   var html='<div class="pvp-m-title" style="color:#c084fc;">♠ POKER DUEL · 5-CARD DRAW</div>'+
     '<div class="dlbj-pot">POT €'+pot.toFixed(2)+' · best hand wins 95%</div>'+
-    '<div class="dlpkd-side opp"><div class="dlpkd-nm">'+dlEsc(d.opp_name||'Opponent')+(d.opp_drawn?' <span style="color:#39ff14;">✓ drawn</span>':(playing?' · thinking…':''))+(!playing&&d.opp_rank?' · <b>'+dlEsc(d.opp_rank)+'</b>':'')+'</div>'+
-      '<div class="dlpkd-hand">'+(playing?dlPkdBacks():((d.opp_hand||[]).map(function(c){return dlPkdCard(c,false);}).join('')))+'</div></div>'+
-    '<div class="dlpkd-mid">'+(playing?(youDrawn?'<span class="dlbj-turn-opp">✓ You drew — waiting for opponent…</span>':'<span class="dlbj-turn-you">Tap cards to KEEP, then DRAW</span> <span class="dlbj-timer" id="dlpkd-timer"></span>'):'')+'</div>'+
+    '<div class="dlpkd-side opp"><div class="dlpkd-nm">'+dlEsc(d.opp_name||'Opponent')+(d.opp_drawn?' <span style="color:#39ff14;">✓ drawn</span>':(playing?' · thinking…':(revealing?' · 🂠 hidden':'')))+(!oppHidden&&d.opp_rank?' · <b>'+dlEsc(d.opp_rank)+'</b>':'')+'</div>'+
+      '<div class="dlpkd-hand">'+(oppHidden?dlPkdBacks():((d.opp_hand||[]).map(function(c){return dlPkdCard(c,false);}).join('')))+'</div></div>'+
+    '<div class="dlpkd-mid">'+(playing?(youDrawn?'<span class="dlbj-turn-opp">✓ You drew — waiting for opponent…</span>':'<span class="dlbj-turn-you">Tap cards to KEEP, then DRAW</span> <span class="dlbj-timer" id="dlpkd-timer"></span>'):(revealing?'<span class="dlbj-turn-you">Your hand'+(d.you_rank?': <b>'+dlEsc(d.you_rank)+'</b>':'')+' — revealing opponent…</span>':''))+'</div>'+
     '<div class="dlpkd-side you"><div class="dlpkd-nm">YOUR HAND'+(!playing&&d.you_rank?' · <b>'+dlEsc(d.you_rank)+'</b>':'')+'</div>'+
-      '<div class="dlpkd-hand">'+(d.you_hand||[]).map(function(c,i){return dlPkdCard(c,(playing&&!youDrawn),i);}).join('')+'</div></div>';
-  if(playing&&!youDrawn){
+      '<div class="dlpkd-hand">'+(d.you_hand||[]).map(youCard).join('')+'</div></div>';
+  if(revealing){
+    /* no buttons during the reveal beat — the result + Play Again come after */
+  } else if(playing&&!youDrawn){
     html+='<button class="pvp-m-btn gold" onclick="dlPkdDraw()">🔄 DRAW · swap the cards you didn\'t keep</button>'+
       '<button class="pvp-m-btn" onclick="dlPkdCancel(false)">LEAVE (forfeit)</button>';
   } else if(playing){
@@ -17737,10 +17803,18 @@ function dlPkdDraw(){
     .then(function(r){return r.json();}).then(function(d){
       DLPKD.busy=false;
       if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); return; }
-      grSound('card-flip'); DLPKD.sig='';
-      dlPkdBoard(d);
-      if(d.status==='done'||d.state==='done'){ dlPkdAfterDone(d); }
+      DLPKD.sig='';
+      if(d.status==='done'||d.state==='done'){ dlPkdRevealThenDone(d); }   // beat to SEE your hand, then result
+      else { grSound('chip'); dlPkdBoard(d); }                            // drew, waiting for opponent
     }).catch(function(){ DLPKD.busy=false; toast('Network error','err'); });
+}
+// Showdown beat: deal the new cards in, let the player read their own hand + rank for ~1.7s with the
+// opponent STILL hidden, then reveal the opponent + the win/lose result.
+function dlPkdRevealThenDone(d){
+  dlPkdStopPoll(); dlPkdStopTick();
+  dlPkdBoard(d, true);
+  try{ var n=0; for(var i=0;i<5;i++){ if(!DLPKD.held[i]){ (function(k){ setTimeout(function(){ grSound('chip'); }, 60+k*130); })(n++); } } }catch(e){}
+  setTimeout(function(){ DLPKD.sig=''; dlPkdBoard(d); dlPkdAfterDone(d); }, 1700);
 }
 function dlPkdAfterDone(d){
   dlPkdStopPoll(); dlPkdStopTick();
