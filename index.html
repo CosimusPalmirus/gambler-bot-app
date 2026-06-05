@@ -8434,6 +8434,27 @@ body{position:relative;}
     @keyframes vkBoom{0%{transform:scale(1.5)}50%{transform:scale(.9)}100%{transform:scale(1)}}
     #vault .vk-tower.shake{animation:vkShake .42s;}
     @keyframes vkShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(7px)}60%{transform:translateX(-5px)}80%{transform:translateX(4px)}}
+    /* combination dial (the cracking minigame) */
+    #vault .vk-combo{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:8px 0 2px;}
+    #vault .vk-pin{flex:0 0 auto;min-width:46px;text-align:center;padding:4px 6px;border-radius:9px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);}
+    #vault .vk-pin .vp-ic{font-size:15px;line-height:1.15;}
+    #vault .vk-pin .vp-m{font-family:Orbitron,monospace;font-size:10px;font-weight:800;color:#9fb0c8;}
+    #vault .vk-pin.done{background:rgba(40,200,120,.14);border-color:rgba(40,220,120,.5);}
+    #vault .vk-pin.done .vp-m{color:#39ff9e;}
+    #vault .vk-pin.cur{background:linear-gradient(165deg,rgba(80,180,255,.2),rgba(20,60,100,.1));border-color:#4aa6d8;box-shadow:0 0 12px rgba(70,180,255,.35);}
+    #vault .vk-pin.cur .vp-m{color:#7fd0ff;}
+    #vault .vk-dialwrap{display:flex;justify-content:center;margin:10px 0 4px;}
+    #vault .vk-dial{position:relative;width:196px;height:196px;border-radius:50%;background:radial-gradient(circle at 42% 36%,#3a414e,#171b22 66%,#0c0e12);border:4px solid #2a3038;box-shadow:0 10px 30px rgba(0,0,0,.6),inset 0 0 30px rgba(0,0,0,.7);}
+    #vault .vk-dial.shake{animation:vkShake .42s;}
+    #vault .vk-dialface{position:absolute;inset:16px;border-radius:50%;border:2px dashed rgba(150,180,220,.16);background:repeating-conic-gradient(from 0deg,rgba(255,255,255,.05) 0deg 2.5deg,transparent 2.5deg 9deg);}
+    #vault .vk-knob{position:absolute;top:50%;left:50%;width:66px;height:66px;margin:-33px 0 0 -33px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:Orbitron,monospace;font-weight:800;font-size:15px;color:#ffd24a;background:radial-gradient(circle at 40% 35%,#4a515f,#1a1d24);border:3px solid #2c313a;box-shadow:inset 0 0 10px rgba(0,0,0,.8),0 2px 6px rgba(0,0,0,.5);transition:transform .6s cubic-bezier(.2,.8,.2,1);z-index:3;}
+    #vault .vk-knob.spin{transform:rotate(380deg);}
+    #vault .vk-notch{position:absolute;top:50%;left:50%;width:42px;height:42px;margin:-21px 0 0 -21px;border-radius:50%;font-family:Orbitron,monospace;font-weight:800;font-size:14px;color:#cdb88a;cursor:default;background:radial-gradient(circle at 40% 34%,#4a3c1c,#241a08);border:2px solid #6b5526;box-shadow:inset 0 2px 5px rgba(0,0,0,.5);transition:box-shadow .15s,background .2s,border-color .2s;z-index:2;padding:0;}
+    #vault .vk-notch.live{cursor:pointer;color:#ffe1a6;border-color:#caa24a;animation:vkNotchBreath 1.8s ease-in-out infinite;}
+    @keyframes vkNotchBreath{0%,100%{box-shadow:inset 0 2px 5px rgba(0,0,0,.5),0 0 4px rgba(255,200,90,.25)}50%{box-shadow:inset 0 2px 5px rgba(0,0,0,.5),0 0 12px rgba(255,200,90,.6)}}
+    #vault .vk-notch.safe{background:radial-gradient(circle at 40% 34%,#143a22,#06160d);border-color:#1f7a44;color:#39ff9e;box-shadow:0 0 12px rgba(40,220,120,.55);animation:none;}
+    #vault .vk-notch.okdim{background:radial-gradient(circle at 40% 34%,#14271c,#08120c);border-color:#236b3e;color:#7fcf9e;opacity:.7;animation:none;}
+    #vault .vk-notch.trap{background:radial-gradient(circle at 40% 34%,#5a1414,#1a0606);border-color:#ff4d4d;color:#ff6b6b;box-shadow:0 0 14px rgba(255,50,50,.7);animation:none;}
     /* difficulty */
     #vault .vk-diffs{display:flex;gap:8px;margin-top:6px;}
     #vault .vk-diff{flex:1;padding:9px 4px;border-radius:12px;cursor:pointer;text-align:center;background:rgba(255,255,255,.04);border:1.5px solid rgba(255,255,255,.1);transition:.15s;}
@@ -8458,9 +8479,10 @@ body{position:relative;}
       <div class="vk-sub" id="vk-sub">crack the vault · bank the loot</div>
       <div class="vk-status" id="vk-status">Pick a difficulty &amp; bet, then start cracking.</div>
     </div>
-    <div class="vk-tower" id="vk-tower"></div>
+    <div class="vk-combo" id="vk-combo"></div>
+    <div class="vk-dialwrap"><div class="vk-dial" id="vk-dial"></div></div>
     <div class="info-card" id="vk-setup">
-      <div class="info-lbl">DIFFICULTY · trapped crates per layer</div>
+      <div class="info-lbl">DIFFICULTY · trapped notches on each dial</div>
       <div class="vk-diffs" id="vk-diffs"></div>
       <div class="info-lbl" style="margin-top:10px;">BET</div>
       <div class="bet-selector" id="vk-bets" style="padding:5px 0 0;"></div>
@@ -10011,16 +10033,38 @@ function vkRenderDiffs(){
   }
   g.innerHTML=h;
 }
-function vkSetLevel(n){ if(VK.active)return; VK.level=n; vkRenderDiffs(); vkRenderTowerPreview(); gSound('chip'); }
-function vkRenderTowerPreview(){
-  var info=vkLadder(VK.level);
-  var t=document.getElementById('vk-tower'); if(!t)return; var h='';
-  for(var r=info.depth-1;r>=0;r--){
-    h+='<div class="vk-row"><div class="vk-rmult">'+info.ladder[r].toFixed(2)+'x</div><div class="vk-crates">';
-    for(var c=0;c<info.cols;c++){ h+='<div class="vk-crate lockicon">🔒</div>'; }
-    h+='</div></div>';
+function vkSetLevel(n){ if(VK.active)return; VK.level=n; vkRenderDiffs(); vkRenderPreview(); gSound('chip'); }
+function vkNotchPos(i,cols){ var a=i*360/cols-90; return 'rotate('+a+'deg) translate(74px) rotate('+(-a)+'deg)'; }
+function vkRenderCombo(v){
+  var el=document.getElementById('vk-combo'); if(!el)return; var h='';
+  for(var i=0;i<v.depth;i++){
+    var st=(i<v.survived?'done':(i===v.layer&&!v.over?'cur':''));
+    h+='<div class="vk-pin '+st+'"><div class="vp-ic">'+(i<v.survived?'🔓':'🔒')+'</div><div class="vp-m">'+v.ladder[i].toFixed(2)+'x</div></div>';
   }
-  t.innerHTML=h;
+  el.innerHTML=h;
+}
+function vkRenderDial(v,reveal){
+  var wrap=document.getElementById('vk-dial'); if(!wrap)return;
+  var cols=v.cols, entry=(reveal&&v.revealed&&v.revealed.length)?v.revealed[v.revealed.length-1]:null;
+  var h='<div class="vk-dialface"></div>';
+  for(var i=0;i<cols;i++){
+    var cls='vk-notch', txt=String(i+1), tap='';
+    if(entry){ var tr=entry.map[i]===1;
+      if(i===entry.pick){ cls+=tr?' trap':' safe'; txt=tr?'💣':'✓'; }
+      else if(tr){ cls+=' trap'; txt='💣'; }
+      else { cls+=' okdim'; txt='✓'; }
+    } else if(!v.over && v.can_pick){ cls+=' live'; tap=' onclick="vkPick('+i+')"'; }
+    h+='<button class="'+cls+'" style="transform:'+vkNotchPos(i,cols)+';"'+tap+'>'+txt+'</button>';
+  }
+  h+='<div class="vk-knob" id="vk-knob">'+(v.survived>0?v.mult.toFixed(2)+'x':'🔓')+'</div>';
+  wrap.innerHTML=h;
+}
+function vkRenderPreview(){
+  var info=vkLadder(VK.level);
+  var el=document.getElementById('vk-combo');
+  if(el){ var h=''; for(var i=0;i<info.depth;i++){ h+='<div class="vk-pin"><div class="vp-ic">🔒</div><div class="vp-m">'+info.ladder[i].toFixed(2)+'x</div></div>'; } el.innerHTML=h; }
+  var wrap=document.getElementById('vk-dial');
+  if(wrap){ var hh='<div class="vk-dialface"></div>'; for(var j=0;j<info.cols;j++){ hh+='<button class="vk-notch" style="transform:'+vkNotchPos(j,info.cols)+';" disabled>'+(j+1)+'</button>'; } hh+='<div class="vk-knob">🔓</div>'; wrap.innerHTML=hh; }
 }
 function vkResetUI(){
   VK.active=false; VK.view=null;
@@ -10053,7 +10097,7 @@ function vkStart(){
       refresh();
       VK.active=true; VK.view=d.view; gSound('chip');
       vkEnterGame(); vkRender();
-      document.getElementById('vk-status').textContent='Crack a crate on the lit layer… or cash out.';
+      document.getElementById('vk-status').textContent='Pick a notch and crack the first tumbler… or cash out.';
     }).catch(function(){VK.busy=false;toast('Network error','err');if(typeof loadBalance==='function')loadBalance();});
 }
 function vkPick(pos){
@@ -10070,16 +10114,20 @@ function vkPick(pos){
 function vkLoot(){
   gSound('chip');
   var m=document.getElementById('vk-mult'); if(m){m.classList.add('pop');setTimeout(function(){m.classList.remove('pop');},170);}
-  vkRender();
-  document.getElementById('vk-status').textContent = VK.view.can_pick ? '💰 Loot dropped! Crack deeper or bank it.' : '🏆 Vault cracked! Cash out the haul.';
+  vkRenderHud(VK.view);
+  vkRenderDial(VK.view, true);                          // reveal the tumbler you just cracked
+  var k=document.getElementById('vk-knob'); if(k){ k.classList.remove('spin'); void k.offsetWidth; k.classList.add('spin'); }
+  document.getElementById('vk-status').textContent = VK.view.can_pick ? '🔓 *click* — tumbler set! Crack the next or bank it.' : '🏆 Vault OPEN! Cash out the haul.';
+  if(VK.view.can_pick){ setTimeout(function(){ if(VK.active&&VK.view) vkRenderDial(VK.view, false); }, 720); }
 }
 function vkBoom(d){
   if(d.btc!==undefined)S.btc=d.btc;
   if(d.losses!==undefined)S.losses=d.losses;
   refresh(); if(CUR==='profile')renderProfile();
   gSound('explosion');
-  var t=document.getElementById('vk-tower'); if(t){t.classList.add('shake');setTimeout(function(){t.classList.remove('shake');},450);}
-  vkRender();
+  var dl=document.getElementById('vk-dial'); if(dl){dl.classList.add('shake');setTimeout(function(){dl.classList.remove('shake');},450);}
+  vkRenderCombo(VK.view);
+  vkRenderDial(VK.view, true);                          // reveal the traps on the tumbler that blew
   document.getElementById('vk-mult').innerHTML='💥';
   document.getElementById('vk-sub').textContent='ALARM TRIPPED — busted!';
   document.getElementById('vk-status').textContent='💥 BUSTED! Lost €'+(VK.bet||0).toFixed(2)+'.';
@@ -10098,44 +10146,21 @@ function vkCashout(){
       gSound('win-big');
       VK.active=false;
       document.getElementById('vk-mult').innerHTML=d.mult.toFixed(2)+'<span class="x">x</span>';
-      document.getElementById('vk-sub').textContent='CRACKED · '+(d.survived||0)+' layers';
+      document.getElementById('vk-sub').textContent='CRACKED · '+(d.survived||0)+' tumblers';
       document.getElementById('vk-status').textContent='🤑 Banked €'+(d.won_eur||0).toFixed(2)+'!';
       var cb=document.getElementById('vk-cash'); cb.style.display='none'; cb.classList.remove('pulse');
       toast('🤑 Cracked €'+(d.won_eur||0).toFixed(2)+' · '+d.mult.toFixed(2)+'x','success');
       setTimeout(vkResetUI, 2000);
     }).catch(function(){VK.busy=false;toast('Network error','err');});
 }
-function vkRender(){
-  var v=VK.view; if(!v)return;
+function vkRenderHud(v){
   var m=document.getElementById('vk-mult'); if(m){ m.innerHTML=(v.survived>0?v.mult.toFixed(2):'1.00')+'<span class="x">x</span>'; }
-  var sub=document.getElementById('vk-sub'); if(sub){ sub.textContent = v.next_mult ? ('next layer → '+v.next_mult.toFixed(2)+'x  (€'+(v.next_eur||0).toFixed(2)+')') : 'top layer reached — cash out!'; }
+  var sub=document.getElementById('vk-sub'); if(sub){ sub.textContent = v.next_mult ? ('next tumbler → '+v.next_mult.toFixed(2)+'x  (€'+(v.next_eur||0).toFixed(2)+')') : 'vault open — cash out!'; }
   var cb=document.getElementById('vk-cash');
   if(cb){ if(v.can_cash){ cb.style.display=''; cb.classList.add('pulse'); cb.innerHTML='CASH €'+(v.cash_eur||0).toFixed(2); } else { cb.classList.remove('pulse'); cb.innerHTML='CASH OUT'; } }
-  vkRenderTower(v);
+  vkRenderCombo(v);
 }
-function vkRenderTower(v){
-  var t=document.getElementById('vk-tower'); if(!t)return;
-  var rev={}; (v.revealed||[]).forEach(function(r){ rev[r.layer]=r; });
-  var h='';
-  for(var r=v.depth-1;r>=0;r--){
-    var rowState=(r<v.survived?'cleared':(r===v.layer&&!v.over?'active':''));
-    h+='<div class="vk-row '+rowState+'"><div class="vk-rmult">'+v.ladder[r].toFixed(2)+'x</div><div class="vk-crates">';
-    var entry=rev[r];
-    for(var c=0;c<v.cols;c++){
-      var cls='vk-crate', txt='🔒', tap='';
-      if(entry){
-        var trapped=entry.map[c]===1;
-        if(c===entry.pick){ if(trapped){ cls+=' trap'; txt='💥'; } else { cls+=' loot'; txt='💰'; } }
-        else if(trapped){ cls+=' trap'; txt='💣'; }
-        else { cls+=' safe'; txt='✓'; }
-      } else if(rowState==='active'){ txt='📦'; tap=' onclick="vkPick('+c+')"'; }
-      else { cls+=' lockicon'; txt='🔒'; }
-      h+='<div class="'+cls+'"'+tap+'>'+txt+'</div>';
-    }
-    h+='</div></div>';
-  }
-  t.innerHTML=h;
-}
+function vkRender(){ var v=VK.view; if(!v)return; vkRenderHud(v); vkRenderDial(v,false); }
 
 function go(id){
   var target=document.getElementById(id);
@@ -10354,7 +10379,9 @@ function bjApply(d){
 }
 function bjShowOutcome(d){
   var totalBet=BJ.hands.reduce(function(a,h){return a+h.bet;},0);
-  var won=d.won_eur||0;
+  // Prefer the RATE-INDEPENDENT win multiplier so the shown win matches the chosen stake exactly
+  // (won_eur is won_btc×serverRate, which drifts vs the client rate used to size the bet → €5 read €4.90).
+  var won=(d.win_mult!=null&&d.win_mult>0)?(totalBet*d.win_mult):(d.won_eur||0);
   if(won>totalBet+0.001){
     var profit=won-totalBet;
     setTimeout(function(){ var ratio=won/totalBet; if(ratio>=2.4)gSound('win-big'); else if(ratio>=1.8)gSound('win-medium'); else gSound('win-small'); },600);
