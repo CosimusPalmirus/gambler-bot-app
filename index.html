@@ -3539,9 +3539,9 @@ body{position:relative;}
 }
 @keyframes slv2DynamicBlur{
   0%   { filter: blur(0px); }
-  10%  { filter: blur(1.8px); }  /* perf: was 2.5px */
-  55%  { filter: blur(2.2px); }  /* perf: was 3px */
-  85%  { filter: blur(1px); }  /* perf: was 1.5px */
+  10%  { filter: blur(0.7px); }  /* perf: motion-blur cut hard (was 1.8/2.2/1) — blur() repaints */
+  55%  { filter: blur(0.9px); }  /* every frame on 5 strips and was the main mobile spin lag.   */
+  85%  { filter: blur(0.4px); }  /* a faint hint is enough; the fast translateY sells the speed. */
   100% { filter: blur(0px); }
 }
 
@@ -5287,12 +5287,15 @@ body{position:relative;}
    triggering the BONUS WHEEL feature. Reels 3 and 4 still spinning get
    this golden suspense glow. */
 .slv2-reel-strip.wheel-anticipating{
-  animation: slv2WheelAnticipate 0.35s ease-in-out infinite !important;
-  filter: blur(1.8px) brightness(1.35) !important;
+  animation: slv2WheelAnticipate 0.5s ease-in-out infinite !important;
+  filter: blur(0.6px) brightness(1.3) !important;
 }
 @keyframes slv2WheelAnticipate{
-  0%,100%{ filter: blur(1.8px) brightness(1.3)  drop-shadow(0 0 10px rgba(255,215,0,.8)); }
-  50%    { filter: blur(2.2px) brightness(1.75) drop-shadow(0 0 24px rgba(255,215,0,1)) drop-shadow(0 0 36px rgba(57,255,20,.6)) drop-shadow(0 0 52px rgba(168,85,247,.4)); }
+  /* perf: was blur 1.8-2.2px + brightness + THREE pulsing drop-shadows — the single most
+     expensive effect in the game (3 filters repainting per frame on spinning strips). Cut to
+     one soft glow + minimal blur, slower pulse → far smoother suspense, far less lag. */
+  0%,100%{ filter: blur(0.5px) brightness(1.25) drop-shadow(0 0 8px rgba(255,215,0,.7)); }
+  50%    { filter: blur(0.8px) brightness(1.5)  drop-shadow(0 0 18px rgba(255,215,0,.95)); }
 }
 .slv2-reel-col.wheel-anticipating-col{
   animation: slv2WheelAnticipateCol 0.42s ease-in-out infinite alternate;
@@ -5302,6 +5305,12 @@ body{position:relative;}
 @keyframes slv2WheelAnticipateCol{
   from{ box-shadow: inset 0 0 18px rgba(255,215,0,.55), 0 0 18px rgba(255,215,0,.5); }
   to  { box-shadow: inset 0 0 40px rgba(255,215,0,1), 0 0 38px rgba(255,215,0,.9), 0 0 64px rgba(57,255,20,.6), 0 0 92px rgba(168,85,247,.35); }
+}
+/* one-shot gold flash when a reel snaps into place after the slow crawl (lock-in punch) */
+.slv2-reel-col.slv2-lock-flash{ animation: slv2LockFlash 0.36s ease-out; }
+@keyframes slv2LockFlash{
+  0%  { box-shadow: 0 0 30px 6px rgba(255,225,120,.9), inset 0 0 28px rgba(255,215,0,.7); }
+  100%{ box-shadow: 0 0 0 0 rgba(255,225,120,0), inset 0 0 0 rgba(255,215,0,0); }
 }
 
 /* CABINET: enhanced multi-layer suspense — halo + vignette + sweep. */
@@ -5399,11 +5408,9 @@ body{position:relative;}
               rgba(0,0,0,0) 18%,
               rgba(80,30,0,.65) 55%,
               rgba(120,10,0,.95) 100%);
-  animation: slv2VignetteTier3 0.7s ease-in-out infinite alternate;
-}
-@keyframes slv2VignetteTier3{
-  from { filter: brightness(1); }
-  to   { filter: brightness(1.18) saturate(1.2); }
+  /* perf: removed an infinite `filter: brightness/saturate` animation on this FULL-SCREEN
+     overlay — animating filter repaints the whole screen every frame (big mobile lag spike on
+     the climax). The static red-gold inferno gradient is already plenty dramatic. */
 }
 
 /* Cabinet shake intensity by tier */
@@ -10766,8 +10773,8 @@ var SL2_WHEEL_TIERS = {
       { type:'cash',    value:12,  weight:5,  color:'#ff8844', label:'12×'    },
       { type:'fs_random',          weight:5,  color:'#22c55e', label:'FS'     },
       { type:'mystery',            weight:5,  color:'#e879f9', label:'?'      },
-      { type:'cash',    value:20,  weight:3,  color:'#ff8844', label:'20×'    },
-      { type:'cash',    value:30,  weight:1,  color:'#ffd700', label:'30×'    },
+      { type:'cash',    value:16,  weight:1.1,color:'#ff8844', label:'16×'    },
+      { type:'cash',    value:24,  weight:0.35,color:'#ffd700',label:'24×'    },
       { type:'jackpot',            weight:0.05, color:'#ff2244', label:'JACKPOT' }
     ]
   },
@@ -10784,11 +10791,11 @@ var SL2_WHEEL_TIERS = {
       { type:'fs_random',          weight:6,  color:'#39ff14', label:'FS'     },
       { type:'chest',              weight:6,  color:'#a855f7', label:'🔑'      },
       { type:'fs_random',          weight:5,  color:'#22c55e', label:'FS'     },
-      { type:'cash',    value:25,  weight:4,  color:'#ff8844', label:'25×'    },
-      { type:'mystery',            weight:5,  color:'#e879f9', label:'?'      },
-      { type:'cash',    value:50,  weight:2,  color:'#ffd700', label:'50×'    },
-      { type:'cash',    value:200, weight:0.3,color:'#ff2244', label:'200×'   },
-      { type:'jackpot',            weight:0.15, color:'#ff2244', label:'JACKPOT'}
+      { type:'cash',    value:18,  weight:0.3,color:'#ff8844', label:'18×'    },
+      { type:'mystery',            weight:3,  color:'#e879f9', label:'?'      },
+      { type:'cash',    value:40,  weight:0.18,color:'#ffd700',label:'40×'    },
+      { type:'cash',    value:120, weight:0.03,color:'#ff2244', label:'120×'  },
+      { type:'jackpot',            weight:0.1, color:'#ff2244', label:'JACKPOT'}
     ]
   }
 };
@@ -13314,7 +13321,7 @@ function slv2BonusWheelBuild(){
   // Update the subtitle to advertise the current tier's max payout
   var subEl = document.getElementById('slv2-bw-subtitle');
   if(subEl){
-    var tierMaxes = { LOW: '15×', MID: '30× + JP', HIGH: '200× + JP' };
+    var tierMaxes = { LOW: '15×', MID: '24× + JP', HIGH: '120× + JP' };
     var tierColor = { LOW: '#5fc7ff', MID: '#ff8844', HIGH: '#ffd700' };
     subEl.innerHTML = '<span style="opacity:.85;">Bet </span><strong>\u20ac' + (SL2.bet || 1) +
       '</strong><span style="opacity:.85;"> \u00b7 ' + tier + ' tier \u00b7 win up to </span><strong style="color:' +
@@ -14468,7 +14475,7 @@ function slv2FakeWheelScatterReveal(){
           // eslint-disable-next-line no-unused-expressions
           void miniStrip.offsetWidth;
           miniStrip.style.transition = 'transform ' + scrollMs + 'ms linear, filter ' + scrollMs + 'ms ease-out';
-          miniStrip.style.filter = 'blur(2.0px)';  // perf
+          miniStrip.style.filter = 'blur(0.8px)';  // perf: was 2.0px — cheaper repaint during the scroll
           // Scroll endpoint puts the bottom-most cell flush with the visible area
           miniStrip.style.transform = 'translateY(0px)';
           // Approach beep right before snap
@@ -15247,9 +15254,9 @@ function slv2SlowDownReel(reelIdx, extraMs, cascadeSteps){
   // Phase 1 carries most distance at peak velocity ~1.45px/ms.
   // Phase 2 covers 25% with cubic ease-out, ~700ms.
   // Phase 3 is fixed ~650ms — that's where the suspense lives.
-  var p1Dist = totalDistance * 0.60;
-  var p2Dist = totalDistance * 0.25;
-  var p3Dist = totalDistance - p1Dist - p2Dist;          // ~15%
+  var p1Dist = totalDistance * 0.50;
+  var p2Dist = totalDistance * 0.27;
+  var p3Dist = totalDistance - p1Dist - p2Dist;          // ~23% — longer, MUCH more visible slow crawl
 
   var p1EndY = currentY - p1Dist;
   var p2EndY = currentY - p1Dist - p2Dist;
@@ -15257,8 +15264,8 @@ function slv2SlowDownReel(reelIdx, extraMs, cascadeSteps){
 
   var velocity = 1.45;
   var phase1Dur = Math.max(p1Dist / velocity, 500);
-  var phase2Dur = 700;
-  var phase3Dur = 650;                                   // visible crawl
+  var phase2Dur = 780;
+  var phase3Dur = 950;                                   // dramatic slow finish (was 650) — the suspense beat
 
   // Keep .spinning class so motion blur stays active during phase 1
   strip.classList.add('spinning');
@@ -15285,6 +15292,13 @@ function slv2SlowDownReel(reelIdx, extraMs, cascadeSteps){
     strip.style.filter    = 'blur(0.3px)';                // sharp-ish (perf reduced)
     // First approach cue at the start of visible deceleration
     try { slv2PlayTone(660, 0.05, 'triangle', 0.07); } catch(e){}
+    // SLOW-MO RISER — rising tension tones across the decel + crawl (the suspense build)
+    var _rSpan = phase2Dur + phase3Dur * 0.55, _rN = 6;
+    for(var _rs = 0; _rs < _rN; _rs++){ (function(k){
+      var ft = (_rN > 1) ? (k / (_rN - 1)) : 0;
+      var rt = setTimeout(function(){ try { slv2PlayTone(300 + 560 * ft, 0.13, 'sawtooth', 0.045); } catch(e){} }, ft * _rSpan);
+      if(SL2._crawlTimers && SL2._crawlTimers[reelIdx]) SL2._crawlTimers[reelIdx].push(rt);
+    })(_rs); }
   }, phase1Dur);
   SL2._crawlTimers[reelIdx].push(p1Timer);
 
@@ -15337,6 +15351,8 @@ function slv2SlowDownReel(reelIdx, extraMs, cascadeSteps){
       var parentCol = strip.parentElement;
       if(parentCol){
         parentCol.classList.remove('wheel-anticipating-col', 'anticipating-col');
+        parentCol.classList.add('slv2-lock-flash');   // satisfying gold flash as it snaps in
+        (function(pc){ setTimeout(function(){ if(pc) pc.classList.remove('slv2-lock-flash'); }, 380); })(parentCol);
       }
       strip.classList.add('stopped');
       strip.style.animation = '';
@@ -16769,7 +16785,7 @@ function loadLeaderboard(){
         var lvl=getLevel(p.xp||0);
         return'<div class="lb-item'+(p.is_me?' me':'')+'">'+
           '<div class="lb-rank '+rankCls+'">'+(i<3?['🥇','🥈','🥉'][i]:'#'+(i+1))+'</div>'+
-          '<div class="lb-name">'+(p.is_me?'⭐ ':'')+(p.name||'Player')+'<div class="lb-info">'+lvl.icon+' Lv.'+lvl.level+' '+lvl.title+' • '+(p.wins||0)+'W</div></div>'+
+          '<div class="lb-name">'+(p.is_me?'⭐ ':'')+dlEsc(p.name||'Player')+'<div class="lb-info">'+lvl.icon+' Lv.'+lvl.level+' '+lvl.title+' • '+(p.wins||0)+'W</div></div>'+
           '<div class="lb-val">€'+Math.round((p.btc||0)*S.rate).toLocaleString()+'</div></div>';
       }).join('');
     })
@@ -17428,6 +17444,22 @@ function dlInjectCSS(){
    +'.pvp-vs-bet{display:inline-block;padding:7px 20px;border-radius:999px;font-family:Russo One,sans-serif;font-weight:900;font-size:19px;letter-spacing:1px;color:#1a1206;background:linear-gradient(135deg,#ffe066,#ffb300);box-shadow:0 0 18px rgba(255,190,0,.55),inset 0 1px 0 rgba(255,255,255,.55);animation:pvpBetPulse 1s infinite;}'
    +'@keyframes pvpBetPulse{0%,100%{transform:scale(1);box-shadow:0 0 16px rgba(255,190,0,.45),inset 0 1px 0 rgba(255,255,255,.5)}50%{transform:scale(1.07);box-shadow:0 0 30px rgba(255,190,0,.85),inset 0 1px 0 rgba(255,255,255,.6)}}'
    +'.pvp-vs-go{text-align:center;font-size:11px;color:#ffd700;letter-spacing:3px;font-weight:800;margin-top:10px;animation:pvpGo 1s infinite;}@keyframes pvpGo{0%,100%{opacity:.35}50%{opacity:1}}';
+  // ── VS "WOW" clash FX: cards slam in with a bounce, then a flash + shockwave + screen-shake ──
+  st.textContent += '.pvp-vs-stage{position:relative;}'
+   +'.pvp-vs-card.me{animation:pvpVsInL .4s cubic-bezier(.2,1.45,.35,1) backwards!important;}'
+   +'.pvp-vs-card.op{animation:pvpVsInR .4s cubic-bezier(.2,1.45,.35,1) backwards!important;}'
+   +'.pvp-vs-stage.clash{animation:pvpVsShake .5s;}'
+   +'@keyframes pvpVsShake{0%,100%{transform:translateX(0)}12%{transform:translateX(-9px)}26%{transform:translateX(8px)}42%{transform:translateX(-6px)}60%{transform:translateX(4px)}80%{transform:translateX(-2px)}}'
+   +'.pvp-vs-flash{position:absolute;inset:-60px;pointer-events:none;opacity:0;z-index:6;background:radial-gradient(circle at 50% 50%,rgba(255,255,255,.97),rgba(255,205,70,.55) 26%,rgba(255,90,0,0) 60%);}'
+   +'.pvp-vs-flash.go{animation:pvpVsFlash .5s ease-out;}'
+   +'@keyframes pvpVsFlash{0%{opacity:0;transform:scale(.4)}22%{opacity:1}100%{opacity:0;transform:scale(1.8)}}'
+   +'.pvp-vs-ring{position:absolute;top:50%;left:50%;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;border:3px solid #ffd24a;opacity:0;z-index:5;pointer-events:none;box-shadow:0 0 14px rgba(255,200,70,.8);}'
+   +'.pvp-vs-stage.clash .pvp-vs-ring{animation:pvpVsRing .6s ease-out;}'
+   +'@keyframes pvpVsRing{0%{opacity:.95;transform:scale(.3)}100%{opacity:0;transform:scale(7)}}'
+   +'.pvp-vs-ring.r2{border-color:#ff5b5b;}'
+   +'.pvp-vs-stage.clash .pvp-vs-ring.r2{animation:pvpVsRing .6s .08s ease-out;}'
+   +'.pvp-vs-stage.clash .pvp-vs-flame{animation:pvpVsSlam .55s cubic-bezier(.2,1.6,.3,1)!important;}'
+   +'@keyframes pvpVsSlam{0%{transform:scale(2.2)}55%{transform:scale(.85)}100%{transform:scale(1)}}';
   st.textContent += '.dlrr-side{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-radius:12px;border:1px solid var(--border);background:linear-gradient(160deg,rgba(24,30,52,.9),rgba(12,16,30,.9));margin:4px 0;transition:border-color .2s,box-shadow .2s;}'
    +'.dlrr-side.opp{border-color:rgba(255,90,90,.35);}.dlrr-side.you{border-color:rgba(57,255,20,.3);}'
    +'.dlrr-side.active{box-shadow:0 0 16px rgba(255,180,60,.35);border-color:#ffba3c;}'
@@ -17616,7 +17648,7 @@ function dlInjectCSS(){
    +'.ch-promo button .ch-pc{font-size:32px;}';
   document.head.appendChild(st);
 }
-function dlEsc(s){ return String(s==null?'':s).replace(/[<>&"]/g,function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c];}); }
+function dlEsc(s){ return String(s==null?'':s).replace(/[<>&"']/g,function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c];}); }
 function dlModeName(m){ return {dice:'🎲 DICE',cards:'🃏 POKER',bj:'🂡 BLACKJACK',rr:'🔫 ROULETTE',rps:'✊ RPS',bs:'🚢 BATTLESHIP',chess:'♟️ CHESS'}[m]||(''+m).toUpperCase(); }
 var dlGameMeta={
   dice:{dur:'~3s',how:'Each player rolls a single die. The highest roll takes the whole pot — pure luck, instant result.'},
@@ -17721,19 +17753,52 @@ function dlVsScreen(d, onDone){
     '<div class="pvp-vs-betbar"><div class="pvp-vs-betlbl">STAKE · WINNER TAKES 95%</div>'+
       '<div class="pvp-vs-bet">€'+betEur.toFixed(2)+'</div></div>'+
     '<div class="pvp-vs-stage">'+
+      '<div class="pvp-vs-flash" id="pvp-vs-flash"></div><div class="pvp-vs-ring"></div><div class="pvp-vs-ring r2"></div>'+
       card(meInfo,meName||'YOU',true,'me','🧑')+
       '<div class="pvp-vs-flameWrap"><span class="pvp-vs-fire">🔥</span><span class="pvp-vs-flame">VS</span></div>'+
       card(opInfo,opName,false,'op','👤')+
     '</div>'+
     '<div class="pvp-vs-go">'+(d.game_label?dlEsc(({cards:'POKER · 5-CARD DRAW',bj:'BLACKJACK DUEL',rr:'RUSSIAN ROULETTE',rps:'ROCK · PAPER · SCISSORS',bs:'BATTLESHIP',chess:'CHESS'})[d.game_label]||'GET READY…')+' · GET READY…':'GET READY…')+'</div>');
-  // Layered, "intriguing" build-up: a tense ticking countdown → a dramatic clash hit (no
-  // spinning-wheel sound here — that only belongs to the random-game wheel).
-  try{ gSound('chip'); }catch(e){}
-  try{ setTimeout(function(){ gSound('tick'); }, 900); }catch(e){}
-  try{ setTimeout(function(){ gSound('tick'); }, 1700); }catch(e){}
-  try{ setTimeout(function(){ gSound('tick'); }, 2400); }catch(e){}
-  try{ setTimeout(function(){ gSound('win-big'); }, 2950); }catch(e){}
-  setTimeout(onDone, 5000);
+  // Cinematic build-up: the cards SLAM in while a riser swells, then a flash + shockwave +
+  // screen-shake + metallic impact land the clash. dlVsSfx schedules the impact at +0.5s.
+  try{ dlVsSfx(); }catch(e){}
+  var _stg=document.querySelector('.pvp-vs-stage');
+  setTimeout(function(){
+    if(_stg) _stg.classList.add('clash');
+    var _fl=document.getElementById('pvp-vs-flash'); if(_fl){ _fl.classList.remove('go'); void _fl.offsetWidth; _fl.classList.add('go'); }
+    try{ tg.HapticFeedback&&tg.HapticFeedback.notificationOccurred('warning'); }catch(e){}
+  }, 500);
+  try{ setTimeout(function(){ gSound('win-big'); }, 660); }catch(e){}   // announcer sting just after impact
+  setTimeout(onDone, 4200);
+}
+// Cinematic VS sound: a rising tension sweep that climaxes into a metallic CLASH impact at +0.5s.
+function dlVsSfx(){
+  var ctx=(typeof slv2EnsureAudio==='function')?slv2EnsureAudio():null; if(!ctx) return;
+  try{
+    if(ctx.state==='suspended'){ try{ ctx.resume(); }catch(e){} }
+    var dest=(typeof slv2AudioDest==='function')?slv2AudioDest():ctx.destination, t0=ctx.currentTime, tc=t0+0.5;
+    // RISER — bandpassed saw sweeping up into the clash
+    var ros=ctx.createOscillator(); ros.type='sawtooth';
+    ros.frequency.setValueAtTime(120,t0); ros.frequency.exponentialRampToValueAtTime(900,tc);
+    var rf=ctx.createBiquadFilter(); rf.type='bandpass'; rf.frequency.value=700; rf.Q.value=1.1;
+    var rg=ctx.createGain(); rg.gain.setValueAtTime(0.0001,t0); rg.gain.exponentialRampToValueAtTime(0.16,tc-0.03); rg.gain.exponentialRampToValueAtTime(0.0001,tc+0.08);
+    ros.connect(rf).connect(rg).connect(dest); ros.start(t0); ros.stop(tc+0.1);
+    // IMPACT — low boom
+    var boom=ctx.createOscillator(); boom.type='sine'; boom.frequency.setValueAtTime(160,tc); boom.frequency.exponentialRampToValueAtTime(46,tc+0.26);
+    var bg=ctx.createGain(); bg.gain.setValueAtTime(0.0001,tc); bg.gain.linearRampToValueAtTime(0.9,tc+0.012); bg.gain.exponentialRampToValueAtTime(0.001,tc+0.3);
+    boom.connect(bg).connect(dest); boom.start(tc); boom.stop(tc+0.32);
+    // IMPACT — noise crack
+    var len=Math.floor(ctx.sampleRate*0.16), buf=ctx.createBuffer(1,len,ctx.sampleRate), dd=buf.getChannelData(0);
+    for(var i=0;i<len;i++){ dd[i]=(Math.random()*2-1)*Math.pow(1-i/len,1.8); }
+    var noise=ctx.createBufferSource(); noise.buffer=buf;
+    var nf=ctx.createBiquadFilter(); nf.type='highpass'; nf.frequency.value=1400;
+    var ng=ctx.createGain(); ng.gain.setValueAtTime(0.55,tc); ng.gain.exponentialRampToValueAtTime(0.001,tc+0.16);
+    noise.connect(nf).connect(ng).connect(dest); noise.start(tc); noise.stop(tc+0.18);
+    // IMPACT — metallic ring (two detuned highs)
+    [1318,1760].forEach(function(f){ var o=ctx.createOscillator(); o.type='triangle'; o.frequency.setValueAtTime(f,tc);
+      var g=ctx.createGain(); g.gain.setValueAtTime(0.0001,tc); g.gain.linearRampToValueAtTime(0.14,tc+0.01); g.gain.exponentialRampToValueAtTime(0.001,tc+0.55);
+      o.connect(g).connect(dest); o.start(tc); o.stop(tc+0.6); });
+  }catch(e){}
 }
 function dlGameWheel(mode, onDone){
   var games=[{m:'dice',i:'🎲',n:'DICE'},{m:'cards',i:'🃏',n:'POKER'},{m:'bj',i:'🂡',n:'BJ'}];
@@ -19195,7 +19260,7 @@ function dlRematch(i){
     '<div class="pvp-m-desc" style="text-align:center;">Send them a fresh challenge — they get a Telegram notification to accept.</div>'+
     '<div class="pvp-chal-row" style="margin:8px 0;"><select id="pvp-rm-mode" class="pvp-select"><option value="dice">🎲 Dice</option><option value="cards">🃏 Poker</option><option value="bj">🂡 Blackjack</option><option value="rps">✊ RPS</option><option value="rr">🔫 Roulette</option><option value="bs">🚢 Battleship</option><option value="chess">♟️ Chess</option></select></div>'+
     '<div style="text-align:center;font-size:11px;color:var(--txt3);margin:4px 0;">Pick your stake</div><div class="pvp-bets">';
-  bets.forEach(function(b,bi){ html+='<div class="pvp-bet" style="animation-delay:'+(bi*0.04)+'s" onclick="dlSendRematch(\''+dlEsc(String(o.uid))+'\','+b+')">€'+b+'</div>'; });
+  bets.forEach(function(b,bi){ html+='<div class="pvp-bet" style="animation-delay:'+(bi*0.04)+'s" onclick="dlSendRematch(\''+String(o.uid).replace(/[^0-9]/g,'')+'\','+b+')">€'+b+'</div>'; });
   html+='</div><button class="pvp-m-btn" onclick="dlCloseOverlay()">CANCEL</button>';
   dlModalHTML(html);
 }
@@ -20357,7 +20422,7 @@ function frInit(){
           var date = r.joined_at ? new Date(r.joined_at*1000).toLocaleDateString() : '';
           var status = r.active ? '<span class="fr-ref-status active">ACTIVE</span>' : '<span class="fr-ref-status pending">PENDING</span>';
           return '<div class="fr-ref-row">'+
-            '<div class="fr-ref-avatar">'+(r.username_initial||'?')+'</div>'+
+            '<div class="fr-ref-avatar">'+dlEsc(r.username_initial||'?')+'</div>'+
             '<div class="fr-ref-info">Joined '+date+'</div>'+
             status+
           '</div>';
@@ -20373,7 +20438,7 @@ function frInit(){
           var isMe = String(l.user_id) === String(S.userId);
           return '<div class="fr-lb-row"'+(isMe?' style="border:1px solid rgba(57,255,20,.4);background:rgba(57,255,20,.08);"':'')+'>'+
             '<div class="fr-lb-rank '+(i===0?'first':'')+'">'+medal+'</div>'+
-            '<div class="fr-lb-user">@'+(l.username||'anon')+(isMe?' <small style="color:#39ff14;">(you)</small>':'')+'</div>'+
+            '<div class="fr-lb-user">@'+dlEsc(l.username||'anon')+(isMe?' <small style="color:#39ff14;">(you)</small>':'')+'</div>'+
             '<div class="fr-lb-count">'+l.count+' refs</div>'+
           '</div>';
         }).join('');
