@@ -5298,13 +5298,25 @@ body{position:relative;}
   50%    { filter: blur(0.8px) brightness(1.5)  drop-shadow(0 0 18px rgba(255,215,0,.95)); }
 }
 .slv2-reel-col.wheel-anticipating-col{
-  animation: slv2WheelAnticipateCol 0.42s ease-in-out infinite alternate;
+  animation: slv2WheelAnticipateCol 0.7s ease-in-out infinite alternate;
   position: relative;
-  z-index: 2;
+  z-index: 6;   /* sits ABOVE the dimmed reels so the deciding reel is the spotlight */
 }
 @keyframes slv2WheelAnticipateCol{
-  from{ box-shadow: inset 0 0 18px rgba(255,215,0,.55), 0 0 18px rgba(255,215,0,.5); }
-  to  { box-shadow: inset 0 0 40px rgba(255,215,0,1), 0 0 38px rgba(255,215,0,.9), 0 0 64px rgba(57,255,20,.6), 0 0 92px rgba(168,85,247,.35); }
+  /* perf: was 4 pulsing box-shadows up to 92px on multiple columns every frame — a major lag
+     source. Cut to 2 small shadows + a slower pulse. The DIM-spotlight does the heavy lifting. */
+  from{ box-shadow: 0 0 16px rgba(255,215,0,.5); }
+  to  { box-shadow: 0 0 30px rgba(255,215,0,.95), 0 0 46px rgba(255,150,0,.4); }
+}
+/* ── FOCUS / SPOTLIGHT (the addicting part): during a wheel-anticipation, every reel that is NOT
+   the deciding one DIMS, so all eyes lock on the slowing reel. One static filter change, not an
+   animation → cheap, and far more suspenseful than a screen full of glow. ── */
+.slv2-cabinet.slv2-anti-on .slv2-reel-col:not(.wheel-anticipating-col){
+  filter: brightness(.34) saturate(.65);
+  transition: filter .35s ease-out;
+}
+.slv2-cabinet.slv2-anti-on .slv2-reel-col.wheel-anticipating-col{
+  transition: filter .35s ease-out;
 }
 /* one-shot gold flash when a reel snaps into place after the slow crawl (lock-in punch) */
 .slv2-reel-col.slv2-lock-flash{ animation: slv2LockFlash 0.36s ease-out; }
@@ -5315,12 +5327,14 @@ body{position:relative;}
 
 /* CABINET: enhanced multi-layer suspense — halo + vignette + sweep. */
 .slv2-cabinet.wheel-suspense{
-  animation: slv2CabinetSuspense 0.55s ease-in-out infinite alternate;
+  animation: slv2CabinetSuspense 0.75s ease-in-out infinite alternate;
   position: relative;
 }
 @keyframes slv2CabinetSuspense{
-  from{ box-shadow: 0 4px 16px rgba(0,0,0,.6), 0 0 32px rgba(255,215,0,.65), inset 0 0 36px rgba(255,170,0,.18); }
-  to  { box-shadow: 0 4px 16px rgba(0,0,0,.6), 0 0 72px rgba(255,215,0,1),   0 0 110px rgba(57,255,20,.55), inset 0 0 60px rgba(255,200,30,.40); }
+  /* perf: was 3 box-shadows up to 110px + inset pulsing every frame on the whole cabinet. Cut to a
+     single modest gold glow + slower pulse. */
+  from{ box-shadow: 0 4px 16px rgba(0,0,0,.6), 0 0 22px rgba(255,215,0,.4); }
+  to  { box-shadow: 0 4px 16px rgba(0,0,0,.6), 0 0 46px rgba(255,180,0,.75); }
 }
 
 /* WARNING BEAM SWEEP — diagonal gold light beam that sweeps across the
@@ -5342,9 +5356,11 @@ body{position:relative;}
     transparent 100%
   );
   background-size: 280% 100%;
-  background-position: -120% 0%;
-  animation: slv2BeamSweep 0.9s linear infinite;
-  mix-blend-mode: screen;
+  background-position: 60% 0%;
+  /* perf: removed the infinite background-position sweep + mix-blend-mode:screen — the blend mode
+     forced a full extra compositing pass every frame (a top mobile-lag cause). A faint static sheen
+     stays; the focus now comes from the dim-spotlight below, not a noisy sweeping beam. */
+  opacity: .5;
   border-radius: inherit;
 }
 @keyframes slv2BeamSweep{
@@ -8672,6 +8688,52 @@ body{position:relative;}
     #grun .gr-boss-ttl{font-family:'Russo One',Impact,sans-serif;font-size:25px;letter-spacing:3px;color:#ff5b5b;text-shadow:0 0 16px rgba(255,60,60,.6);}
     #grun .gr-boss-stage{font-family:Orbitron,monospace;font-size:10px;letter-spacing:2px;color:#ffba3c;margin:6px 0 12px;}
     #grun .gr-boss-say{font-size:14px;font-style:italic;color:#ffd9d9;line-height:1.5;margin-bottom:18px;min-height:42px;}
+    /* ===== GR ARENA — drag the Gambler into a room (polished) ===== */
+    #grun .gr-arena{position:relative;height:318px;margin-bottom:12px;touch-action:none;-webkit-user-select:none;user-select:none;transition:opacity .15s;}
+    #grun .gr-arena::before{content:'';position:absolute;left:50%;bottom:2px;width:80%;height:140px;transform:translateX(-50%);background:radial-gradient(ellipse at 50% 100%,rgba(255,180,60,.13),transparent 72%);pointer-events:none;z-index:0;}
+    #grun .gr-door{position:absolute;width:108px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:3px;padding:11px 6px 10px;border-radius:16px 16px 13px 13px;background:linear-gradient(180deg,rgba(34,44,74,.97),rgba(10,14,26,.97));border:1.5px solid rgba(255,255,255,.13);box-shadow:0 8px 22px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.08),inset 0 0 20px rgba(0,0,0,.45);text-align:center;cursor:pointer;transition:transform .14s cubic-bezier(.34,1.4,.5,1),border-color .15s,box-shadow .2s,opacity .15s,filter .15s;animation:grRoomIn .32s backwards;z-index:1;}
+    #grun .gr-door::after{content:'';position:absolute;top:7px;left:50%;transform:translateX(-50%);width:40px;height:4px;border-radius:0 0 6px 6px;background:rgba(255,255,255,.07);}
+    #grun .gr-door.front{top:0;left:50%;transform:translateX(-50%);}
+    #grun .gr-door.left{left:0;top:110px;}
+    #grun .gr-door.right{right:0;top:110px;}
+    #grun .gr-door-ic{font-size:31px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5));transition:transform .15s;}
+    #grun .gr-door-nm{font-family:'Russo One',Impact,sans-serif;font-size:11px;letter-spacing:.4px;color:#fff;}
+    #grun .gr-door-odds{font-size:10.5px;font-weight:700;color:#e7eefc;}
+    #grun .gr-door-odds b{color:#ffd700;}
+    #grun .gr-door-enter{position:absolute;left:50%;bottom:-9px;transform:translateX(-50%) translateY(5px);font-family:Orbitron,monospace;font-size:8px;font-weight:800;letter-spacing:1.5px;color:#0a0a0a;background:linear-gradient(135deg,#ffe066,#ff9500);padding:2px 8px;border-radius:8px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .14s,transform .14s;box-shadow:0 4px 12px rgba(255,160,40,.5);}
+    #grun .gr-door.boss{border-color:rgba(255,90,90,.6);background:linear-gradient(180deg,rgba(60,16,16,.97),rgba(20,8,8,.97));}
+    #grun .gr-door.fixer{border-color:rgba(255,215,0,.55);background:linear-gradient(180deg,rgba(48,40,12,.97),rgba(18,14,6,.97));}
+    #grun .gr-door.skill{border-color:rgba(95,199,255,.55);background:linear-gradient(180deg,rgba(16,40,60,.97),rgba(8,16,28,.97));}
+    #grun .gr-door.shrine{border-color:rgba(57,255,20,.5);background:linear-gradient(180deg,rgba(14,42,22,.97),rgba(8,20,12,.97));}
+    #grun .gr-arena.dragging .gr-door:not(.target){opacity:.46;filter:saturate(.65) brightness(.85);}
+    #grun .gr-door.target{border-color:#ffd700;box-shadow:0 0 0 2px rgba(255,215,0,.75),0 16px 42px rgba(255,180,60,.6),inset 0 0 34px rgba(255,200,90,.45);transform:translateY(-5px) scale(1.09);}
+    #grun .gr-door.front.target{transform:translateX(-50%) translateY(-5px) scale(1.09);}
+    #grun .gr-door.target .gr-door-ic{transform:scale(1.2) translateY(-1px);}
+    #grun .gr-door.target .gr-door-enter{opacity:1;transform:translateX(-50%) translateY(0);}
+    #grun .gr-door.entered{animation:grDoorEnter .42s ease-out;}
+    @keyframes grDoorEnter{0%{filter:brightness(1)}35%{box-shadow:0 0 0 4px #fff,0 0 60px rgba(255,230,150,.95),inset 0 0 60px rgba(255,240,200,.95);filter:brightness(1.6)}100%{filter:brightness(1)}}
+    /* the Gambler you drag */
+    #grun .gr-botwrap{position:absolute;left:50%;bottom:6px;width:86px;height:100px;margin-left:-43px;z-index:6;cursor:grab;touch-action:none;will-change:transform;transition:transform .28s cubic-bezier(.34,1.5,.5,1);}
+    #grun .gr-botwrap.dragging{cursor:grabbing;transition:none;z-index:9;}
+    #grun .gr-bot-ring{position:absolute;left:50%;bottom:-4px;width:66px;height:18px;margin-left:-33px;border-radius:50%;background:radial-gradient(ellipse,rgba(255,215,0,.36),transparent 70%);z-index:-2;pointer-events:none;animation:grBotRing 1.6s ease-in-out infinite;}
+    @keyframes grBotRing{0%,100%{transform:scale(.82);opacity:.45}50%{transform:scale(1.18);opacity:.85}}
+    #grun .gr-botwrap.dragging .gr-bot-ring{display:none;}
+    #grun .gr-bot{display:block;width:86px;height:86px;object-fit:contain;pointer-events:none;transform-origin:50% 92%;filter:drop-shadow(0 6px 10px rgba(0,0,0,.55));}
+    #grun .gr-botwrap.grab .gr-bot{transform:scale(1.07);}
+    #grun .gr-botwrap.walking .gr-bot{animation:grBotWalk .34s infinite ease-in-out;}
+    #grun .gr-botwrap.sprite .gr-bot{animation:none!important;}   /* real walk sprite supplies its own motion */
+    @keyframes grBotWalk{0%{transform:translateY(0) rotate(var(--lean,0deg));}25%{transform:translateY(-5px) rotate(var(--lean,0deg));}50%{transform:translateY(0) rotate(var(--lean,0deg));}75%{transform:translateY(-3px) rotate(var(--lean,0deg));}100%{transform:translateY(0) rotate(var(--lean,0deg));}}
+    #grun .gr-bot-shadow{position:absolute;left:50%;bottom:-2px;width:54px;height:11px;margin-left:-27px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,.5),transparent 70%);z-index:-1;}
+    #grun .gr-botwrap.walking .gr-bot-shadow{animation:grBotShadow .34s infinite ease-in-out;}
+    @keyframes grBotShadow{0%,100%{transform:scaleX(1);opacity:.5}50%{transform:scaleX(.68);opacity:.32}}
+    #grun .gr-bot-hint{position:absolute;left:50%;top:-20px;transform:translateX(-50%);font-family:Orbitron,monospace;font-size:9px;letter-spacing:1.4px;color:#ffd700;white-space:nowrap;text-shadow:0 1px 3px #000;pointer-events:none;animation:grHintBob 1.3s infinite;}
+    @keyframes grHintBob{0%,100%{transform:translateX(-50%) translateY(0);opacity:.85}50%{transform:translateX(-50%) translateY(-4px);opacity:1}}
+    #grun .gr-botwrap.dragging .gr-bot-hint{display:none;}
+    /* POT juice — count-up flash on win, shake on loss */
+    #grun .grh-pot.potwin{animation:grPotWin .6s ease-out;}
+    #grun .grh-pot.potlose{animation:grPotLose .42s ease-out;}
+    @keyframes grPotWin{0%{transform:scale(1)}30%{transform:scale(1.07);box-shadow:0 0 38px rgba(255,210,80,.85),inset 0 1px 0 rgba(255,255,255,.06)}100%{transform:scale(1)}}
+    @keyframes grPotLose{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}60%{transform:translateX(6px)}80%{transform:translateX(-3px)}}
   </style>
   <video class="gr-bg-vid" id="grBgVid" muted playsinline loop preload="auto"><source src="gr_descent.mp4" type="video/mp4"></video>
   <div class="game-hdr">
@@ -8722,7 +8784,7 @@ body{position:relative;}
       <!-- what just happened -->
       <div class="gr-event" id="gr-event">Pick a room to begin your descent…</div>
       <!-- the decision -->
-      <div class="gr-choose-lbl"><span>CHOOSE YOUR NEXT ROOM</span></div>
+      <div class="gr-choose-lbl"><span>DRAG THE GAMBLER INTO A ROOM</span></div>
       <div class="gr-choices" id="gr-choices"></div>
       <button class="gr-cashbtn" id="gr-cashout" onclick="grCashout()">💰 CASH OUT €0.00</button>
     </div>
@@ -9159,6 +9221,8 @@ body{position:relative;}
     <div class="win-rate" id="pf-winrate" style="position:relative;"><small style="position:absolute;top:-12px;right:0;font-size:8px;color:rgba(255,215,0,.4);letter-spacing:.5px;">long-press stats for debug</small>Win rate: <b>—</b> • 0 games played</div>
     <div class="section-ttl">🏅 ACHIEVEMENTS</div>
     <div class="ach-row" id="pf-achievements"></div>
+    <div class="section-ttl">❔ HELP</div>
+    <button onclick="obOpen()" style="width:100%;margin-top:2px;padding:12px;border:1px solid rgba(255,215,0,.35);border-radius:12px;background:rgba(255,215,0,.08);color:#ffd700;font-family:'Russo One',Impact,sans-serif;font-size:13px;letter-spacing:.5px;cursor:pointer;">❔ HOW TO PLAY · REPLAY TOUR</button>
   </div>
 </div>
 
@@ -9300,6 +9364,11 @@ function closeModal(){document.getElementById('modal').classList.remove('show');
 var CUR='home';
 // ════════ GAMBLER'S RUN (flagship roguelike) ════════
 var GR = {ante:0, view:null, busy:false, charmsMeta:{}};
+// Gambler sprite for the drag-to-room arena. IDLE = back-view standing still; WALK = back-view
+// walking loop (animated webp/apng/gif). Drop the generated files in the folder and set the names
+// below — leave GR_BOT_WALK empty to fall back to the CSS bob on the idle image.
+var GR_BOT_IDLE='gb_char_back.webp';   // back-view standing (falls back to gb_char.webp if missing)
+var GR_BOT_WALK='gb_char_back_walk.webp';  // back-view walk loop (animated webp) shown while dragging
 // win% + multiplier mirror the engine (gamblers_run.py) so the player sees the real odds.
 var GR_ROOMS = {
   table:     {ic:'🃏',nm:'TABLE',      win:55, mult:1.33, keep:66, d:'Steady gamble'},
@@ -9409,8 +9478,17 @@ function grRender(d){
   GR.view=d; grUpdBal();
   try{ GBMusic.play('run'); }catch(e){}
   var pot=d.pot||1;
-  var pe=document.getElementById('gr-pot-eur'); if(pe) pe.textContent='€'+(GR.ante*pot*S.rate).toFixed(2);
-  document.getElementById('gr-pot').textContent='×'+(+pot.toFixed(2));
+  var pe=document.getElementById('gr-pot-eur'), pm=document.getElementById('gr-pot');
+  var doAnim=(GR.prevPot!=null && (d.row||0)>0 && Math.abs(pot-GR.prevPot)>0.001);
+  if(doAnim){
+    grAnimatePot(GR.prevPot, pot);
+    var pb=document.querySelector('#grun .grh-pot');
+    if(pb){ pb.classList.remove('potwin','potlose'); void pb.offsetWidth; pb.classList.add(pot>GR.prevPot?'potwin':'potlose'); }
+  } else {
+    if(pe) pe.textContent='€'+(GR.ante*pot*S.rate).toFixed(2);
+    if(pm) pm.textContent='×'+(+pot.toFixed(2));
+  }
+  GR.prevPot=pot;
   var lives=Math.max(0,d.lives||0);
   document.getElementById('gr-lives').textContent= lives>4 ? ('❤️×'+lives) : (lives>0?'❤️'.repeat(lives):'💀');
   document.getElementById('gr-depth').textContent=(d.row||0)+'/'+(d.max_rows||12);
@@ -9434,45 +9512,135 @@ function grRenderPath(d){
   html+='<div class="gr-seg boss '+(row>=max?'cur':'future')+'">🏛️</div>';
   box.innerHTML=html;
 }
-// The decision: render the current row's rooms as big, CLEAR cards (odds + reward + risk).
+// The decision: a physical "drag-the-Gambler" stage. The rooms sit LEFT / AHEAD / RIGHT and the
+// Gambler stands centre (back to camera). Drag him into a room to enter it — a tap still works too.
 function grRenderChoices(d){
   var box=document.getElementById('gr-choices'); if(!box) return;
+  box.className='gr-arena';
   box.innerHTML='';
-  (d.choices||[]).forEach(function(c,i){
+  var choices=d.choices||[];
+  var posByCount={1:['front'],2:['left','right'],3:['left','front','right']};
+  var pos=posByCount[choices.length]||['left','front','right'];
+  choices.forEach(function(c,i){
     var m=grRoomMeta(c.type);
-    var card=document.createElement('div');
-    card.className='gr-pick'+(c.type==='house'?' boss':'')+(c.type==='fixer'?' fixer':'')+(c.type==='skill'?' skill':'')+(c.type==='shrine'?' shrine':'');
-    card.style.animationDelay=(i*0.07)+'s';
-    var body, cta;
-    if(c.type==='fixer' && c.charm){
-      var ch=GR.charmsMeta[c.charm]||{};
-      body='<div class="gr-pick-odds">'+(ch.icon||'✨')+' <b>'+dlEsc(ch.name||'Charm')+'</b></div>'+
-           '<div class="gr-pick-sub">'+dlEsc(ch.desc||'')+'</div>'+
-           '<div class="gr-pick-risk">costs 15% of your pot</div>';
-      cta='TAKE IT ▸';
-    } else if(c.type==='shrine'){
-      body='<div class="gr-pick-odds">+1 <b style="color:#39ff14;">❤ LIFE</b></div>'+
-           '<div class="gr-pick-sub">'+dlEsc(m.d||'')+'</div>'+
-           '<div class="gr-pick-risk">no gamble — just heal</div>';
-      cta='HEAL ▸';
-    } else if(c.type==='skill'){
-      body='<div class="gr-pick-odds"><span class="gr-win">SKILL</span> → pot <b>×'+m.mult+'</b></div>'+
-           '<div class="gr-pick-sub">'+dlEsc(m.d||'')+'</div>'+
-           '<div class="gr-pick-risk">fail the trial → −1 ❤ · keep '+(m.keep!=null?m.keep:50)+'% pot</div>';
-      cta='PLAY ▸';
-    } else if(m.win!=null){
-      body='<div class="gr-pick-odds"><span class="gr-win">'+m.win+'%</span> win → pot <b>×'+m.mult+'</b></div>'+
-           '<div class="gr-pick-sub">'+dlEsc(m.d||'')+'</div>'+
-           '<div class="gr-pick-risk">'+(100-m.win)+'% miss → '+(c.type==='house'?'<b style="color:#ff5b5b;">BUST</b>':'−1 ❤ · keep '+(m.keep!=null?m.keep:50)+'% pot')+'</div>';
-      cta=(c.type==='house'?'FIGHT ▸':'ENTER ▸');
-    } else {
-      body='<div class="gr-pick-sub">'+dlEsc(m.d||'')+'</div>'; cta='ENTER ▸';
-    }
-    card.innerHTML='<div class="gr-pick-top"><span class="gr-pick-ic">'+m.ic+'</span><span class="gr-pick-nm">'+dlEsc(m.nm)+'</span></div>'+
-      body+'<div class="gr-pick-cta">'+cta+'</div>';
-    card.onclick=function(){ grAct(i); };
-    box.appendChild(card);
+    var typeCls=(c.type==='house'?' boss':'')+(c.type==='fixer'?' fixer':'')+(c.type==='skill'?' skill':'')+(c.type==='shrine'?' shrine':'');
+    var odds;
+    if(c.type==='fixer' && c.charm){ var ch=GR.charmsMeta[c.charm]||{}; odds=(ch.icon||'✨')+' <b>'+dlEsc(ch.name||'Charm')+'</b>'; }
+    else if(c.type==='shrine'){ odds='+1 <b style="color:#39ff14;">❤ LIFE</b>'; }
+    else if(c.type==='skill'){ odds='<span class="gr-win">SKILL</span> → ×<b>'+m.mult+'</b>'; }
+    else if(m.win!=null){ odds='<span class="gr-win">'+m.win+'%</span> → ×<b>'+m.mult+'</b>'; }
+    else { odds=''; }
+    var door=document.createElement('div');
+    door.className='gr-door '+(pos[i]||'front')+typeCls;
+    door.style.animationDelay=(i*0.07)+'s';
+    door.setAttribute('data-idx',i);
+    var enterLbl=c.type==='house'?'FIGHT':(c.type==='skill'?'PLAY':(c.type==='shrine'?'HEAL':(c.type==='fixer'?'TAKE':'ENTER')));
+    door.innerHTML='<div class="gr-door-ic">'+m.ic+'</div><div class="gr-door-nm">'+dlEsc(m.nm)+'</div><div class="gr-door-odds">'+odds+'</div><div class="gr-door-enter">'+enterLbl+' ▸</div>';
+    door.onclick=function(){ if(!GR.busy) grAct(i); };   // tap fallback for accessibility
+    box.appendChild(door);
   });
+  var bw=document.createElement('div');
+  bw.className='gr-botwrap'; bw.id='gr-botwrap';
+  bw.innerHTML=(GR.dragged?'':'<div class="gr-bot-hint">↑ DRAG ME INTO A ROOM</div><div class="gr-bot-ring"></div>')+
+    '<img class="gr-bot" id="gr-bot" src="'+GR_BOT_IDLE+'" onerror="this.onerror=null;this.src=\'gb_char.webp\';" draggable="false" alt="">'+
+    '<div class="gr-bot-shadow"></div>';
+  box.appendChild(bw);
+  grSetupBotDrag(box, bw);
+}
+// Telegram haptics (no-op if unavailable) — the secret sauce that makes the drag feel physical.
+function grHaptic(kind){
+  try{
+    var h=window.Telegram&&window.Telegram.WebApp&&window.Telegram.WebApp.HapticFeedback; if(!h) return;
+    if(kind==='sel'){ if(h.selectionChanged) h.selectionChanged(); else if(h.impactOccurred) h.impactOccurred('soft'); }
+    else if(kind==='pick'){ if(h.impactOccurred) h.impactOccurred('light'); }
+    else if(kind==='enter'){ if(h.impactOccurred) h.impactOccurred('medium'); }
+    else if(kind==='win'){ if(h.notificationOccurred) h.notificationOccurred('success'); else if(h.impactOccurred) h.impactOccurred('heavy'); }
+    else if(kind==='lose'){ if(h.notificationOccurred) h.notificationOccurred('error'); else if(h.impactOccurred) h.impactOccurred('rigid'); }
+  }catch(e){}
+}
+// Count-up the POT (EUR + multiplier) from one value to another — satisfying when the pot grows.
+function grAnimatePot(from,to){
+  var pe=document.getElementById('gr-pot-eur'), pm=document.getElementById('gr-pot'), t0=null, dur=650;
+  function step(ts){ if(t0==null)t0=ts; var k=Math.min(1,(ts-t0)/dur), e=1-Math.pow(1-k,3), v=from+(to-from)*e;
+    if(pe)pe.textContent='€'+(GR.ante*v*S.rate).toFixed(2); if(pm)pm.textContent='×'+v.toFixed(2);
+    if(k<1)requestAnimationFrame(step); else { if(pe)pe.textContent='€'+(GR.ante*to*S.rate).toFixed(2); if(pm)pm.textContent='×'+(+to.toFixed(2)); } }
+  requestAnimationFrame(step);
+}
+// Pointer-driven drag: pick up the Gambler (he pops + walks), magnetic snap to the nearest room,
+// haptics on pickup / target-lock / entry, and the room "opens" with a flash when you drop him in.
+// Dropping on empty space snaps him home. Re-created each row, so no stale listeners accumulate.
+function grSetupBotDrag(arena, bw){
+  var img=bw.querySelector('.gr-bot');
+  var dragging=false, sx=0, sy=0, dx=0, dy=0, target=null;
+  function pt(e){ if(e.touches&&e.touches[0]) return {x:e.touches[0].clientX,y:e.touches[0].clientY}; return {x:e.clientX,y:e.clientY}; }
+  function ctr(el){ var r=el.getBoundingClientRect(); return {x:r.left+r.width/2,y:r.top+r.height/2,r:r}; }
+  function doors(){ return arena.querySelectorAll('.gr-door'); }
+  function start(e){
+    if(GR.busy||!GR.view||GR.view.over) return;
+    dragging=true; GR.dragged=true;
+    bw.classList.add('dragging','walking','grab'); arena.classList.add('dragging');
+    setTimeout(function(){ bw.classList.remove('grab'); }, 160);
+    grHaptic('pick');
+    if(GR_BOT_WALK){ bw.classList.add('sprite'); img.onerror=function(){ img.onerror=null; bw.classList.remove('sprite'); img.style.transform=''; img.src=GR_BOT_IDLE; }; img.src=GR_BOT_WALK; }   // swap to the back-view walk loop
+    var p=pt(e); sx=p.x; sy=p.y; dx=0; dy=0;
+    try{ if(e.pointerId!=null&&bw.setPointerCapture) bw.setPointerCapture(e.pointerId); }catch(_){}
+    if(e.cancelable) e.preventDefault();
+  }
+  function move(e){
+    if(!dragging) return;
+    var p=pt(e); dx=p.x-sx; dy=p.y-sy;
+    var lean=Math.max(-16,Math.min(16,dx*0.13));
+    if(bw.classList.contains('sprite')) img.style.transform='rotate('+lean+'deg)'; else img.style.setProperty('--lean',lean+'deg');
+    var s=1+Math.max(-0.2,Math.min(0,dy*0.0016));   // shrink as he walks "into" the distance
+    bw.style.transform='translate('+dx+'px,'+dy+'px) scale('+s+')';
+    // magnetic target: nearest room within a forgiving capture radius, armed only after a deliberate drag
+    var best=null;
+    if(Math.sqrt(dx*dx+dy*dy) > 18){
+      var bc=ctr(img), bd=1e9;
+      doors().forEach(function(dn){ var c=ctr(dn);
+        var over=bc.x>=c.r.left-12&&bc.x<=c.r.right+12&&bc.y>=c.r.top-12&&bc.y<=c.r.bottom+12;
+        var dist=Math.sqrt((bc.x-c.x)*(bc.x-c.x)+(bc.y-c.y)*(bc.y-c.y));
+        if((over||dist<150)&&dist<bd){bd=dist;best=dn;} });
+    }
+    if(best!==target){ if(target) target.classList.remove('target'); target=best; if(target){ target.classList.add('target'); grHaptic('sel'); } }
+    if(e.cancelable) e.preventDefault();
+  }
+  function end(e){
+    if(!dragging) return; dragging=false;
+    bw.classList.remove('dragging','grab'); arena.classList.remove('dragging');
+    try{ if(e&&e.pointerId!=null&&bw.releasePointerCapture) bw.releasePointerCapture(e.pointerId); }catch(_){}
+    if(target){
+      var dn=target, idx=parseInt(dn.getAttribute('data-idx'),10);
+      var c=ctr(dn), bc=ctr(img);
+      var ndx=dx+(c.x-bc.x), ndy=dy+(c.y-bc.y);
+      grHaptic('enter');
+      dn.classList.remove('target'); dn.classList.add('entered');
+      bw.style.transition='transform .26s ease-in, opacity .26s ease-in';
+      bw.style.transform='translate('+ndx+'px,'+ndy+'px) scale(.4)';
+      bw.style.opacity='0';
+      setTimeout(function(){ bw.classList.remove('walking'); grAct(idx); }, 250);
+    } else {
+      bw.classList.remove('walking');
+      if(bw.classList.contains('sprite')){ bw.classList.remove('sprite'); img.onerror=null; img.src=GR_BOT_IDLE; img.style.transform=''; }
+      img.style.setProperty('--lean','0deg');
+      bw.style.transition='transform .25s cubic-bezier(.34,1.5,.5,1)';
+      bw.style.transform='';
+    }
+  }
+  if(window.PointerEvent){
+    bw.addEventListener('pointerdown',start);
+    bw.addEventListener('pointermove',move);
+    bw.addEventListener('pointerup',end);
+    bw.addEventListener('pointercancel',end);
+  } else {
+    bw.addEventListener('touchstart',start,{passive:false});
+    bw.addEventListener('touchmove',move,{passive:false});
+    bw.addEventListener('touchend',end);
+    bw.addEventListener('touchcancel',end);
+    bw.addEventListener('mousedown',start);
+    bw.addEventListener('mousemove',move);
+    bw.addEventListener('mouseup',end);
+  }
 }
 // Populate the start-screen room legend from the same metadata (kept in sync with the engine).
 function grRenderLegend(){
@@ -9545,6 +9713,7 @@ function grActResolve(idx, extra){
       setTimeout(function(){
         if(!d||d.error){ grHideVideo(); GR.busy=false; if(_ch)_ch.style.opacity='1'; toast('⚠️ '+((d&&d.error)||'error'),'err'); return; }
         if(ev.bust) grSound('lose'); else if(ev.won) grSound('win-small'); else if(ev.healed) grSound('win-small'); else if(ev.room==='fixer'&&ev.taken) grSound('chip'); else grSound('tick');
+        if(ev.bust||ev.won===false) grHaptic('lose'); else if(ev.won||ev.healed) grHaptic('win');
         if(out){ out.innerHTML=grOutcomeBanner(ev); out.classList.add('show'); }
         setTimeout(function(){
           grHideVideo();
@@ -15032,7 +15201,7 @@ function slv2ClearAnticipation(){
   });
   var cab = document.querySelector('.slv2-cabinet');
   if(cab){
-    cab.classList.remove('wheel-suspense', 'tier-max', 'tier-1', 'tier-2', 'tier-3');
+    cab.classList.remove('wheel-suspense', 'slv2-anti-on', 'tier-max', 'tier-1', 'tier-2', 'tier-3');
   }
   // Remove screen vignette + tier classes
   var slotScreen = document.getElementById('slots');
@@ -15271,7 +15440,7 @@ function slv2SlowDownReel(reelIdx, extraMs, cascadeSteps){
   strip.classList.add('spinning');
   // Override default blur animation; manually control filter across phases
   strip.style.animation = 'none';
-  strip.style.filter    = 'blur(2.2px)';  // perf: reduced from 3.2px
+  strip.style.filter    = 'blur(0.8px)';  // perf: blur() repaints every frame — kept minimal
 
   // PHASE 1: LINEAR scroll — fast, constant, heavy blur (full-speed feel)
   strip.style.transition = 'transform ' + phase1Dur + 'ms linear';
@@ -15415,7 +15584,7 @@ function slv2CheckWheelAnticipation(maxReelIdx){
     // Cabinet-wide pulsing halo + screen vignette + sweep beam
     var cab = document.querySelector('.slv2-cabinet');
     if(cab){
-      cab.classList.add('wheel-suspense');
+      cab.classList.add('wheel-suspense', 'slv2-anti-on');   // slv2-anti-on = dim-spotlight focus
       // Tier escalation: more wheels = more drama
       cab.classList.remove('tier-1','tier-2','tier-3','tier-max');
       cab.classList.add('tier-' + Math.min(wheelCount, 3));
@@ -19345,6 +19514,8 @@ function init(){
   setTimeout(function(){
     var ld=document.getElementById('loading');
     if(ld){ld.classList.add('hide');setTimeout(function(){ld.style.display='none';},350);}
+    // First-ever open → run the welcome funnel once (gated by a localStorage flag)
+    try{ if(!localStorage.getItem('gb_onboarded') && typeof obOpen==='function') setTimeout(obOpen,400); }catch(e){}
   },300);
   // Periodic refresh
   setInterval(function(){
@@ -21352,7 +21523,288 @@ function whInit(){
   whRenderWheel();
 }
 
+// ===== WELCOME FUNNEL (onboarding tour) \u2014 self-contained overlay, English copy =====
+var OB = { i:0, n:11, grReady:false, bsReady:false };
+function obOpen(){
+  var ov=document.getElementById('onboard'); if(!ov) return;
+  OB.i=0;
+  var dots=document.getElementById('ob-dots');
+  if(dots && !dots.children.length){ for(var k=0;k<OB.n;k++){ var d=document.createElement('div'); d.className='ob-dot'; dots.appendChild(d); } }
+  try{ var rl=document.getElementById('ob-ref-link'); if(rl && typeof frGetLink==='function') rl.textContent=frGetLink(); }catch(e){}
+  ov.classList.add('show'); ov.setAttribute('aria-hidden','false');
+  obGo(0);
+}
+function obStopVideos(){ document.querySelectorAll('#onboard video[data-ob-vid]').forEach(function(v){ try{ v.pause(); }catch(e){} }); }
+function obClose(){ var ov=document.getElementById('onboard'); if(!ov) return; ov.classList.remove('show'); ov.setAttribute('aria-hidden','true'); obStopVideos(); }
+function obGo(i){
+  if(i<0)i=0; if(i>OB.n-1)i=OB.n-1; OB.i=i;
+  var track=document.getElementById('ob-track'); if(track) track.style.transform='translateX(-'+(i*100)+'%)';
+  var dots=document.getElementById('ob-dots'); if(dots) for(var k=0;k<dots.children.length;k++) dots.children[k].className='ob-dot'+(k===i?' on':'');
+  var back=document.getElementById('ob-back'); if(back) back.classList.toggle('hide', i===0);
+  var next=document.getElementById('ob-next'); if(next) next.style.visibility=(i===OB.n-1)?'hidden':'';
+  obStopVideos();
+  var slides=document.querySelectorAll('#onboard .ob-slide');
+  if(slides[i]){
+    var v=slides[i].querySelector('video[data-ob-vid]'); if(v){ try{ var p=v.play(); if(p&&p.catch)p.catch(function(){}); }catch(e){} }
+    if(slides[i].querySelector('#ob-gr-arena') && !OB.grReady){ obGRDemo(); OB.grReady=true; }   // lazy-build GR drag demo
+    if(slides[i].querySelector('#ob-bs-grid') && !OB.bsReady){ obBSDemo(); OB.bsReady=true; }     // lazy-build Battleship demo
+  }
+}
+function obSkip(){ try{ localStorage.setItem('gb_onboarded','1'); }catch(e){} obClose(); }
+function obFinish(){ try{ localStorage.setItem('gb_onboarded','1'); }catch(e){} obClose(); if(typeof go==='function') go('home'); }
+function obTry(id){ try{ localStorage.setItem('gb_onboarded','1'); }catch(e){} obClose(); if(typeof go==='function') go(id); }
+// --- Duels mini-demo: Rock / Paper / Scissors vs the bot (pure client) ---
+function obRPS(pick){
+  var emo=['\u270a','\u270b','\u270c\ufe0f'];
+  var bot=Math.floor(Math.random()*3);
+  var btns=document.querySelectorAll('#ob-rps .ob-rps-btn');
+  btns.forEach(function(b){ b.classList.remove('win','lose'); });
+  var outcome=(pick===bot)?'draw':(((pick===0&&bot===2)||(pick===1&&bot===0)||(pick===2&&bot===1))?'win':'lose');
+  if(btns[pick]) btns[pick].classList.add(outcome==='win'?'win':(outcome==='lose'?'lose':''));
+  var res=document.getElementById('ob-rps-res');
+  if(res){
+    if(outcome==='win') res.innerHTML='<span class="w">YOU WIN!</span> '+emo[pick]+' beats '+emo[bot];
+    else if(outcome==='lose') res.innerHTML='<span class="l">You lose</span> '+emo[bot]+' beats '+emo[pick];
+    else res.innerHTML='<span class="d">Draw</span> \u2014 both picked '+emo[pick];
+  }
+}
+// --- Gambler's Run mini-demo: drag the Gambler into a room (NO backend, purely visual) ---
+function obGRDemo(){
+  var arena=document.getElementById('ob-gr-arena'); if(!arena) return;
+  arena.className='obg-arena'; arena.innerHTML='';
+  var rooms=[{pos:'left',ic:'\ud83c\udccf',nm:'TABLE',od:'55% \u2192 \u00d7<b>1.33</b>'},
+             {pos:'front',ic:'\ud83d\udcb0',nm:'HEIST',od:'34% \u2192 \u00d7<b>2.45</b>'},
+             {pos:'right',ic:'\ud83d\udc8e',nm:'VAULT',od:'85% \u2192 \u00d7<b>1.10</b>'}];
+  rooms.forEach(function(r){ var d=document.createElement('div'); d.className='obg-door '+r.pos;
+    d.innerHTML='<div class="obg-ic">'+r.ic+'</div><div class="obg-nm">'+r.nm+'</div><div class="obg-od">'+r.od+'</div>'; arena.appendChild(d); });
+  var bw=document.createElement('div'); bw.className='obg-botwrap';
+  var idle=(typeof GR_BOT_IDLE!=='undefined')?GR_BOT_IDLE:'gb_char.webp';
+  bw.innerHTML='<div class="obg-hint">\u2191 DRAG ME</div><img class="obg-bot" src="'+idle+'" onerror="this.onerror=null;this.src=\'gb_char.webp\';" draggable="false" alt="">';
+  arena.appendChild(bw);
+  obGRDrag(arena, bw);
+}
+function obGRDrag(arena, bw){
+  var img=bw.querySelector('.obg-bot');
+  var dragging=false, sx=0, sy=0, dx=0, dy=0, target=null;
+  function pt(e){ if(e.touches&&e.touches[0]) return {x:e.touches[0].clientX,y:e.touches[0].clientY}; return {x:e.clientX,y:e.clientY}; }
+  function ctr(el){ var r=el.getBoundingClientRect(); return {x:r.left+r.width/2,y:r.top+r.height/2,r:r}; }
+  function doors(){ return arena.querySelectorAll('.obg-door'); }
+  function start(e){ dragging=true; bw.classList.add('dragging','walking'); arena.classList.add('dragging');
+    var p=pt(e); sx=p.x; sy=p.y; dx=0; dy=0;
+    try{ if(e.pointerId!=null&&bw.setPointerCapture) bw.setPointerCapture(e.pointerId); }catch(_){}
+    if(e.cancelable) e.preventDefault(); }
+  function move(e){ if(!dragging) return; var p=pt(e); dx=p.x-sx; dy=p.y-sy;
+    img.style.setProperty('--lean',Math.max(-16,Math.min(16,dx*0.13))+'deg');
+    var s=1+Math.max(-0.2,Math.min(0,dy*0.0016));
+    bw.style.transform='translate('+dx+'px,'+dy+'px) scale('+s+')';
+    var bc=ctr(img), best=null, bd=1e9;
+    doors().forEach(function(dn){ var c=ctr(dn); var inside=bc.x>=c.r.left-16&&bc.x<=c.r.right+16&&bc.y>=c.r.top-16&&bc.y<=c.r.bottom+16; var dist=Math.sqrt((bc.x-c.x)*(bc.x-c.x)+(bc.y-c.y)*(bc.y-c.y)); if(inside&&dist<bd){bd=dist;best=dn;} });
+    if(best!==target){ if(target) target.classList.remove('target'); target=best; if(target) target.classList.add('target'); }
+    if(e.cancelable) e.preventDefault(); }
+  function end(e){ if(!dragging) return; dragging=false;
+    bw.classList.remove('dragging','walking'); arena.classList.remove('dragging');
+    try{ if(e&&e.pointerId!=null&&bw.releasePointerCapture) bw.releasePointerCapture(e.pointerId); }catch(_){}
+    var res=document.getElementById('ob-gr-res');
+    if(target){ var nm=target.querySelector('.obg-nm'); var name=nm?nm.textContent:'the room';
+      var c=ctr(target), bc=ctr(img);
+      bw.style.transition='transform .26s ease-in, opacity .26s ease-in';
+      bw.style.transform='translate('+(dx+(c.x-bc.x))+'px,'+(dy+(c.y-bc.y))+'px) scale(.45)'; bw.style.opacity='0';
+      target.classList.remove('target');
+      if(res) res.textContent='\u2713 Entered '+name+' \u2014 that\u2019s the move. Real runs pay out for real!';
+      setTimeout(function(){ bw.style.transition='none'; bw.style.transform=''; bw.style.opacity='1'; img.style.setProperty('--lean','0deg'); }, 950);
+    } else { img.style.setProperty('--lean','0deg'); bw.style.transition='transform .25s cubic-bezier(.34,1.4,.5,1)'; bw.style.transform=''; } }
+  if(window.PointerEvent){ bw.addEventListener('pointerdown',start); bw.addEventListener('pointermove',move); bw.addEventListener('pointerup',end); bw.addEventListener('pointercancel',end); }
+  else { bw.addEventListener('touchstart',start,{passive:false}); bw.addEventListener('touchmove',move,{passive:false}); bw.addEventListener('touchend',end); bw.addEventListener('mousedown',start); bw.addEventListener('mousemove',move); bw.addEventListener('mouseup',end); }
+}
+// --- Duels mini-demo 2: Battleship — tap a 5×5 grid to sink 2 hidden ships (pure client) ---
+function obBSDemo(){
+  var grid=document.getElementById('ob-bs-grid'); if(!grid) return;
+  var N=5, cells=new Array(N*N).fill(0), shipCells={};
+  [3,2].forEach(function(len){          // place a 3-cell and a 2-cell ship, no overlap
+    var placed=false, guard=0;
+    while(!placed && guard++<300){
+      var horiz=Math.random()<0.5, r=Math.floor(Math.random()*N), c=Math.floor(Math.random()*N), idxs=[];
+      for(var k=0;k<len;k++){ var rr=horiz?r:r+k, cc=horiz?c+k:c; if(rr>=N||cc>=N){ idxs=null; break; } var id=rr*N+cc; if(cells[id]){ idxs=null; break; } idxs.push(id); }
+      if(idxs){ idxs.forEach(function(id){ cells[id]=1; shipCells[id]=1; }); placed=true; }
+    }
+  });
+  OB.bs={ total:Object.keys(shipCells).length, hit:0, cells:shipCells, fired:{} };
+  grid.innerHTML='';
+  for(var i=0;i<N*N;i++){ var d=document.createElement('div'); d.className='ob-bs-cell'; d.onclick=(function(idx){ return function(){ obBSFire(idx,this); }; })(i); grid.appendChild(d); }
+  var res=document.getElementById('ob-bs-res'); if(res) res.textContent='Tap to fire — 2 ships hidden';
+}
+function obBSFire(i, el){
+  if(!OB.bs || OB.bs.fired[i]) return;
+  OB.bs.fired[i]=1;
+  var res=document.getElementById('ob-bs-res');
+  if(OB.bs.cells[i]){ el.classList.add('hit'); el.textContent='💥'; OB.bs.hit++;
+    if(res){ if(OB.bs.hit>=OB.bs.total) res.innerHTML='<span class="w">ALL SHIPS SUNK — you win!</span>'; else res.textContent='HIT! '+(OB.bs.total-OB.bs.hit)+' to go'; }
+  } else { el.classList.add('miss'); el.textContent='·'; if(res && OB.bs.hit<OB.bs.total) res.textContent='Miss — keep hunting'; }
+}
+
 </script>
+
+<style>
+/* ===== WELCOME FUNNEL ===== */
+#onboard{position:fixed;inset:0;z-index:10000;display:none;flex-direction:column;background:radial-gradient(ellipse at 50% 0%,rgba(57,255,20,.08),#08090d 62%);color:#fff;font-family:Inter,system-ui,sans-serif;}
+#onboard.show{display:flex;animation:obFade .25s;}
+@keyframes obFade{from{opacity:0}to{opacity:1}}
+#onboard .ob-skip{position:absolute;top:14px;right:14px;z-index:5;font-size:11px;letter-spacing:1px;color:#9ca3af;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:6px 14px;cursor:pointer;}
+#onboard .ob-skip:active{transform:scale(.96);}
+#onboard .ob-track{flex:1;display:flex;width:100%;overflow:hidden;transition:transform .35s cubic-bezier(.4,0,.2,1);}
+#onboard .ob-slide{flex:0 0 100%;min-width:100%;height:100%;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:52px 22px 14px;text-align:center;overflow-y:auto;}
+#onboard .ob-media{width:100%;max-width:330px;aspect-ratio:16/10;border-radius:18px;overflow:hidden;background:#11141f;border:1px solid rgba(255,255,255,.1);box-shadow:0 14px 40px rgba(0,0,0,.5);margin-bottom:18px;display:flex;align-items:center;justify-content:center;}
+#onboard .ob-media video,#onboard .ob-media img{width:100%;height:100%;object-fit:cover;display:block;}
+#onboard .ob-emoji{font-size:70px;}
+#onboard .ob-eyebrow{font-family:Orbitron,monospace;font-size:10px;letter-spacing:3px;color:#ffd700;margin-bottom:6px;}
+#onboard .ob-title{font-family:'Russo One',Impact,sans-serif;font-size:25px;letter-spacing:1px;background:linear-gradient(135deg,#39ff14,#ffd700);-webkit-background-clip:text;background-clip:text;color:transparent;margin-bottom:8px;line-height:1.12;}
+#onboard .ob-desc{font-size:13.5px;color:#c7d0e0;line-height:1.5;max-width:330px;margin-bottom:14px;}
+#onboard .ob-try{font-family:'Russo One',Impact,sans-serif;font-size:13.5px;letter-spacing:.5px;color:#06210d;background:linear-gradient(135deg,#5dff8a,#16a34a);border:none;border-radius:12px;padding:11px 24px;cursor:pointer;box-shadow:0 6px 18px rgba(34,180,80,.35);}
+#onboard .ob-try:active{transform:scale(.97);}
+#onboard .ob-foot{display:flex;align-items:center;justify-content:space-between;padding:12px 22px 20px;gap:12px;}
+#onboard .ob-dots{display:flex;gap:6px;flex:1;justify-content:center;}
+#onboard .ob-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.25);transition:all .2s;}
+#onboard .ob-dot.on{background:#39ff14;width:20px;border-radius:4px;}
+#onboard .ob-nav{font-family:'Russo One',Impact,sans-serif;font-size:13px;letter-spacing:.5px;border:none;border-radius:12px;padding:11px 18px;cursor:pointer;}
+#onboard .ob-back{background:rgba(255,255,255,.08);color:#c7d0e0;}
+#onboard .ob-back.hide{visibility:hidden;}
+#onboard .ob-next{background:linear-gradient(135deg,#ffd700,#ff9500);color:#1a1206;box-shadow:0 6px 18px rgba(255,150,0,.35);}
+#onboard .ob-nav:active{transform:scale(.96);}
+#onboard .ob-rps{display:flex;gap:14px;justify-content:center;margin:4px 0 10px;}
+#onboard .ob-rps-btn{font-size:32px;width:62px;height:62px;border-radius:16px;background:#161b2b;border:2px solid rgba(255,255,255,.12);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .08s,border-color .15s,box-shadow .15s;}
+#onboard .ob-rps-btn:active{transform:scale(.92);}
+#onboard .ob-rps-btn.win{border-color:#39ff14;box-shadow:0 0 18px rgba(57,255,20,.6);}
+#onboard .ob-rps-btn.lose{border-color:#ef4444;}
+#onboard .ob-rps-res{min-height:22px;font-family:'Russo One',Impact,sans-serif;font-size:15px;letter-spacing:.5px;}
+#onboard .ob-rps-res .w{color:#39ff14;}#onboard .ob-rps-res .l{color:#ef4444;}#onboard .ob-rps-res .d{color:#ffd700;}
+#onboard .ob-ref{font-size:11px;color:#9ca3af;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:9px 12px;margin-bottom:12px;word-break:break-all;max-width:330px;}
+/* GR drag mini-demo (scoped to onboard) */
+#onboard .obg-arena{position:relative;height:236px;max-width:340px;width:100%;margin:0 auto 6px;touch-action:none;-webkit-user-select:none;user-select:none;}
+#onboard .obg-door{position:absolute;width:92px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 5px;border-radius:13px;background:linear-gradient(165deg,rgba(30,38,64,.96),rgba(12,16,30,.96));border:1.5px solid rgba(255,255,255,.12);box-shadow:0 6px 16px rgba(0,0,0,.45);text-align:center;transition:transform .12s,border-color .15s,box-shadow .15s,opacity .15s;}
+#onboard .obg-door.front{top:0;left:50%;transform:translateX(-50%);}
+#onboard .obg-door.left{left:0;top:84px;}
+#onboard .obg-door.right{right:0;top:84px;}
+#onboard .obg-door.target{border-color:#ffd700;box-shadow:0 0 0 2px rgba(255,215,0,.55),0 10px 26px rgba(255,180,60,.45);transform:translateY(-3px) scale(1.05);}
+#onboard .obg-door.front.target{transform:translateX(-50%) translateY(-3px) scale(1.05);}
+#onboard .obg-arena.dragging .obg-door:not(.target){opacity:.55;}
+#onboard .obg-ic{font-size:25px;line-height:1;}
+#onboard .obg-nm{font-family:'Russo One',Impact,sans-serif;font-size:10px;color:#fff;}
+#onboard .obg-od{font-size:10px;font-weight:700;color:#e7eefc;}
+#onboard .obg-od b{color:#ffd700;}
+#onboard .obg-botwrap{position:absolute;left:50%;bottom:4px;width:72px;height:82px;margin-left:-36px;z-index:6;cursor:grab;touch-action:none;will-change:transform;transition:transform .25s cubic-bezier(.34,1.4,.5,1);}
+#onboard .obg-botwrap.dragging{cursor:grabbing;transition:none;z-index:9;}
+#onboard .obg-bot{display:block;width:72px;height:72px;object-fit:contain;pointer-events:none;transform-origin:50% 92%;filter:drop-shadow(0 6px 10px rgba(0,0,0,.55));}
+#onboard .obg-botwrap.walking .obg-bot{animation:obgWalk .34s infinite ease-in-out;}
+@keyframes obgWalk{0%{transform:translateY(0) rotate(var(--lean,0deg))}25%{transform:translateY(-5px) rotate(var(--lean,0deg))}50%{transform:translateY(0) rotate(var(--lean,0deg))}75%{transform:translateY(-3px) rotate(var(--lean,0deg))}100%{transform:translateY(0) rotate(var(--lean,0deg))}}
+#onboard .obg-hint{position:absolute;left:50%;top:-15px;transform:translateX(-50%);font-family:Orbitron,monospace;font-size:9px;letter-spacing:1.2px;color:#ffd700;white-space:nowrap;text-shadow:0 1px 3px #000;pointer-events:none;animation:obgHint 1.3s infinite;}
+@keyframes obgHint{0%,100%{transform:translateX(-50%) translateY(0);opacity:.85}50%{transform:translateX(-50%) translateY(-4px);opacity:1}}
+#onboard .obg-botwrap.dragging .obg-hint{display:none;}
+#onboard .ob-demo-res{min-height:18px;font-family:'Russo One',Impact,sans-serif;font-size:14px;color:#39ff14;letter-spacing:.5px;padding:0 12px;}
+/* Battleship mini-demo */
+#onboard .ob-bs{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;width:100%;max-width:240px;margin:4px auto 8px;touch-action:manipulation;}
+#onboard .ob-bs-cell{aspect-ratio:1;border-radius:8px;background:#11203a;border:1px solid rgba(95,199,255,.25);display:flex;align-items:center;justify-content:center;font-size:17px;cursor:pointer;transition:transform .06s,background .12s;}
+#onboard .ob-bs-cell:active{transform:scale(.92);}
+#onboard .ob-bs-cell.miss{background:#1a2030;color:#6b7280;cursor:default;}
+#onboard .ob-bs-cell.hit{background:linear-gradient(135deg,#ff4b4b,#b81e1e);border-color:#ff6b6b;cursor:default;box-shadow:0 0 12px rgba(255,60,60,.5);}
+#onboard .ob-bs-res{min-height:18px;font-family:'Russo One',Impact,sans-serif;font-size:14px;color:#5fc7ff;letter-spacing:.5px;margin-bottom:4px;}
+#onboard .ob-bs-res .w{color:#39ff14;}
+</style>
+<div id="onboard" aria-hidden="true">
+  <button class="ob-skip" onclick="obSkip()">SKIP ✕</button>
+  <div class="ob-track" id="ob-track">
+    <div class="ob-slide">
+      <div class="ob-media"><video data-ob-vid muted playsinline loop preload="none" poster="gb_char.webp"><source src="gr_intro.mp4" type="video/mp4"></video></div>
+      <div class="ob-eyebrow">WELCOME</div>
+      <div class="ob-title">GAMBLER BOT</div>
+      <div class="ob-desc">Provably-fair crypto games, live 1v1 duels, and a roguelike where you descend for the big score. Take the quick tour 👇</div>
+    </div>
+    <div class="ob-slide">
+      <div class="ob-media"><video data-ob-vid muted playsinline loop preload="none" src="GAMBLER%20SLOTS.mp4" onerror="this.onerror=null;this.src='wheel-intro.mp4';"></video></div>
+      <div class="ob-eyebrow">CASINO</div>
+      <div class="ob-title">GAMBLER SLOTS</div>
+      <div class="ob-desc">Wilds, Free Spins, the Bonus Wheel and a Vault feature — up to 5000×.</div>
+      <button class="ob-try" onclick="obTry('slots')">▶ Try it now</button>
+    </div>
+    <div class="ob-slide">
+      <div class="ob-media"><div class="ob-emoji">🎡</div></div>
+      <div class="ob-eyebrow">CASINO</div>
+      <div class="ob-title">ROULETTE</div>
+      <div class="ob-desc">Place your chips across the table — straight up pays 36×. Classic, fast, ruthless.</div>
+      <button class="ob-try" onclick="obTry('roulette')">▶ Try it now</button>
+    </div>
+    <div class="ob-slide">
+      <div class="ob-eyebrow">FLAGSHIP · GAMBLER'S RUN</div>
+      <div class="ob-title">DRAG INTO A ROOM</div>
+      <div class="ob-desc">Descend the map, compound your pot, beat THE HOUSE. Drag the Gambler into a room to enter — try it:</div>
+      <div class="obg-arena" id="ob-gr-arena"></div>
+      <div class="ob-demo-res" id="ob-gr-res"></div>
+      <button class="ob-try" style="margin-top:8px;" onclick="obTry('grun')">▶ Start your run</button>
+    </div>
+    <div class="ob-slide">
+      <div class="ob-media"><div class="ob-emoji">🃏</div></div>
+      <div class="ob-eyebrow">CASINO</div>
+      <div class="ob-title">BLACKJACK</div>
+      <div class="ob-desc">Hit, stand, double — beat the dealer to 21 without busting. Pays up to 2.5×.</div>
+      <button class="ob-try" onclick="obTry('bj')">▶ Try it now</button>
+    </div>
+    <div class="ob-slide">
+      <div class="ob-media"><div class="ob-emoji">♠️</div></div>
+      <div class="ob-eyebrow">CASINO</div>
+      <div class="ob-title">POKER</div>
+      <div class="ob-desc">Texas Hold'em against the House. Make the best hand and bank up to 21×.</div>
+      <button class="ob-try" onclick="obTry('poker')">▶ Try it now</button>
+    </div>
+    <div class="ob-slide">
+      <div class="ob-media"><div class="ob-emoji">🚀</div></div>
+      <div class="ob-eyebrow">CASINO</div>
+      <div class="ob-title">CRASH</div>
+      <div class="ob-desc">The multiplier climbs… cash out before it crashes. Nerve is everything.</div>
+      <button class="ob-try" onclick="obTry('crash')">▶ Try it now</button>
+    </div>
+    <div class="ob-slide">
+      <div class="ob-media"><div class="ob-emoji">💣</div></div>
+      <div class="ob-eyebrow">CASINO</div>
+      <div class="ob-title">TREASURE HUNT</div>
+      <div class="ob-desc">Scratch to uncover prizes — but avoid the bombs. One wrong tile ends it.</div>
+      <button class="ob-try" onclick="obTry('scratch')">▶ Try it now</button>
+    </div>
+    <div class="ob-slide">
+      <div class="ob-eyebrow">1v1 PvP · DUELS</div>
+      <div class="ob-title">QUICK DUEL: RPS</div>
+      <div class="ob-desc">Challenge real players for the pot. Warm up with Rock-Paper-Scissors vs the bot:</div>
+      <div class="ob-rps" id="ob-rps">
+        <div class="ob-rps-btn" onclick="obRPS(0)">✊</div>
+        <div class="ob-rps-btn" onclick="obRPS(1)">✋</div>
+        <div class="ob-rps-btn" onclick="obRPS(2)">✌️</div>
+      </div>
+      <div class="ob-rps-res" id="ob-rps-res">Pick your throw</div>
+    </div>
+    <div class="ob-slide">
+      <div class="ob-eyebrow">1v1 PvP · DUELS</div>
+      <div class="ob-title">QUICK DUEL: BATTLESHIP</div>
+      <div class="ob-desc">Tap the grid to fire and sink the 2 hidden ships — then take it live for real stakes:</div>
+      <div class="ob-bs" id="ob-bs-grid"></div>
+      <div class="ob-bs-res" id="ob-bs-res">Tap to fire</div>
+      <button class="ob-try" style="margin-top:6px;" onclick="obTry('duel')">⚔️ Find a real match</button>
+    </div>
+    <div class="ob-slide">
+      <div class="ob-media"><div class="ob-emoji">🎁</div></div>
+      <div class="ob-eyebrow">YOU'RE READY</div>
+      <div class="ob-title">INVITE &amp; EARN</div>
+      <div class="ob-desc">Share your link — your friends get a €1.40 welcome bonus, and so do you.</div>
+      <div class="ob-ref" id="ob-ref-link"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
+        <button class="ob-try" style="background:linear-gradient(135deg,#39ff14,#10b981);" onclick="frShareLink()">📤 Share link</button>
+        <button class="ob-try" style="background:linear-gradient(135deg,#ffd700,#ff9500);color:#1a1206;" onclick="obFinish()">Enter ▸</button>
+      </div>
+    </div>
+  </div>
+  <div class="ob-foot">
+    <button class="ob-nav ob-back" id="ob-back" onclick="obGo(OB.i-1)">◂ Back</button>
+    <div class="ob-dots" id="ob-dots"></div>
+    <button class="ob-nav ob-next" id="ob-next" onclick="obGo(OB.i+1)">Next ▸</button>
+  </div>
+</div>
 
 </body>
 </html>
