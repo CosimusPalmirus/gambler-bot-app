@@ -19931,6 +19931,10 @@ function twrOnMsg(m){
   if(t==='start'){
     if(m.game&&m.game!=='turf')return;
     TWR.map=m.map;TWR.names=m.names||{};TWR.myId=String(m.you);
+    var profs=m.profiles||{};
+    Object.keys(profs).forEach(function(id){
+      if(profs[id]&&profs[id].name)TWR.names[id]=String(profs[id].name).slice(0,14);
+    });
     TWR.potEur=m.pot_eur||0;if(m.rate)TWR.rate=m.rate;
     TWR.walls={};TWR.hideouts={};
     (m.map.walls||[]).forEach(function(w){TWR.walls[w[0]+'_'+w[1]]=1;});
@@ -20221,7 +20225,7 @@ function twrShowOver(m){
   }else{
     TWS.play('lose');
     h='<div style="font-size:44px;">💀</div><div class="tw-lose-t">RESA DEI CONTI FINITA</div>'
-     +'<div class="tw-ov-sub">'+(TWR_AVA[m.winner_name]||'🕴️')+' <b>'+(m.winner_name||'?')+'</b> è l\'ultimo in piedi e si prende €'+fmt(m.prize_eur,2)+'</div>';
+     +'<div class="tw-ov-sub">'+(TWR_AVA[m.winner_name]||'🕴️')+' <b>'+((TWR.names&&TWR.names[m.winner])||m.winner_name||'?')+'</b> è l\'ultimo in piedi e si prende €'+fmt(m.prize_eur,2)+'</div>';
   }
   h+='<div class="tw-ov-btns"><button class="action-btn gold" onclick="twrAgain()">🔁 GIOCA ANCORA</button>'
    +'<button class="action-btn" onclick="twrAgain();go(\'home\')">🏠 HOME</button></div>';
@@ -20323,29 +20327,57 @@ function twrHud(m){
 
 // ── joystick ────────────────────────────────────────────────────────
 function twrStickInit(joyId,knobId,onVec,onEnd){
+  // Multi-touch safe: every stick follows ONLY the finger that landed on it
+  // (tracked by touch identifier), so move + aim work at the same time.
   var joy=document.getElementById(joyId),knob=document.getElementById(knobId);
   if(!joy)return;
-  var R=44,drag=false;
-  function setVec(dx,dy){
+  var R=44,drag=false,tid=null;
+  function setVecXY(cx,cy){
+    var r=joy.getBoundingClientRect();
+    var dx=cx-(r.left+r.width/2),dy=cy-(r.top+r.height/2);
     var m=Math.sqrt(dx*dx+dy*dy);
     if(m>R){dx=dx/m*R;dy=dy/m*R;m=R;}
     knob.style.transform='translate('+dx+'px,'+dy+'px)';
     if(m/R<0.14)onVec(0,0);else onVec(dx/R,dy/R);
   }
-  function center(ev){
-    var r=joy.getBoundingClientRect();
-    var t=(ev.touches&&ev.touches[0])||ev;
-    return [t.clientX-(r.left+r.width/2),t.clientY-(r.top+r.height/2)];
+  function findTouch(ev){
+    if(tid==null)return null;
+    for(var i=0;i<ev.changedTouches.length;i++){
+      if(ev.changedTouches[i].identifier===tid)return ev.changedTouches[i];
+    }
+    return null;
   }
-  function down(ev){ev.preventDefault();drag=true;joy.classList.add('on');var c=center(ev);setVec(c[0],c[1]);}
-  function move(ev){if(!drag)return;ev.preventDefault();var c=center(ev);setVec(c[0],c[1]);}
-  function up(){if(!drag)return;drag=false;joy.classList.remove('on');knob.style.transform='translate(0,0)';onEnd();}
-  joy.addEventListener('touchstart',down,{passive:false});
-  joy.addEventListener('touchmove',move,{passive:false});
-  joy.addEventListener('touchend',up);joy.addEventListener('touchcancel',up);
-  joy.addEventListener('mousedown',down);
-  window.addEventListener('mousemove',move);
-  window.addEventListener('mouseup',up);
+  function tstart(ev){
+    if(drag)return;
+    var t=ev.changedTouches&&ev.changedTouches[0];
+    if(!t)return;
+    tid=t.identifier;drag=true;joy.classList.add('on');
+    ev.preventDefault();
+    setVecXY(t.clientX,t.clientY);
+  }
+  function tmove(ev){
+    if(!drag)return;
+    var t=findTouch(ev);
+    if(!t)return;
+    ev.preventDefault();
+    setVecXY(t.clientX,t.clientY);
+  }
+  function tend(ev){
+    if(!drag)return;
+    if(!findTouch(ev))return;
+    drag=false;tid=null;joy.classList.remove('on');
+    knob.style.transform='translate(0,0)';onEnd();
+  }
+  joy.addEventListener('touchstart',tstart,{passive:false});
+  joy.addEventListener('touchmove',tmove,{passive:false});
+  joy.addEventListener('touchend',tend);joy.addEventListener('touchcancel',tend);
+  // mouse fallback (desktop: one pointer at a time)
+  function mdown(ev){ev.preventDefault();drag=true;tid=null;joy.classList.add('on');setVecXY(ev.clientX,ev.clientY);}
+  function mmove(ev){if(!drag||tid!=null)return;setVecXY(ev.clientX,ev.clientY);}
+  function mup(){if(!drag||tid!=null)return;drag=false;joy.classList.remove('on');knob.style.transform='translate(0,0)';onEnd();}
+  joy.addEventListener('mousedown',mdown);
+  window.addEventListener('mousemove',mmove);
+  window.addEventListener('mouseup',mup);
 }
 function twrJoyInit(){
   twrStickInit('twr-joy','twr-knob',
@@ -20915,7 +20947,8 @@ function twrDrawEntity(ctx,cell,row,x,y,now,raw,dt,isMe,W2X,W2Y){
   if(alive){
     ctx.fillStyle=isMe?'#7ee9fb':'rgba(255,255,255,.88)';
     ctx.font='bold '+(cell*0.28)+'px Russo One, sans-serif';
-    ctx.fillText((isMe?'TU':twrName(pid))+(lv>1?' ·LV'+lv:''),sx,sy-cell*0.82);
+    var nmL=isMe?'TU':String(twrName(pid)).slice(0,10);
+    ctx.fillText(nmL+(lv>1?' ·LV'+lv:''),sx,sy-cell*0.82);
     if(lv>=4){ctx.font=(cell*0.26)+'px serif';ctx.fillText('👑',sx,sy-cell*1.02);}
     var pipW=cell*0.10,total=hp;
     var x0=sx-(total*pipW+(total-1)*2)/2;
