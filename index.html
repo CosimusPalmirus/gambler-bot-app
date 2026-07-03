@@ -23086,6 +23086,11 @@ var ARC_SOUNDS={
   skidon:function(v){TWS.noise({d:0.35,g:0.13*v,hp:600,lp:2400});},
   dashw:function(v){TWS.noise({d:0.18,g:0.22*v,hp:300,lp:2600});},
   gooo:function(v){TWS.tone({f:523,d:0.09,g:0.2*v});TWS.tone({f:784,d:0.3,g:0.25*v,at:0.09});},
+  cue:function(v){
+    TWS.tone({f:1600,f2:600,type:'square',d:0.035,g:0.36*v,lp:3200});
+    TWS.tone({f:220,f2:120,d:0.09,g:0.3*v,at:0.004});
+    TWS.noise({d:0.05,g:0.16*v,hp:900,lp:4200});
+  },
   mtpop:function(v){TWS.tone({f:880,f2:1320,type:'square',d:0.07,g:0.2*v,lp:2600});},
   mtpop2:function(v){TWS.tone({f:660,f2:1760,type:'square',d:0.11,g:0.26*v,lp:3000});TWS.noise({d:0.08,g:0.1*v,hp:1200});},
   turbo:function(v){TWS.noise({d:0.5,g:0.3*v,hp:200,lp:2400});TWS.tone({f:180,f2:420,type:'sawtooth',d:0.45,g:0.16*v,lp:900});}
@@ -23554,8 +23559,8 @@ function rtdPump(){
       var meRow=null;
       RTD.lastRaw.p.forEach(function(r0){if(String(r0[0])===String(RTD.myId))meRow=r0;});
       if(meRow){
-        var mx2=Math.max(-1,Math.min(1,(RTD.touchT.x-meRow[1])*2.2));
-        var my2=Math.max(-1,Math.min(1,(RTD.touchT.y-meRow[2])*2.2));
+        var mx2=Math.max(-1,Math.min(1,(RTD.touchT.x-meRow[1])*4.0));
+        var my2=Math.max(-1,Math.min(1,(RTD.touchT.y-meRow[2])*4.0));
         rtdSend({t:'in',mx:mx2,my:my2});RTD.sentZero=false;
       }
     }else if(!RTD.sentZero){rtdSend({t:'in',mx:0,my:0});RTD.sentZero=true;}
@@ -23606,7 +23611,7 @@ function rtdFeedEvent(e){
       rtdFeed(e.n===1?'La 1 va imbucata PER ULTIMA — si riacchita':'La '+e.n+' va SOLO in buca centrale — si riacchita');
       rtdStamp('SI RIACCHITA','#f87171');
       break;
-    case 'shot':if(g==='pool8'||g==='pool15')TWS.play('clack',0.4);else TWS.play('whoosh',0.6);break;
+    case 'shot':if(g==='pool8'||g==='pool15')TWS.play('cue',0.35+(e.pw||0.5)*0.75);else TWS.play('whoosh',0.6);break;
     case 'turn':if(e.who===me){rtdStamp('TOCCA A TE','#ffd700');TWS.play('pick');}break;
     case 'groups':var gl=(e.g==='solid'?'PIENE':(g==='pool15'?'RIGATE':'SPEZZATE'));rtdFeed(e.who===me?'Hai le '+gl:'Lui ha le '+gl);break;
     case 'dash':TWS.play('dashw',e.who===me?1:0.6);break;
@@ -24140,6 +24145,7 @@ function rtdFrame(){
   ctx.clearRect(0,0,w,hh);
   if(RTD.shake>0.3){ctx.translate((Math.random()-0.5)*RTD.shake,(Math.random()-0.5)*RTD.shake);RTD.shake*=0.86;}
   var g=RTD.game;
+  try{
   if(g==='hockey')rtdDrawHockey(ctx,raw,lp,now,w,hh);
   else if(g==='pong')rtdDrawPong(ctx,raw,lp,now,w,hh);
   else if(g==='sumo')rtdDrawSumo(ctx,raw,lp,now,w,hh);
@@ -24156,6 +24162,8 @@ function rtdFrame(){
   else if(g==='dama')rtdDrawDama(ctx,raw,lp,now,w,hh);
   else if(g==='backg')rtdDrawBackg(ctx,raw,lp,now,w,hh);
   else if(g==='scopa')rtdDrawScopa(ctx,raw,lp,now,w,hh);
+  rtdScoreBar(ctx,raw,now,w,hh);
+  }catch(e){/* un frame rotto non deve spegnere il gioco */}
   var keep=[];
   var cellFx=RTD._sc.fxCell||w/8;
   RTD.fxq.forEach(function(f){
@@ -24205,6 +24213,44 @@ function rtdFrame(){
 }
 
 // ── shared bits ─────────────────────────────────────────────────────
+// PUNTEGGIONE universale: sempre visibile, in alto al centro, su ogni gioco
+function rtdScoreBar(ctx,raw,now,w,hh){
+  var g=RTD.game;
+  if(g==='hockey'||g==='race')return;          // hanno già il loro
+  if(!raw||!raw.sc)return;
+  var meS=null,opS=null;
+  Object.keys(raw.sc).forEach(function(id){
+    if(String(id)===String(RTD.myId))meS=raw.sc[id];else opS=raw.sc[id];
+  });
+  if(meS==null&&opS==null)return;
+  var golfMode=(g==='golf');                   // a golf meno = meglio
+  var lead=golfMode?(meS<opS):(meS>opS);
+  var mid=w/2,y=8,bw2=Math.min(150,w*0.42),bh=30;
+  ctx.save();
+  ctx.globalAlpha=0.88;
+  ctx.fillStyle='rgba(6,10,18,.78)';
+  ctx.beginPath();
+  if(ctx.roundRect)ctx.roundRect(mid-bw2/2,y,bw2,bh,15);else ctx.rect(mid-bw2/2,y,bw2,bh);
+  ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.18)';ctx.lineWidth=1;ctx.stroke();
+  ctx.font='bold 17px Russo One, sans-serif';
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  var flash=(RTD._sc.sbPrev!==String(meS)+':'+String(opS));
+  if(flash){RTD._sc.sbPrev=String(meS)+':'+String(opS);RTD._sc.sbT=now;}
+  var glow=RTD._sc.sbT&&(now-RTD._sc.sbT<600);
+  ctx.fillStyle=lead?'#39ff14':'#7ee9fb';
+  if(glow){ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=10;}
+  ctx.fillText(String(meS!=null?meS:'-'),mid-bw2*0.26,y+bh/2+1);
+  ctx.shadowBlur=0;
+  ctx.fillStyle='rgba(255,255,255,.45)';
+  ctx.font='bold 11px Russo One, sans-serif';
+  ctx.fillText(golfMode?'COLPI':'VS',mid,y+bh/2+1);
+  ctx.font='bold 17px Russo One, sans-serif';
+  ctx.fillStyle=(!lead&&meS!==opS)?'#f87171':'#fca5a5';
+  ctx.fillText(String(opS!=null?opS:'-'),mid+bw2*0.26,y+bh/2+1);
+  ctx.restore();
+  ctx.textBaseline='alphabetic';
+}
 function rtdLerpRow(lp,arr){
   var out={};
   if(!lp)return out;
@@ -24254,13 +24300,17 @@ function rtdDrawHockey(ctx,raw,lp,now,w,hh){
       // riallinea dolcemente al server
       var pr=RTD._sc.hkPred||(RTD._sc.hkPred={x:wx2,y:wy2});
       if(RTD.touchT){
-        var sp2=(raw.freeze>0)?0.12:0.55;
+        // col dito giù il disco È il dito: correzione server quasi nulla,
+        // così non c'è tiro alla fune (era quello lo scatto)
+        var sp2=(raw.freeze>0)?0.12:0.65;
         pr.x+=(Math.min(Math.max(RTD.touchT.x,0.55),MW-0.55)-pr.x)*sp2;
         var loY=flip?0.55:MH/2+0.55,hiY=flip?MH/2-0.55:MH-0.55;
         pr.y+=(Math.min(Math.max(RTD.touchT.y,Math.min(loY,hiY)),Math.max(loY,hiY))-pr.y)*sp2;
+        pr.x+=(wx2-pr.x)*0.02;pr.y+=(wy2-pr.y)*0.02;
+      }else{
+        pr.x+=(wx2-pr.x)*0.18;pr.y+=(wy2-pr.y)*0.18;
+        if(Math.hypot(pr.x-wx2,pr.y-wy2)>2.5){pr.x=wx2;pr.y=wy2;}
       }
-      pr.x+=(wx2-pr.x)*0.10;pr.y+=(wy2-pr.y)*0.10;
-      if(Math.hypot(pr.x-wx2,pr.y-wy2)>1.6){pr.x=wx2;pr.y=wy2;}
       wx2=pr.x;wy2=pr.y;
     }
     var pxp2=wx2*sx,pyp2=FY(wy2);
@@ -24518,7 +24568,7 @@ function rtdDrawSumo(ctx,raw,lp,now,w,hh){
   });
   ctx.textAlign='center';ctx.font='bold '+(w*0.05)+'px Russo One, sans-serif';
   ctx.fillStyle='#a3e635';
-  ctx.fillText('ROUND '+(raw.round||1),w/2,26);
+  ctx.fillText('ROUND '+(raw.round||1),w/2,58);
 }
 
 // ── SHOVE ───────────────────────────────────────────────────────────
@@ -24647,12 +24697,18 @@ function rtdDrawPool(ctx,raw,lp,now,w,hh){
     ctx.beginPath();ctx.arc(px,py,R,0,6.283);ctx.clip();
     var mang=Math.atan2(an.dy,an.dx);
     if(n>=9){
-      // stripe band: great circle ⟂ roll axis, projected as ellipse
+      // fascia: banda a ±35° dall'equatore che RUOTA col rotolamento.
+      // Proiezione per strisce: colora dove |x·sin+z·cos| < 0.57R
       ctx.translate(px,py);ctx.rotate(mang);
       ctx.fillStyle=col;
-      ctx.beginPath();
-      ctx.ellipse(cosr*R*0.25,0,Math.max(R*0.16,Math.abs(sinr)*R*0.62)+R*0.28,R*1.02,0,0,6.283);
-      ctx.fill();
+      var NS=10,sw2=(R*2)/NS;
+      for(var si2=0;si2<NS;si2++){
+        var xc=-R+sw2*(si2+0.5);
+        var zc=Math.sqrt(Math.max(0,R*R-xc*xc));
+        if(Math.abs(xc*sinr+zc*cosr)<R*0.57){
+          ctx.fillRect(xc-sw2/2-0.3,-R,sw2+0.6,R*2);
+        }
+      }
       ctx.rotate(-mang);ctx.translate(-px,-py);
     }
     if(n>0){
@@ -26042,223 +26098,6 @@ function rtdDrawBoxe(ctx,raw,lp,now,w,hh){
   ctx.font='bold '+(w*0.055)+'px Russo One, sans-serif';ctx.textAlign='center';
   ctx.fillText(cap+'s',w/2,hh*0.12);
 }
-
-// ═══════════════ i18n — italiano base, inglese settabile ═══════════════
-var GB_LANG=(function(){try{return localStorage.getItem('gb_lang')||'it';}catch(e){return 'it';}})();
-var GB_TR={
-// — navigazione / generale —
-'IN CERCA DI SFIDANTI…':'SEARCHING FOR RIVALS…','ANNULLA (rimborso)':'CANCEL (refund)',
-'Si parte tra ':'Starting in ','GIOCA':'PLAY','SALVA':'SAVE','CHIUDI':'CLOSE',
-'GIOCA ANCORA':'PLAY AGAIN','RIVINCITA':'REMATCH','TOCCA A TE':'YOUR TURN',
-'Buy-in rimborsato':'Buy-in refunded','Nessuno sfidante — rimborsato':'No rivals — refunded',
-'💰 BUY-IN':'💰 BUY-IN','Parte con almeno 2 · rimborso se resti solo':'Starts with 2+ · refund if alone',
-'1 contro 1 · rimborso se nessuno accetta':'1 vs 1 · refund if nobody joins',
-'MOSSA SUA':'THEIR MOVE','GIOCA LUI':'THEIR TURN','TIRA LUI':'THEIR SHOT','TIRA TU':'YOUR SHOT',
-'SI RIACCHITA':'RE-SPOTTED','BATTE LUI':'THEIR SERVE','⬆ BATTUTA TUA':'⬆ YOUR SERVE',
-'Connessione fallita':'Connection failed','ANCORA!':'AGAIN!','DAMA!':'KING!',
-// — biliardo —
-'TRASCINA PER MIRARE':'DRAG TO AIM','trascina sul tavolo per mirare · rilascia per tirare':'drag on the table to aim · release to shoot',
-'La 1 va imbucata PER ULTIMA — si riacchita':'The 1 goes in LAST — re-spotted',
-'USA: piene vs rigate, la 8 per ultima':'USA rules: solids vs stripes, 8-ball last',
-'la 8 e la 15 solo nelle buche centrali (opposte) · la 1 neutra per ultima':'8 & 15 only in the side pockets (opposite) · neutral 1 goes last',
-'Le tue 7 bilie':'Your 7 balls','piene (2-8) o rigate (9-15): il primo che imbuca sceglie la serie':'solids (2-8) or stripes (9-15): first pot picks your set',
-'8 e 15 obbligate':'8 & 15 are bound','SOLO nelle buche centrali, in buche OPPOSTE tra loro · buca sbagliata = si riacchita':'side pockets ONLY, in OPPOSITE pockets · wrong pocket = re-spotted',
-'La 1 è neutra':'The 1 is neutral','va imbucata PER ULTIMA a serie chiusa: chi la mette vince · prima = si riacchita':'pot it LAST after clearing your set: it wins the game · earlier = re-spotted',
-'La specialità italiana · regole professionali':'The Italian specialty · pro rules',
-'Piene contro spezzate, poi la 8':'Solids vs stripes, then the 8',
-'Stecca col drag':'Cue with drag','trascina dalla bianca: direzione + forza':'drag from the cue ball: direction + power',
-'Regole vere':'Real rules','il primo gruppo imbucato è il tuo · 8 per ultima':'first potted group is yours · 8 last',
-'Attento':'Careful','8 in anticipo o con fallo = sconfitta':'early or fouled 8 = loss',
-'Hai le PIENE':'You are SOLIDS','Hai le RIGATE':'You are STRIPES','Hai le SPEZZATE':'You are STRIPES',
-'Lui ha le PIENE':'They are SOLIDS','Lui ha le RIGATE':'They are STRIPES','Lui ha le SPEZZATE':'They are STRIPES',
-// — hockey / pong / sumo / shove —
-'Primo a 5 goal · 90 secondi':'First to 5 goals · 90 seconds','Dito sul tavolo':'Finger on the table',
-'il tuo disco segue ESATTAMENTE il dito, nella tua metà':'your mallet follows your finger exactly, in your half',
-'Battuta a turni':'Alternating serve','dopo ogni goal il disco parte da chi lo ha subito':'after a goal, the conceding player serves',
-'Porte vere':'Real goals','difendi la tua bocca, spara in quella sua — sponde vive':'guard your mouth, shoot at theirs — lively cushions',
-'👆 tieni il dito sul tavolo: il disco lo segue':'👆 keep your finger on the table: the mallet follows',
-'Trattino contro trattino · primo a 7':'Line vs line · first to 7','Trattino':'Your line',
-'muovi solo in orizzontale, la palla accelera':'move horizontally, the ball speeds up',
-'Effetto':'Spin','colpisci in movimento per dare spin':'hit while moving to add spin',
-'W=allarga · S=restringe lui · G=palla fantasma · C=cannone':'W=wider · S=shrink them · G=ghost ball · C=cannon',
-'Buttalo fuori dal dohyo · al meglio di 5':'Push them off the dohyo · best of 5',
-'Spingi':'Push','stick per muoverti, la stazza conta':'stick to move, mass matters',
-'bottone = scatto devastante (2s di ricarica)':'button = devastating dash (2s cooldown)',
-'Ring che si stringe':'Shrinking ring','resta dentro o sei fuori':'stay inside or you are out',
-'Curling di strada · 4 dischi a testa':'Street curling · 4 pucks each',
-'Trascina e lancia':'Drag & launch','direzione e forza dal drag':'direction & power from the drag',
-'Zone moltiplicatore':'Multiplier zones','più in alto arrivi, più vale (x5 in cima)':'higher = worth more (x5 at the top)',
-'Sgancia':'Knock out','butta fuori i dischi avversari':'bump enemy pucks away','tuoi dischi:':'your pucks:',
-// — vicoli / race —
-'Dinamite nel cantiere di notte · una vita sola':'Dynamite in the night worksite · one life',
-'Piazza la dinamite':'Plant the dynamite','fiamme a croce, i bidoni nascondono power-up':'cross flames, barrels hide power-ups',
-'Potenzia':'Power up','+bombe, +fiamma, +velocità':'+bombs, +flame, +speed',
-'90 secondi':'90 seconds','poi i muri si chiudono':'then the walls close in',
-'Dinamite nel cantiere · una vita':'Dynamite in the worksite · one life',
-'2-10 piloti · 3 giri · piste sempre diverse':'2-10 drivers · 3 laps · always-new tracks',
-'Stick = sterzo':'Stick = steering','acceleratore automatico, guida pulita':'auto throttle, clean driving',
-'tieni il bottone destro: sgommata e curve strette':'hold the right button: skid & tight corners',
-'Boost pads':'Boost pads','prendili sulla traiettoria':'grab them on the racing line',
-'Podio':'Podium','6+ piloti: 60/25/7% del piatto ai primi 3':'6+ drivers: 60/25/7% of the pot to top 3',
-'GRIGLIA DI PARTENZA…':'STARTING GRID…','ACCENDI IL MOTORE':'START YOUR ENGINE',
-'Piste procedurali sempre nuove · derapate, boost & scie · personalizza la tua auto':'Always-new procedural tracks · drifts, boosts & trails · customize your car',
-'🎨 LA TUA AUTO — personalizza':'🎨 YOUR CAR — customize','🎨 LA TUA AUTO':'🎨 YOUR CAR',
-'CARROZZERIA':'BODY','DETTAGLI':'DETAILS','CERCHI':'RIMS','NEON SOTTOSCOCCA':'UNDERGLOW','LIVREA':'LIVERY',
-'💾 SALVA AUTO':'💾 SAVE CAR','🏎️ Auto salvata — pronta in griglia':'🏎️ Car saved — ready on the grid',
-'LISCIA':'CLEAN','STRISCIA':'STRIPE','FIAMME':'FLAMES','NUMERO':'NUMBER',
-'TURBO PRONTO!':'TURBO READY!','MINI TURBO!':'MINI TURBO!','MEGA TURBO!':'MEGA TURBO!',
-'FUORI PISTA':'OFF ROAD','ARRIVATO':'FINISHED','DERAPA':'DRIFT',
-// — dama / backgammon / scopa —
-'Italiana vera · presa obbligatoria':'True Italian rules · forced capture',
-'Regole ufficiali · presa obbligatoria':'Official rules · forced capture',
-'Tocca e muovi':'Tap & move','tocca la pedina, poi la casella — mosse valide evidenziate':'tap a piece, then a square — legal moves highlighted',
-'Presa OBBLIGATORIA':'Capture is FORCED','e sempre quella che mangia di più':'and always the one taking the most',
-'Dama vera':'Real kings',"la pedina non può mangiare la dama · promozione sull'ultima riga":'men cannot take kings · promote on the last row',
-'CONTINUA A MANGIARE!':'KEEP CAPTURING!','Dadi, punte e bear-off · niente cubo':'Dice, points & bear-off · no cube',
-'Dadi, punte & bear-off':'Dice, points & bear-off','Dadi automatici':'Auto dice',
-'doppi = 4 mosse · tocca la pedina per usare il dado più alto':'doubles = 4 moves · tap a checker to use the highest die',
-'Blot colpiti':'Blots get hit','pedina sola = a rischio: torna dal bar':'a lone checker is at risk: back from the bar',
-'Porta a casa':'Bring them home','tutte in casa, poi fuori: primo a 15 vince':'all home, then off: first to 15 wins',
-'TOCCA A TE — tocca una punta evidenziata':'YOUR TURN — tap a highlighted point',
-'La classica, una smazzata secca':'The classic, one quick deal','La classica · carte, denari & primiera':'The classic · cards, coins & primiera',
-'Prendi dal tavolo':'Take from the table','carta uguale (obbligatoria) o somma — opzioni evidenziate':'equal card (forced) or a sum — options highlighted',
-'tavolo vuoto = +1 punto':'clear the table = +1 point','Punti veri':'Real scoring','carte, denari, settebello e primiera':'cards, coins, settebello & primiera',
-'tocca una tua carta':'tap one of your cards','tocca la carta del tavolo da prendere':'tap the table card to capture',
-'tocca di nuovo per BUTTARLA':'tap again to DISCARD it','SCOPA SUA':'THEIR SCOPA',
-'La 1 va imbucata PER ULTIMA — si riacchita':'The 1 goes LAST — re-spotted',
-'👆 tocca per giocare la mossa':'👆 tap to play your move',
-// — minigiochi nuovi —
-'Mangia, cresci, taglia la strada':'Eat, grow, cut them off','Mangia e cresci':'Eat & grow',
-'ogni frutto = +1 segmento':'each fruit = +1 segment','Taglia la strada':'Cut them off',
-'muro, te stesso o il SUO corpo = morto':'wall, yourself or THEIR body = dead',
-'FRENZY a 60s':'FRENZY at 60s','frutta doppia — chi è più lungo vince al cap':'double fruit — longest wins at the cap',
-'60 secondi di tiri · ferro vero':'60 seconds of shots · real rim',"Traccia l'arco":'Trace the arc',
-'trascina: direzione e forza del tiro':'drag: shot direction & power','2 o 3 punti':'2 or 3 points',
-'da dietro la linea vale di più':'behind the line is worth more','Striscia':'Streak','3 di fila = canestro bonus':'3 in a row = bonus point',
-'5 frecce a testa · occhio al VENTO':'5 arrows each · mind the WIND',"Tendi l'arco":'Draw the bow',
-'trascina: mira e potenza':'drag: aim & power','Vento variabile':'Shifting wind',
-'cambia a ogni freccia — compensa':'changes every arrow — compensate','Anelli':'Rings','10 al centro, 2 al bordo':'10 in the middle, 2 on the edge',
-'Il West decide in un lampo · al meglio di 5':'The West decides in a flash · best of 5',
-'Aspetta il segnale':'Wait for the signal','occhio alle FINTE…':'watch out for FAKES…',
-'primo tocco vince il round':'first tap wins the round','Anticipo = perso':'Early = lost',
-'tocca prima del segnale e il round è suo':'tap before the signal and the round is theirs',
-'3 buche sempre nuove · meno colpi vince':'3 always-new holes · fewest strokes wins',
-'Putta col drag':'Putt with drag','direzione e forza':'direction & power','Sponde e muretti':'Rails & walls',
-'usali a tuo favore':'use them to your advantage','3 buche':'3 holes','stessa buca per entrambi, conta il totale':'same hole for both, total counts',
-'Timing e stamina · KO o ai punti in 90s':'Timing & stamina · KO or points at 90s',
-'JAB veloce · GANCIO pesante':'Fast JAB · heavy HOOK','il gancio si CARICA: si vede arrivare':'the hook WINDS UP: you can read it',
-'finestra di invulnerabilità — leggi il gancio':'invulnerability window — read the hook',
-'PARATA':'BLOCK','assorbe il 70% · tutto costa stamina':'absorbs 70% · everything costs stamina',
-'🔫 tocca lo schermo appena leggi DRAW!':'🔫 tap the screen as soon as you read DRAW!',
-'aspetta il segnale…':'wait for the signal…','TROPPO PRESTO!':'TOO EARLY!','PIÙ LENTO…':'TOO SLOW…',
-'Colpi finiti — buca persa':'Out of strokes — hole lost','IN ARRIVO — SCHIVA!':'INCOMING — DODGE!',
-'Cresci e taglia la strada':'Grow & cut them off','Tiri ad arco · ferro vero':'Arc shots · real rim',
-'5 frecce · vento variabile':'5 arrows · shifting wind','Riflessi western · con le finte':'Western reflexes · with fakes',
-'3 buche procedurali':'3 procedural holes','Timing, schivate & KO':'Timing, dodges & KO',
-'SEI K.O.':'YOU ARE K.O.','⚠ GANCIO IN ARRIVO — SCHIVA!':'⚠ HOOK INCOMING — DODGE!',
-// — tiles / banner / random —
-'Carri armati real-time · sponde & missili':'Real-time tanks · bounces & missiles',
-'8-ball vero o 15 RAPIDO':'True 8-ball or Italian 8-15','Primo a 5 goal · fisica vera':'First to 5 goals · real physics',
-'Trattini, spin & power pips':'Lines, spin & power pips','Lottatori veri · buttalo giù dal dohyo':'Real wrestlers · push them off',
-'Curling di strada · zone & sganci':'Street curling · zones & knockouts',
-'Piste sempre nuove · derapate & podio':'Always-new tracks · drifts & podium',
-'Battle royale in tempo reale · 2–10 gambler · armi, auto, covi & zona che brucia':'Real-time battle royale · 2–10 gamblers · guns, cars, hideouts & a burning zone',
-'SCENDI IN STRADA':'HIT THE STREETS','A wheel spins & picks your game':'A wheel spins & picks your game',
-'La classica · carte, denari & primiera':'The classic · cards, coins & primiera',
-// — gambler run —
-'LA NOTTE DEL DEBITO':'DEBT NIGHT','IL TRENO D\'ORO':'THE GOLD TRAIN','L\'ULTIMA MANO':'THE LAST HAND',
-'IL COLLEZIONISTA':'THE COLLECTOR','FUGA DA MEZZANOTTE':'MIDNIGHT ESCAPE','LA MALEDIZIONE DEL 7':'THE CURSE OF 7',
-'LA ROULETTE':'THE ROULETTE','PATTO DI SANGUE':'BLOOD PACT','BANCO DEI PEGNI':'PAWN SHOP','PORTA MISTERIOSA':'MYSTERY DOOR',
-'Un colpo alla ruota':'One spin of the wheel','Solo per i dannati — profondo':'For the damned only — deep',
-'−1 vita GARANTITA · pot ×1.5 sicuro':'−1 life GUARANTEED · pot ×1.5 for sure','Vendi un charm → pot ×1.15':'Sell a charm → pot ×1.15',
-'Quattro destini, nessuna certezza':'Four fates, zero certainty',
-'Devi tutto a tutti. Stanotte o rientri, o sparisci.':'You owe everyone. Tonight you pay up or vanish.',
-'Un treno pieno d\'oro attraversa la città. Tu hai un biglietto di sola andata.':'A train full of gold crosses the city. You hold a one-way ticket.',
-'Dicono che il Casinò non perde mai. Stanotte glielo fai vedere tu.':'They say the House never loses. Tonight you prove them wrong.',
-'Sette charm, sette leggende. Il Collezionista paga bene chi osa.':'Seven charms, seven legends. The Collector pays well for the bold.',
-'A mezzanotte chiudono le porte. Quello che hai in tasca, resta tuo.':'At midnight the doors close. What is in your pocket stays yours.',
-'Sette stanze, sette peccati, un solo modo per uscirne: vincere.':'Seven rooms, seven sins, one way out: winning.'
-};
-GB_TR['GANCIO']='HOOK';GB_TR['SCHIVA']='DODGE';GB_TR['PARA']='BLOCK';GB_TR['JAB']='JAB';
-GB_TR['BOMBA']='BOMB';GB_TR['DASH']='DASH';GB_TR['Vento variabile']='Shifting wind';
-GB_TR['FUORI!']='OUT!';GB_TR['PUNTO!']='POINT!';GB_TR['MANCATO']='MISSED';
-GB_TR['VIA!']='GO!';GB_TR['FUOCO!']='FIRE!';GB_TR['K.O.!']='K.O.!';
-var GB_TRX=[
-  [/^TU (\d+)$/,'YOU $1'],
-  [/^MOSSA SUA — (\d+)s$/,'THEIR MOVE — $1s'],[/^GIOCA LUI — (\d+)s$/,'THEIR TURN — $1s'],
-  [/^TIRA LUI — (\d+)s$/,'THEIR SHOT — $1s'],[/^Si parte tra (\d+)s$/,'Starting in $1s'],
-  [/^BUCA (\d+)(\/\d+)?$/,'HOLE $1$2'],[/^⛳ BUCA (\d+)\/(\d+)$/,'⛳ HOLE $1/$2'],
-  [/^GIRO (\d+)\/(\d+)$/,'LAP $1/$2'],[/^ROUND (\d+)(\/\d+)?( .*)?$/,'ROUND $1$2$3'],
-  [/^VENTO (→|←) ([\d.]+)$/,'WIND $1 $2'],[/^IN BUCA! \((\d+)\)$/,'SUNK! ($1)'],
-  [/^(\d+)ms — TUO!$/,'$1ms — YOURS!'],[/^frecce: /,'arrows: '],
-  [/^tuoi dischi: /,'your pucks: '],[/^🧹 TU (\d+) · LUI (\d+)$/,'🧹 YOU $1 · THEM $2'],
-  [/^🏠 TU (\d+)\/15 · LUI (\d+)\/15$/,'🏠 YOU $1/15 · THEM $2/15'],
-  [/^La (\d+) va SOLO in buca centrale — si riacchita$/,'The $1 goes ONLY in a side pocket — re-spotted'],
-  [/^1️⃣ IMBUCA LA 1: VINCI!$/,'1️⃣ POT THE 1: YOU WIN!'],[/TU$/,'YOU'],
-  [/^⚠ CROLLO (\d+)s$/,'⚠ COLLAPSE $1s'],[/^Capitolo/,'Chapter']
-];
-function T(s){
-  if(GB_LANG!=='en'||s==null)return s;
-  var v=GB_TR[s];
-  if(v!=null)return v;
-  if(s.slice(0,2)==='— '){
-    v=GB_TR[s.slice(2)];
-    if(v!=null)return '— '+v;
-  }
-  for(var i=0;i<GB_TRX.length;i++){
-    if(GB_TRX[i][0].test(s))return s.replace(GB_TRX[i][0],GB_TRX[i][1]);
-  }
-  return s;
-}
-function gbSetLang(l){
-  try{localStorage.setItem('gb_lang',l);}catch(e){}
-  location.reload();
-}
-// canvas: traduci OGNI testo disegnato, senza toccare i call-site
-(function(){
-  if(GB_LANG!=='en')return;
-  var oF=CanvasRenderingContext2D.prototype.fillText;
-  var oS=CanvasRenderingContext2D.prototype.strokeText;
-  CanvasRenderingContext2D.prototype.fillText=function(t,x,y,m){return m===undefined?oF.call(this,T(String(t)),x,y):oF.call(this,T(String(t)),x,y,m);};
-  CanvasRenderingContext2D.prototype.strokeText=function(t,x,y,m){return m===undefined?oS.call(this,T(String(t)),x,y):oS.call(this,T(String(t)),x,y,m);};
-})();
-// DOM: traduci i nodi testo di tutto quello che entra nel documento
-function gbTranslateTree(root){
-  if(GB_LANG!=='en'||!root)return;
-  try{
-    var walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null);
-    var n;
-    while((n=walker.nextNode())){
-      var s=n.nodeValue;
-      if(!s)continue;
-      var tr=s.trim();
-      if(!tr)continue;
-      var v=T(tr);
-      if(v!==tr)n.nodeValue=s.replace(tr,v);
-    }
-  }catch(e){}
-}
-(function(){
-  if(GB_LANG!=='en')return;
-  var boot=function(){
-    gbTranslateTree(document.body);
-    try{
-      new MutationObserver(function(muts){
-        muts.forEach(function(mu){
-          mu.addedNodes&&mu.addedNodes.forEach(function(nd){
-            if(nd.nodeType===1)gbTranslateTree(nd);
-            else if(nd.nodeType===3&&nd.nodeValue){
-              var tr=nd.nodeValue.trim();
-              if(tr){var v=T(tr);if(v!==tr)nd.nodeValue=nd.nodeValue.replace(tr,v);}
-            }
-          });
-        });
-      }).observe(document.body,{childList:true,subtree:true});
-    }catch(e){}
-  };
-  if(document.body)boot();else document.addEventListener('DOMContentLoaded',boot);
-})();
-
 function init(){
   spawnBTC();
   try{ GBMusic.scene('home'); }catch(e){}   // show the music toggle + arm the menu theme (starts on first tap)
