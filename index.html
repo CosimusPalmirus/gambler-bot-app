@@ -23631,9 +23631,17 @@ function twrDrawEntity(ctx,cell,row,x,y,now,raw,dt,isMe,W2X,W2Y){
   if(alive){
     ctx.fillStyle=isMe?'#7ee9fb':'rgba(255,255,255,.88)';
     ctx.font='bold '+(cell*0.24)+'px Russo One, sans-serif';
-    var nmL=isMe?'TU':String(twrName(pid)).slice(0,10);
-    ctx.fillText(nmL+(lv>1?' ·LV'+lv:''),sx,sy-cell*0.82);
-    if(lv>=4){ctx.font=(cell*0.26)+'px serif';ctx.fillText('👑',sx,sy-cell*1.02);}
+    // targhetta nome: piena per TE, sfumata per gli altri in base alla distanza dal
+    // centro schermo, nascosta per i lontani -> niente sovrapposizioni nei match affollati.
+    var camd=Math.hypot(sx-ctx.canvas.width/2,sy-ctx.canvas.height/2)/cell;
+    if(isMe||camd<5){
+      ctx.save();
+      ctx.globalAlpha=isMe?1:Math.max(0.25,1-camd/6);
+      var nmL=isMe?'TU':String(twrName(pid)).slice(0,10);
+      ctx.fillText(nmL+(lv>1?' ·LV'+lv:''),sx,sy-cell*0.82);
+      if(lv>=4){ctx.font=(cell*0.26)+'px serif';ctx.fillText('👑',sx,sy-cell*1.02);}
+      ctx.restore();
+    }
     var pipW=cell*0.10,total=hp;
     var x0=sx-(total*pipW+(total-1)*2)/2;
     for(var i=0;i<total;i++){
