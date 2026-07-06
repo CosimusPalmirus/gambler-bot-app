@@ -9005,6 +9005,8 @@ body{position:relative;}
     #grun .gr-botwrap.grab .gr-bot{transform:scale(1.07);}
     #grun .gr-botwrap.walking .gr-bot{animation:grBotWalk .34s infinite ease-in-out;}
     #grun .gr-botwrap.sprite .gr-bot{animation:none!important;}   /* real walk sprite supplies its own motion */
+    #grun .gr-botwrap.sprite:not(.dragging) .gr-bot{animation:grBotBreath 2.6s ease-in-out infinite!important;}  /* gentle idle breathing so GAMBLER BOT never looks frozen */
+    @keyframes grBotBreath{0%{transform:translateY(0) rotate(var(--lean,0deg));}50%{transform:translateY(-2px) rotate(var(--lean,0deg));}100%{transform:translateY(0) rotate(var(--lean,0deg));}}
     @keyframes grBotWalk{0%{transform:translateY(0) rotate(var(--lean,0deg));}25%{transform:translateY(-5px) rotate(var(--lean,0deg));}50%{transform:translateY(0) rotate(var(--lean,0deg));}75%{transform:translateY(-3px) rotate(var(--lean,0deg));}100%{transform:translateY(0) rotate(var(--lean,0deg));}}
     #grun .gr-bot-shadow{position:absolute;left:50%;bottom:-2px;width:64px;height:12px;margin-left:-32px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,.5),transparent 70%);z-index:-1;}
     #grun .gr-botwrap.walking .gr-bot-shadow{animation:grBotShadow .34s infinite ease-in-out;}
@@ -9890,12 +9892,12 @@ function grRenderChoices(d){
     box.appendChild(door);
   });
   var bw=document.createElement('div');
-  bw.className='gr-botwrap'; bw.id='gr-botwrap';
+  bw.className='gr-botwrap sprite'; bw.id='gr-botwrap';   // .sprite = it's GAMBLER BOT (real pixel-art webp), not the vector stand-in
   bw.innerHTML=(GR.dragged?'':'<div class="gr-bot-hint">↑ DRAG ME INTO A ROOM</div><div class="gr-bot-ring"></div>')+
-    '<canvas class="gr-bot" id="gr-bot" width="104" height="120"></canvas>'+
+    '<img class="gr-bot" id="gr-bot" src="'+GR_BOT_IDLE+'" alt="Gambler Bot" draggable="false" '+
+      'onerror="this.onerror=null;this.src=\'gb_char.webp\';">'+
     '<div class="gr-bot-shadow"></div>';
   box.appendChild(bw);
-  grBotLoop();
   if(!GR.dragged){ var demo=document.createElement('div'); demo.className='gr-drag-demo'; demo.textContent='👆'; box.appendChild(demo); }   // clear drag-gesture hint until the first drag
   grSetupBotDrag(box, bw);
 }
@@ -10029,7 +10031,8 @@ function grSetupBotDrag(arena, bw){
     bw.classList.add('dragging','walking','grab'); arena.classList.add('dragging');
     setTimeout(function(){ bw.classList.remove('grab'); }, 160);
     grHaptic('pick');
-    // il bot vettoriale anima da solo la camminata (grBotLoop legge le classi)
+    // GAMBLER BOT si mette in cammino: passa allo sprite animato di camminata (ripiega sull'idle se manca)
+    if(GR_BOT_WALK && img.tagName==='IMG'){ img.src=GR_BOT_WALK; }
     var p=pt(e); sx=p.x; sy=p.y; dx=0; dy=0;
     try{ if(e.pointerId!=null&&bw.setPointerCapture) bw.setPointerCapture(e.pointerId); }catch(_){}
     if(e.cancelable) e.preventDefault();
@@ -10070,6 +10073,7 @@ function grSetupBotDrag(arena, bw){
       setTimeout(function(){ bw.classList.remove('walking'); grAct(idx); }, 250);
     } else {
       bw.classList.remove('walking');
+      if(GR_BOT_WALK && img.tagName==='IMG'){ img.src=GR_BOT_IDLE; }   // GAMBLER BOT torna fermo
       img.style.transform='';
       bw.style.transition='transform .25s cubic-bezier(.34,1.5,.5,1)';
       bw.style.transform='';
@@ -24371,6 +24375,7 @@ function rtdDrawPong(ctx,raw,lp,now,w,hh){
     ctx.fillStyle='rgba(139,92,246,'+(0.10+0.05*Math.sin(now/200))+')';
     ctx.fillRect(0,hh*0.3,w,hh*0.4);
   }
+  var flipP=rtdMySeat()===1;   // seat-1 view is mirrored — must be set BEFORE FYp/pip use it (was hoisted-undefined → PIP drawn on wrong half)
   var FYp=function(yv){return flipP?(MH-yv)*sy:yv*sy;};
   if(raw.pip){
     var pxp=raw.pip[0]*sx,pyp=FYp(raw.pip[1]);
@@ -24383,7 +24388,6 @@ function rtdDrawPong(ctx,raw,lp,now,w,hh){
     ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.fillText(raw.pip[2],pxp,pyp);
   }
-  var flipP=rtdMySeat()===1;
   (raw.p||[]).forEach(function(r){
     var isMe=r[0]===RTD.myId;
     var col=isMe?'#38bdf8':'#f87171';
@@ -25214,7 +25218,6 @@ function rtdDrawDama(ctx,raw,lp,now,w,hh){
     var r=Math.floor(vis/8),c=vis%8;
     var dark=(r+c)%2===1;
     var x=ox+c*S,y=oy+r*S;
-    ctx.fillStyle=dark?'#2a3345':'#c8b golden'.slice(0,0)||'#cbb389';
     ctx.fillStyle=dark?'#2a3345':'#cbb389';
     ctx.fillRect(x,y,S,S);
     if(raw.turn===RTD.myId){
