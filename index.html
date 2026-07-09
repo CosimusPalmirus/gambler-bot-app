@@ -10369,6 +10369,7 @@ function grStart(){
       if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); if(typeof loadBalance==='function')loadBalance(); return; }
       // GR3/W-LINGUA: il tema deriva dal CONTRATTO server (grTheme() legge GR.view) — niente più random.
       GR.ante=d.ante_btc; GR.charmsMeta=d.charms_meta||{}; GR.view=d;
+      try{ GRX._arenaRow=-1; GRX._arenaCleared=-1; }catch(_ar){}   // CORE-LOOP: nuova run → l'arena del 1° piano riparte
       var _th=grTheme(); toast('🎰 '+_th.nm+' — '+_th.intro,'gold',4200);
       if(d.btc!==undefined){ S.btc=d.btc; refresh(); } grUpdBal();
       // HOOK GDR (I1): carta CONTRATTO prima di entrare nel Palazzo (cb chiamata UNA volta;
@@ -10562,6 +10563,34 @@ function grExpOdds(c,m){
   return '';
 }
 
+/* ── IDENTITÀ VISIVA DELLE PORTE (goal A) + battito DOORS-OPEN (goal B) ────────
+   Tutto COSMETICO e additivo: nessuna logica economia/combat toccata. Le gradient/
+   sprite sono COTTE UNA VOLTA (idiom grcSprites / lazy-cache), MAI per-frame. */
+// categoria "leggibile a colpo d'occhio", dedotta dai flag di GR_ROOMS (fallback→'bet')
+function grExpCat(t){
+  var m=grRoomMeta(t);
+  if(m.boss) return 'boss';
+  if(m.heal) return 'shrine';
+  if(m.exit) return 'exit';
+  if(m.charm||m.pawn||t==='pawn'||t==='fixer') return 'npc';
+  if(m.event||m.mystery||m.pact||t==='event'||t==='mystery'||t==='pact') return 'event';
+  if(t==='vault'||t==='heist'||t==='highroller') return 'treasure';
+  return 'bet';
+}
+// pill di categoria disegnata sopra la porta (identità testuale immediata)
+var GREXP_CATTAG={ bet:'SCOMMESSA', treasure:'TESORO', shrine:'SANTUARIO', npc:'MERCANTE', event:'DESTINO', boss:'BOSS', exit:'LA SCALA' };
+// glow radiale offscreen COTTO UNA VOLTA per colore (cache modulo; mai alloc per-frame)
+var GREXP_GLOW={};
+function grExpGlowSprite(col){
+  if(GREXP_GLOW[col]) return GREXP_GLOW[col];
+  var S=128, cv=document.createElement('canvas'); cv.width=S; cv.height=S;
+  var c=cv.getContext('2d');
+  var g=c.createRadialGradient(S/2,S/2,1,S/2,S/2,S/2);
+  g.addColorStop(0,col); g.addColorStop(0.45,col); g.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=g; c.fillRect(0,0,S,S);
+  GREXP_GLOW[col]=cv; return cv;
+}
+
 /* ── ENTRY POINT: costruisce la scena per la riga corrente ─────────────────── */
 function grRenderExplore(d){
   var box=document.getElementById('gr-choices'); if(!box) return;
@@ -10584,6 +10613,7 @@ function grRenderExplore(d){
   GRX.bot={ x:GRX.worldW/2, y:GRX.worldH-70, vx:0, vy:0, face:1, moving:false, anim:0 };
   GRX.cam={ x:GRX.bot.x, y:GRX.bot.y };
   GRX.near=-1; GRX.moveTarget=null; GRX.autoEnter=-1; GRX.wp=null;
+  GRX._doorsOpenT=0;   // battito DOORS-OPEN (goal B): riarmato ad ogni nuova riga
   GRX.entering=false; GRX.fired=false; GRX.enterIdx=-1;
   GRX.input={up:0,dn:0,lf:0,rt:0,jx:0,jy:0,jid:null,jbx:0,jby:0,jmoved:false,enterId:null};
 
@@ -10594,6 +10624,10 @@ function grRenderExplore(d){
   grExpWire(cv);
   GRX.last=performance.now();
   grExpLoop();
+
+  // CORE-LOOP (GR_COMBAT_ON): all'ingresso del piano dungeon, l'ARENA prima delle porte.
+  // No-op se view.combat_core assente (flag OFF / lineare) → flusso odierno IDENTICO.
+  try{ grFloorArena(d); }catch(eFA){ grWarn('grRenderExplore.floorArena', eFA); }
 }
 
 /* ── layout delle stanze come interattivi nel mondo ────────────────────────── */
@@ -10782,6 +10816,7 @@ function grExpRender(now){
     else if(it.npc){ try{ grNpcDraw(g,it.npc); }catch(eN2){ grWarn('grExpDraw.npcDraw', eN2); } }
     else grExpDrawObstacle(g,it.ob);
   }
+  grExpDoorsFlash(g,now);   // goal B: bloom dorato all'apertura delle porte (finestra breve)
   grExpHud(g);
 }
 
@@ -10834,19 +10869,45 @@ function grExpDrawSpot(g,s,now){
   var p=grW2S(s.x,s.y);
   var near=(s.si===GRX.near);
   var col=grExpColor(s.type);
+  var cat=grExpCat(s.type);           // goal A: categoria leggibile della porta
   var house=(s.type==='house');
   var W=house?96:84, Hh=house?104:78;
+  var t=(now||0);
+
+  // battito DOORS-OPEN (goal B): finestra ~2.2s dall'arena ripulita, SFALSATA per porta
+  var dop = GRX._doorsOpenT ? (t-GRX._doorsOpenT) : 1e9, beat=0;
+  if(dop>=0 && dop<2200){ var lt=dop-((s.si>0?s.si:0)*90); if(lt>0 && lt<900) beat=1-lt/900; }
+  // respiro d'identità per categoria (boss pulsa, santuario respira) — solo math, no alloc
+  var breathe = cat==='boss' ? (0.75+Math.sin(t/170)*0.45)
+              : cat==='shrine' ? (0.80+Math.sin(t/520)*0.25) : 1;
 
   // ombra
   g.save(); g.globalAlpha=.42; g.fillStyle='#000';
   g.beginPath(); g.ellipse(p.x,p.y, W*0.42, 10, 0, 0, 6.283); g.fill(); g.restore();
 
-  // alone quando raggiungibile
-  if(near){
-    g.save(); g.globalAlpha=.34;
-    var gl=g.createRadialGradient(p.x,p.y-Hh*0.5,4,p.x,p.y-Hh*0.5,W);
-    gl.addColorStop(0,col); gl.addColorStop(1,'rgba(0,0,0,0)');
-    g.fillStyle=gl; g.beginPath(); g.arc(p.x,p.y-Hh*0.5,W,0,6.283); g.fill(); g.restore();
+  // IMPRONTA colorata sul pavimento (glow-sprite in cache, schiacciato a ellisse):
+  // dà a ogni porta un'identità di COLORE visibile anche da lontano.
+  var foot=grExpGlowSprite(col);
+  g.save();
+  g.globalCompositeOperation='lighter';
+  g.globalAlpha=Math.min(0.85,(near?0.5:0.26)*breathe + beat*0.4);
+  var fr=W*0.9; g.drawImage(foot, p.x-fr, p.y-fr*0.34, fr*2, fr*0.68);
+  g.restore();
+
+  // alone verticale dietro la porta (stessa sprite in cache, niente gradient per-frame)
+  if(near||beat>0){
+    g.save(); g.globalCompositeOperation='lighter';
+    g.globalAlpha=Math.min(0.85,((near?0.36:0)+beat*0.5)*breathe);
+    var gr=W*1.15, gy=p.y-Hh*0.5; g.drawImage(foot, p.x-gr, gy-gr, gr*2, gr*2);
+    g.restore();
+  }
+
+  // ANELLO del battito: onda che si espande e invita a scegliere la porta appena aperta
+  if(beat>0){
+    g.save(); g.globalAlpha=beat*0.8; g.strokeStyle=col; g.lineWidth=3;
+    var rr=W*(0.45+(1-beat)*0.95);
+    g.beginPath(); g.ellipse(p.x, p.y-Hh*0.38, rr, rr*0.5, 0,0,6.283); g.stroke();
+    g.restore();
   }
 
   // pannello / porta (billboard che "sta in piedi" sul pavimento)
@@ -10854,14 +10915,20 @@ function grExpDrawSpot(g,s,now){
   var pg=g.createLinearGradient(0,y,0,p.y);
   pg.addColorStop(0,'rgba(30,26,52,.98)'); pg.addColorStop(1,'rgba(10,9,20,.98)');
   grExpRR(g,x,y,W,Hh,14); g.fillStyle=pg; g.fill();
-  g.lineWidth=near?3:2; g.strokeStyle=col; g.shadowColor=col; g.shadowBlur=near?18:9; g.stroke(); g.shadowBlur=0;
+  g.lineWidth=near?3:2; g.strokeStyle=col; g.shadowColor=col; g.shadowBlur=(near?18:9)+beat*16; g.stroke(); g.shadowBlur=0;
 
   // barra accento in alto
   g.fillStyle=col; grExpRR(g,x+10,y+7,W-20,4,2); g.fill();
 
-  // icona (emoji della stanza — coerente con GR_ROOMS)
+  // PILL di categoria sopra il bordo (goal A: identità testuale a colpo d'occhio)
   g.textAlign='center'; g.textBaseline='middle';
-  g.font=(house?'40px':'34px')+' serif';
+  g.font='bold 7px Orbitron,monospace';
+  var tag=GREXP_CATTAG[cat]||'', tw=g.measureText(tag).width+10;
+  grExpRR(g, p.x-tw/2, y-7, tw, 12, 6); g.fillStyle=col; g.fill();
+  g.fillStyle='#0a0713'; g.fillText(tag, p.x, y-1);
+
+  // icona (emoji della stanza — coerente con GR_ROOMS)
+  g.font=(house?'40px':'34px')+' serif'; g.fillStyle='#fff';
   g.fillText(s.m.ic||'❓', p.x, y+Hh*0.42);
 
   // nome + odds
@@ -10869,12 +10936,23 @@ function grExpDrawSpot(g,s,now){
   g.fillText(String(s.m.nm||s.type).slice(0,13), p.x, y+Hh-20);
   if(s.odds){ g.font='bold 8px Orbitron,monospace'; g.fillStyle='#ffd27a'; g.fillText(s.odds, p.x, y+Hh-9); }
 
-  // etichetta "ENTRA" fluttuante quando sei vicino
+  // etichetta "ENTRA" fluttuante quando sei vicino (sopra la pill)
   if(near){
-    var ty=y-14+Math.sin((now||0)/220)*3;
+    var ty=y-20+Math.sin(t/220)*3;
     g.font='bold 10px Orbitron,monospace'; g.fillStyle=col; g.textBaseline='alphabetic';
     g.fillText('▸ '+grExpEnterLabel(s)+' ◂', p.x, ty);
   }
+}
+
+/* ── lampo dorato full-screen all'apertura delle porte (goal B) ──────────────
+   Sprite in cache riusata a schermo pieno; attivo solo nella finestra del battito. */
+function grExpDoorsFlash(g,now){
+  var t0=GRX._doorsOpenT; if(!t0) return;
+  var dt=(now||0)-t0; if(dt<0||dt>720) return;
+  var k=dt/720;
+  g.save(); g.globalCompositeOperation='lighter'; g.globalAlpha=(1-k)*0.55;
+  g.drawImage(grExpGlowSprite('#ffe6a8'), 0,0, GRX.W, GRX.H);
+  g.restore();
 }
 
 function grExpDrawObstacle(g,ob){
@@ -16204,6 +16282,150 @@ function grcSprites(){
              hF:heart(true), hE:heart(false) };
   return GRC._spr;
 }
+
+/* ── ARENA-ENVIRONMENT ART (additive/cosmetico): bake-once background layer per
+   mount + sprite soft-glow memoizzati. NIENTE economia/combat qui: solo pixel. ── */
+function grcRng(seed){                         // mulberry32 deterministico (no alloc per-frame)
+  var a=(seed>>>0)||1;
+  return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; };
+}
+var GRC_SOFT={};                               // cache sprite radiali (torcia/neon/fumo)
+function grcSoftSprite(r, stops){              // stops = [[off,color],…]  → offscreen memoizzato
+  var key=r+'|'+stops.join('~');
+  if(GRC_SOFT[key]) return GRC_SOFT[key];
+  var s=document.createElement('canvas'); s.width=s.height=Math.max(1,r*2);
+  var g=s.getContext('2d'), gr=g.createRadialGradient(r,r,0,r,r,r);
+  for(var i=0;i<stops.length;i++) gr.addColorStop(stops[i][0],stops[i][1]);
+  g.fillStyle=gr; g.beginPath(); g.arc(r,r,r,0,6.283); g.fill();
+  return GRC_SOFT[key]=s;
+}
+/* Costruisce UNA volta il fondale statico del tema in un offscreen 360*dpr × 540*dpr.
+   Tutto ciò che è fermo (pavimento, muri, cornice/bordo ambra, grana) è cotto qui;
+   il frame fa 1 solo blit. theme/tier/dpr sono costanti per il mount → mai ricostruito. */
+function grcBgLayer(theme, boss, tier, dpr){
+  var W=360,H=540,WL=16,fx0=WL,fy0=WL,fx1=W-WL,fy1=H-WL;
+  var mood=Math.min(1,(Math.max(1,Math.min(6,tier|0))-1)/5);
+  var cn=document.createElement('canvas');
+  cn.width=Math.round(W*dpr); cn.height=Math.round(H*dpr);
+  var g=cn.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0);
+  var mode=boss?'casa':theme;
+  var rng=grcRng((mode==='colosseo'?11:mode==='caveau'?22:mode==='vicolo'?33:44)+(tier|0)*7);
+
+  if(mode==='caveau'){
+    // 1) pavimento a mattonelle metalliche sbalzate (griglia 36px)
+    g.fillStyle='#0e1526'; g.fillRect(0,0,W,H);
+    var ts=36;
+    for(var cy=fy0; cy<fy1; cy+=ts){ for(var cx=fx0; cx<fx1; cx+=ts){
+      var cw=Math.min(ts,fx1-cx)-2, ch=Math.min(ts,fy1-cy)-2; if(cw<=0||ch<=0) continue;
+      g.fillStyle='#16203a'; g.fillRect(cx+1,cy+1,cw,ch);
+      g.fillStyle='#2a3a5c'; g.fillRect(cx+1,cy+1,cw,1); g.fillRect(cx+1,cy+1,1,ch);
+      g.fillStyle='#0a0f1e'; g.fillRect(cx+1,cy+ch,cw,1); g.fillRect(cx+cw,cy+1,1,ch);
+    }}
+    // sheen diagonale spazzolato in alto-sx
+    var shG=g.createLinearGradient(fx0,fy0,fx0+200,fy0+200);
+    shG.addColorStop(0,'rgba(207,224,255,.06)'); shG.addColorStop(1,'rgba(207,224,255,0)');
+    g.fillStyle=shG; g.fillRect(fx0,fy0,fx1-fx0,fy1-fy0);
+    // mood: raffredda+abbassa le mattonelle
+    if(mood>0){ g.fillStyle='rgba(6,14,30,'+(0.30*mood).toFixed(3)+')'; g.fillRect(fx0,fy0,fx1-fx0,fy1-fy0); }
+    // 2) parete cassette di sicurezza (banda alta) 8×3
+    var bxW=(fx1-fx0)/8, bxH=16;
+    for(var rr=0;rr<3;rr++){ for(var cc=0;cc<8;cc++){ var bx=fx0+cc*bxW, by=fy0+rr*bxH;
+      g.fillStyle='#232d44'; g.fillRect(bx+1,by+1,bxW-2,bxH-2);
+      g.strokeStyle='#0a0f1e'; g.lineWidth=1; g.strokeRect(bx+1,by+1,bxW-2,bxH-2);
+      g.fillStyle='#d4a017'; g.fillRect(bx+3,by+3,6,3);
+      g.fillStyle='#3a4560'; g.beginPath(); g.arc(bx+bxW-7,by+bxH/2,3,0,6.283); g.fill(); } }
+    var swG=g.createLinearGradient(0,fy0+48,0,fy0+82); swG.addColorStop(0,'rgba(0,0,0,.45)'); swG.addColorStop(1,'rgba(0,0,0,0)');
+    g.fillStyle=swG; g.fillRect(fx0,fy0+48,fx1-fx0,34);
+    // 3) trim oro doppio (bordo)
+    g.strokeStyle='#d4a017'; g.lineWidth=2; g.strokeRect(fx0+2,fy0+2,fx1-fx0-4,fy1-fy0-4);
+    g.strokeStyle='#ffcf5b'; g.lineWidth=1; g.strokeRect(fx0+5,fy0+5,fx1-fx0-10,fy1-fy0-10);
+
+  } else if(mode==='vicolo'){
+    // 1) asfalto bagnato
+    g.fillStyle='#0c0f14'; g.fillRect(0,0,W,H);
+    var asG=g.createRadialGradient(W/2,H*0.7,20,W/2,H*0.7,H*0.55);
+    asG.addColorStop(0,'#12161d'); asG.addColorStop(1,'#0c0f14'); g.fillStyle=asG; g.fillRect(0,0,W,H);
+    g.strokeStyle='#1a2028'; g.lineWidth=1;
+    for(var cr=0;cr<6;cr++){ var sx=fx0+rng()*(fx1-fx0), sy=fy0+rng()*(fy1-fy0); g.beginPath(); g.moveTo(sx,sy);
+      for(var sg=0;sg<3;sg++){ sx+=(rng()-0.5)*40; sy+=(rng()-0.5)*40; g.lineTo(sx,sy);} g.stroke(); }
+    // riflessi neon cotti in basso
+    var mgG=g.createLinearGradient(0,fy1-140,0,fy1); mgG.addColorStop(0,'rgba(255,46,136,0)'); mgG.addColorStop(1,'rgba(255,46,136,.06)');
+    g.fillStyle=mgG; g.fillRect(fx0,fy1-140,(fx1-fx0)*0.5,140-9);
+    var cyG=g.createLinearGradient(0,fy1-140,0,fy1); cyG.addColorStop(0,'rgba(35,224,255,0)'); cyG.addColorStop(1,'rgba(35,224,255,.06)');
+    g.fillStyle=cyG; g.fillRect(W/2,fy1-140,(fx1-fx0)*0.5,140-9);
+    // 2) muri in mattoni (banda alta + fasce laterali), a corsi sfalsati
+    function brick(x,y,w,h){ g.fillStyle='#2a1f1c'; g.fillRect(x,y,w,h);
+      var bh=8,bw=22; for(var by2=y,ro=0; by2<y+h; by2+=bh,ro++){ var off=(ro%2)?bw/2:0;
+        for(var rx=x-bw; rx<x+w; rx+=bw){ g.fillStyle='#5a2f28'; g.fillRect(rx+off+1,by2+1,bw-2,bh-2); } } }
+    g.save(); g.beginPath(); g.rect(fx0,fy0,fx1-fx0,48); g.clip(); brick(fx0,fy0,fx1-fx0,48); g.restore();
+    g.save(); g.beginPath(); g.rect(fx0,fy0,10,fy1-fy0); g.clip(); brick(fx0,fy0,10,fy1-fy0); g.restore();
+    g.save(); g.beginPath(); g.rect(fx1-10,fy0,10,fy1-fy0); g.clip(); brick(fx1-10,fy0,10,fy1-fy0); g.restore();
+    var grimeG=g.createRadialGradient(W/2,H/2,80,W/2,H/2,H*0.62); grimeG.addColorStop(0,'rgba(0,0,0,0)'); grimeG.addColorStop(1,'rgba(0,0,0,'+(0.35+0.25*mood).toFixed(3)+')');
+    g.fillStyle=grimeG; g.fillRect(fx0,fy0,fx1-fx0,fy1-fy0);
+    // 3) insegne neon SPENTE (il glow è live)
+    g.strokeStyle='rgba(255,46,136,.25)'; g.lineWidth=3; g.strokeRect(fx0+30,fy0+70,70,26);
+    g.strokeStyle='rgba(255,46,136,.18)'; g.lineWidth=2; g.beginPath();
+    g.moveTo(fx0+42,fy0+78); g.lineTo(fx0+42,fy0+88); g.moveTo(fx0+54,fy0+78); g.lineTo(fx0+54,fy0+88); g.moveTo(fx0+66,fy0+78); g.lineTo(fx0+66,fy0+88); g.stroke();
+    g.strokeStyle='rgba(35,224,255,.22)'; g.lineWidth=3; g.beginPath(); g.arc(fx1-46,fy0+92,14,0,6.283); g.stroke();
+
+  } else if(mode==='casa'){
+    // 1) feltro verde con faro
+    var feltG=g.createRadialGradient(W/2,H*0.46,30,W/2,H*0.52,H*0.6);
+    feltG.addColorStop(0,'#2a8a58'); feltG.addColorStop(0.6,'#14603a'); feltG.addColorStop(1,'#0d3a24');
+    g.fillStyle=feltG; g.fillRect(0,0,W,H);
+    g.save(); g.beginPath(); g.rect(fx0,fy0,fx1-fx0,fy1-fy0); g.clip();
+    g.strokeStyle='rgba(255,255,255,.03)'; g.lineWidth=1; var dd=fy1-fy0;
+    for(var dx=fx0-dd; dx<fx1+dd; dx+=20){ g.beginPath(); g.moveTo(dx,fy0); g.lineTo(dx+dd,fy1); g.stroke(); g.beginPath(); g.moveTo(dx,fy0); g.lineTo(dx-dd,fy1); g.stroke(); }
+    g.restore();
+    g.fillStyle='rgba(255,255,255,.035)'; g.font='40px serif'; g.textAlign='center'; g.textBaseline='middle';
+    g.fillText('♠',fx0+42,fy0+52); g.fillText('♥',fx1-42,fy0+52); g.fillText('♦',fx0+42,fy1-52); g.fillText('♣',fx1-42,fy1-52);
+    // anello scommesse + pile di fiches
+    g.strokeStyle='#e8c24a'; g.lineWidth=1.5; g.beginPath(); g.arc(W/2,H*0.5,70,0,6.283); g.stroke();
+    g.strokeStyle='rgba(232,194,74,.4)'; g.lineWidth=1; g.beginPath(); g.arc(W/2,H*0.5,62,0,6.283); g.stroke();
+    function chipStack(x,y){ for(var ci=0;ci<6;ci++){ g.fillStyle=(ci%2?'rgba(200,40,40,.5)':'rgba(20,20,20,.5)'); g.beginPath(); g.ellipse(x,y-ci*3,9,4,0,0,6.283); g.fill(); } }
+    chipStack(fx0+42,H*0.5); chipStack(fx1-42,H*0.5);
+    if(mood>0){ var eg=g.createRadialGradient(W/2,H/2,90,W/2,H/2,H*0.6); eg.addColorStop(0,'rgba(0,0,0,0)'); eg.addColorStop(1,'rgba(0,0,0,'+(0.35*mood).toFixed(3)+')'); g.fillStyle=eg; g.fillRect(0,0,W,H); }
+    // 2) sponda in legno imbottita (bordo) con punti-cucitura
+    var railW=10, railG=g.createLinearGradient(0,fy0,0,fy0+railW); railG.addColorStop(0,'#6b4a2a'); railG.addColorStop(1,'#3a2a16');
+    g.fillStyle=railG; g.fillRect(fx0,fy0,fx1-fx0,railW); g.fillRect(fx0,fy1-railW,fx1-fx0,railW);
+    g.fillStyle='#523720'; g.fillRect(fx0,fy0,railW,fy1-fy0); g.fillRect(fx1-railW,fy0,railW,fy1-fy0);
+    g.fillStyle=railG; g.fillRect(fx0,fy0,fx1-fx0,railW);
+    g.strokeStyle='rgba(230,200,150,.35)'; g.lineWidth=1;
+    for(var stx=fx0+railW; stx<fx1-railW; stx+=12){ g.beginPath(); g.moveTo(stx,fy0+railW-2); g.lineTo(stx+4,fy0+railW-2); g.stroke(); g.beginPath(); g.moveTo(stx,fy1-railW+2); g.lineTo(stx+4,fy1-railW+2); g.stroke(); }
+    // 3) lampadario (staffa oro + cristalli)
+    g.fillStyle='#6b4a2a'; g.fillRect(W/2-2,fy0,4,10);
+    g.fillStyle='#ffd86b'; g.beginPath(); g.arc(W/2,fy0+12,6,0,6.283); g.fill();
+    g.fillStyle='rgba(255,230,160,.5)';
+    for(var xz=-2;xz<=2;xz++){ var cxp=W/2+xz*8; g.beginPath(); g.moveTo(cxp-3,fy0+16); g.lineTo(cxp+3,fy0+16); g.lineTo(cxp,fy0+26); g.closePath(); g.fill(); }
+
+  } else {
+    // COLOSSEO (default) — 1) sabbia
+    g.fillStyle='#241606'; g.fillRect(0,0,W,H);
+    var rgS=g.createRadialGradient(W/2,H*0.5,20,W/2,H*0.55,H*0.7); rgS.addColorStop(0,'#3a2a12'); rgS.addColorStop(1,'#241606');
+    g.fillStyle=rgS; g.fillRect(0,0,W,H);
+    for(var gi=0;gi<500;gi++){ var ggx=fx0+rng()*(fx1-fx0), ggy=fy0+rng()*(fy1-fy0);
+      g.fillStyle='rgba(200,170,110,'+(0.05+rng()*0.07).toFixed(3)+')'; g.fillRect(ggx,ggy,1,1); }
+    g.strokeStyle='rgba(0,0,0,.06)'; g.lineWidth=1;
+    for(var ra=0;ra<3;ra++){ var ry=fy0+120+ra*70; g.beginPath(); g.moveTo(fx0,ry); g.quadraticCurveTo(W/2,ry-30-ra*8,fx1,ry); g.stroke(); }
+    if(mood>0){ g.fillStyle='rgba(0,0,0,'+(0.22*mood).toFixed(3)+')'; g.fillRect(fx0,fy0,fx1-fx0,fy1-fy0); }
+    // 2) tribuna/folla in alto (4 bande, la più lontana più scura)
+    var cbG=g.createLinearGradient(0,fy0,0,fy0+56); cbG.addColorStop(0,'#0f0a05'); cbG.addColorStop(1,'rgba(15,10,5,0)');
+    g.fillStyle=cbG; g.fillRect(fx0,fy0,fx1-fx0,54);
+    for(var bnd=0;bnd<4;bnd++){ var by=fy0+2+bnd*11; g.fillStyle='rgba(15,10,5,'+(0.55-bnd*0.12).toFixed(2)+')'; g.fillRect(fx0,by,fx1-fx0,10);
+      g.fillStyle='rgba(0,0,0,.4)'; for(var tx=fx0;tx<fx1;tx+=14){ g.fillRect(tx+(bnd%2?7:0),by,1,10); } }
+    g.fillStyle='#0f0a05'; for(var hx=fx0;hx<fx1;hx+=6){ var hh=2+rng()*4; g.beginPath(); g.arc(hx+3,fy0+6,hh,Math.PI,0); g.fill(); }
+    // 3) podio in pietra (bordo) — questo È la cornice
+    var lipW=9;
+    function lipSide(x,y,w,h,horiz){ g.fillStyle='#2a2218'; g.fillRect(x,y,w,h); g.fillStyle='#4a3d2d'; g.fillRect(x,y,w,h);
+      g.fillStyle='#6b5a44'; if(horiz){ for(var lx=x;lx<x+w;lx+=20){ g.fillRect(lx+1,y+1,17,h-4); } } else { for(var ly=y;ly<y+h;ly+=20){ g.fillRect(x+1,ly+1,w-4,17); } } }
+    lipSide(fx0,fy0,fx1-fx0,lipW,true); lipSide(fx0,fy1-lipW,fx1-fx0,lipW,true);
+    lipSide(fx0,fy0,lipW,fy1-fy0,false); lipSide(fx1-lipW,fy0,lipW,fy1-fy0,false);
+    g.strokeStyle='rgba(255,180,80,.35)'; g.lineWidth=2; g.strokeRect(fx0+lipW,fy0+lipW,(fx1-fx0)-2*lipW,(fy1-fy0)-2*lipW);
+    if(mood>0){ var nb=(2+mood*5)|0; for(var bl=0;bl<nb;bl++){ var blx=fx0+lipW+rng()*((fx1-fx0)-2*lipW), bly=(rng()<0.5?fy0+lipW+rng()*20:fy1-lipW-rng()*20);
+      g.fillStyle='rgba(58,24,16,'+(0.3+rng()*0.4).toFixed(2)+')'; g.beginPath(); g.arc(blx,bly,2+rng()*4,0,6.283); g.fill(); } }
+  }
+  return cn;
+}
 function grcInjectCss(){
   if(GRC._css) return; GRC._css=true;
   var st=document.createElement('style'); st.id='grc-css';
@@ -16230,6 +16452,49 @@ function grCombatBoss(meta, idx){
   if(GR.busy) return; GR.busy=true;
   grCombatArena(meta||{}, function(win){ GR.busy=false; grActResolve(idx,{skill_win:win?1:0}); });
 }
+/* ── INERT wrapper (RTP firewall): combat ECONOMICAMENTE INERTE.
+   Monta l'arena e riporta SOLO win/lose al chiamante di piano (C3).
+   NON chiama MAI grActResolve/grAct: zero pot/lives/ctr, zero row-advance. ── */
+function grArenaInert(meta, onDone){
+  if(GR.busy) return; GR.busy=true;
+  grCombatArena(meta||{}, function(win){ GR.busy=false; if(typeof onDone==='function') onDone(!!win); });
+}
+
+/* ── CORE-LOOP (GR_COMBAT_ON): l'ARENA di piano PRIMA delle porte (Isaac-like).
+   All'INGRESSO di un piano dungeon con view.combat_core presente, monta grArenaInert:
+   il bot resta CONGELATO (GR.busy) → nessuna porta è raggiungibile finché l'arena non è
+   RIPULITA; poi l'esplorazione riprende e il giocatore SCEGLIE la stanza (door-choice).
+   RTP-FIREWALL: passa SOLO per grArenaInert → MAI grAct/grActResolve/economia. L'esito
+   (win/lose) è puramente COSMETICO (v1): vittoria = zero premio, sconfitta = zero penalità;
+   pot/lives/ctr/row non vengono MAI toccati qui. Descrittore 100% dal server (_map_rand,
+   banda libera 730-789). Flag OFF ⇒ view.combat_core ASSENTE ⇒ ritorno immediato ⇒ flusso
+   odierno IDENTICO (byte-identità preservata). Una sola arena per INGRESSO piano. */
+function grFloorArena(d){
+  try{
+    if(!d || !d.dungeon || d.over || !d.combat_core) return;   // flag OFF / lineare / run finita → no-op
+    if(typeof grArenaInert!=='function') return;
+    if(GR.busy) return;                                        // altro overlay in corso → riprova al prossimo render
+    var row=(d.row||0);
+    if(GRX._arenaRow===row) return;                            // già montata per questo piano (no re-mount su re-render/resume)
+    GRX._arenaRow=row;
+    var cc=d.combat_core||{};
+    // meta DIFENSIVO: arena/tier presentazionali; ondate (encounters) OPPURE boss di piano.
+    // grCombatArena consuma meta.encounters (waves) e meta.boss come già supportato (16561-16568).
+    var meta={ arena:cc.arena, tier:cc.tier,
+               boss:(cc.boss||null),
+               encounters:(cc.encounters&&cc.encounters.length)?cc.encounters:null };
+    grArenaInert(meta, function(win){
+      // ESITO INERTE: nessuna chiamata economica. Le porte sono ora raggiungibili (GR.busy
+      // già liberato da grArenaInert) → il giocatore sceglie la prossima stanza (Isaac).
+      GRX._arenaCleared=row;
+      try{ grHaptic(win?'win':'sel'); }catch(e){}
+      // GOAL B — beat "DOORS OPEN": timestamp letto dal renderer explore per il bloom
+      // dorato + le porte che pulsano a invitare la scelta (puramente cosmetico).
+      try{ GRX._doorsOpenT=(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now(); }catch(e){}
+      try{ grSound('chip'); }catch(e){}
+    });
+  }catch(eA){ grWarn('grFloorArena', eA); }
+}
 
 /* ── IL MOTORE ── */
 function grCombatArena(meta, cb){
@@ -16242,8 +16507,11 @@ function grCombatArena(meta, cb){
   var arenaTheme=meta.arena||'colosseo';
   var enemyKind=(meta.enemy&&meta.enemy.kind)||'chaser';
   var enemyN=(meta.enemy&&(meta.enemy.n|0))||(2+tier);
+  // C1: descrittore ondate/boss (array opzionale). Assente ⇒ null ⇒ flusso odierno IDENTICO.
+  var ENC=(meta.encounters&&meta.encounters.length)?meta.encounters:null;
+  // C1: cuori-arena LOCALI con carryover per-piano (meta.hearts). Assente ⇒ HP_BASE odierno.
   // charm iron_will → +1 cuore (letto difensivo, cap 4)
-  var maxHp=GR_C.HP_BASE;
+  var maxHp=((meta.hearts|0)>0)?Math.max(1,Math.min(4,meta.hearts|0)):GR_C.HP_BASE;
   try{ if(GR.view&&GR.view.charms){ var cs=GR.view.charms; for(var ci=0;ci<cs.length;ci++){ if(cs[ci]==='iron_will'||(cs[ci]&&cs[ci].id==='iron_will')){ maxHp=Math.min(4,maxHp+1); } } } }catch(e){}
 
   // ── DOM overlay ──
@@ -16297,7 +16565,9 @@ function grCombatArena(meta, cb){
   function hurtEnemy(e,dmg,dx,dy){
     e.hp-=dmg; e.flash=0.09;
     var d=Math.hypot(dx,dy)||1; e.x+=dx/d*4; e.y+=dy/d*4;
-    if(e.hp<=0){ e.on=0; burst(e.x,e.y,7,e.kind==='swarm'?'#ffd24a':'#ff8a5b'); try{ TWS.play(e.kind==='swarm'?'coin':'clank',0.7); }catch(_){}}
+    if(e.hp<=0){ e.on=0; burst(e.x,e.y,7,e.kind==='swarm'?'#ffd24a':'#ff8a5b');
+      if(e.split&&!e.mini){ for(var sp=0;sp<2;sp++){ var mn=spawnEnemy('swarm',e.x+(sp?12:-12),e.y,0); mn.mini=1; mn.r=6; mn.hp=1; } }   // C2: SPLITTER → 2 mini
+      try{ TWS.play(e.kind==='swarm'?'coin':'clank',0.7); }catch(_){}}
     else { try{ TWS.play('clank',0.4); }catch(_){}}
   }
   function hurtBoss(dmg){ if(!boss||boss.hp<=0) return; boss.hp-=dmg; boss.flash=0.08; }
@@ -16313,7 +16583,9 @@ function grCombatArena(meta, cb){
     try{ TWS.play('death',1); }catch(e){} burst(P.x,P.y,18,'#9fd8ff'); }
   function triggerWin(){ if(won) return; won=true; winT=0.85; grcMsg(bossId?'BOSS ABBATTUTO':'ARENA RIPULITA');
     try{ TWS.play('win',1); }catch(e){} try{ grHaptic('win'); }catch(e){}
-    if(boss) burst(boss.x,boss.y,26,'#ffe27a'); }
+    if(boss){ burst(boss.x,boss.y,26,'#ffe27a');
+      var dfz=BOSS_DEFEAT[boss.id];   // C2: battuta di SCONFITTA durante la fanfara di vittoria
+      if(dfz){ taunt.t=1.6; taunt.text=dfz; taunt.title=(GR_NPC_META[boss.id]&&GR_NPC_META[boss.id].nm)||'LA CASA'; taunt.port=bossPortrait(boss.id); winT=Math.max(winT,1.7); } } }
 
   function firePB(ang){
     for(var k=0;k<PB.length;k++){ if(!PB[k].on){ var b=PB[k]; b.on=1;
@@ -16332,12 +16604,25 @@ function grCombatArena(meta, cb){
     for(var s=0;s<6;s++) part(P.x+Math.cos(P.face)*20,P.y+Math.sin(P.face)*20,Math.cos(P.face+((Math.random()-.5)*0.9))*160,Math.sin(P.face)*160,0.18,'#cfe9ff',2);
   }
 
-  // ══════════════ NEMICI (3 archetipi) ══════════════
-  function spawnEnemy(kind,x,y){
-    var e={on:1,kind:kind,x:x,y:y,r:12,flash:0,st:0,t:0,cd:1+Math.random()*1.2,vx:0,vy:0,tele:0,hp:1};
+  // ══════════════ NEMICI (3 archetipi + varianti per-tier) ══════════════
+  // C2: varianti = SOLO stat/skin (nessuna nuova AI, riusa updEnemy/drawEnemy). tier 1 = odierno.
+  function grcPickVar(kind){
+    if(tier<2) return 0;
+    if(Math.random()>Math.min(0.6,0.14*(tier-1))) return 0;
+    return kind==='chaser'?1:(kind==='shooter'?2:3);   // 1=corazzato 2=cecchino 3=splitter
+  }
+  function grcVariant(e,vr){
+    e.vr=vr||0;
+    if(vr===1){ e.hp+=2; e.r+=2; }          // chaser CORAZZATO: +hp, +size
+    else if(vr===2){ e.sniper=1; }           // shooter CECCHINO: tell lungo + raggio bloccato
+    else if(vr===3){ e.split=1; }            // swarm SPLITTER: morendo genera 2 mini
+  }
+  function spawnEnemy(kind,x,y,vr){
+    var e={on:1,kind:kind,x:x,y:y,r:12,flash:0,st:0,t:0,cd:1+Math.random()*1.2,vx:0,vy:0,tele:0,hp:1,vr:0,aimA:0};
     if(kind==='chaser'){ e.hp=3; e.r=13; }
     else if(kind==='shooter'){ e.hp=2; e.r=12; e.cd=1.4+Math.random(); }
     else { e.kind='swarm'; e.hp=1; e.r=8; e.cd=2+Math.random()*1.5; }
+    grcVariant(e, (vr!=null?vr:grcPickVar(e.kind)));
     EN.push(e); return e;
   }
   function spawnWave(n,kind){
@@ -16345,7 +16630,9 @@ function grCombatArena(meta, cb){
     if(kind==='swarm') n=Math.max(4,Math.min(6,n+2));
     for(var k=0;k<n;k++){
       var side=k%2, x=side?fx0+18:fx1-18, y=fy0+40+Math.random()*(fy1-fy0-120);
-      spawnEnemy(kind,x,y);
+      var kk=kind;
+      if(kind==='mixed') kk=(k%3===0)?'shooter':'chaser';   // C2: ondata MISTA (chaser+shooter)
+      spawnEnemy(kk,x,y);
     }
   }
   function updEnemy(e,dt){
@@ -16358,12 +16645,13 @@ function grCombatArena(meta, cb){
       else { e.t-=dt; e.x+=e.vx*dt; e.y+=e.vy*dt; if(e.t<=0){ e.st=0; e.cd=1.4+Math.random()*0.6; } }
       if(d<e.r+GR_C.PL_R) hitPlayer();
     } else if(e.kind==='shooter'){
-      var want=180, mv=0;
+      var want=e.sniper?230:180, mv=0;
       if(d<want-24) mv=-1; else if(d>want+24) mv=1;
       e.x+=ux*70*dt*mv+(-uy)*40*dt*0.4; e.y+=uy*70*dt*mv+(ux)*40*dt*0.4;
-      if(e.tele>0){ e.tele-=dt; if(e.tele<=0){ var a0=Math.atan2(dy,dx);
-        for(var j=-1;j<=1;j++) eb(e.x,e.y,a0+j*0.12,esp(150),6,1,0); try{ TWS.play('shot',0.5); }catch(_){}} }
-      else { e.cd-=dt; if(e.cd<=0){ e.tele=0.45; e.cd=2.2; } }
+      if(e.tele>0){ e.tele-=dt; if(e.tele<=0){
+        if(e.sniper){ eb(e.x,e.y,e.aimA,esp(300),7,1,1); try{ TWS.play('shot',0.75); }catch(_){} }   // C2: CECCHINO colpo bloccato veloce
+        else { var a0=Math.atan2(dy,dx); for(var j=-1;j<=1;j++) eb(e.x,e.y,a0+j*0.12,esp(150),6,1,0); try{ TWS.play('shot',0.5); }catch(_){} } } }
+      else { e.cd-=dt; if(e.cd<=0){ if(e.sniper){ e.tele=0.85; e.cd=2.8; e.aimA=Math.atan2(dy,dx); } else { e.tele=0.45; e.cd=2.2; } } }
     } else { // swarm
       if(e.tele>0){ e.tele-=dt; if(e.tele<=0){ e.st=2; e.t=0.55; e.vx=ux*150; e.vy=uy*150; } }
       else if(e.st===2){ e.t-=dt; e.x+=e.vx*dt; e.y+=e.vy*dt; if(e.t<=0){ e.st=0; e.cd=2.4+Math.random()*1.4; } }
@@ -16388,6 +16676,17 @@ function grCombatArena(meta, cb){
           'Ogni fiche torna a me. È solo matematica.',
           'All-in? La Casa accetta. Sempre.']
   };
+  // C2: battute d'INGRESSO e di SCONFITTA (personalità Undertale-like, leggibili prima del pattern).
+  var BOSS_INTRO={
+    croupier:'Ah. Un altro giocatore. Siediti — la mano è già distribuita.',
+    esattore:'Il tuo conto è in rosso da un pezzo. Sono qui per… saldare.',
+    casa:'Sei arrivato fino a me. Impressionante. Inutile — ma impressionante.'
+  };
+  var BOSS_DEFEAT={
+    croupier:'Impossibile… le carte… non mentono mai…',
+    esattore:'Il debito… si è cancellato… da solo?',
+    casa:'La Casa… non… perde…'
+  };
   function bossPhaseOf(id,frac){ var t=BOSS_PH[id]||[]; for(var k=0;k<t.length;k++){ if(frac>t[k]) return k; } return t.length; }
   function makeBoss(id){
     return {id:id,x:W/2,y:fy0+70,r:26,hp:BOSS_HP[id]||120,max:BOSS_HP[id]||120,
@@ -16404,7 +16703,7 @@ function grCombatArena(meta, cb){
     b.spiralOn=0; b.orbOn=0; b.spiralSpd=110;
     if(b.id==='croupier'){
       if(ph===0){ b.list=['fan','rail']; }
-      else { b.list=['fan']; b.spiralOn=1; b.spiralSpd=110; }
+      else { b.list=['cross','fan']; b.spiralOn=0; }   // C2: ph2 = MURI CONVERGENTI (rombo sicuro)
     } else if(b.id==='esattore'){
       if(ph===0){ b.list=['aim3']; spawnEnemy('chaser',fx0+30,fy0+120); spawnEnemy('chaser',fx1-30,fy0+120); }
       else if(ph===1){ b.list=['ring','ring45']; }
@@ -16413,7 +16712,7 @@ function grCombatArena(meta, cb){
       if(ph===0){ b.list=['fan']; b.spiralOn=1; b.spiralSpd=120; }
       else if(ph===1){ b.list=['ring','ring45']; }
       else if(ph===2){ b.list=['laser']; }
-      else { b.list=['ring']; b.spiralOn=1; b.spiralSpd=110; }
+      else { b.list=['roulette','ring']; b.spiralOn=0; }   // C2: ph4 = ROULETTE (cuneo sicuro rotante)
     }
     b.cd=1.0;
     if(ph>0){
@@ -16438,6 +16737,18 @@ function grCombatArena(meta, cb){
       for(t=0;t<16;t++){ var aa=t/16*6.283185; if(Math.abs(angDiff(aa,gapA))<gw) continue; eb(b.x,b.y,aa,esp(b.ph>=2?130:100),6,1,b.id==='casa'?1:0); }
       try{ TWS.play('cannon',0.55); }catch(e){}
     }
+    else if(type==='cross'){   // C2: 4 muri convergono dai bordi, un rombo/croce sicuro attorno a (_crossX,_crossY)
+      var cx=(b._crossX!=null?b._crossX:W/2), cy=(b._crossY!=null?b._crossY:H/2), hw=GR_C.GAP_VARCO/2+8, sp=esp(120), wx, wy;
+      for(wx=fx0+16;wx<fx1-6;wx+=34){ if(Math.abs(wx-cx)<hw) continue; eb(wx,fy0+6,Math.PI/2,sp,6,1,0); eb(wx,fy1-6,-Math.PI/2,sp,6,1,0); }
+      for(wy=fy0+16;wy<fy1-6;wy+=34){ if(Math.abs(wy-cy)<hw) continue; eb(fx0+6,wy,0,sp,6,1,0); eb(fx1-6,wy,Math.PI,sp,6,1,0); }
+      try{ TWS.play('cannon',0.6); }catch(e){}
+    }
+    else if(type==='roulette'){   // C2: anello denso con CUNEO sicuro che ruota volata dopo volata
+      var rga=(b._rouA||0), rgw=0.5;
+      for(t=0;t<20;t++){ var ra=t/20*6.283185; if(Math.abs(angDiff(ra,rga))<rgw) continue; eb(b.x,b.y,ra,esp(115),6,1,b.id==='casa'?1:0); }
+      b._rouA=rga+0.9;
+      try{ TWS.play('cannon',0.6); }catch(e){}
+    }
   }
   function bossChoose(b){
     var type=b.list[b.li%b.list.length]; b.li++;
@@ -16447,11 +16758,16 @@ function grCombatArena(meta, cb){
     if(type==='ring'){ b._gapA=Math.atan2(P.y-b.y,P.x-b.x)+(Math.random()-0.5)*1.2; }
     else if(type==='ring45'){ b._gapA=(b._gapA||0)+Math.PI/4; b.tele.type='ring'; }
     else if(type==='rail'){ b._railGy=fy0+40+Math.random()*(fy1-fy0-140); }
+    else if(type==='cross'){ b._crossX=fx0+46+Math.random()*(fx1-fx0-92); b._crossY=fy0+46+Math.random()*(fy1-fy0-92); b.tele.t=b.tele.dur=0.9; }   // C2: tell più lungo (leggibilità muri)
+    else if(type==='roulette'){ if(b._rouA==null) b._rouA=Math.atan2(P.y-b.y,P.x-b.x); b.tele.t=b.tele.dur=0.7; }
     try{ TWS.play('scope',0.5); }catch(e){}
   }
   function updBoss(b,dt){
     if(b.flash>0) b.flash-=dt;
-    if(b.intro>0){ b.intro-=dt; if(b.intro<=0){ bossEnterPhase(b,0); } return; }
+    if(b.intro>0){
+      if(!b._introShown){ b._introShown=1; var itx=BOSS_INTRO[b.id];   // C2: battuta d'INGRESSO
+        if(itx){ taunt.t=1.5; taunt.text=itx; taunt.title=(GR_NPC_META[b.id]&&GR_NPC_META[b.id].nm)||'LA CASA'; taunt.port=bossPortrait(b.id); try{ TWS.play('sting',0.7); }catch(e){} } }
+      b.intro-=dt; if(b.intro<=0){ bossEnterPhase(b,0); } return; }
     var frac=b.hp/b.max, ph=bossPhaseOf(b.id,frac);
     if(ph!==b.ph && b.hp>0){ bossEnterPhase(b,ph); return; }
     b.x+=Math.sin(performance.now()/900)*14*dt;
@@ -16500,8 +16816,14 @@ function grCombatArena(meta, cb){
   }
 
   // ── flusso ondate / boss ──
-  var pending=false, wave=0, arenaWaves=bossId?0:3;
-  function nextWave(){ wave++; if(wave>arenaWaves){ triggerWin(); return; } spawnWave(enemyN); grcMsg('ONDATA '+wave+' / '+arenaWaves); }
+  var pending=false, wave=0, arenaWaves=ENC?ENC.filter(function(e){return !e.boss;}).length:(bossId?0:3);
+  function nextWave(){ wave++;
+    var spec=ENC?ENC[wave-1]:null;
+    if(spec&&spec.boss){ bossId=spec.boss; boss=makeBoss(spec.boss);
+      grcMsg((GR_NPC_META&&GR_NPC_META[spec.boss]&&GR_NPC_META[spec.boss].nm)||'BOSS'); return; }
+    if(wave>arenaWaves){ triggerWin(); return; }
+    spawnWave(spec?spec.n:enemyN, spec?spec.kind:enemyKind);
+    grcMsg('ONDATA '+wave+' / '+arenaWaves); }
   if(bossId){ boss=makeBoss(bossId); } else { nextWave(); }
 
   function update(dt){
@@ -16534,16 +16856,74 @@ function grCombatArena(meta, cb){
   }
 
   // ── DRAW ──
-  var _arenaBg=arenaTheme==='caveau'?['#0e1526','#060912']:(arenaTheme==='vicolo'?['#141018','#080509']:['#181008','#0a0704']);
-  var _bgGrad=null;
+  // ── ARENA ENVIRONMENT (bake-once + overlay animati economici) ──
+  var _mood=Math.min(1,(tier-1)/5);   // 0 @tier1 … 1 @tier6 — knob d'intensità
+  var _bgLayer=null;                   // fondale statico (offscreen, mai ricostruito)
+  var _vignG=null;                     // vignetta radiale (moody darken per-frame)
+  var _amb=null;                       // sprite/seed ambientali (costruiti una volta)
+  function grcAmbInit(theme,boss){
+    var mode=boss?'casa':theme, o={}, i;
+    if(mode==='caveau'){
+      var gc=document.createElement('canvas'); gc.width=120; gc.height=H; var gg=gc.getContext('2d');
+      var lg=gg.createLinearGradient(0,0,120,0); lg.addColorStop(0,'rgba(207,224,255,0)'); lg.addColorStop(0.5,'rgba(207,224,255,.5)'); lg.addColorStop(1,'rgba(207,224,255,0)');
+      gg.fillStyle=lg; gg.fillRect(0,0,120,H); o.gleamSpr=gc;
+      o.dialG=grcSoftSprite(10,[[0,'rgba(255,207,91,.9)'],[0.5,'rgba(212,160,23,.4)'],[1,'rgba(212,160,23,0)']]);
+      o.dial={x:fx0+((fx1-fx0)/8)*2-7, y:fy0+8};
+      o.dust=[]; var rd=grcRng(202); for(i=0;i<6;i++) o.dust.push({x:fx0+rd()*(fx1-fx0), y:fy0+rd()*(fy1-fy0), ph:rd()*6.283});
+    } else if(mode==='vicolo'){
+      o.neonM=grcSoftSprite(34,[[0,'rgba(255,46,136,.9)'],[0.5,'rgba(255,46,136,.4)'],[1,'rgba(255,46,136,0)']]);
+      o.neonC=grcSoftSprite(30,[[0,'rgba(35,224,255,.9)'],[0.5,'rgba(35,224,255,.4)'],[1,'rgba(35,224,255,0)']]);
+      o.rain=[]; var rn=grcRng(303), N=14+(_mood*22|0); for(i=0;i<N;i++) o.rain.push({x:rn()*W, y:rn()*H, len:6+rn()*10, spd:0.06+rn()*0.12});
+    } else if(mode==='casa'){
+      o.chandG=ctx.createRadialGradient(W/2,30,4,W/2,30,140); o.chandG.addColorStop(0,'rgba(255,230,160,.9)'); o.chandG.addColorStop(0.5,'rgba(255,184,77,.4)'); o.chandG.addColorStop(1,'rgba(0,0,0,0)');
+      o.smokeSpr=grcSoftSprite(90,[[0,'rgba(216,208,192,.5)'],[1,'rgba(216,208,192,0)']]);
+      o.smoke=[]; var rs=grcRng(404); for(i=0;i<3;i++) o.smoke.push({x:fx0+40+rs()*(fx1-fx0-80), y:fy0+90+rs()*(fy1-fy0-180), ph:rs()*6.283});
+    } else {
+      o.torchG=grcSoftSprite(30,[[0,'rgba(255,242,192,.95)'],[0.4,'rgba(255,176,60,.7)'],[1,'rgba(255,106,30,0)']]);
+      o.motes=[]; var rt=grcRng(101); for(i=0;i<4;i++) o.motes.push({x:fx0+20+rt()*(fx1-fx0-40), s:rt()*54});
+    }
+    return o;
+  }
+  function grcAmbient(theme,boss){
+    var now=performance.now(), mode=boss?'casa':theme, ga=ctx.globalAlpha, i;
+    if(!_amb) _amb=grcAmbInit(theme,boss);
+    if(mode==='caveau'){
+      var gx=((now/4000)%1)*(W+120)-120; ctx.globalAlpha=0.15*(1-0.4*_mood); ctx.drawImage(_amb.gleamSpr,gx,0);
+      ctx.globalAlpha=1; ctx.fillStyle='rgba(207,224,255,.10)';
+      for(i=0;i<_amb.dust.length;i++){ var du=_amb.dust[i]; ctx.fillRect(du.x+Math.cos(now/1300+du.ph)*6, du.y+Math.sin(now/1000+du.ph)*8, 2,2); }
+      var dl=_amb.dial; ctx.globalAlpha=0.3+0.3*Math.sin(now/500); ctx.drawImage(_amb.dialG,dl.x-10,dl.y-10);
+    } else if(mode==='vicolo'){
+      neonAt(_amb.neonM, fx0+65, fy0+83, fy1-60, 0);
+      neonAt(_amb.neonC, fx1-46, fy0+92, fy1-90, 1.4);
+      ctx.globalAlpha=1; ctx.strokeStyle='rgba(180,210,235,.35)'; ctx.lineWidth=1; ctx.beginPath();
+      for(i=0;i<_amb.rain.length;i++){ var R=_amb.rain[i]; var ry=(R.y+now*R.spd)%H, rx=(R.x+ry*0.3)%W; ctx.moveTo(rx,ry); ctx.lineTo(rx-3,ry+R.len); }
+      ctx.stroke();
+      for(i=0;i<2;i++){ var py=fy1-30-i*14; ctx.globalAlpha=0.1+0.1*Math.sin(now/500+i); ctx.beginPath(); ctx.moveTo(fx0+30,py+Math.sin(now/300)); ctx.lineTo(fx1-30,py); ctx.stroke(); }
+    } else if(mode==='casa'){
+      var cpa=0.5+0.3*Math.abs(Math.sin(now/300)); ctx.globalAlpha=cpa; ctx.fillStyle=_amb.chandG; ctx.beginPath(); ctx.arc(W/2,30,140,0,6.283); ctx.fill();
+      for(i=0;i<3;i++){ var sm=_amb.smoke[i]; ctx.globalAlpha=0.04+0.03*Math.abs(Math.sin(now/1800+sm.ph)); ctx.drawImage(_amb.smokeSpr, sm.x+Math.sin(now/2000+sm.ph)*20-90, sm.y+Math.cos(now/2600+sm.ph)*10-90); }
+      var gA=now/900; ctx.globalAlpha=0.4+0.4*Math.abs(Math.sin(now/200)); ctx.fillStyle='#fff6d0'; ctx.beginPath(); ctx.arc(W/2+Math.cos(gA)*70, H*0.5+Math.sin(gA)*70, 2.5, 0, 6.283); ctx.fill();
+    } else {
+      var tp0x=fx0+18,tp1x=fx1-18,tpy=fy0+8;
+      for(i=0;i<2;i++){ var tx=i?tp1x:tp0x, fa=0.5+0.22*Math.sin(now/90+i)+0.12*Math.sin(now/37);
+        ctx.globalAlpha=Math.max(0,fa)*(0.7+0.3*_mood); ctx.drawImage(_amb.torchG, tx-30, tpy-30);
+        var jx=(Math.random()-0.5)*2; ctx.globalAlpha=0.8;
+        ctx.fillStyle='#ff8a3b'; ctx.beginPath(); ctx.moveTo(tx-4,tpy+4); ctx.lineTo(tx+jx,tpy-8); ctx.lineTo(tx+4,tpy+4); ctx.closePath(); ctx.fill();
+        ctx.fillStyle='#fff2c0'; ctx.beginPath(); ctx.moveTo(tx-2,tpy+3); ctx.lineTo(tx+jx*0.5,tpy-4); ctx.lineTo(tx+2,tpy+3); ctx.closePath(); ctx.fill(); }
+      ctx.globalAlpha=0.02+0.02*Math.sin(now/700); ctx.fillStyle='rgba(255,220,150,1)'; ctx.fillRect(fx0,fy0,fx1-fx0,44);
+      ctx.globalAlpha=1; ctx.fillStyle='rgba(230,210,160,.15)';
+      for(i=0;i<_amb.motes.length;i++){ var mo=_amb.motes[i], my=((mo.s-now*0.02)%54+54)%54+fy0; ctx.fillRect(mo.x,my,2,2); }
+    }
+    ctx.globalAlpha=ga;
+  }
+  function neonAt(spr,x,y,ry,ph){ var a=0.55+0.3*Math.sin(performance.now()/60+ph); if(((performance.now()*0.013|0)%17)===0) a=0.15; a=Math.max(0,a);
+    var r=spr.width/2; ctx.globalAlpha=a; ctx.drawImage(spr,x-r,y-r); ctx.globalAlpha=a*0.35; ctx.drawImage(spr,x-r,ry-r); }
   function drawArena(){
-    ctx.fillStyle=_arenaBg[0]; ctx.fillRect(0,0,W,H);
-    if(!_bgGrad){ _bgGrad=ctx.createRadialGradient(W/2,H*0.42,20,W/2,H*0.5,H*0.7); _bgGrad.addColorStop(0,_arenaBg[1]); _bgGrad.addColorStop(1,'#03040a'); }
-    ctx.fillStyle=_bgGrad; ctx.fillRect(0,0,W,H);
-    ctx.strokeStyle='rgba(255,255,255,.04)'; ctx.lineWidth=1;
-    for(var gx=fx0;gx<=fx1;gx+=36){ ctx.beginPath(); ctx.moveTo(gx,fy0); ctx.lineTo(gx,fy1); ctx.stroke(); }
-    for(var gy=fy0;gy<=fy1;gy+=36){ ctx.beginPath(); ctx.moveTo(fx0,gy); ctx.lineTo(fx1,gy); ctx.stroke(); }
-    ctx.strokeStyle='rgba(255,180,80,.25)'; ctx.lineWidth=3; ctx.strokeRect(fx0,fy0,fx1-fx0,fy1-fy0);
+    if(!_bgLayer) _bgLayer=grcBgLayer(arenaTheme,bossId,tier,dpr);
+    ctx.drawImage(_bgLayer,0,0,W,H);                         // 1 blit (dpr-sized → nitido), rimpiazza fill+griglia+bordo
+    grcAmbient(arenaTheme,bossId);                           // 2–3 elementi animati, tutti da sprite/gradient cache
+    if(!_vignG){ _vignG=ctx.createRadialGradient(W/2,H*0.46,40,W/2,H*0.52,H*0.72); _vignG.addColorStop(0,'rgba(0,0,0,0)'); _vignG.addColorStop(1,'rgba(0,0,0,1)'); }
+    var va=ctx.globalAlpha; ctx.globalAlpha=0.12+0.5*_mood; ctx.fillStyle=_vignG; ctx.fillRect(0,0,W,H); ctx.globalAlpha=va;
   }
   function drawPlayer(){
     var blink=(P.iframe>0||P.dashIf>0)&&((performance.now()|0)%140)<70;
@@ -16567,8 +16947,15 @@ function grCombatArena(meta, cb){
       ctx.fillStyle='#20120c'; ctx.fillRect(-e.r*0.5,-e.r*0.4,e.r*0.3,e.r*0.25); ctx.fillRect(e.r*0.2,-e.r*0.4,e.r*0.3,e.r*0.25);
       if(e.kind==='shooter'){ ctx.strokeStyle='#fff2c0'; ctx.lineWidth=2; var a=Math.atan2(P.y-e.y,P.x-e.x); ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(Math.cos(a)*(e.r+6),Math.sin(a)*(e.r+6)); ctx.stroke(); }
     }
+    // C2: skin varianti (solo stroke extra, nessuna alloc per-frame)
+    if(e.vr===1){ ctx.strokeStyle=e.flash>0?'#fff':'#7a1f18'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,-1,e.r-1,0,6.283); ctx.stroke(); ctx.strokeStyle='rgba(255,255,255,.22)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(-e.r*0.5,-e.r*0.55); ctx.lineTo(e.r*0.5,-e.r*0.55); ctx.stroke(); }
+    else if(e.vr===2){ ctx.strokeStyle='#ffdf7a'; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(0,-1,e.r+2,0,6.283); ctx.stroke(); }
+    else if(e.vr===3){ ctx.strokeStyle='#7a5a00'; ctx.lineWidth=1.4; ctx.beginPath(); ctx.moveTo(0,-e.r); ctx.lineTo(0,e.r); ctx.stroke(); }
     ctx.restore();
-    if(e.kind==='shooter'&&e.tele>0){ var a2=Math.atan2(P.y-e.y,P.x-e.x); ctx.strokeStyle='rgba(255,90,60,.5)'; ctx.lineWidth=1.4; ctx.setLineDash([6,6]); ctx.beginPath(); ctx.moveTo(e.x,e.y); ctx.lineTo(e.x+Math.cos(a2)*400,e.y+Math.sin(a2)*400); ctx.stroke(); ctx.setLineDash([]); }
+    if(e.kind==='shooter'&&e.tele>0){ var a2=e.sniper?e.aimA:Math.atan2(P.y-e.y,P.x-e.x);
+      if(e.sniper){ ctx.strokeStyle='rgba(255,60,60,'+(0.4+0.5*(1-e.tele/0.85))+')'; ctx.lineWidth=3; }   // C2: raggio CECCHINO bloccato (rosso, spesso)
+      else { ctx.strokeStyle='rgba(255,90,60,.5)'; ctx.lineWidth=1.4; ctx.setLineDash([6,6]); }
+      ctx.beginPath(); ctx.moveTo(e.x,e.y); ctx.lineTo(e.x+Math.cos(a2)*400,e.y+Math.sin(a2)*400); ctx.stroke(); ctx.setLineDash([]); }
     if(e.kind==='swarm'&&e.tele>0){ ctx.strokeStyle='rgba(255,210,74,'+(0.3+0.4*Math.abs(Math.sin(performance.now()/60)))+')'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(e.x,e.y,e.r+6,0,6.283); ctx.stroke(); }
   }
   function drawBoss(b){
@@ -16583,6 +16970,13 @@ function grCombatArena(meta, cb){
         ctx.strokeStyle='rgba(255,160,60,'+(0.35+0.4*pr)+')'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(fx0+6,fy0); ctx.lineTo(fx0+6,fy1); ctx.stroke();
         ctx.fillStyle='rgba(60,255,120,'+(0.12+0.12*Math.abs(Math.sin(performance.now()/80)))+')'; ctx.fillRect(fx0,rgy-rh,fx1-fx0,rh*2);
         ctx.strokeStyle='rgba(60,255,120,.7)'; ctx.lineWidth=2; ctx.strokeRect(fx0,rgy-rh,fx1-fx0,rh*2); }
+      else if(b.tele.type==='cross'){ var ccx=(b._crossX!=null?b._crossX:W/2), ccy=(b._crossY!=null?b._crossY:H/2), chw=GR_C.GAP_VARCO/2+8, cgp=0.5+0.4*Math.abs(Math.sin(performance.now()/80));
+        ctx.strokeStyle='rgba(255,160,60,'+(0.18+0.32*pr)+')'; ctx.lineWidth=2; ctx.strokeRect(fx0+2,fy0+2,fx1-fx0-4,fy1-fy0-4);   // muri in arrivo (ambra)
+        ctx.fillStyle='rgba(60,255,120,'+(0.08+0.10*cgp)+')'; ctx.fillRect(ccx-chw,fy0,chw*2,fy1-fy0); ctx.fillRect(fx0,ccy-chw,fx1-fx0,chw*2);   // corridoi sicuri
+        ctx.strokeStyle='rgba(60,255,120,'+(0.4+0.4*cgp)+')'; ctx.lineWidth=2; ctx.strokeRect(ccx-chw,ccy-chw,chw*2,chw*2); }
+      else if(b.tele.type==='roulette'){ var rrr=54, rrga=b._rouA||0, rrgw=0.5;
+        ctx.strokeStyle='rgba(255,160,60,'+(0.25+0.4*pr)+')'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(b.x,b.y,rrr,0,6.283); ctx.stroke();
+        ctx.strokeStyle='rgba(60,255,120,'+(0.5+0.4*Math.abs(Math.sin(performance.now()/80)))+')'; ctx.lineWidth=5; ctx.beginPath(); ctx.arc(b.x,b.y,rrr,rrga-rrgw,rrga+rrgw); ctx.stroke(); }
     }
     if(b.laser){ var L=b.laser; for(var arm=0;arm<2;arm++){ var la=L.ang+arm*Math.PI;
       if(L.ph==='tele'){ ctx.strokeStyle='rgba(255,60,60,'+(0.35+0.4*Math.abs(Math.sin(performance.now()/50)))+')'; ctx.lineWidth=2; }
