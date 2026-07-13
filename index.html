@@ -7460,6 +7460,9 @@ body{position:relative;}
 .twr-joy.on{border-color:rgba(34,211,238,.7);box-shadow:0 0 16px rgba(34,211,238,.25),inset 0 4px 14px rgba(0,0,0,.6);}
 .twr-joy::before{content:'';position:absolute;inset:31%;border-radius:50%;border:1px dashed rgba(255,255,255,.14);}
 .twr-knob{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:radial-gradient(circle at 40% 32%,#2b3a55,#141d30);border:2px solid rgba(34,211,238,.55);box-shadow:0 4px 10px rgba(0,0,0,.6),0 0 12px rgba(34,211,238,.28);transition:transform .05s;}
+/* Colosseo: move-stick piu GRANDE e COMODA (solo #gld-joy, non l'aim ne Turf) */
+#gld-joy{width:146px;height:146px;}
+#gld-knob{width:58px;height:58px;margin:-29px 0 0 -29px;}
 .twr-btns{display:flex;align-items:center;gap:10px;}
 .twr-items{display:flex;flex-direction:column;gap:7px;}
 .twr-item{position:relative;width:56px;height:56px;border-radius:16px;border:1px solid var(--border2);background:var(--card2);font-size:26px;cursor:pointer;box-shadow:0 3px 8px rgba(0,0,0,.5);transition:width .12s,height .12s,font-size .12s;}
@@ -9131,6 +9134,9 @@ body{position:relative;}
     #grun .grh-pot.potlose{animation:grPotLose .42s ease-out;}
     @keyframes grPotWin{0%{transform:scale(1)}30%{transform:scale(1.07);box-shadow:0 0 38px rgba(255,210,80,.85),inset 0 1px 0 rgba(255,255,255,.06)}100%{transform:scale(1)}}
     @keyframes grPotLose{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}60%{transform:translateX(6px)}80%{transform:translateX(-3px)}}
+    /* (GRIT) HUD combat-lives — flash rosso quando la grinta scende (arena persa) */
+    #grun #gr-grit-wrap.gr-grit-hit{animation:grGritHit .5s ease-out;}
+    @keyframes grGritHit{0%{transform:scale(1)}22%{transform:scale(1.22);box-shadow:0 0 22px rgba(255,80,80,.9)}100%{transform:scale(1)}}
   </style>
   <video class="gr-bg-vid" id="grBgVid" muted playsinline loop preload="auto"><source src="gr_descent.mp4" type="video/mp4"></video>
   <div class="game-hdr">
@@ -9176,6 +9182,7 @@ body{position:relative;}
         </div>
         <div class="grh-side">
           <div class="grh-stat"><div class="grh-stat-lbl">LIVES</div><div class="grh-stat-val" id="gr-lives">❤️❤️</div></div>
+          <div class="grh-stat" id="gr-grit-wrap" style="display:none;"><div class="grh-stat-lbl">GRIT</div><div class="grh-stat-val" id="gr-grit">🗡×3</div></div>
           <div class="grh-stat"><div class="grh-stat-lbl">DEPTH</div><div class="grh-stat-val" id="gr-depth">0/12</div></div>
         </div>
       </div>
@@ -9753,6 +9760,10 @@ body{position:relative;}
 
   // 3) IT → EN dictionary of high-visibility USER strings (exact, trimmed match)
   var GB_TR = {
+    /* ── GRIT / combat-bust (feature grit-bust: HUD, allarmi, finale server) ── */
+    "⚠️ GRINTA AL LIMITE — un'altra sconfitta e la run finisce": "⚠️ GRIT ON THE EDGE — one more loss ends the run",
+    "☠️ NIENTE PIÙ GRINTA — un altro crollo e sei SEPOLTO": "☠️ NO GRIT LEFT — one more collapse and you're BURIED",
+    "SEPOLTO NEL PALAZZO": "BURIED IN THE PALACE",
     /* ── COSMETICS feature (tabs, sub-tabs, buttons, stat labels, toasts, catalog names/descs) ── */
     "🎨 COSMETICI": "🎨 COSMETICS",
     "Colosseo": "Colosseum",
@@ -11675,7 +11686,8 @@ function grStart(){
       // GR3/W-LINGUA: il tema deriva dal CONTRATTO server (grTheme() legge GR.view) — niente più random.
       GR.ante=d.ante_btc; GR.charmsMeta=d.charms_meta||{}; GR.view=d;
       try{ GRX._arenaRow=-1; GRX._arenaCleared=-1; }catch(_ar){}   // CORE-LOOP: nuova run → l'arena del 1° piano riparte
-      try{ GRX.combat={ powerups:[], kills:0, _briefed:false, chips:0, _synShown:0, _flawless:true, spawnCount:0, charge:0, shieldUp:null, shieldRe:0, charms:[] }; }catch(_pc){}   // M2: stato power-up CLIENT-ONLY (inerte), reset per run — M3-MECH: charms=reliquie LOCALI (token GRX.combat.chips, mai economia) — M1-EXT: charge=carica ATTIVO/SCARICA, shieldUp/shieldRe=stato EGIDA (tutti arena-local, mai economia) — chips=token LOCALE (mai economia), _synShown=maschera synergie mostrate, _flawless=nessun colpo subito, spawnCount=contatore spawn (seed elite)
+      try{ GRX.combat={ powerups:[], kills:0, _briefed:false, chips:0, _synShown:0, _flawless:true, spawnCount:0, charge:0, shieldUp:null, shieldRe:0, charms:[], curse:0 }; }catch(_pc){}   // M2: stato power-up CLIENT-ONLY (inerte), reset per run (curse = maledizioni cumulative inerti, texture difficoltà)
+      try{ GR._combatFail=false; GR._gritPrev=null; }catch(_gr){}   // (GRIT) nuova run → latch combat_fail spento + baseline HUD grinta — M3-MECH: charms=reliquie LOCALI (token GRX.combat.chips, mai economia) — M1-EXT: charge=carica ATTIVO/SCARICA, shieldUp/shieldRe=stato EGIDA (tutti arena-local, mai economia) — chips=token LOCALE (mai economia), _synShown=maschera synergie mostrate, _flawless=nessun colpo subito, spawnCount=contatore spawn (seed elite)
       /*<<GRC-STARTRESET>>*/
       try{ GRX._runSeed=null; GRC_RUNCFG=null; GRC_RUNCFG_SEED=-1; }catch(_rs){}   // M1: nuova run → run-config ricalcolata dal nuovo seed
       try{ GRX.story={ mercy:0, slain:0, cheat:0, metNpcs:{}, beats:[], profile:'' }; }catch(_gs3){}   // M3: stato STORIA per-run CLIENT-ONLY (inerte) — pietà/spietatezza/inganno, mai economia
@@ -11693,6 +11705,27 @@ function grStart(){
     }).catch(function(){ GR.busy=false; toast('Network error','err'); });
 }
 function grRoomMeta(t){ return GR_ROOMS[t]||{ic:'❓',nm:t,d:''}; }
+/* (GRIT) HUD combat-lives "🗡×N". Legge view.grit / view.grit_max (esposti dal server SOLO con
+   GR_COMBAT_ON). Server non-combat ⇒ d.grit==null ⇒ wrapper NASCOSTO (HUD byte-identico a oggi).
+   Feedback FORTE quando la grinta scende: flash rosso + haptic/suono, e toast d'allarme a 1 e a 0.
+   Puramente presentazionale: nessun tocco a pot/lives-eco/ctr. */
+function grRenderGrit(d){
+  var wrap=document.getElementById('gr-grit-wrap'), el=document.getElementById('gr-grit');
+  if(!wrap||!el) return;
+  if(d==null || d.grit==null){ wrap.style.display='none'; GR._gritPrev=null; return; }
+  var g=Math.max(0,d.grit|0), gm=(d.grit_max|0)||3;
+  wrap.style.display='';
+  el.textContent='🗡×'+g;
+  el.style.color = g<=0 ? '#ff5b5b' : (g===1 ? '#ffb03c' : '#ffd86b');   // verde→ambra(1)→rosso(0)
+  var prev=(GR._gritPrev==null)?g:GR._gritPrev;
+  if(g<prev){                                                             // arena persa → grinta scesa
+    try{ wrap.classList.remove('gr-grit-hit'); void wrap.offsetWidth; wrap.classList.add('gr-grit-hit'); }catch(e){}
+    try{ grHaptic('lose'); }catch(e){}
+    try{ grSound(g<=1?'lose':'tick'); }catch(e){}
+    if(g<=1){ try{ toast(g<=0?'☠️ NIENTE PIÙ GRINTA — un altro crollo e sei SEPOLTO':'⚠️ GRINTA AL LIMITE — un\'altra sconfitta e la run finisce','warn',2600); }catch(e){} }
+  }
+  GR._gritPrev=g;
+}
 function grRender(d){
   GR.view=d; grUpdBal();
   try{ grMiniSyncFloor(d); }catch(_mm){}   // M3: minimappa — rileva cambio piano via delta row
@@ -11720,6 +11753,7 @@ function grRender(d){
   var lives=Math.max(0,d.lives||0);
   document.getElementById('gr-lives').textContent= lives>4 ? ('❤️×'+lives) : (lives>0?'❤️'.repeat(lives):'💀');
   document.getElementById('gr-depth').textContent=(d.row||0)+'/'+(d.max_rows||12);
+  try{ grRenderGrit(d); }catch(_gh){}   // (GRIT) HUD combat-lives — presente SOLO con GR_COMBAT_ON (view.grit)
   var cm=document.getElementById('gr-charms'); cm.innerHTML='';
   (d.charms||[]).forEach(function(c){ var m=GR.charmsMeta[c]||{icon:'✨',name:c,desc:''}; var el=document.createElement('div'); el.className='gr-charm'; el.title=(m.name||c)+' — '+(m.desc||''); el.innerHTML=(m.icon||'✨')+'<span>'+dlEsc(m.name||c)+'</span>'; cm.appendChild(el); });
   grEventText(d.last||d.event);
@@ -12993,6 +13027,10 @@ function grActResolve(idx, extra){
   var t0=Date.now();
   var body={user_id:S.userId, choice_idx:idx, charm_take:true};
   if(extra){ for(var k in extra){ if(extra.hasOwnProperty(k)) body[k]=extra[k]; } }
+  // (GRIT) one-shot: se l'arena di piano è stata PERSA (latch in grcEnterDoor), invia combat_fail=1.
+  //   Canale SEPARATO dal firewall skill_win (che resta OMESSO nel path combat): combat_fail può
+  //   SOLO togliere grit / azzerare il pot lato server — mai aggiungere EV. Consumato una volta per piano.
+  try{ if(window.GR && GR._combatFail){ body.combat_fail=1; GR._combatFail=false; } }catch(_cf){}
   fetch(BACKEND+'/run/act',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify(body)})
     .then(function(r){return r.json();}).then(function(d){
       var ev=(d&&d.event)||{};
@@ -19259,10 +19297,27 @@ function grFloorArena(d){
     //   nel comportamento odierno. RTP-INERT: sola presentazione/pool nemici-powerup.
     var _rc=null; try{ if(window.GRX && typeof grcRunConfig==='function') _rc=grcRunConfig(grcRunSeed()); }catch(_rcE){ _rc=null; }
     var cc=d.combat_core||{};
+    // (d) LA CASA = BOSS FINALE: la FACCIA 'casa' è riservata al piano più profondo. Sui piani
+    //   intermedi la rimappo (cosmetico) su un boss del roster (croupier/esattore/fortuna/
+    //   fantasma/matto), pescando da bossOrder (per-run, seminato) con rotazione per profondità.
+    //   PURA presentazione: nessun tocco a economia porta/boss (_boss_params resta a HOUSE_ROW).
+    var _gBoss=(cc.boss||null);
+    try{ if(_gBoss==='casa'){ var _finalRow=(d.max_rows|0)||12;
+          if((row|0) < _finalRow){
+            var _bo=(_rc&&_rc.bossOrder&&_rc.bossOrder.length)
+                    ? _rc.bossOrder.filter(function(b){return b!=='casa';}) : null;
+            if(!_bo||!_bo.length) _bo=['croupier','esattore','fortuna','fantasma','matto'];
+            _gBoss=_bo[(((row|0)%_bo.length)+_bo.length)%_bo.length];
+          } } }catch(_gb){}
+    // (a-extra) maledizioni cumulative CLIENT-ONLY (inerti): ogni arena persa alza di POCO la
+    //   difficoltà COSMETICA del combat (tier +1 ogni 2 maledizioni, cap +2). Il combat è dietro
+    //   il firewall (grArenaInert) ⇒ money-INERTE: la conseguenza economica vera è il grit-bust server.
+    var _curse=0; try{ _curse=(window.GRX&&GRX.combat&&GRX.combat.curse)||0; }catch(_cz){}
+    var _tier=(((cc.tier|0)||1)+Math.min(2,(_curse/2)|0));
     // meta DIFENSIVO: arena/tier presentazionali; ondate (encounters) OPPURE boss di piano.
     // grCombatArena consuma meta.encounters (waves) e meta.boss come già supportato (16561-16568).
-    var meta={ arena:cc.arena, tier:cc.tier,
-               boss:(cc.boss||null),
+    var meta={ arena:cc.arena, tier:_tier,
+               boss:_gBoss,
                encounters:(cc.encounters&&cc.encounters.length)?cc.encounters:null,
                // M2: attiva il wave-runner data-driven (WAVE_DEFS) SOLO sui piani dungeon
                // (combat_core presente). row/seed → selezione deterministica & varia per stanza.
@@ -19624,7 +19679,9 @@ function grCombatArena(meta, cb){
     burst(P.x,P.y,6,'#ff5b7a');
     if(P.hp<=0) startDeath();
   }
+  var _floorFailed=false;  // (GRIT) l'arena di QUESTO piano è stata persa → latch combat_fail alla porta
   function startDeath(){ if(P.dead||won) return; P.dead=true; deathT=0.42; shake=Math.max(shake,10); /*<<GRC-DEATH>>*/
+    _floorFailed=true;     // (GRIT) morte in arena = sconfitta del piano (canale combat_fail, solo-toglie)
     try{ TWS.play('death',1); }catch(e){} burst(P.x,P.y,18,'#9fd8ff'); }
   var _mercyShown=false;   // M3: guard di re-entry per il prompt morale (NON tocca GR.busy → niente softlock)
   var _hitStop=0, _flash=0, _flashCol='#ffffff', _floorCarded=false, _wdT=0, _wdEn=-1, _errN=0;   // M4: juice — hit-stop/flash/title-card + ANTI-FREEZE watchdog(_wdT/_wdEn) & error-guard(_errN)
@@ -20133,7 +20190,12 @@ function grCombatArena(meta, cb){
     //   Blocca l'avanzamento ondate finché vivo (guardia "boss vivo" in update). Inerte.
     try{ if(WVPLAN && !bossId && !boss && !_miniSpawned && meta.combatCore && meta.run && arenaWaves>=2 && wave===Math.ceil(arenaWaves/2)){
       var _mrng=grcRng((((_wrow|0)*2654435761)^0x1D872B41)>>>0);
-      if(_mrng()<0.55){ var _minis=(meta.run&&meta.run.miniSeq&&meta.run.miniSeq.length)?meta.run.miniSeq:['banco','ruota','gemelli'], _mid=_minis[(_mrng()*_minis.length)|0];
+      if(_mrng()<0.62){   // (c) gate alzato 0.55→0.62: più mini-boss (cosmetico, money-inerte)
+        var _minis=(meta.run&&meta.run.miniSeq&&meta.run.miniSeq.length)?meta.run.miniSeq.slice():['banco','ruota','gemelli'];
+        _minis=_minis.filter(function(_x){return _x!=='casa';}); if(!_minis.length)_minis=['banco','ruota','gemelli'];   // (c) mai CASA come mini-boss
+        // ROTAZIONE per profondità: piani consecutivi pescano mini-boss DIVERSI (no ripetizione),
+        //   con offset seminato per-run ⇒ varietà + replay-safe.
+        var _moff=((_mrng()*_minis.length)|0), _mid=_minis[(((_wrow|0)+_moff)%_minis.length+_minis.length)%_minis.length];
         _miniSpawned=true; boss=makeMini(_mid); grcMsg('MINI-BOSS'); } } }catch(_mbz){}
     grcMsg('ONDATA '+wave+' / '+arenaWaves); }
   if(bossId){ boss=makeBoss(bossId); } else { nextWave(); }
@@ -20296,6 +20358,12 @@ function grCombatArena(meta, cb){
       try{ if(typeof grCashout==='function') grCashout(); }catch(e){ try{ grWarn('grcEnterDoor.cashout', e); }catch(_){} }
       return;
     }
+    // (GRIT) arena di piano PERSA → latch il canale combat_fail (consumato da grActResolve): può SOLO
+    //   togliere grit / azzerare il pot lato server. Firewall skill_win INTATTO (canale distinto).
+    //   SOLO sul core-loop (meta.combatCore): il combat skill-room NON passa di qui.
+    try{ if(_floorFailed && meta && meta.combatCore && window.GR){ GR._combatFail=true;
+         if(window.GRX && GRX.combat){ GRX.combat.curse=(GRX.combat.curse||0)+1; } }   // (a-extra) maledizione cumulativa CLIENT-ONLY inerte (texture difficoltà)
+    }catch(_gf){}
     // ANTI-SOFTLOCK: alcune stanze (santuario/tesoro/npc/key senza discesa) risolvono IN LOCO e
     //   NON avanzano run["row"]. Senza questo reset, grFloorArena@16874 (guardia GRX._arenaRow===row)
     //   NON rimonterebbe l'arena dopo che grcEnterDoor l'ha smontata → nessuna arena, nessuna porta
@@ -35084,12 +35152,12 @@ function twrHud(m){
 }
 
 // ── joystick ────────────────────────────────────────────────────────
-function twrStickInit(joyId,knobId,onVec,onEnd){
+function twrStickInit(joyId,knobId,onVec,onEnd,radius){
   // Multi-touch safe: every stick follows ONLY the finger that landed on it
   // (tracked by touch identifier), so move + aim work at the same time.
   var joy=document.getElementById(joyId),knob=document.getElementById(knobId);
   if(!joy)return;
-  var R=44,drag=false,tid=null;
+  var R=radius||44,drag=false,tid=null;   // raggio trascinamento (default 44; piu grande = stick piu comodo)
   function setVecXY(cx,cy){
     var r=joy.getBoundingClientRect();
     var dx=cx-(r.left+r.width/2),dy=cy-(r.top+r.height/2);
@@ -37951,7 +38019,7 @@ function gldShowMatch(){
       var t=Math.min(1,(m-0.18)/0.82); t=t*t*(3-2*t);
       var k=t/m; GLD.joy.on=true;GLD.joy.mx=x*k;GLD.joy.my=y*k;
     },
-    function(){GLD.joy.on=false;GLD.joy.mx=0;GLD.joy.my=0;});
+    function(){GLD.joy.on=false;GLD.joy.mx=0;GLD.joy.my=0;},56);   // move-stick Colosseo piu grande/comoda
   twrStickInit('gld-aimjoy','gld-aimknob',
     function(x,y){var mag=Math.hypot(x,y);if(mag<0.25){GLD.aim.on=false;return;}GLD.aim.on=true;GLD.aim.ax=x;GLD.aim.ay=y;},
     function(){GLD.aim.on=false;});
@@ -38693,14 +38761,31 @@ function gldDrawPilum(ctx,raw,now,scale){
     if(meRow&&(meRow[7]&1)){var dxg=meRow[1]-pl[1],dyg=meRow[2]-pl[2];
       if(dxg*dxg+dyg*dyg<2.2){ctx.save();ctx.fillStyle='#a3f7bf';ctx.font='bold '+(scale*0.5)+'px \'Russo One\',sans-serif';
         ctx.textAlign='center';ctx.shadowColor='rgba(0,0,0,.8)';ctx.shadowBlur=5;ctx.fillText('RACCOGLI',g[0],g[1]-scale*0.95);ctx.restore();}}
-  }else if(pst===4){ // WINDUP — charge telegraph + aim line
+  }else if(pst===4){ // WINDUP — carica ~1s: linea di mira che cresce + anello di carica che si riempie
     var h=w2s(pl[1],pl[2]),fx=pl[3],fy=pl[4],fm=Math.hypot(fx,fy)||1;fx/=fm;fy/=fm;
+    var frac=Math.min(1,(pl[6]||0)/255),ready=frac>0.985;
     ctx.save();
-    ctx.strokeStyle='rgba(255,80,60,.7)';ctx.lineWidth=2;ctx.setLineDash([6,6]);ctx.lineDashOffset=-now/40;
-    ctx.beginPath();ctx.moveTo(h[0],h[1]);ctx.lineTo(h[0]+fx*scale*9,h[1]+fy*scale*9);ctx.stroke();ctx.setLineDash([]);
-    var cg=ctx.createRadialGradient(h[0],h[1],1,h[0],h[1],scale*0.95);
-    cg.addColorStop(0,'rgba(255,180,80,.5)');cg.addColorStop(1,'rgba(255,140,40,0)');
-    ctx.fillStyle=cg;ctx.beginPath();ctx.arc(h[0],h[1],scale*0.95,0,6.283);ctx.fill();ctx.restore();
+    // linea di mira: si allunga con la carica, con punta di freccia in cima
+    var aimLen=scale*(3.5+6.2*frac),ex=h[0]+fx*aimLen,ey=h[1]+fy*aimLen;
+    ctx.strokeStyle=ready?'rgba(255,240,150,.95)':'rgba(255,90,60,'+(0.5+0.4*frac)+')';
+    ctx.lineWidth=2+2*frac;ctx.setLineDash([7,6]);ctx.lineDashOffset=-now/40;
+    ctx.beginPath();ctx.moveTo(h[0],h[1]);ctx.lineTo(ex,ey);ctx.stroke();ctx.setLineDash([]);
+    var perpx=-fy,perpy=fx,ah=scale*(0.28+0.12*frac);   // freccia
+    ctx.fillStyle=ready?'rgba(255,240,150,.95)':'rgba(255,120,70,'+(0.6+0.4*frac)+')';
+    ctx.beginPath();ctx.moveTo(ex+fx*ah,ey+fy*ah);
+    ctx.lineTo(ex-fx*ah*0.4+perpx*ah*0.7,ey-fy*ah*0.4+perpy*ah*0.7);
+    ctx.lineTo(ex-fx*ah*0.4-perpx*ah*0.7,ey-fy*ah*0.4-perpy*ah*0.7);ctx.closePath();ctx.fill();
+    var cg=ctx.createRadialGradient(h[0],h[1],1,h[0],h[1],scale*(0.7+0.4*frac));
+    cg.addColorStop(0,'rgba(255,180,80,'+(0.32+0.35*frac)+')');cg.addColorStop(1,'rgba(255,140,40,0)');
+    ctx.fillStyle=cg;ctx.beginPath();ctx.arc(h[0],h[1],scale*(0.7+0.4*frac),0,6.283);ctx.fill();
+    // ANELLO DI CARICA che si riempie (0->1 in ~1s), parte da su in senso orario
+    var rr=scale*1.05;ctx.lineWidth=Math.max(2,scale*0.14);ctx.lineCap='round';
+    ctx.strokeStyle='rgba(0,0,0,.32)';ctx.beginPath();ctx.arc(h[0],h[1],rr,0,6.283);ctx.stroke();
+    ctx.strokeStyle=ready?'rgba(180,255,150,.95)':'rgba(255,200,90,.95)';
+    ctx.beginPath();ctx.arc(h[0],h[1],rr,-1.5708,-1.5708+6.283*frac);ctx.stroke();
+    if(ready){ctx.strokeStyle='rgba(255,255,220,'+(0.45+0.45*Math.sin(now/60))+')';ctx.lineWidth=scale*0.1;
+      ctx.beginPath();ctx.arc(h[0],h[1],rr,0,6.283);ctx.stroke();}
+    ctx.lineCap='butt';ctx.restore();
   }else if(pst===5){ // THROWN — extrapolated projectile + motion blur
     var vx=pl[3],vy=pl[4],tf=(now-(raw.rx||now))/1000;
     var px5=pl[1]+vx*tf,py5=pl[2]+vy*tf,a5=w2s(px5,py5),ang5=Math.atan2(vy,vx);
