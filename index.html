@@ -38486,11 +38486,21 @@ function gldDrawFighter(ctx,sx,sy,fr,ang,st,phase,flags,hp,look,isMe,now,label,h
   // cape (behind, local -x)
   var capeType=(look.cape==null?1:look.cape);
   if(capeType>0){
-    var clen=fr*(capeType===2?2.2:1.5),sway=Math.sin(now/300)*fr*0.2+(moving?Math.sin(wp)*fr*0.18:0);
-    ctx.fillStyle=capeC;
-    ctx.beginPath();ctx.moveTo(-fr*0.4,-fr*0.5);ctx.lineTo(-fr*0.4,fr*0.5);
-    ctx.lineTo(-fr*0.4-clen,fr*0.7+sway);ctx.lineTo(-fr*0.4-clen,-fr*0.7+sway);ctx.closePath();ctx.fill();
-    ctx.fillStyle='rgba(0,0,0,.18)';ctx.fill();
+    var clen=fr*(capeType===2?1.85:1.25),sway=Math.sin(now/300)*fr*0.13+(moving?Math.sin(wp)*fr*0.14:0);
+    var cw=fr*0.38, o=-fr*0.1;                        // mezza-larghezza alle spalle, o=attacco spalle
+    ctx.fillStyle=capeC;                              // mantello con coda a V (2 lembi) => legge come stoffa
+    ctx.beginPath();
+    ctx.moveTo(o,-cw);
+    ctx.quadraticCurveTo(o-clen*0.5,-cw*1.12+sway*0.5, o-clen,-cw*0.5+sway);   // lembo SX
+    ctx.quadraticCurveTo(o-clen*0.78,-cw*0.12+sway,   o-clen*0.72,sway*1.1);   // dentro verso la V
+    ctx.quadraticCurveTo(o-clen*0.78,cw*0.12+sway,    o-clen,cw*0.5+sway);     // lembo DX
+    ctx.quadraticCurveTo(o-clen*0.5,cw*1.12+sway*0.5, o,cw);
+    ctx.closePath();ctx.fill();
+    var cgrd=gldGrad(ctx,'cape|'+capeC+'|'+fk,function(cc){var g=cc.createLinearGradient(0,0,-clen,0);g.addColorStop(0,'rgba(255,255,255,.12)');g.addColorStop(0.45,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(0,0,0,.34)');return g;});
+    ctx.fillStyle=cgrd;ctx.fill();                    // luce alle spalle + ombra sul fondo
+    ctx.strokeStyle='rgba(0,0,0,.20)';ctx.lineWidth=fr*0.04;    // due pieghe convergenti verso la V
+    ctx.beginPath();ctx.moveTo(o,-cw*0.45);ctx.quadraticCurveTo(o-clen*0.6,-cw*0.35+sway,o-clen*0.74,sway);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(o,cw*0.45);ctx.quadraticCurveTo(o-clen*0.6,cw*0.35+sway,o-clen*0.74,sway);ctx.stroke();
   }
   // legs (alternating stride, behind torso)
   ctx.save();ctx.scale(1,scaleY);
@@ -38509,11 +38519,12 @@ function gldDrawFighter(ctx,sx,sy,fr,ang,st,phase,flags,hp,look,isMe,now,label,h
       ctx.fillStyle='rgba('+(255)+','+((180-phase*60)|0)+',40,.9)';
       ctx.beginPath();ctx.arc(Math.cos(oa)*auraR,Math.sin(oa)*auraR,fr*0.09,0,6.283);ctx.fill();}
   }
-  // body / armor lorica (cached gradient)
-  ctx.save();ctx.scale(1,scaleY);
+  // body / armor lorica (cached gradient) — squash lungo il facing (x locale) => torso OVALE
+  //   con le SPALLE larghe di traverso, non piu una palla. Tutta l'armatura si deforma coerente.
+  ctx.save();ctx.scale(0.76,scaleY);
   var bg=gldGrad(ctx,'body|'+armorC+'|'+fk,function(cc){var g=cc.createRadialGradient(-fr*0.3,-fr*0.3,fr*0.2,0,0,fr);g.addColorStop(0,armorC);g.addColorStop(1,'#3b3f45');return g;});
   ctx.fillStyle=bg;ctx.beginPath();ctx.arc(0,0,fr*0.82,0,6.283);ctx.fill();
-  ctx.strokeStyle='rgba(0,0,0,.35)';ctx.lineWidth=1.4;ctx.beginPath();ctx.arc(0,0,fr*0.82,0,6.283);ctx.stroke();
+  ctx.strokeStyle='rgba(0,0,0,.4)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,fr*0.82,0,6.283);ctx.stroke();
   // armatura: aspetto DIVERSO per tipo (look.armor: 0 Leggera · 1 Media · 2 Pesante · 3 Lorica)
   var armorT=look.armor||0;
   if(armorT===0){                                    // LEGGERA: cuoio, bretelle incrociate
@@ -38541,12 +38552,21 @@ function gldDrawFighter(ctx,sx,sy,fr,ang,st,phase,flags,hp,look,isMe,now,label,h
       ctx.beginPath();ctx.arc(sp[0],sp[1],fr*0.3,0,6.283);ctx.fill();ctx.stroke();});
   }
   ctx.restore();
+  // SPALLINE (spallacci) alle due spalle (±y = di traverso al facing): danno la lettura umanoide
+  ctx.save();ctx.scale(1,scaleY);
+  [[-fr*0.02,-fr*0.74],[-fr*0.02,fr*0.74]].forEach(function(p){
+    var pg=gldGrad(ctx,'pauld|'+armorC+'|'+fk,function(cc){var g=cc.createRadialGradient(p[0]-fr*0.1,p[1]-fr*0.1,fr*0.05,p[0],p[1],fr*0.3);g.addColorStop(0,armorC);g.addColorStop(1,'#33373d');return g;});
+    ctx.fillStyle=pg;ctx.beginPath();ctx.ellipse(p[0],p[1],fr*0.30,fr*0.23,0,0,6.283);ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,.32)';ctx.lineWidth=1.3;ctx.stroke();
+    ctx.strokeStyle='rgba(255,245,220,.22)';ctx.lineWidth=1;ctx.beginPath();ctx.ellipse(p[0],p[1],fr*0.22,fr*0.15,0,3.6,5.4);ctx.stroke();
+  });
+  ctx.restore();
   // rim-light (constant top-left light, NOT rotated with body plates — arc on left)
   ctx.strokeStyle='rgba(255,245,220,.28)';ctx.lineWidth=fr*0.12;
   ctx.beginPath();ctx.arc(0,0,fr*0.78,3.9,5.4);ctx.stroke();
   // shield (front-left; raised when blocking/parrying/holding)
   var raised=(st===GLD_ST.BLOCK||st===GLD_ST.PARRY_WIN||shieldDown);
-  var shx=raised?fr*0.85:fr*0.2,shy=raised?0:fr*0.55,shR=fr*0.72;
+  var shx=raised?fr*0.78:fr*0.46,shy=raised?-fr*0.34:-fr*0.64,shR=fr*0.5;   // piu piccolo, sul braccio SX (front-left)
   var pShake=(st===GLD_ST.PARRY_WIN)?fr*0.03*Math.sin(now/40):0;
   ctx.save();ctx.translate(shx+pShake,shy);
   var sg=gldGrad(ctx,'shield|'+shieldC+'|'+fk,function(cc){var g=cc.createRadialGradient(-shR*0.3,-shR*0.3,shR*0.2,0,0,shR);g.addColorStop(0,shieldC);g.addColorStop(1,'#5a1114');return g;});
