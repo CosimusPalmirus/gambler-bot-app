@@ -7616,6 +7616,8 @@ body{position:relative;}
 .twr-optrow{display:flex;gap:5px;flex-wrap:wrap;}
 .twr-opt{padding:6px 10px;border-radius:10px;border:1px solid var(--border2);background:var(--card2);color:var(--txt2);font-size:10.5px;font-weight:700;cursor:pointer;}
 .twr-opt.sel{border-color:#22d3ee;color:#7ee9fb;background:rgba(34,211,238,.12);}
+.twr-opt.locked{opacity:.5;border-style:dashed;color:var(--txt2);cursor:not-allowed;}
+.twr-sw.locked{opacity:.55;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:not-allowed;filter:grayscale(.4);}
 .twr-item.throw{border-color:rgba(255,160,60,.5);}
 .twr-item.throw:active{border-color:#ffa03c;box-shadow:0 0 14px rgba(255,160,60,.45);transform:scale(1.06);}
 /* — street race mega banner — */
@@ -11357,6 +11359,7 @@ body{position:relative;}
   // 4) parametric strings (number/name varies). First-match-wins is not used here:
   //    every regex is applied in sequence so composite text nodes get fully done.
   var GB_TRX = [
+    [/🔒 Sblocca "(.+?)" nelle Quest/g, '🔒 Unlock "$1" in Quests'],   // editor gladiatore: opzione premium bloccata
     [/GIOCA ANCORA/g, 'PLAY AGAIN'],   // prima di /GIOCA/ (copre le varianti con emoji)
     [/RIVINCITA/g, 'REMATCH'],
     [/MONTEPREMI/g, 'PRIZE POOL'],
@@ -37676,6 +37679,27 @@ var GLD_SWORD=['Gladio','Dorato','Ghiaccio','Bronzo','Sangue','Smeraldo','Notte'
 var GLD_EMBLEM=['—','Aquila','Teschio','Fulmine','Corona','Tridente','Drago','Lupo','Leone'];
 var GLD_SKINS=['#f0c9a0','#d29b6a','#a06840','#6d4326','#e6b93f','#8e8e93','#6fa287'];
 var GLD_SWORDCOL=['#c8ccd0','#e8c07a','#b9e6ef','#cd7f32','#ff3b3b','#3ddc84','#8a7bff'];
+/* Opzione A: opzioni editor PREMIUM = unlock-only dalle Quest (coerente col server
+   _gladiator_sanitize). Base+colori sempre liberi. Un indice premium e' ammesso solo se una
+   skin sbloccata lo concede. */
+var GLAD_FREE={helm:[0,1,2,3,4],armor:[0,1,2,3],cape:[0,1,2],skin:[0,1,2,3],emblem:[0,2,3,5],sword:[0,3]};
+var GLAD_GATE={helm:{5:['glad_thraex'],6:['glad_centurion']},
+  skin:{4:['glad_golden_skin'],5:['glad_ash'],6:['glad_verdigris']},
+  emblem:{1:['glad_eagle'],4:['glad_imperial_purple','glad_gold_champion'],6:['glad_bloodblade'],7:['glad_wolf'],8:['glad_night_blade']},
+  sword:{1:['glad_gold_champion'],2:['glad_ice_blade'],4:['glad_bloodblade'],5:['glad_emerald_blade'],6:['glad_night_blade']}};
+var GLAD_COSNAME={glad_gold_champion:'Campione Dorato',glad_ice_blade:'Lama di Ghiaccio',glad_bloodblade:'Lama di Sangue',glad_emerald_blade:'Lama di Smeraldo',glad_night_blade:'Lama della Notte',glad_eagle:"Insegna dell'Aquila",glad_imperial_purple:'Porpora Imperiale',glad_wolf:'Segno della Lupa',glad_thraex:'Elmo del Trace',glad_centurion:'Centurione',glad_golden_skin:'Pelle Dorata',glad_ash:'Cenere del Vulcano',glad_verdigris:'Verderame Antico'};
+function gladIdxLocked(field,i){   // ritorna null se libero/sbloccato, altrimenti l'id skin che lo sblocca
+  var free=GLAD_FREE[field]; if(free&&free.indexOf(i)>=0) return null;
+  var gate=GLAD_GATE[field]&&GLAD_GATE[field][i]; if(!gate) return null;
+  var unl=(typeof S!=='undefined'&&S.cosmetics&&S.cosmetics.unlocked&&S.cosmetics.unlocked.glad)||[];
+  for(var g=0;g<gate.length;g++){ if(unl.indexOf(gate[g])>=0) return null; }
+  return gate[0];
+}
+function gladLockedTap(field,i,cosId){
+  try{TWS.play('err',0.4);}catch(e){}
+  try{grHaptic('lose');}catch(e){}
+  toast('🔒 Sblocca "'+(GLAD_COSNAME[cosId]||'?')+'" nelle Quest',' warn'.trim(),2600);
+}
 
 function gldUrl(){return twrUrl();}
 function gldSnd(name,vol){
@@ -39390,10 +39414,18 @@ function gladOpenEditor(){
     return s0;
   }
   function opts(field,names,cur){
-    var s0='';names.forEach(function(nm,i){s0+='<button class="twr-opt'+(i===cur?' sel':'')+'" onclick="gladEditSet(\''+field+'\','+i+')">'+nm+'</button>';});
+    var s0='';names.forEach(function(nm,i){
+      var lc=gladIdxLocked(field,i);
+      if(lc){ s0+='<button class="twr-opt locked" onclick="gladLockedTap(\''+field+'\','+i+',\''+lc+'\')">🔒 '+nm+'</button>'; }
+      else { s0+='<button class="twr-opt'+(i===cur?' sel':'')+'" onclick="gladEditSet(\''+field+'\','+i+')">'+nm+'</button>'; }
+    });
     return s0;
   }
-  var skins='';GLD_SKINS.forEach(function(c0,i){skins+='<span class="twr-sw'+(i===lk.skin?' sel':'')+'" style="background:'+c0+';" onclick="gladEditSet(\'skin\','+i+')"></span>';});
+  var skins='';GLD_SKINS.forEach(function(c0,i){
+    var lc=gladIdxLocked('skin',i);
+    if(lc){ skins+='<span class="twr-sw locked" onclick="gladLockedTap(\'skin\','+i+',\''+lc+'\')" style="background:'+c0+';">🔒</span>'; }
+    else { skins+='<span class="twr-sw'+(i===lk.skin?' sel':'')+'" style="background:'+c0+';" onclick="gladEditSet(\'skin\','+i+')"></span>'; }
+  });
   gldOv('<div class="tw-duel-t" style="color:#f5d27a;text-shadow:0 0 16px rgba(224,165,42,.6);">⚔️ IL TUO GLADIATORE</div>'
     +'<canvas id="glad-edit-cv" width="150" height="150" style="display:block;margin:8px auto;background:radial-gradient(circle at 50% 40%,#2a1d10,#0d0906);border-radius:16px;border:1px solid rgba(224,165,42,.3);"></canvas>'
     +'<div class="twr-edit-lbl">ELMO</div><div class="twr-optrow" id="glad-row-helm">'+opts('helm',GLD_HELM,lk.helm)+'</div>'
@@ -39430,6 +39462,7 @@ function gladOpenEditor(){
 }
 function gladEditSet(f,v){
   if(!GLD._edit)return;
+  if(typeof v==='number' && gladIdxLocked(f,v)) return;   // difesa: opzione premium bloccata (unlock-only)
   GLD._edit[f]=v;
   try{TWS.play('pick',0.5);}catch(e){}
   var row=document.getElementById('glad-row-'+f);
