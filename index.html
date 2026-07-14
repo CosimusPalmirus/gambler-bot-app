@@ -9816,6 +9816,24 @@ body{position:relative;}
     "Armatura d'oro, spada dorata, corona.": "Gold armor, golden blade, a crown.",
     "Lama di Sangue": "Bloodblade",
     "Lama cremisi, drago sullo scudo, ferro nero.": "Crimson blade, dragon shield, black iron.",
+    "Cenere del Vulcano": "Volcano Ash",
+    "Pelle di cenere, ferro brunito.": "Ash-grey skin, burnished iron.",
+    "Elmo del Trace": "Thraex Helm",
+    "Cresta di grifone, bronzo di Tracia.": "Griffin crest, Thracian bronze.",
+    "Segno della Lupa": "Mark of the She-Wolf",
+    "Il lupo di Roma sullo scudo.": "The wolf of Rome on your shield.",
+    "Verderame Antico": "Ancient Verdigris",
+    "Bronzo ossidato da cento tornei.": "Bronze weathered by a hundred tournaments.",
+    "Lama di Smeraldo": "Emerald Blade",
+    "Acciaio verde che canta nell'arena.": "Green steel that sings in the arena.",
+    "Centurione": "Centurion",
+    "Cresta trasversale: qui comando io.": "Transverse crest: I give the orders here.",
+    "Pelle Dorata": "Golden Skin",
+    "Statua vivente: pelle e armatura d'oro.": "A living statue: golden skin and armor.",
+    "Lama della Notte": "Night Blade",
+    "Viola d'ombra, il leone veglia.": "Shadow violet — the lion keeps watch.",
+    "◎ AGGANCIATO": "◎ LOCKED ON",
+    "◎ MIRA": "◎ AIMING",
     "Giallo Corsa": "Racing Yellow",
     "Giallo gara con striscia nera.": "Race yellow with a black stripe.",
     "Rosso Fuoco": "Fire Red",
@@ -10996,6 +11014,21 @@ body{position:relative;}
     "🪂 L'airdrop è atterrato!": "🪂 The airdrop has landed!",
     "🪙 PIOGGIA D'ORO": "🪙 GOLDEN RAIN",
     "🫀 Un soffio dal baratro — ultima vita, pot ×": "🫀 A breath from the abyss — last life, pot ×",
+    /* ── COLOSSEO client B-list (feel / HUD / onboarding 2026-07) ── */
+    "PUNISCILO!": "PUNISH HIM!",
+    "⚔️ 3 RIMASTI": "⚔️ 3 LEFT",
+    "🔥 L'ARENA SI STRINGE": "🔥 THE ARENA IS CLOSING IN",
+    "La lava avanza — resta al centro": "The lava advances — stay in the middle",
+    "🕹️ STICK SINISTRO": "🕹️ LEFT STICK",
+    "muoviti nell'arena": "move around the arena",
+    "⚔️ ATT — FENDENTE": "⚔️ ATT — SLASH",
+    "colpisce ad arco davanti a te": "hits in an arc in front of you",
+    "🛡️ TIENI SCUDO": "🛡️ HOLD SHIELD",
+    "alzalo all'ultimo per il PARRY": "raise it late for the PARRY",
+    "💨 SCHIVATA": "💨 DODGE",
+    "frame invincibili · batte tutto": "invincible frames · beats everything",
+    "🔱 SPECIALE": "🔱 SPECIAL",
+    "sfonda la guardia dei tartaruga": "smashes through turtle guards",
     // ── game names / heroes / subtitles (Arcade Pack) ──
     "🎱 BILIARDO":"🎱 POOL",
     "🎱 BILIARDO 8-15":"🎱 POOL 8-15",
@@ -11359,6 +11392,11 @@ body{position:relative;}
     [/JACKPOT — piatto ×/g,'JACKPOT — pot ×'],
     [/⚖️ VENDUTO ×/g,'⚖️ SOLD ×'],     // grOutcomeBanner (dynamic ×mult suffix, set via innerHTML → observer)
     [/✅ VINTO ×/g,'✅ WON ×'],          // grOutcomeBanner (dynamic ×mult suffix)
+    /* ── COLOSSEO kill-feed dinamico (B8) ── */
+    [/ ha eliminato /g,' eliminated '],
+    [/ ha trafitto /g,' skewered '],
+    [/ PARA!/g,' PARRIES!'],
+    [/ brucia nella lava/g,' burns in the lava'],
     [/GIOCA/g, 'PLAY']
   ];
 
@@ -37613,29 +37651,37 @@ var GLD={
   pred:{x:0,y:0,ok:false},cam:{x:0,y:0,z:1.5},stOX:0,stOY:0,stW:0,raf:null,cv:null,ctx:null,st:null,cssW:0,dpr:1,scale:20,_lf:0,
   anim:{},fxq:[],shake:0,flash:0,lastHp:null,inTimer:null,crowd:0,
   _grad:{},_kin:{},_crGrad:{},_seats:null,cr:null,_bedSrc:null,_bedG:null,_hadPilum:false,
-  feedRows:[],banner:null,bannerT:0,ovSticky:false,stampQ:[],_sdSeen:false,_lookSynced:false,_edit:null,_editT:0
+  feedRows:[],banner:null,bannerT:0,ovSticky:false,stampQ:[],_sdSeen:false,_lookSynced:false,_edit:null,_editT:0,
+  // ── B-list client (feel/HUD/atmosfera): clock virtuale slow-mo, KO-cam, decal, torce/vessilli, juice ──
+  vt:0,slowUntil:0,koCam:null,_koK:0,decal:null,_dctx:null,decalN:0,_bs:0,
+  _torches:null,_flags:null,_flagTile:null,_vig:null,
+  _three:false,zone1:false,zone2:false,_cdPrev:{},_pilTick:0,_pilRdy:false,_lastSt:-1,_lastSearchN:0,_lastCd:0,heartOn:false
 };
-var GLD_HELM=['Nessuno','Corinzio','Murmillo','Reziario','Secutor'];
+// NB: gli indici oltre il range base (helm>4, sword>4, emblem>6, skin>3) sono
+// cosmetici sbloccabili — il server (_gladiator_sanitize) li clampa se non posseduti.
+var GLD_HELM=['Nessuno','Corinzio','Murmillo','Reziario','Secutor','Trace','Centurione'];
 var GLD_ARMOR=['Leggera','Media','Pesante','Lorica'];
 var GLD_CAPE=['Nessuno','Corto','Lungo'];
-var GLD_SWORD=['Gladio','Dorato','Ghiaccio','Bronzo','Sangue'];
-var GLD_EMBLEM=['—','Aquila','Teschio','Fulmine','Corona','Tridente','Drago'];
-var GLD_SKINS=['#f0c9a0','#d29b6a','#a06840','#6d4326'];
-var GLD_SWORDCOL=['#c8ccd0','#e8c07a','#b9e6ef','#cd7f32','#ff3b3b'];
+var GLD_SWORD=['Gladio','Dorato','Ghiaccio','Bronzo','Sangue','Smeraldo','Notte'];
+var GLD_EMBLEM=['—','Aquila','Teschio','Fulmine','Corona','Tridente','Drago','Lupo','Leone'];
+var GLD_SKINS=['#f0c9a0','#d29b6a','#a06840','#6d4326','#e6b93f','#8e8e93','#6fa287'];
+var GLD_SWORDCOL=['#c8ccd0','#e8c07a','#b9e6ef','#cd7f32','#ff3b3b','#3ddc84','#8a7bff'];
 
 function gldUrl(){return twrUrl();}
 function gldSnd(name,vol){
   if(!TWS.on||!TWS.ctx)return;var v=(vol==null?1:vol);if(v<=0.03)return;
   try{switch(name){
     case 'fendente':TWS.noise({d:0.13,g:0.20*v,hp:900,lp:5200});TWS.tone({f:520,f2:180,type:'triangle',d:0.10,g:0.12*v});break;
-    case 'clang':TWS.tone({f:1500,f2:640,type:'square',d:0.08,g:0.30*v});TWS.tone({f:2500,d:0.14,g:0.14*v,at:0.02});TWS.noise({d:0.06,g:0.18*v,hp:2200});break;
-    case 'scatto':TWS.noise({d:0.16,g:0.18*v,hp:420,lp:2600});break;
+    case 'clang':TWS.tone({f:1500,f2:640,type:'square',d:0.08,g:0.30*v});TWS.tone({f:2500,d:0.14,g:0.14*v,at:0.02});TWS.noise({d:0.06,g:0.18*v,hp:2200});TWS.tone({f:3800,f2:3100,d:0.22,g:0.05*v,at:0.03});break;
+    case 'scatto':TWS.noise({d:0.16,g:0.18*v,hp:420,lp:2600});TWS.tone({f:900,f2:1500,type:'sine',d:0.10,g:0.05*v});break;
     case 'stun':TWS.tone({f:300,f2:520,type:'triangle',d:0.14,g:0.14*v});TWS.tone({f:520,f2:300,type:'triangle',d:0.16,g:0.12*v,at:0.14});break;
     case 'special':TWS.tone({f:90,f2:280,type:'sawtooth',d:0.4,g:0.22*v,lp:1400});TWS.noise({d:0.30,g:0.30*v,lp:800,lp2:80,at:0.12});break;
     case 'charge':TWS.tone({f:200,f2:900,type:'sawtooth',d:0.5,g:0.10*v,lp:1800});break;
     case 'block':TWS.tone({f:230,f2:120,type:'square',d:0.10,g:0.22*v,lp:1000});TWS.noise({d:0.05,g:0.12*v,hp:1400});break;
     case 'boato':TWS.noise({d:0.9,g:0.14*v,hp:180,lp:1300});TWS.tone({f:120,f2:220,type:'sawtooth',d:0.7,g:0.06*v,lp:600});break;
-    case 'blade_hit':TWS.tone({f:360,f2:120,type:'sawtooth',d:0.14,g:0.20*v,lp:1400});TWS.noise({d:0.08,g:0.16*v,hp:600});break;
+    case 'blade_hit':TWS.tone({f:360,f2:120,type:'sawtooth',d:0.14,g:0.20*v,lp:1400});TWS.noise({d:0.08,g:0.16*v,hp:600});TWS.tone({f:95,f2:55,type:'sine',d:0.11,g:0.16*v});break;
+    // ── A-SFX: raccolta pilum (squillo metallico + whoosh corto) ──
+    case 'pickup':TWS.tone({f:880,f2:1320,type:'triangle',d:0.12,g:0.18*v});TWS.tone({f:1760,d:0.10,g:0.09*v,at:0.06});TWS.noise({d:0.05,g:0.10*v,hp:3000});break;
     // ── crowd + pilum (v2, volume ∝ crowd energy) ──
     case 'roar':
       TWS.noise({d:0.60,g:0.05*v,hp:150,lp:900});
@@ -37672,6 +37718,23 @@ function gldSnd(name,vol){
       TWS.tone({f:2900,d:0.16,g:0.14*v,at:0.02});
       TWS.noise({d:0.07,g:0.18*v,hp:2400});
       break;
+    // ── B-list: morte (gong+urlo+sub), sizzle lava, feint whoosh, slam grave ──
+    case 'morte':
+      TWS.tone({f:65,f2:38,type:'sine',d:1.0,g:0.5*v});
+      TWS.tone({f:392,f2:110,type:'sawtooth',d:0.55,g:0.16*v,lp:900});
+      TWS.noise({d:0.6,g:0.20*v,lp:600,lp2:120});
+      break;
+    case 'sizzle':
+      TWS.noise({d:0.45,g:0.22*v,hp:1800,lp:7000});
+      TWS.tone({f:280,f2:140,type:'sawtooth',d:0.3,g:0.07*v,lp:1200});
+      break;
+    case 'feint':
+      TWS.noise({d:0.09,g:0.16*v,hp:800,lp:4000});
+      break;
+    case 'slam':
+      TWS.tone({f:120,f2:55,type:'square',d:0.22,g:0.30*v,lp:600});
+      TWS.noise({d:0.18,g:0.25*v,lp:900,lp2:150});
+      break;
   }}catch(e){}
 }
 // ── crowd ambience BED (self-contained, glad-only; no turf/tank engine touch) ──
@@ -37707,12 +37770,23 @@ function gldInjectCSS(){
      +'display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;'
      +'-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;overflow:hidden;padding:0;}'
    +'.gld-btn span{font-family:\'Russo One\',sans-serif;font-size:8px;letter-spacing:.5px;margin-top:2px;opacity:.85;}'
-   +'.gld-btn:active{transform:scale(.92);}'
+   +'.gld-btn:active{transform:scale(.92);box-shadow:inset 0 0 14px rgba(255,255,255,.22);}'
    +'.gld-btn.atk{border-color:rgba(224,165,42,.7);}'
    +'.gld-btn.spec{border-color:rgba(255,90,31,.7);}'
    +'.gld-btn.dodge{border-color:rgba(120,220,255,.7);}'
    +'.gld-btn.shield{border-color:rgba(120,255,180,.7);}'
-   +'.gld-cd{position:absolute;left:0;top:0;right:0;bottom:0;border-radius:50%;display:none;pointer-events:none;}';
+   +'.gld-cd{position:absolute;left:0;top:0;right:0;bottom:0;border-radius:50%;display:none;pointer-events:none;}'
+   /* ── B10/B20: feedback bottoni + search juice ── */
+   +'.gld-btn.deny{border-color:rgba(255,70,60,.95)!important;box-shadow:0 0 12px rgba(255,60,50,.75);animation:gldDeny .15s ease-out;}'
+   +'@keyframes gldDeny{0%{transform:translateX(-3px);}50%{transform:translateX(3px);}100%{transform:none;}}'
+   +'.gld-btn.ready{border-color:rgba(120,255,180,.95)!important;box-shadow:0 0 16px rgba(120,255,180,.85);}'
+   +'.gld-btn.held{border-color:rgba(120,255,180,.95)!important;background:radial-gradient(circle at 50% 35%,#1d332a,#0d1512);}'
+   +'.gld-charge-wrap:after{content:"";position:absolute;right:0;top:-2px;bottom:-2px;width:2px;border-radius:1px;background:rgba(255,255,255,.85);}'
+   +'#gld-sn.pop{animation:gldPop .3s ease-out;}'
+   +'@keyframes gldPop{0%{transform:scale(1);}40%{transform:scale(1.18);color:#a3f7bf;}100%{transform:scale(1);}}'
+   /* ── A-RET: bottone ATT che pulsa mentre hai la lancia (pilum) ── */
+   +'.gld-btn.lance{border-color:rgba(255,150,60,.95)!important;animation:gldLance .75s ease-in-out infinite;}'
+   +'@keyframes gldLance{0%,100%{box-shadow:0 0 10px rgba(255,150,60,.55);transform:scale(1);}50%{box-shadow:0 0 22px rgba(255,175,70,1);transform:scale(1.07);}}';
   document.head.appendChild(s);
 }
 function initGlad(){
@@ -37762,7 +37836,15 @@ function gldOnMsg(m){
     GLD.searchN=m.players||1;
     GLD.searchAt=(m.starts_in!=null)?(Date.now()+m.starts_in*1000):0;
     if(GLD.ui!=='search')gldShowSearch();
-    var gsn=document.getElementById('gld-sn');if(gsn&&!GLD.practice)gsn.textContent=GLD.searchN+'/8 gladiatori trovati';
+    var gsn=document.getElementById('gld-sn');
+    if(gsn&&!GLD.practice){
+      gsn.textContent=GLD.searchN+'/8 gladiatori trovati';
+      if(GLD.searchN>GLD._lastSearchN){ // B20: juice quando entra un gladiatore
+        TWS.play('pick',0.7);grHaptic('pick');
+        gsn.classList.remove('pop');void gsn.offsetWidth;gsn.classList.add('pop');
+      }
+    }
+    GLD._lastSearchN=GLD.searchN;
     var gpz=document.getElementById('gld-prize-live');
     if(gpz&&m.stake_eur){var gpot=(m.players||1)*m.stake_eur;gpz.innerHTML='💰 MONTEPREMI: <b>€'+fmt(gpot,2)+'</b><span> · al vincitore €'+fmt(gpot*0.92,2)+'</span>';}
     return;
@@ -37790,12 +37872,22 @@ function gldOnMsg(m){
     GLD.profiles=m.profiles||{};
     GLD.cr={e:0.18,m:0,base:0.18,ola:null,olaNext:performance.now()+13000,claps:0};
     GLD._kin={};GLD._seats=null;GLD._hadPilum=false;
-    gldShowMatch();gldMatchFound();TWS.play('sting');
+    // B-list reset: slow-mo/KO-cam/decal/soglie zona/ready-ping/heartbeat
+    GLD.vt=0;GLD.slowUntil=0;GLD.koCam=null;GLD._koK=0;GLD.decalN=0;
+    GLD._three=false;GLD.zone1=false;GLD.zone2=false;GLD._cdPrev={};GLD._lastSt=-1;GLD._pilTick=0;
+    GLD.heartOn=false;try{TWS.heart(false);}catch(e){}
+    gldShowMatch();gldMatchFound();gldTutorial();TWS.play('sting');
     setTimeout(function(){if(GLD.ui==='match')gldSnd('corno',0.9);},400);
     return;
   }
   if(t==='s'&&m.g==='glad'){gldOnSnap(m);return;}
-  if(t==='over'&&m.game==='glad'){GLD.over=m;gldShowOver(m);return;}
+  if(t==='over'&&m.game==='glad'){
+    GLD.over=m;GLD.heartOn=false;try{TWS.heart(false);}catch(e){}
+    // B3: hold 900ms sul vincitore (KO-cam + slow-mo restano visibili) prima dell'overlay
+    if(GLD.ui==='match'){setTimeout(function(){if(GLD.over===m&&GLD.ui==='match')gldShowOver(m);},900);}
+    else gldShowOver(m);
+    return;
+  }
 }
 function gldMatchFound(){
   var n=Object.keys(GLD.names||{}).length||2;
@@ -37806,7 +37898,41 @@ function gldMatchFound(){
    +'<div class="pvp-vs-go">⚔️ COLOSSEO · PREPARATI…</div>';
   gldOv(html,true);
   try{dlVsSfx();}catch(e){}
-  setTimeout(function(){if(GLD.ui==='match'){gldOvClose();GLD.stampQ=[{txt:'COMBATTI!',t0:performance.now()+150}];}},2600);
+  // B9: countdown 3-2-1-COMBATTI! (pattern stampQ di TWR) + tono crescente + haptic per tick
+  setTimeout(function(){
+    if(GLD.ui!=='match')return;
+    gldOvClose();
+    var t0c=performance.now();
+    GLD.stampQ=[{txt:'3',t0:t0c+150,dur:620,col:'#f87171'},
+                {txt:'2',t0:t0c+800,dur:620,col:'#facc15'},
+                {txt:'1',t0:t0c+1450,dur:620,col:'#a3e635'},
+                {txt:'COMBATTI!',t0:t0c+2100,dur:950,col:'#ffd700'}];
+    [[150,440],[800,550],[1450,660]].forEach(function(cf){
+      setTimeout(function(){
+        if(GLD.ui!=='match')return;
+        try{if(TWS.on&&TWS.ctx)TWS.tone({f:cf[1],type:'triangle',d:0.14,g:0.20});}catch(e){}
+        grHaptic('sel');
+      },cf[0]);
+    });
+    setTimeout(function(){if(GLD.ui!=='match')return;gldSnd('corno',0.9);gldSnd('boato',0.8);grHaptic('enter');},2100);
+  },1600);
+}
+// B22: onboarding practice — 5 hint temporizzati, gate localStorage max 2 partite
+function gldTutorial(){
+  if(!GLD.practice)return;
+  var n=0;try{n=+(localStorage.getItem('gb_gld_tut')||0);}catch(e){}
+  if(n>=2)return;
+  try{localStorage.setItem('gb_gld_tut',String(n+1));}catch(e){}
+  [[3000,'🕹️ STICK SINISTRO','muoviti nell\'arena'],
+   [7000,'⚔️ ATT — FENDENTE','colpisce ad arco davanti a te'],
+   [11000,'🛡️ TIENI SCUDO','alzalo all\'ultimo per il PARRY'],
+   [15000,'💨 SCHIVATA','frame invincibili · batte tutto'],
+   [19000,'🔱 SPECIALE','sfonda la guardia dei tartaruga']
+  ].forEach(function(hh){
+    setTimeout(function(){
+      if(GLD.ui==='match'&&GLD.practice&&!GLD.banner)gldBanner(hh[1],hh[2],2600);
+    },hh[0]);
+  });
 }
 function gldSetTier(tk){GLD.tier=tk;
   var b=document.querySelectorAll('#gld-body .tw-tier');for(var i=0;i<b.length;i++)b[i].classList.toggle('sel',b[i].getAttribute('data-t')===tk);
@@ -37828,8 +37954,23 @@ function gldBack(){
 function gldAct(a){
   if(GLD.ui!=='match')return;
   try{TWS.init();TWS.res();}catch(e){}
+  // B10: feedback input rifiutato (check client-side; il server resta autoritativo)
+  var y=GLD.you;
+  if(y&&y.alive!==false){
+    var rej=false;
+    if(y.st===GLD_ST.STUN&&a!=='unshield')rej=true;
+    else if(a==='dodge'&&(y.dodge_cd||0)>0.12)rej=true;
+    else if(a==='special'&&(y.spec_cd||0)>0.12)rej=true;
+    if(rej)gldDeny(a);
+  }
   gldSend({t:'act',a:a});
   if(a==='dodge'||a==='atk'){GLD._buf={a:a,t:performance.now()};}
+}
+function gldDeny(a){ // B10a: flash rosso 150ms + clank smorzato + haptic
+  var id={atk:'gld-b-atk',special:'gld-b-spec',dodge:'gld-b-dodge',shield:'gld-b-shield'}[a];
+  var b=id&&document.getElementById(id);
+  if(b){b.classList.add('deny');setTimeout(function(){b.classList.remove('deny');},150);}
+  TWS.play('clank',0.4);grHaptic('sel');
 }
 function gldFlushBuf(){
   var b=GLD._buf;if(!b)return;
@@ -37860,6 +38001,18 @@ function gldOnSnap(m){
       try{tg.HapticFeedback&&tg.HapticFeedback.notificationOccurred('error');}catch(e){}
     }
     GLD.lastHp=m.you.hp;
+    // B21: audio telegrafo — carica SPECIALE mia
+    if(m.you.st===GLD_ST.SPEC_WIND&&GLD._lastSt!==GLD_ST.SPEC_WIND)gldSnd('charge',0.9);
+    GLD._lastSt=m.you.st;
+    // B11: heartbeat + vignetta all'ultimo cuore
+    var h1=(m.you.alive!==false)&&m.you.hp===1;
+    if(h1&&!GLD.heartOn){GLD.heartOn=true;try{TWS.heart(true);}catch(e){}}
+    else if(!h1&&GLD.heartOn){GLD.heartOn=false;try{TWS.heart(false);}catch(e){}}
+  }
+  // B19: soglie zona una-tantum
+  if(m.r!=null){
+    if(m.r<6&&!GLD.zone1){GLD.zone1=true;gldBanner('🔥 L\'ARENA SI STRINGE','La lava avanza — resta al centro',2200);TWS.play('alarm',0.7);}
+    if(m.r<3.4&&!GLD.zone2){GLD.zone2=true;gldBanner('🔥 L\'ARENA SI STRINGE','',1800);TWS.play('alarm',0.9);}
   }
   (m.feed||[]).forEach(gldFeedEvent);
   gldHud(m);
@@ -37896,38 +38049,78 @@ function gldFeedEvent(e){
   else if(k==='parry'){
     gldSnd('clang',(e.who===me||e.victim===me)?1:0.5);gldCrowd('parry');
     var pp=gldPosOf(e.who)||gldPosOf(e.victim);
-    if(pp){gldFxAdd('spark',pp[0],pp[1],520,null,'#ffe08a');gldFxAdd('txt',pp[0],pp[1]-0.6,1100,'PARRY!','#a3f7bf');}
-    if(e.who===me)gldBanner('🛡️ PARRY!','Contrattacco pronto!',1600);
+    if(pp){gldFxAdd('spark',pp[0],pp[1],520,null,'#ffe08a');gldFxAdd('txt',pp[0],pp[1]-0.6,1100,'PARRY!','#a3f7bf');gldFxAdd('impact',pp[0],pp[1],140);gldFxAdd('ring',pp[0],pp[1],460,null,'#a3f7bf');}
+    gldFeed('🛡️ '+gldNm(e.who)+' PARA!');
+    if(e.who===me){gldBanner('🛡️ PARRY!','Contrattacco pronto!',1600);grHaptic('win');}
     else if(e.victim===me)gldBanner('🛡️ PARRY!','Ti hanno parato il colpo — sei stordito!',1600);
   }
   else if(k==='block'){gldSnd('block',0.7);gldCrowd('block');var pb=gldPosOf(e.who);if(pb)gldFxAdd('spark',pb[0],pb[1],380,null,'#cfd6dd');}
   else if(k==='dodge'){gldSnd('scatto',e.who===me?0.9:0.5);gldCrowd('dodge');}
-  else if(k==='stun'){gldSnd('stun',0.8);}
+  else if(k==='stun'){
+    gldSnd('stun',0.8);
+    // B4: finestra di punish — se lo stordito non sei tu e sei in range, stampa PUNISCILO!
+    var psn=gldPosOf(e.victim);
+    if(psn&&e.victim!==me){
+      var mp0=gldPosOf(me);
+      if(mp0&&Math.hypot(mp0[0]-psn[0],mp0[1]-psn[1])<3.2)gldFxAdd('txt',psn[0],psn[1]-0.9,1300,'PUNISCILO!','#ffd76b');
+    }
+  }
   else if(k==='hit'){
     gldSnd('blade_hit',e.victim===me?1:0.7);gldCrowd('hit');
     var ph=gldPosOf(e.victim);
-    if(ph){gldFxAdd('spark',ph[0],ph[1],420,null,'#f87171');gldFxAdd('ring',ph[0],ph[1],360,null,'#ffdca0');}
+    if(ph){gldFxAdd('spark',ph[0],ph[1],420,null,'#f87171');gldFxAdd('ring',ph[0],ph[1],360,null,'#ffdca0');gldFxAdd('impact',ph[0],ph[1],130);gldDecal('blood',ph[0],ph[1],Math.random()*6.283);}
+    GLD.shake=Math.min(16,GLD.shake+1.2);   // A-FX: micro camera-kick su OGNI colpo a segno
     if(e.who===me){GLD.shake=Math.min(16,GLD.shake+3);try{tg.HapticFeedback&&tg.HapticFeedback.impactOccurred('light');}catch(_e){}}
   }
   else if(k==='kill'){
-    gldSnd('boato',1);gldCrowd(e.cause==='pilum'?'pilum_hit':'kill');GLD.shake=Math.min(16,GLD.shake+(e.cause==='pilum'?8:5));
-    var pk=gldPosOf(e.victim);if(pk)gldFxAdd('boom',pk[0],pk[1],1000);
+    gldCrowd(e.cause==='pilum'?'pilum_hit':'kill');GLD.shake=Math.min(16,GLD.shake+(e.cause==='pilum'?8:5));
+    var pk=gldPosOf(e.victim);
+    if(pk){
+      gldFxAdd('boom',pk[0],pk[1],1000);gldFxAdd('blood',pk[0],pk[1],900);gldFxAdd('impact',pk[0],pk[1],150);
+      gldFxAdd('ring',pk[0],pk[1],900,null,'#ff6a3a');gldFxAdd('dust',pk[0],pk[1],700);   // A-FX: onda + polvere sulla morte
+      gldDecal('blood',pk[0],pk[1],Math.random()*6.283);
+      GLD.koCam={x:pk[0],y:pk[1],t0:performance.now()};   // B3: KO-cam 450ms
+    }
+    GLD.slowUntil=performance.now()+350;                  // B3: slow-mo interp 350ms
+    if(e.victim===me){gldSnd('morte',1);grHaptic('lose');GLD.flash=1;try{tg.HapticFeedback&&tg.HapticFeedback.impactOccurred('heavy');}catch(_e){}}
+    else gldSnd('boato',1);
+    gldFeed((e.cause==='pilum'?'🗡️ ':'⚔️ ')+gldNm(e.who)+(e.cause==='pilum'?' ha trafitto ':' ha eliminato ')+gldNm(e.victim));
     if(e.who===me)gldBanner(e.cause==='pilum'?'🗡️ PILUM MORTALE':'⚔️ UCCISIONE','Uno in meno nell\'arena',1700);
   }
-  else if(k==='first_blood'){gldCrowd('first_blood');gldSnd('corno',0.7);gldBanner('🩸 PRIMO SANGUE','',2000);}
-  else if(k==='lava'){var pl=gldPosOf(e.who);if(pl)gldFxAdd('spark',pl[0],pl[1],400,null,'#ff6a2a');}
+  else if(k==='first_blood'){gldCrowd('first_blood');gldSnd('corno',0.7);gldBanner('🩸 PRIMO SANGUE','',2000);gldFeed('🩸 PRIMO SANGUE');GLD.slowUntil=performance.now()+350;}
+  else if(k==='lava'){
+    var pl=gldPosOf(e.who);if(pl)gldFxAdd('spark',pl[0],pl[1],400,null,'#ff6a2a');
+    gldFeed('🔥 '+gldNm(e.who)+' brucia nella lava');
+    if(e.who===me){gldSnd('sizzle',1);grHaptic('lose');}   // B19: lava su di me
+  }
+  // ── B5: nuovi feed events (feint/slam) — consumo difensivo, kind assenti = no-op ──
+  else if(k==='feint'){
+    gldSnd('feint',e.who===me?0.9:0.5);
+    var pf=gldPosOf(e.who);if(pf)gldFxAdd('impact',pf[0],pf[1],110);
+  }
+  else if(k==='slam'){
+    gldSnd('slam',0.9);GLD.shake=Math.min(16,GLD.shake+5);
+    var pw2=gldPosOf(e.victim||e.who);if(pw2)gldFxAdd('dust',pw2[0],pw2[1],550,null,'#d9b779');
+    if(e.victim===me){try{tg.HapticFeedback&&tg.HapticFeedback.impactOccurred('heavy');}catch(_e){}}
+  }
   else if(k==='sudden'){if(!GLD._sdSeen){GLD._sdSeen=true;gldBanner('🔥 MORTE IMPROVVISA','Nessuna melina — al centro!',2800);}gldCrowd('sudden');}
   // ── PILUM feed events (unknown kinds are safely ignored by older clients) ──
   else if(k==='pilum_spawn'){gldCrowd('pilum_in');gldBanner('🗡️ PILUM!','La folla lancia una lancia nell\'arena',1600);}
-  else if(k==='pilum_pick'){gldSnd('clang',0.35);if(e.who===me)gldBanner('🗡️ HAI LA LANCIA','Premi ATT per lanciarla',1600);}
+  else if(k==='pilum_pick'){gldSnd('pickup',e.who===me?1:0.5);if(e.who===me){gldBanner('🗡️ HAI LA LANCIA','Premi ATT per lanciarla',1600);grHaptic('enter');}}
   else if(k==='pilum_throw'){gldCrowd('pilum_throw');}
   else if(k==='pilum_parry'){
     gldSnd('pilum_clang',1);gldCrowd('pilum_parry');GLD.shake=Math.min(16,GLD.shake+7);
     var pq=gldPosOf(e.who);if(pq){gldFxAdd('spark',pq[0],pq[1],560,null,'#a3f7bf');gldFxAdd('txt',pq[0],pq[1]-0.6,1200,'PARATA!','#a3f7bf');}
     if(e.who===me)gldBanner('🛡️ PILUM PARATO','Riflessi da campione!',1700);
   }
-  else if(k==='pilum_hit'){gldCrowd('pilum_hit');GLD.shake=Math.min(16,GLD.shake+6);var pv=gldPosOf(e.victim);if(pv)gldFxAdd('spark',pv[0],pv[1],460,null,'#ff9a5a');}
+  else if(k==='pilum_hit'){
+    gldCrowd('pilum_hit');GLD.shake=Math.min(16,GLD.shake+6);
+    var pv=gldPosOf(e.victim);
+    if(pv){gldFxAdd('spark',pv[0],pv[1],460,null,'#ff9a5a');gldFxAdd('impact',pv[0],pv[1],140);gldDecal('blood',pv[0],pv[1],Math.random()*6.283);}
+    if(e.victim===me){try{tg.HapticFeedback&&tg.HapticFeedback.impactOccurred('heavy');}catch(_e){}}
+  }
 }
+function gldNm(id){return String((GLD.names&&GLD.names[id])||'??').slice(0,12);} // B8: helper nomi kill-feed
 function gldFeed(txt){
   if(txt)GLD.feedRows.unshift({txt:txt,ts:Date.now()});
   if(GLD.feedRows.length>3)GLD.feedRows.pop();
@@ -37943,7 +38136,7 @@ function gldBanner(title,sub,ms){
 
 // ── views ───────────────────────────────────────────────────────────
 function gldShowLobby(keepOv){
-  if(!keepOv){GLD.ui='lobby';gldOvClose();}
+  if(!keepOv){GLD.ui='lobby';gldOvClose();try{GBMusic.play('arena');}catch(e){}}   // B18: tema arena in lobby (mai nel match)
   gldStopRaf();
   var el=document.getElementById('gld-body');if(!el)return;
   var h='<div class="tw-hero"><div class="tw-hero-t" style="color:#e0a52a;text-shadow:0 0 20px rgba(224,165,42,.5);">COLOSSEO</div><div class="tw-hero-live">👥 2–8</div><div class="tw-hero-s">Tutti contro tutti nell\'arena · l\'ultimo in piedi prende il piatto</div></div>';
@@ -37967,6 +38160,7 @@ function gldShowLobby(keepOv){
 }
 function gldShowSearch(){
   GLD.ui='search';gldOvClose();gldStopRaf();
+  try{GBMusic.play('arena');}catch(e){}   // B18
   var el=document.getElementById('gld-body');if(!el)return;
   el.innerHTML='<div class="tw-radar"><div class="twr-radar-sweep"></div>🏛️</div>'
     +'<div class="tw-search-t">'+(GLD.practice?'ALLENAMENTO — ARRIVANO I BOT…':'IN ATTESA DEI GLADIATORI…')+'</div>'
@@ -37979,12 +38173,18 @@ function gldShowSearch(){
     GLD.searchTick=setInterval(function(){
       if(GLD.ui!=='search'){clearInterval(GLD.searchTick);GLD.searchTick=null;return;}
       var cd=document.getElementById('gld-scd');
-      if(cd&&GLD.searchAt){var s=Math.max(0,Math.ceil((GLD.searchAt-Date.now())/1000));cd.textContent='Si parte tra '+s+'s (con almeno 2 giocatori)';}
+      if(cd&&GLD.searchAt){
+        var s=Math.max(0,Math.ceil((GLD.searchAt-Date.now())/1000));
+        cd.textContent='Si parte tra '+s+'s (con almeno 2 giocatori)';
+        cd.style.color=(s<=3&&s>0)?'#f87171':'';   // B20: ultimi 3s — countdown rosso + ping/sec
+        if(s<=3&&s>0&&s!==GLD._lastCd){GLD._lastCd=s;TWS.play('ping',0.6);grHaptic('sel');}
+      }
     },250);
   }
 }
 function gldShowMatch(){
   GLD.ui='match';gldOvClose();
+  try{GBMusic.stop();}catch(e){}   // B18: MAI musica durante il match (letto folla)
   var el=document.getElementById('gld-body');if(!el)return;
   el.innerHTML=''
     +'<div class="gld-hud">'
@@ -38037,8 +38237,8 @@ function gldTapBtn(id,fn,hap){
 }
 function gldHoldBtn(id,onDown,onUp){
   var b=document.getElementById(id);if(!b)return;var held=false;
-  var down=function(ev){if(ev.cancelable)ev.preventDefault();if(held)return;held=true;onDown();};
-  var up=function(ev){if(!held)return;held=false;onUp();};
+  var down=function(ev){if(ev.cancelable)ev.preventDefault();if(held)return;held=true;b.classList.add('held');onDown();};   // B10c: bordo verde mentre tieni
+  var up=function(ev){if(!held)return;held=false;b.classList.remove('held');onUp();};
   b.addEventListener('touchstart',down,{passive:false});
   b.addEventListener('touchend',up);b.addEventListener('touchcancel',up);
   b.addEventListener('mousedown',down);b.addEventListener('mouseup',up);b.addEventListener('mouseleave',up);
@@ -38053,7 +38253,8 @@ function gldShowOver(m){
   }
   var h;
   if(m.you_won){
-    TWS.play('win');gldSnd('boato',1);
+    TWS.play('win');gldSnd('boato',1);gldSnd('ovation',1);setTimeout(function(){gldSnd('corno',0.7);},450);   // A-SFX: vittoria = boato + ovazione + corno
+    try{GBMusic.play('win');setTimeout(function(){try{if(GLD.ui!=='match')GBMusic.stop();}catch(e2){}},5000);}catch(e){}   // B18: sting vittoria 5s
     try{tg.HapticFeedback&&tg.HapticFeedback.notificationOccurred('success');}catch(e){}
     var coins='';for(var i=0;i<12;i++){coins+='<span class="twr-coin" style="left:'+(4+Math.random()*92)+'%;animation-delay:'+(Math.random()*1.6)+'s;">🪙</span>';}
     h='<div class="twr-rain">'+coins+'</div>'
@@ -38081,6 +38282,12 @@ function gldOvClose(){GLD.ovSticky=false;var o=document.getElementById('gld-over
 function gldBtnCd(id,cd,max){
   var el=document.getElementById(id.replace('gld-b-','gld-cd-'));
   var f=Math.max(0,Math.min(1,(cd||0)/max));
+  var prev=GLD._cdPrev[id];GLD._cdPrev[id]=f;
+  if(prev>0&&f<=0){ // B10b: ready-ping quando il cooldown torna a zero
+    var rb=document.getElementById(id);
+    if(rb){rb.classList.add('ready');setTimeout(function(){rb.classList.remove('ready');},300);}
+    TWS.play('ping',0.5);
+  }
   if(el){if(f<=0){el.style.display='none';}else{el.style.display='block';el.style.background='conic-gradient(rgba(0,0,0,.6) '+(f*360).toFixed(0)+'deg, rgba(0,0,0,0) 0)';}}
   var b=document.getElementById(id);if(b)b.style.opacity=f>0?'0.55':'1';
 }
@@ -38092,6 +38299,12 @@ function gldHud(m){
   var a=document.getElementById('gld-hp-me');if(a)a.innerHTML=s;
   var al=0;(m.p||[]).forEach(function(r){if(r[7]&1)al++;});
   var ac=document.getElementById('gld-alive');if(ac)ac.textContent='⚔ '+al+' VIVI';
+  if(al===3&&!GLD._three){GLD._three=true;gldBanner('⚔️ 3 RIMASTI','',2000);gldSnd('corno',0.8);}   // B8: corno a 3 vivi
+  if(GLD.feedRows.length){ // B8: fade-out righe kill-feed dopo 4s
+    var nowMs=Date.now(),n0=GLD.feedRows.length;
+    GLD.feedRows=GLD.feedRows.filter(function(r){return nowMs-r.ts<4000;});
+    if(GLD.feedRows.length!==n0)gldFeed();
+  }
   var zc=document.getElementById('gld-zone');
   if(zc){
     if(m.sd){zc.textContent='🔥 MORTE IMPROVVISA';zc.classList.add('hot');}
@@ -38108,8 +38321,8 @@ function gldHud(m){
   if(hasP!==GLD._hadPilum){
     var ab=document.getElementById('gld-b-atk');
     if(ab){
-      if(hasP){ab.innerHTML='🗡️<span>LANCIA</span>';ab.style.boxShadow='0 0 16px rgba(255,150,60,.9)';ab.style.borderColor='rgba(255,150,60,.9)';}
-      else{ab.innerHTML='⚔️<span>ATT</span>';ab.style.boxShadow='none';ab.style.borderColor='';}
+      if(hasP){ab.innerHTML='🗡️<span>LANCIA</span>';ab.classList.add('lance');ab.style.boxShadow='';ab.style.borderColor='';}   // A-RET: pulsa (CSS .lance)
+      else{ab.innerHTML='⚔️<span>ATT</span>';ab.classList.remove('lance');ab.style.boxShadow='none';ab.style.borderColor='';}
     }
     GLD._hadPilum=hasP;
   }
@@ -38134,13 +38347,21 @@ function gldCanvasInit(){
   cv.width=Math.round(w*GLD.dpr);cv.height=Math.round(h*GLD.dpr);
   GLD.scale=(cv.width*0.5)*0.80/(GLD.r0||10);
   gldDrawStatic();
+  // B12: vignetta BAKED — per frame solo drawImage con alpha che respira (firelight)
+  var vg=document.createElement('canvas');vg.width=cv.width;vg.height=cv.height;
+  var vc=vg.getContext('2d');
+  var vgr=vc.createRadialGradient(cv.width/2,cv.height/2,Math.min(cv.width,cv.height)*0.42,cv.width/2,cv.height/2,Math.max(cv.width,cv.height)*0.74);
+  vgr.addColorStop(0,'rgba(10,6,4,0)');vgr.addColorStop(1,'rgba(10,6,4,.5)');
+  vc.fillStyle=vgr;vc.fillRect(0,0,vg.width,vg.height);
+  GLD._vig=vg;
 }
 function gldDrawStatic(){
   var bs=GLD.scale*GLD.cam.z;              // px baked per unita' mondo (coerente col zoom)
   var EXT=GLD.r0*1.62;                     // mezza-estensione mondo incl. gradinate/torce/vessilli
   var BW=Math.ceil(2*EXT*bs);
   var cx=BW/2,cy=BW/2,scale=bs,r0=GLD.r0*bs,W=BW;   // shadowa i vecchi locali
-  GLD.stOX=cx;GLD.stOY=cy;GLD.stW=BW;
+  GLD.stOX=cx;GLD.stOY=cy;GLD.stW=BW;GLD._bs=bs;
+  var torches=[];   // B12: posizioni MONDO delle torce per la fiamma animata per-frame
   var st=document.createElement('canvas');st.width=BW;st.height=BW;
   var c=st.getContext('2d');
   // ── crowd stands: 3 concentric tiers + vomitoria + imperial box + banners + torches (all BAKED) ──
@@ -38188,17 +38409,31 @@ function gldDrawStatic(){
     var fg=c.createRadialGradient(tx,-ph2*0.3,1,tx,-ph2*0.3,r0*0.14);
     fg.addColorStop(0,'rgba(255,220,120,.9)');fg.addColorStop(0.5,'rgba(255,140,40,.5)');fg.addColorStop(1,'rgba(255,120,30,0)');
     c.fillStyle=fg;c.beginPath();c.arc(tx,-ph2*0.3,r0*0.14,0,6.283);c.fill();
+    torches.push([tx/bs,(-r0*1.20-ph2*0.3)/bs]);   // B12: torce del palco in coordinate mondo
   });
   c.restore();
-  // 8 SPQR vessilli at tier joints
+  // 8 SPQR vessilli: bake SOLO l'asta — il telo ondeggia per frame (B15, tile pre-rasterizzato)
+  var flags=[];
   for(var bn=0;bn<8;bn++){
     var ba=bn*0.7854+0.3927;
     var bx=cx+Math.cos(ba)*r0*1.04,by=cy+Math.sin(ba)*r0*1.04;
     c.save();c.translate(bx,by);c.rotate(ba+1.5708);
-    c.fillStyle='#8a1420';c.fillRect(-r0*0.055,-r0*0.02,r0*0.11,r0*0.23);
-    c.fillStyle='#e6b93a';c.font='bold '+(r0*0.07)+'px \'Russo One\',sans-serif';c.textAlign='center';c.textBaseline='middle';
-    c.fillText('SPQR',0,r0*0.09);
+    c.fillStyle='#3a2a18';c.fillRect(-r0*0.010,-r0*0.05,r0*0.020,r0*0.30);   // asta
+    c.fillStyle='#e6b93a';c.beginPath();c.arc(0,-r0*0.05,r0*0.018,0,6.283);c.fill();   // puntale
     c.restore();
+    flags.push({wx:Math.cos(ba)*GLD.r0*1.04,wy:Math.sin(ba)*GLD.r0*1.04,a:ba});
+  }
+  GLD._flags=flags;
+  if(!GLD._flagTile){   // SPQR pre-rasterizzato: niente fillText per frame
+    var ft=document.createElement('canvas');ft.width=48;ft.height=72;
+    var fc2=ft.getContext('2d');
+    var fg2=fc2.createLinearGradient(0,0,48,0);
+    fg2.addColorStop(0,'#a01a28');fg2.addColorStop(0.5,'#8a1420');fg2.addColorStop(1,'#6e0f18');
+    fc2.fillStyle=fg2;fc2.fillRect(0,0,48,72);
+    fc2.fillStyle='rgba(230,185,58,.9)';fc2.fillRect(0,0,48,3);
+    fc2.fillStyle='#e6b93a';fc2.font='bold 14px \'Russo One\',sans-serif';fc2.textAlign='center';fc2.textBaseline='middle';
+    fc2.fillText('SPQR',24,38);
+    GLD._flagTile=ft;
   }
   // 6 rim torches (baked halo)
   for(var tr=0;tr<6;tr++){
@@ -38207,7 +38442,9 @@ function gldDrawStatic(){
     tg2.addColorStop(0,'rgba(255,225,140,.7)');tg2.addColorStop(0.5,'rgba(255,150,50,.34)');tg2.addColorStop(1,'rgba(255,140,40,0)');
     c.fillStyle=tg2;c.beginPath();c.arc(tx2,ty2,r0*0.15,0,6.283);c.fill();
     c.fillStyle='#ffcf7a';c.beginPath();c.arc(tx2,ty2,2.2,0,6.283);c.fill();
+    torches.push([Math.cos(ta)*GLD.r0*1.005,Math.sin(ta)*GLD.r0*1.005]);   // B12
   }
+  GLD._torches=torches;
   // precompute animated seats (first tier inside canvas) for the per-frame layer
   var seats=[];
   for(var se=0;se<240;se++){
@@ -38250,6 +38487,37 @@ function gldDrawStatic(){
     c.beginPath();c.arc(p[0],p[1],rad*0.62,-2.3,-0.6);c.stroke();
   });
   GLD.st=st;
+  // B2: layer decal persistente (sangue/orme), clip al disco sabbia — 1 drawImage/frame
+  var dcv=document.createElement('canvas');dcv.width=BW;dcv.height=BW;
+  var dctx=dcv.getContext('2d');
+  dctx.beginPath();dctx.arc(cx,cy,r0,0,6.283);dctx.clip();
+  GLD.decal=dcv;GLD._dctx=dctx;GLD.decalN=0;
+}
+// B2: stampa un decal sulla sabbia (kind: 'blood' | 'step'); cap ~500 poi fade
+function gldDecal(kind,wx,wy,ang){
+  var dc=GLD._dctx;if(!dc||!GLD._bs)return;
+  var bs=GLD._bs,x=GLD.stOX+wx*bs,y=GLD.stOY+wy*bs;
+  dc.save();dc.translate(x,y);dc.rotate(ang||0);
+  if(kind==='blood'){
+    dc.fillStyle='rgba(112,22,14,.5)';
+    dc.beginPath();dc.ellipse(0,0,bs*0.28,bs*0.20,0,0,6.283);dc.fill();
+    for(var i=0;i<4;i++){
+      var a0=(i*1.9+wx*7+wy*13)%6.283,r1=bs*(0.20+((i*53+((wx*91)|0))%40)/100);
+      dc.beginPath();dc.arc(Math.cos(a0)*r1,Math.sin(a0)*r1,bs*(0.03+(i%3)*0.02),0,6.283);dc.fill();
+    }
+    GLD.decalN+=5;
+  }else{
+    dc.fillStyle='rgba(90,64,32,.16)';
+    dc.fillRect(-bs*0.05,-bs*0.10,bs*0.10,bs*0.07);
+    dc.fillRect(-bs*0.05,bs*0.04,bs*0.10,bs*0.07);
+    GLD.decalN+=1;
+  }
+  dc.restore();
+  if(GLD.decalN>500){
+    dc.save();dc.globalCompositeOperation='destination-out';dc.globalAlpha=0.30;
+    dc.fillStyle='#000';dc.fillRect(0,0,GLD.stW,GLD.stW);dc.restore();
+    GLD.decalN=Math.round(GLD.decalN*0.7);
+  }
 }
 function gldStartRaf(){
   gldStopRaf();
@@ -38257,9 +38525,9 @@ function gldStartRaf(){
   var loop=function(){if(CUR!=='glad'||GLD.ui!=='match'){GLD.raf=null;gldBed(false);return;}gldFrame();GLD.raf=requestAnimationFrame(loop);};
   GLD.raf=requestAnimationFrame(loop);
 }
-function gldStopRaf(){if(GLD.raf){cancelAnimationFrame(GLD.raf);GLD.raf=null;}gldBed(false);}
+function gldStopRaf(){if(GLD.raf){cancelAnimationFrame(GLD.raf);GLD.raf=null;}gldBed(false);GLD.heartOn=false;try{TWS.heart(false);}catch(e){}}
 function gldLerp(){
-  var t=performance.now()-85,s=GLD.snaps;
+  var t=GLD.vt||(performance.now()-85),s=GLD.snaps;   // B3: clock virtuale (slow-mo su kill, cap drift 250ms)
   if(!s.length)return null;
   if(s.length===1||t<=s[0].rx)return {a:s[0],b:s[0],k:0};
   for(var i=s.length-1;i>0;i--){
@@ -38281,6 +38549,11 @@ function gldFrame(){
   var now=performance.now();
   var dt=Math.min(0.05,(now-(GLD._lf||now))/1000);GLD._lf=now;
   var raw=GLD.lastRaw,W=GLD.cv.width,H=GLD.cv.height,scale=GLD.scale,zs=GLD.scale*GLD.cam.z;
+  // B3: avanza il clock virtuale d'interpolazione (slow-mo 0.35x su kill, drift max 250ms)
+  var rt0=now-85;
+  if(!GLD.vt||GLD.vt>rt0)GLD.vt=rt0;
+  GLD.vt+=dt*1000*(now<GLD.slowUntil?0.35:1);
+  if(rt0-GLD.vt>250)GLD.vt=rt0-250;else if(GLD.vt>rt0)GLD.vt=rt0;
   var lp=gldLerp();
   // predict OWN movement (soft-corrected to server)
   var meRow=raw.idx&&raw.idx[GLD.myId];
@@ -38302,6 +38575,13 @@ function gldFrame(){
   // follow camera clampata all'estensione baked
   var camTX=0,camTY=0;
   if(GLD.pred.ok){camTX=GLD.pred.x;camTY=GLD.pred.y;}
+  // B3: KO-cam 450ms — bias verso la vittima PRIMA del clamp + zoom kick non persistente
+  var kc=GLD.koCam;GLD._koK=0;
+  if(kc){
+    var kk2=(now-kc.t0)/450;
+    if(kk2>=1)GLD.koCam=null;
+    else{GLD._koK=1-kk2;camTX+=(kc.x-camTX)*GLD._koK*0.6;camTY+=(kc.y-camTY)*GLD._koK*0.6;}
+  }
   var halfVX=(W*0.5)/zs, halfVY=(H*0.5)/zs, EXT=GLD.r0*1.62;
   var limX=Math.max(0,EXT-halfVX), limY=Math.max(0,EXT-halfVY);
   camTX=Math.max(-limX,Math.min(limX,camTX));
@@ -38311,9 +38591,69 @@ function gldFrame(){
   ctx.save();
   ctx.clearRect(0,0,W,H);
   if(GLD.shake>0.3){ctx.translate((Math.random()-0.5)*GLD.shake,(Math.random()-0.5)*GLD.shake);GLD.shake*=0.86;}
+  if(GLD._koK>0){var zk=1+0.08*GLD._koK;ctx.translate(W/2,H/2);ctx.scale(zk,zk);ctx.translate(-W/2,-H/2);}   // B3: zoom kick
   var srcCx=GLD.stOX+GLD.cam.x*zs, srcCy=GLD.stOY+GLD.cam.y*zs;
   ctx.drawImage(GLD.st, srcCx-W/2, srcCy-H/2, W, H, 0,0, W,H);
+  if(GLD.decal)ctx.drawImage(GLD.decal, srcCx-W/2, srcCy-H/2, W, H, 0,0, W,H);   // B2: decal persistenti (stesso src-rect)
   var ac=gldW2S(0,0), cx=ac[0], cy=ac[1];
+  // ── A-ATM: atmosfera — raggi di luce dal velario + polvere sospesa (gradiente cachato, zero alloc/frame) ──
+  var rayG=gldGrad(ctx,'rayG',function(cc){var g=cc.createLinearGradient(0,0,0,300);g.addColorStop(0,'rgba(255,226,160,.16)');g.addColorStop(0.7,'rgba(255,206,120,.05)');g.addColorStop(1,'rgba(255,206,120,0)');return g;});
+  ctx.save();ctx.globalCompositeOperation='lighter';
+  var rEdge=GLD.r0*zs;
+  for(var ry=0;ry<3;ry++){
+    var rW=rEdge*(0.16+ry*0.07),rLen=rEdge*2.05;
+    ctx.save();
+    ctx.translate(cx+(ry-1)*rEdge*0.52,cy-rEdge*1.02);
+    ctx.rotate((ry-1)*0.16+0.05*Math.sin(now/4000+ry*2.1));
+    ctx.globalAlpha=0.55+0.35*Math.sin(now/1800+ry*2.4);
+    ctx.scale(1,rLen/300);
+    ctx.fillStyle=rayG;ctx.fillRect(-rW/2,0,rW,300);
+    ctx.restore();
+  }
+  // polvere sospesa: 14 granelli procedurali (posizione pura f(now,i) — nessuno stato, nessun alloc)
+  ctx.fillStyle='rgba(255,235,195,.8)';
+  for(var mo=0;mo<14;mo++){
+    var mph=mo*2.399963,mr=GLD.r0*(0.18+((mo*53)%73)/100);
+    var mwx=Math.cos(now/(14000+mo*900)+mph)*mr,mwy=Math.sin(now/(11000+mo*700)+mph*1.7)*mr*0.8;
+    var mxp=W/2+(mwx-GLD.cam.x)*zs,myp=H/2+(mwy-GLD.cam.y)*zs-Math.sin(now/2300+mo)*zs*0.15;
+    if(mxp<0||mxp>W||myp<0||myp>H)continue;
+    ctx.globalAlpha=0.10+0.10*Math.sin(now/900+mo*1.3);
+    ctx.fillRect(mxp,myp,2,2);
+  }
+  ctx.restore();
+  // ── B15: vessilli — telo ondeggiante (3 bande, tile SPQR pre-rasterizzato, culling) ──
+  if(GLD._flags&&GLD._flagTile){
+    var fwF=GLD.r0*0.11*zs,fhF=GLD.r0*0.23*zs,bandH=fhF/3;
+    for(var fi=0;fi<GLD._flags.length;fi++){
+      var fo=GLD._flags[fi],fsc=gldW2S(fo.wx,fo.wy);
+      if(fsc[0]<-fhF||fsc[0]>W+fhF||fsc[1]<-fhF||fsc[1]>H+fhF)continue;
+      ctx.save();ctx.translate(fsc[0],fsc[1]);ctx.rotate(fo.a+1.5708);
+      for(var s3=0;s3<3;s3++){
+        var wob=Math.sin(now/280+fi*1.7+s3*0.9)*fwF*0.14*s3;
+        ctx.drawImage(GLD._flagTile,0,s3*24,48,24, -fwF/2+wob,-fhF*0.08+s3*bandH, fwF,bandH+0.6);
+      }
+      ctx.restore();
+    }
+  }
+  // ── B12: torce animate — fiamma 2-layer + halo cachato (gradiente a raggio fisso, scale) ──
+  if(GLD._torches){
+    var thalo=gldGrad(ctx,'torchHalo',function(cc){var g=cc.createRadialGradient(0,0,1,0,0,60);g.addColorStop(0,'rgba(255,200,90,.5)');g.addColorStop(0.5,'rgba(255,140,40,.22)');g.addColorStop(1,'rgba(255,120,30,0)');return g;});
+    var hr=zs*0.55;
+    for(var ti2=0;ti2<GLD._torches.length;ti2++){
+      var to2=GLD._torches[ti2],tsc=gldW2S(to2[0],to2[1]);
+      if(tsc[0]<-40||tsc[0]>W+40||tsc[1]<-40||tsc[1]>H+40)continue;
+      var fl1=Math.sin(now/90+ti2*2.1),fl2=Math.sin(now/61+ti2*3.7);
+      ctx.save();ctx.translate(tsc[0],tsc[1]);
+      ctx.save();ctx.scale(hr/60,hr/60);ctx.globalAlpha=0.65+0.2*fl2;
+      ctx.fillStyle=thalo;ctx.beginPath();ctx.arc(0,0,60,0,6.283);ctx.fill();ctx.restore();
+      var fh2=zs*0.30+zs*0.05*fl1;
+      ctx.fillStyle='rgba(255,140,40,.85)';
+      ctx.beginPath();ctx.ellipse(fl1*zs*0.03,-fh2*0.4,zs*0.09,fh2*0.5,fl1*0.2,0,6.283);ctx.fill();
+      ctx.fillStyle='rgba(255,230,140,.9)';
+      ctx.beginPath();ctx.ellipse(fl2*zs*0.02,-fh2*0.32,zs*0.045,fh2*0.3,fl2*0.15,0,6.283);ctx.fill();
+      ctx.restore();
+    }
+  }
   // ── crowd energy + reactive spectators (baked stands already in GLD.st) ──
   var cr=GLD.cr;
   if(cr){
@@ -38354,17 +38694,31 @@ function gldFrame(){
     ctx.save();
     ctx.beginPath();ctx.arc(cx,cy,rMax,0,6.283);ctx.arc(cx,cy,rNow,0,6.283);
     var pulse=0.5+0.14*Math.sin(now/180);
-    var gl=ctx.createRadialGradient(cx,cy,rNow,cx,cy,rMax);
-    gl.addColorStop(0,'rgba(255,140,40,'+pulse+')');
-    gl.addColorStop(0.5,'rgba(210,50,20,'+(pulse*0.95)+')');
-    gl.addColorStop(1,'rgba(90,15,10,.95)');
+    // B16: gradiente annulus CACHATO (chiave quantizzata rNow/6, origine 0,0 → traslato)
+    var rKey=Math.round(rNow/6);
+    var gl=gldGrad(ctx,'lava|'+rKey+'|'+Math.round(rMax),function(cc){
+      var g=cc.createRadialGradient(0,0,rKey*6,0,0,rMax);
+      g.addColorStop(0,'rgba(255,140,40,.64)');
+      g.addColorStop(0.5,'rgba(210,50,20,.6)');
+      g.addColorStop(1,'rgba(90,15,10,.95)');return g;});
+    ctx.translate(cx,cy);
+    ctx.globalAlpha=Math.min(1,0.62+pulse*0.55);
     ctx.fillStyle=gl;ctx.fill('evenodd');
     ctx.restore();
     // bright molten edge at r
     ctx.strokeStyle='rgba(255,210,120,'+(0.7+0.25*Math.sin(now/120))+')';ctx.lineWidth=Math.max(2,zs*0.10);
     ctx.beginPath();ctx.arc(cx,cy,rNow,0,6.283);ctx.stroke();
+    // B16: sudden death → più embers + 2 archi di heat-shimmer
+    if(GLD.sd){
+      for(var hs=0;hs<2;hs++){
+        ctx.strokeStyle='rgba(255,220,150,'+(0.05+0.04*Math.sin(now/150+hs*2.4))+')';
+        ctx.lineWidth=zs*0.5;
+        ctx.beginPath();ctx.arc(cx,cy,rNow+zs*(0.45+hs*0.5+0.12*Math.sin(now/130+hs)),0,6.283);ctx.stroke();
+      }
+    }
     // embers
-    for(var em=0;em<10;em++){
+    var emN=GLD.sd?20:10;
+    for(var em=0;em<emN;em++){
       var ea=(now/700+em*0.63)%6.283,ex=cx+Math.cos(ea)*rNow,ey=cy+Math.sin(ea)*rNow;
       ctx.fillStyle='rgba(255,180,80,'+(0.3+0.3*Math.sin(now/200+em))+')';
       ctx.beginPath();ctx.arc(ex,ey-((now/12+em*40)%60)*0.3,1.6,0,6.283);ctx.fill();
@@ -38382,7 +38736,17 @@ function gldFrame(){
       if(isMe&&GLD.aim.on)targ=Math.atan2(GLD.aim.ay,GLD.aim.ax);
       else if(isMe&&GLD.joy.on)targ=Math.atan2(GLD.joy.my,GLD.joy.mx);
       if(!an){an={fa:targ};GLD.anim[rb[0]]=an;}
-      an.fa+=gldAngD(targ,an.fa)*Math.min(1,dt*(isMe?20:12));
+      var stpF=gldAngD(targ,an.fa)*Math.min(1,dt*(isMe?20:12));
+      if(isMe){ // B6: replica client i cap di rotazione dei wind-up (telegrafi onesti, no mismatch)
+        var st5=rb[5],capR=(st5===GLD_ST.ATK_WIND)?4.0:((st5===GLD_ST.SPEC_WIND)?2.2:((st5===GLD_ST.ATK_ACT||st5===GLD_ST.SPEC_ACT)?0:14));
+        var mx5=capR*dt;if(stpF>mx5)stpF=mx5;else if(stpF<-mx5)stpF=-mx5;
+      }
+      an.fa+=stpF;
+      // B13: sbuffo di polvere sulle transizioni a DODGE / ATK_ACT
+      if(an.pst!==rb[5]){
+        if(rb[5]===GLD_ST.DODGE||rb[5]===GLD_ST.ATK_ACT)gldFxAdd('dust',wx,wy,500);
+        an.pst=rb[5];
+      }
       // per-fighter walk kinematics + death timer (client-derived)
       var ko=GLD._kin[rb[0]];
       if(!ko){ko={x:wx,y:wy,wp:0,spd:0,death:0};GLD._kin[rb[0]]=ko;}
@@ -38391,7 +38755,14 @@ function gldFrame(){
         var kdx=wx-ko.x,kdy=wy-ko.y;
         var inst=Math.min(12,Math.hypot(kdx,kdy)/Math.max(0.004,dt));
         ko.spd+=(inst-ko.spd)*0.35;
-        if(ko.spd>0.6)ko.wp+=ko.spd*dt*7;
+        if(ko.spd>0.6){
+          ko.wp+=ko.spd*dt*7;
+          var stp2=Math.floor(ko.wp/3.14159);   // B2: orma quando il ciclo passo attraversa multipli di π
+          if(stp2!==ko.lstp){
+            ko.lstp=stp2;gldDecal('step',wx,wy,an.fa);
+            if((stp2&1)===0)gldFxAdd('dust',wx,wy,420);   // B13: polvere footstep (1 passo su 2)
+          }
+        }
         ko.x=wx;ko.y=wy;ko.death=0;
       }else if(!ko.death){ko.death=now;}
       var hasPilum=((rb[8]||0)&1);
@@ -38401,6 +38772,20 @@ function gldFrame(){
   }
   // pilum (server-authoritative state read defensively from raw.pl)
   gldDrawPilum(ctx,raw,now,zs);
+  // B21: tick di tensione crescente (tone 300+frac*500 ogni 250ms) su windup pilum avversario vicino
+  var plT=raw.pl;
+  if(plT&&(plT[0]|0)===4&&plT.length>=7&&String(plT[5])!==GLD.myId&&meRow&&(meRow[7]&1)){
+    var dpx=meRow[1]-plT[1],dpy=meRow[2]-plT[2];
+    if(dpx*dpx+dpy*dpy<30&&now-GLD._pilTick>250){
+      GLD._pilTick=now;
+      var frcT=Math.min(1,(plT[6]||0)/255);
+      try{if(TWS.on&&TWS.ctx)TWS.tone({f:300+frcT*500,type:'square',d:0.05,g:0.09});}catch(e){}
+    }
+  }
+  // A-RET: ping + haptic quando la TUA carica pilum è pronta (una volta per windup)
+  if(plT&&(plT[0]|0)===4&&String(plT[5])===GLD.myId){
+    if(Math.min(1,(plT[6]||0)/255)>0.985&&!GLD._pilRdy){GLD._pilRdy=true;try{TWS.play('ping',0.8);}catch(e){}grHaptic('sel');}
+  }else if(GLD._pilRdy)GLD._pilRdy=false;
   // fx
   var keep=[];
   GLD.fxq.forEach(function(f){
@@ -38420,6 +38805,38 @@ function gldFrame(){
       ctx.font='bold '+(zs*0.5*pop)+'px \'Russo One\', sans-serif';ctx.textAlign='center';
       ctx.fillText(f.txt,x,y-zs*k*0.8);ctx.shadowBlur=0;ctx.globalAlpha=1;return;
     }
+    if(f.tp==='impact'){ // B1: impact frame — flash bianco + 5 speedline radiali
+      var ia=1-k;
+      ctx.globalAlpha=ia*0.55;ctx.fillStyle='#ffffff';
+      ctx.beginPath();ctx.arc(x,y,zs*(0.25+k*0.5),0,6.283);ctx.fill();
+      ctx.globalAlpha=ia*0.8;ctx.strokeStyle='#fff';ctx.lineWidth=2;
+      for(var li=0;li<5;li++){
+        var la=li*1.2566+(f.t0%6);
+        ctx.beginPath();ctx.moveTo(x+Math.cos(la)*zs*0.3,y+Math.sin(la)*zs*0.3);
+        ctx.lineTo(x+Math.cos(la)*zs*(0.7+k*0.8),y+Math.sin(la)*zs*(0.7+k*0.8));ctx.stroke();
+      }
+      ctx.globalAlpha=1;return;
+    }
+    if(f.tp==='blood'){ // B3: 12 goccioline con drift radiale
+      ctx.fillStyle='#8f1a12';
+      for(var bi=0;bi<12;bi++){
+        var ba3=bi*0.5236+(f.t0%10)*0.6,br3=zs*(0.12+k*(0.4+((bi*37)%10)*0.09));
+        ctx.globalAlpha=(1-k)*0.85;
+        ctx.fillRect(x+Math.cos(ba3)*br3-1.5,y+Math.sin(ba3)*br3*0.7-1.5,3,3);
+      }
+      ctx.globalAlpha=1;return;
+    }
+    if(f.tp==='dust'){ // B13: 3 dischi soffici che salgono (gradiente cachato a raggio fisso)
+      var dg=gldGrad(ctx,'dustG',function(cc){var g=cc.createRadialGradient(0,0,1,0,0,30);g.addColorStop(0,'rgba(217,183,121,.5)');g.addColorStop(1,'rgba(217,183,121,0)');return g;});
+      for(var di=0;di<3;di++){
+        var da2=(f.t0%7)+di*2.09;
+        var dxp=x+Math.cos(da2)*zs*0.25*(1+k),dyp=y-zs*k*0.6-di*zs*0.1,dr2=zs*(0.14+k*0.3)*(1+di*0.25);
+        ctx.save();ctx.translate(dxp,dyp);ctx.scale(dr2/30,dr2/30);
+        ctx.globalAlpha=(1-k)*(f.col?0.5:0.35);ctx.fillStyle=dg;
+        ctx.beginPath();ctx.arc(0,0,30,0,6.283);ctx.fill();ctx.restore();
+      }
+      ctx.globalAlpha=1;return;
+    }
     // boom
     var R=zs*(0.5+k*2.0);
     ctx.strokeStyle='rgba(255,200,80,'+(1-k)+')';ctx.lineWidth=3;
@@ -38431,14 +38848,29 @@ function gldFrame(){
   GLD.fxq=keep;
   if(GLD.flash>0.02){ctx.fillStyle='rgba(239,68,68,'+(GLD.flash*0.3)+')';ctx.fillRect(0,0,W,H);GLD.flash*=0.88;}
   ctx.restore();
+  // B12: firelight che respira (vignetta baked, solo drawImage + alpha)
+  if(GLD._vig){ctx.globalAlpha=0.85+0.08*Math.sin(now/700);ctx.drawImage(GLD._vig,0,0);ctx.globalAlpha=1;}
+  // B3: vignetta KO-cam
+  if(GLD._koK>0){ctx.fillStyle='rgba(15,8,6,'+(0.28*GLD._koK).toFixed(3)+')';ctx.fillRect(0,0,W,H);}
+  var yme=GLD.you;
+  // B4: vignetta bordo finché sei STORDITO
+  if(yme&&yme.st===GLD_ST.STUN){
+    var svg=gldGrad(ctx,'stunvig|'+W+'x'+H,function(cc){var g=cc.createRadialGradient(W/2,H/2,Math.min(W,H)*0.34,W/2,H/2,Math.max(W,H)*0.62);g.addColorStop(0,'rgba(255,210,60,0)');g.addColorStop(1,'rgba(255,180,40,.34)');return g;});
+    ctx.fillStyle=svg;ctx.fillRect(0,0,W,H);
+  }
+  // B11: vignetta rossa pulsante all'ultimo cuore
+  if(yme&&yme.hp===1&&yme.alive!==false){
+    var hvg=gldGrad(ctx,'hpvig|'+W+'x'+H,function(cc){var g=cc.createRadialGradient(W/2,H/2,Math.min(W,H)*0.36,W/2,H/2,Math.max(W,H)*0.64);g.addColorStop(0,'rgba(239,68,68,0)');g.addColorStop(1,'rgba(239,68,68,.4)');return g;});
+    ctx.globalAlpha=0.5+0.4*Math.sin(now/380);ctx.fillStyle=hvg;ctx.fillRect(0,0,W,H);ctx.globalAlpha=1;
+  }
   // center stamps (COMBATTI! etc)
   if(GLD.stampQ&&GLD.stampQ.length){
     var keepS=[];
     GLD.stampQ.forEach(function(s0){
-      var kk=(now-s0.t0)/900;if(kk<0){keepS.push(s0);return;}if(kk>=1)return;keepS.push(s0);
+      var kk=(now-s0.t0)/(s0.dur||900);if(kk<0){keepS.push(s0);return;}if(kk>=1)return;keepS.push(s0);
       ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';
       var scc=kk<0.2?(0.4+kk*3):1;ctx.globalAlpha=kk>0.7?(1-(kk-0.7)/0.3):1;
-      ctx.font='bold '+(W*0.14*scc)+'px \'Russo One\', sans-serif';ctx.fillStyle='#e0a52a';
+      ctx.font='bold '+(W*0.14*scc)+'px \'Russo One\', sans-serif';ctx.fillStyle=s0.col||'#e0a52a';
       ctx.shadowColor='rgba(0,0,0,.85)';ctx.shadowBlur=14;ctx.fillText(s0.txt,W/2,H*0.42);ctx.restore();
     });
     GLD.stampQ=keepS;
@@ -38456,6 +38888,7 @@ function gldGrad(ctx,key,make){
 function gldDrawFighter(ctx,sx,sy,fr,ang,st,phase,flags,hp,look,isMe,now,label,hasPilum,kin){
   look=look||{};
   var alive=(flags&1),iframe=(flags&2),invuln=(flags&4),hitflash=(flags&8),parryflash=(flags&16),shieldDown=(flags&32),stun=(flags&64);
+  var frz=!!(flags&256);   // B1: bit FREEZE (hitstop engine A2) — difensivo: assente = 0, comportamento attuale
   var skinC=GLD_SKINS[look.skin||0]||'#f0c9a0';
   var armorC=look.armorCol||'#9aa0a6';
   var helmC=look.helmCol||'#c9b037';
@@ -38487,11 +38920,11 @@ function gldDrawFighter(ctx,sx,sy,fr,ang,st,phase,flags,hp,look,isMe,now,label,h
   var lean=moving?Math.min(0.12,spd*0.05):0;
   // ── pose params by state (ease e = smoothstep(phase)) ──
   var e=phase*phase*(3-2*phase);
-  var bladeAng=0.5,bladeLen=fr*2.0,glow=0,thrust=0,auraR=0,coil=0,lunge=0,scaleY=1,bodyRot=0,chargeDot=0;
+  var bladeAng=0.5,bladeLen=fr*2.0,glow=0,thrust=0,auraR=0,coil=0,lunge=0,scaleY=1,bodyRot=0,chargeDot=0,hip=0;
   if(st===GLD_ST.IDLE){scaleY=1+0.045*Math.sin(now/650);}
-  else if(st===GLD_ST.ATK_WIND){bladeAng=0.4-2.0*e;glow=0.3+phase*0.5;coil=-0.14*e;chargeDot=phase;}
+  else if(st===GLD_ST.ATK_WIND){bladeAng=0.4-2.0*e+0.05*phase*Math.sin(now/28);glow=0.3+phase*0.5;coil=-0.18*e;chargeDot=phase;hip=-fr*0.14*e;}   // B14+A-ANIM: anticipation più marcata (coil) + fremito lama
   else if(st===GLD_ST.ATK_ACT){bladeAng=-1.6+2.9*e;glow=1;bladeLen=fr*2.3;lunge=fr*0.3*Math.sin(3.14159*phase);}
-  else if(st===GLD_ST.ATK_REC){bladeAng=1.3-0.8*e;scaleY=1-0.04*(1-e);}
+  else if(st===GLD_ST.ATK_REC){bladeAng=1.3-0.8*e+0.09*Math.sin(phase*3.14159);scaleY=1-0.04*(1-e);}   // B14: overshoot follow-through
   else if(st===GLD_ST.SPEC_WIND){bladeAng=-0.7;glow=0.4+phase*0.6;auraR=fr*(1.2+phase*0.7);scaleY=0.94;}
   else if(st===GLD_ST.SPEC_ACT){bladeAng=0;thrust=fr*1.6;bladeLen=fr*2.8;glow=1;}
   else if(st===GLD_ST.BLOCK||st===GLD_ST.PARRY_WIN){bladeAng=0.9;bladeLen=fr*1.6;}
@@ -38533,6 +38966,17 @@ function gldDrawFighter(ctx,sx,sy,fr,ang,st,phase,flags,hp,look,isMe,now,label,h
   if(invuln&&(now%140)<60)alpha*=0.45;
   ctx.globalAlpha=alpha;
   ctx.translate(0,-bob);
+  // B1: impact frame — squash 1.12→1 in 100ms + flinch mentre hitflash/FREEZE alti (NO freeze del clock client)
+  if(kin){
+    if(hitflash&&!kin._hfl){kin._hfl=1;kin.hitT=now;}
+    else if(!hitflash&&kin._hfl)kin._hfl=0;
+  }
+  var impSq=1;
+  if(hitflash||frz){
+    var impK=(kin&&kin.hitT)?Math.min(1,(now-kin.hitT)/100):1;
+    impSq=1.12-0.12*impK;
+    ctx.translate(Math.sin(now/16)*fr*0.05,Math.cos(now/19)*fr*0.05);
+  }
   var rot=ang;
   // ── DODGE ghost silhouettes (behind, traced from kin trail direction) ──
   if(st===GLD_ST.DODGE){
@@ -38551,10 +38995,11 @@ function gldDrawFighter(ctx,sx,sy,fr,ang,st,phase,flags,hp,look,isMe,now,label,h
     ctx.fillStyle=armorC;ctx.beginPath();ctx.arc(0,0,fr*0.78,0,6.283);ctx.fill();ctx.restore();
   }
   ctx.save();ctx.rotate(rot+bodyRot);
+  if(hip)ctx.translate(hip,0);   // B14: arretramento anca in ATK_WIND
   // cape (behind, local -x)
   var capeType=(look.cape==null?1:look.cape);
   if(capeType>0){
-    var clen=fr*(capeType===2?1.85:1.25),sway=Math.sin(now/300)*fr*0.13+(moving?Math.sin(wp)*fr*0.14:0);
+    var clen=fr*(capeType===2?1.85:1.25)*(1+Math.min(0.22,spd*0.045)),sway=Math.sin(now/300)*fr*0.13+(moving?Math.sin(wp)*fr*0.14:0)+coil*fr*0.6;   // B14+A-ANIM: il mantello segue il coil E si allunga con la corsa
     var cw=fr*0.38, o=-fr*0.1;                        // mezza-larghezza alle spalle, o=attacco spalle
     ctx.fillStyle=capeC;                              // mantello con coda a V (2 lembi) => legge come stoffa
     ctx.beginPath();
@@ -38589,7 +39034,10 @@ function gldDrawFighter(ctx,sx,sy,fr,ang,st,phase,flags,hp,look,isMe,now,label,h
   }
   // body / armor lorica (cached gradient) — squash lungo il facing (x locale) => torso OVALE
   //   con le SPALLE larghe di traverso, non piu una palla. Tutta l'armatura si deforma coerente.
-  ctx.save();ctx.scale(0.76,scaleY);
+  //   B1: squash d'impatto volume-preserving · B14: stretch torso in DODGE (silhouette ovale intatta)
+  var sqx=0.76*impSq,sqy=scaleY/impSq;
+  if(st===GLD_ST.DODGE){sqx*=1.10;sqy*=0.92;}
+  ctx.save();ctx.scale(sqx,sqy);
   var bg=gldGrad(ctx,'body|'+armorC+'|'+fk,function(cc){var g=cc.createRadialGradient(-fr*0.3,-fr*0.3,fr*0.2,0,0,fr);g.addColorStop(0,armorC);g.addColorStop(1,'#3b3f45');return g;});
   ctx.fillStyle=bg;ctx.beginPath();ctx.arc(0,0,fr*0.82,0,6.283);ctx.fill();
   ctx.strokeStyle='rgba(0,0,0,.4)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,fr*0.82,0,6.283);ctx.stroke();
@@ -38643,7 +39091,7 @@ function gldDrawFighter(ctx,sx,sy,fr,ang,st,phase,flags,hp,look,isMe,now,label,h
   ctx.lineWidth=(st===GLD_ST.PARRY_WIN)?3:2;ctx.beginPath();ctx.arc(0,0,shR,0,6.283);ctx.stroke();
   var emb=look.emblem||0;
   if(emb>0){ctx.fillStyle='rgba(255,235,180,.92)';ctx.font=(shR*1.05)+'px serif';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText(['','🦅','💀','⚡','👑','🔱','🐉'][emb]||'',0,0);}
+    ctx.fillText(['','🦅','💀','⚡','👑','🔱','🐉','🐺','🦁'][emb]||'',0,0);}
   else{ctx.fillStyle='rgba(255,235,180,.5)';ctx.beginPath();ctx.arc(0,0,shR*0.32,0,6.283);ctx.fill();}
   ctx.restore();
   // PARRY_WIN radial burst on parryflash
@@ -38675,20 +39123,30 @@ function gldDrawFighter(ctx,sx,sy,fr,ang,st,phase,flags,hp,look,isMe,now,label,h
   if(chargeDot>0){ctx.fillStyle='rgba(255,240,180,'+(0.4+0.6*chargeDot)+')';ctx.beginPath();ctx.arc(fr*0.2+bl+fr*0.12,0,fr*0.10*(0.6+chargeDot),0,6.283);ctx.fill();}
   ctx.shadowBlur=0;
   ctx.restore();
-  // attack sweep arc trail + 2 ghost-arcs
+  // B7: scia spada A NASTRO pieno (gradiente cachato gldGrad — zero alloc per frame) + scintille punta
   if(st===GLD_ST.ATK_ACT){
-    ctx.strokeStyle='rgba(255,255,255,'+(0.7*(1-phase))+')';ctx.lineWidth=3;
-    ctx.beginPath();ctx.arc(0,0,bladeLen*0.9,-1.6,-1.6+2.9*e);ctx.stroke();
-    var pg1=Math.max(0,phase-0.15),pg2=Math.max(0,phase-0.30);
-    ctx.strokeStyle='rgba(255,255,255,'+(0.35*(1-phase))+')';ctx.lineWidth=2;
-    ctx.beginPath();ctx.arc(0,0,bladeLen*0.9,-1.6,-1.6+2.9*(pg1*pg1*(3-2*pg1)));ctx.stroke();
-    ctx.strokeStyle='rgba(255,255,255,'+(0.18*(1-phase))+')';ctx.lineWidth=2;
-    ctx.beginPath();ctx.arc(0,0,bladeLen*0.9,-1.6,-1.6+2.9*(pg2*pg2*(3-2*pg2)));ctx.stroke();
+    var ta0=-1.6,ta1=-1.6+2.9*e,rIn=bladeLen*0.55,rOut=bladeLen*1.02;
+    var trg=gldGrad(ctx,'trail|'+fk,function(cc){var g=cc.createRadialGradient(0,0,fr*1.1,0,0,fr*2.4);g.addColorStop(0,'rgba(255,255,255,0)');g.addColorStop(0.62,'rgba(255,244,214,.55)');g.addColorStop(1,'rgba(255,255,255,.95)');return g;});
+    ctx.save();ctx.globalAlpha=alpha*0.55*(1-phase);
+    ctx.fillStyle=trg;
+    ctx.beginPath();ctx.arc(0,0,rOut,ta0,ta1);ctx.arc(0,0,rIn,ta1,ta0,true);ctx.closePath();ctx.fill();
+    ctx.globalAlpha=alpha*(1-phase);ctx.fillStyle='#fff3c9';
+    for(var sk2=0;sk2<3;sk2++){
+      var ska=ta1-0.14*sk2,skr=rOut+fr*0.10*sk2;
+      ctx.fillRect(Math.cos(ska)*skr-1.5,Math.sin(ska)*skr-1.5,3,3);
+    }
+    ctx.restore();
   }
   if(st===GLD_ST.SPEC_ACT){
-    ctx.strokeStyle='rgba(255,150,40,'+(0.6*(1-phase))+')';ctx.lineWidth=4;
-    ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(fr*2.6+thrust,0);ctx.stroke();
-    ctx.fillStyle='rgba(255,255,255,'+(0.8*(1-phase))+')';ctx.beginPath();ctx.arc(fr*2.6+thrust,0,fr*0.14,0,6.283);ctx.fill();
+    // B7: nastro dritto affusolato per l'affondo + punta luminosa
+    var spl=fr*2.6+thrust;
+    var sgd=gldGrad(ctx,'strail|'+fk,function(cc){var g=cc.createLinearGradient(0,0,fr*4.2,0);g.addColorStop(0,'rgba(255,150,40,0)');g.addColorStop(0.55,'rgba(255,170,60,.6)');g.addColorStop(1,'rgba(255,240,190,.95)');return g;});
+    ctx.save();ctx.globalAlpha=alpha*0.8*(1-phase);
+    ctx.fillStyle=sgd;
+    ctx.beginPath();ctx.moveTo(0,-fr*0.22);ctx.lineTo(spl,-fr*0.04);ctx.lineTo(spl+fr*0.25,0);ctx.lineTo(spl,fr*0.04);ctx.lineTo(0,fr*0.22);ctx.closePath();ctx.fill();
+    ctx.globalAlpha=alpha;
+    ctx.fillStyle='rgba(255,255,255,'+(0.8*(1-phase))+')';ctx.beginPath();ctx.arc(spl,0,fr*0.14,0,6.283);ctx.fill();
+    ctx.restore();
   }
   ctx.restore(); // end rotated body
   // head + helmet (crest points along facing)
@@ -38699,16 +39157,34 @@ function gldDrawFighter(ctx,sx,sy,fr,ang,st,phase,flags,hp,look,isMe,now,label,h
     ctx.fillStyle=helmC;ctx.beginPath();ctx.arc(0,-fr*0.12,fr*0.46,3.14159,6.283);ctx.fill();
     ctx.strokeStyle='rgba(0,0,0,.3)';ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(0,-fr*0.12,fr*0.46,3.14159,6.283);ctx.stroke();
     ctx.strokeStyle='rgba(255,255,255,.25)';ctx.lineWidth=1;ctx.beginPath();ctx.arc(0,-fr*0.12,fr*0.34,3.3,5.1);ctx.stroke();
-    if(helm===1||helm===4){ctx.fillStyle=helmC;ctx.fillRect(-fr*0.06,-fr*0.12,fr*0.12,fr*0.4);}
-    var crestBob=fr*0.05*Math.sin(now/240);
+    if(helm===1||helm===4||helm===6){ctx.fillStyle=helmC;ctx.fillRect(-fr*0.06,-fr*0.12,fr*0.12,fr*0.4);}
+    var crestBob=fr*0.05*Math.sin(now/240)+(moving?fr*0.035*Math.sin(wp*2):0);   // A-ANIM: il pennacchio segue anche il passo
     if(helm===1){ctx.save();ctx.rotate(ang);ctx.fillStyle='#b3202f';
       ctx.beginPath();ctx.moveTo(-fr*0.5,-fr*0.5+crestBob);ctx.quadraticCurveTo(0,-fr*1.2+crestBob,fr*0.5,-fr*0.5+crestBob);ctx.lineTo(fr*0.3,-fr*0.4+crestBob);ctx.quadraticCurveTo(0,-fr*0.85+crestBob,-fr*0.3,-fr*0.4+crestBob);ctx.closePath();ctx.fill();ctx.restore();}
     else if(helm===2){ctx.save();ctx.rotate(ang);ctx.fillStyle='#2e5f8a';ctx.beginPath();ctx.moveTo(-fr*0.4,-fr*0.5);ctx.lineTo(0,-fr*0.95+crestBob);ctx.lineTo(fr*0.4,-fr*0.5);ctx.closePath();ctx.fill();ctx.restore();}
     else if(helm===3){ctx.save();ctx.rotate(ang);ctx.strokeStyle='#c9b037';ctx.lineWidth=fr*0.10;ctx.beginPath();ctx.arc(0,-fr*0.12,fr*0.5,3.4,6.02);ctx.stroke();ctx.restore();}
+    else if(helm===5){ // TRACE (cosmetico): pinna di grifone ricurva in avanti
+      ctx.save();ctx.rotate(ang);ctx.fillStyle='#d4a017';
+      ctx.beginPath();ctx.moveTo(-fr*0.42,-fr*0.42+crestBob);
+      ctx.quadraticCurveTo(-fr*0.10,-fr*1.05+crestBob,fr*0.52,-fr*0.72+crestBob);
+      ctx.quadraticCurveTo(fr*0.18,-fr*0.62+crestBob,-fr*0.18,-fr*0.40+crestBob);
+      ctx.closePath();ctx.fill();ctx.restore();}
+    else if(helm===6){ // CENTURIONE (cosmetico): cresta TRASVERSALE (perpendicolare al facing)
+      ctx.save();ctx.rotate(ang+1.5708);ctx.fillStyle='#c0182b';
+      ctx.beginPath();ctx.moveTo(-fr*0.5,-fr*0.5+crestBob);ctx.quadraticCurveTo(0,-fr*1.15+crestBob,fr*0.5,-fr*0.5+crestBob);
+      ctx.lineTo(fr*0.3,-fr*0.4+crestBob);ctx.quadraticCurveTo(0,-fr*0.8+crestBob,-fr*0.3,-fr*0.4+crestBob);
+      ctx.closePath();ctx.fill();ctx.restore();}
   }
   ctx.restore();
-  // stun stars (unrotated, above head)
+  // stun stars (unrotated, above head) + B4: anello a terra che si svuota con 1-phase (finestra di punish)
   if(stun||st===GLD_ST.STUN){
+    var remA=6.283*(1-phase);
+    if(remA>0.05){
+      ctx.save();ctx.translate(0,fr*0.9);ctx.scale(1,0.42);
+      ctx.strokeStyle='rgba(255,214,107,.85)';ctx.lineWidth=Math.max(2,fr*0.14);
+      ctx.beginPath();ctx.arc(0,0,fr*1.35,-1.5708,-1.5708+remA);ctx.stroke();
+      ctx.restore();
+    }
     ctx.save();ctx.font=(fr*0.6)+'px serif';ctx.textAlign='center';
     for(var si2=0;si2<3;si2++){var sa2=now/300+si2*2.094;ctx.globalAlpha=0.9;ctx.fillText('⭐',Math.cos(sa2)*fr*0.7,-fr*1.2+Math.sin(sa2)*fr*0.2);}
     ctx.restore();
@@ -38717,15 +39193,28 @@ function gldDrawFighter(ctx,sx,sy,fr,ang,st,phase,flags,hp,look,isMe,now,label,h
   if(hitflash){ctx.fillStyle='rgba(255,40,40,.4)';ctx.beginPath();ctx.arc(0,0,fr*0.9,0,6.283);ctx.fill();}
   if(parryflash){ctx.strokeStyle='rgba(180,255,210,.8)';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,fr*1.1,0,6.283);ctx.stroke();}
   ctx.globalAlpha=1;
-  // HP pips
-  for(var hpi=0;hpi<4;hpi++){ctx.fillStyle=hpi<hp?'#ef4444':'rgba(255,255,255,.2)';ctx.fillRect(-fr*0.5+hpi*(fr*0.28),-fr*1.55,fr*0.2,fr*0.14);}
-  // label = nome del giocatore (Telegram) sopra ogni gladiatore; il tuo in ciano
-  var nm=String(label||'').slice(0,12);
-  ctx.fillStyle=isMe?'#7ee9fb':'#f5d27a';
-  ctx.font='bold '+(fr*0.55)+'px \'Russo One\', sans-serif';ctx.textAlign='center';
-  ctx.strokeStyle='rgba(0,0,0,.7)';ctx.lineWidth=fr*0.09;ctx.lineJoin='round';
-  var lbl=nm||(isMe?'TU':'');
-  if(lbl){ctx.strokeText(lbl,0,-fr*1.75);ctx.fillText(lbl,0,-fr*1.75);}
+  // B17: nameplate — pill scura con nome + pips hp DENTRO (ramp verde/ambra/rosso pulsante), niente shadowBlur
+  var nm=String(label||'').slice(0,12)||(isMe?'TU':'');
+  var fs=fr*0.5;
+  ctx.font='bold '+fs+'px \'Russo One\', sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  var lw;
+  if(kin&&kin._lblK===nm+'|'+fk)lw=kin._lblW;   // cache larghezza testo (no measureText/frame)
+  else{lw=ctx.measureText(nm||'—').width;if(kin){kin._lblK=nm+'|'+fk;kin._lblW=lw;}}
+  var pipW=fr*0.20,pipG=fr*0.08,pipsW=4*pipW+3*pipG;
+  var pw3=Math.max(lw,pipsW)/2+fr*0.22, py0=-fr*2.15, ph0=fr*(nm?0.95:0.55);
+  ctx.fillStyle='rgba(8,6,4,.62)';
+  ctx.beginPath();
+  if(ctx.roundRect)ctx.roundRect(-pw3,py0,pw3*2,ph0,fr*0.18);else ctx.rect(-pw3,py0,pw3*2,ph0);
+  ctx.fill();
+  if(nm){ctx.fillStyle=isMe?'#7ee9fb':'#f5d27a';ctx.fillText(nm,0,py0+fr*0.30);}
+  var pipC=hp>=3?'#4ade80':(hp===2?'#f5b23a':'#ef4444');
+  var pipA=(hp===1)?(0.55+0.45*Math.sin(now/180)):1;
+  for(var hpi=0;hpi<4;hpi++){
+    ctx.globalAlpha=hpi<hp?pipA:1;
+    ctx.fillStyle=hpi<hp?pipC:'rgba(255,255,255,.18)';
+    ctx.fillRect(-pipsW/2+hpi*(pipW+pipG),py0+ph0-fr*0.30,pipW,fr*0.14);
+  }
+  ctx.globalAlpha=1;
   ctx.restore();
 }
 // ── PILUM render (reads raw.pl defensively; server-authoritative state) ──
@@ -38785,6 +39274,43 @@ function gldDrawPilum(ctx,raw,now,scale){
     ctx.beginPath();ctx.arc(h[0],h[1],rr,-1.5708,-1.5708+6.283*frac);ctx.stroke();
     if(ready){ctx.strokeStyle='rgba(255,255,220,'+(0.45+0.45*Math.sin(now/60))+')';ctx.lineWidth=scale*0.1;
       ctx.beginPath();ctx.arc(h[0],h[1],rr,0,6.283);ctx.stroke();}
+    // ── A-RET: RETICOLO sul punto d'impatto previsto — proietta (fx,fy) fino al
+    //    bersaglio agganciato dall'aim-assist o al bordo arena (solo stroke, zero alloc) ──
+    var px0=pl[1],py0=pl[2],thr=String(pl[5]);
+    var bDot=px0*fx+py0*fy,r0w=GLD.r0;
+    var tHit=-bDot+Math.sqrt(Math.max(0,bDot*bDot-(px0*px0+py0*py0-r0w*r0w)));
+    var lock=0,rowsR=raw.p||[];
+    for(var riP=0;riP<rowsR.length;riP++){
+      var rp=rowsR[riP];
+      if(!(rp[7]&1)||String(rp[0])===thr)continue;
+      var oxr=rp[1]-px0,oyr=rp[2]-py0,projR=oxr*fx+oyr*fy;
+      if(projR<=0.3||projR>=tHit)continue;
+      if(Math.abs(oxr*fy-oyr*fx)<0.62){tHit=projR;lock=1;}
+    }
+    var ip=w2s(px0+fx*tHit,py0+fy*tHit);
+    // linea guida tratteggiata dalla punta della linea di mira fino all'impatto
+    ctx.strokeStyle=ready?'rgba(160,255,170,.5)':'rgba(255,170,90,'+(0.18+0.3*frac)+')';
+    ctx.lineWidth=1.5;ctx.setLineDash([3,8]);ctx.lineDashOffset=-now/50;
+    ctx.beginPath();ctx.moveTo(ex,ey);ctx.lineTo(ip[0],ip[1]);ctx.stroke();ctx.setLineDash([]);
+    // mirino: anello che si stringe con la carica + 4 tacche rotanti + punto centrale pulsante
+    var rtR=scale*(0.95-0.42*frac);
+    var rtCol=ready?'rgba(160,255,170,':(lock?'rgba(255,110,70,':'rgba(255,190,110,');
+    ctx.save();ctx.translate(ip[0],ip[1]);
+    ctx.strokeStyle=rtCol+(0.5+0.45*frac)+')';ctx.lineWidth=Math.max(2,scale*0.09);
+    ctx.beginPath();ctx.arc(0,0,rtR,0,6.283);ctx.stroke();
+    ctx.save();ctx.rotate(now/(ready?240:520));
+    for(var tk4=0;tk4<4;tk4++){
+      ctx.rotate(1.5708);
+      ctx.beginPath();ctx.moveTo(rtR*0.68,0);ctx.lineTo(rtR*1.18,0);ctx.stroke();
+    }
+    ctx.restore();
+    ctx.fillStyle=rtCol+(0.55+0.45*Math.sin(now/90))+')';
+    ctx.beginPath();ctx.arc(0,0,Math.max(1.5,scale*0.07),0,6.283);ctx.fill();
+    if(lock){
+      ctx.font='bold '+(scale*0.34)+'px \'Russo One\',sans-serif';ctx.textAlign='center';
+      ctx.fillStyle=rtCol+'.9)';ctx.fillText(ready?'◎ AGGANCIATO':'◎ MIRA',0,-rtR-scale*0.22);
+    }
+    ctx.restore();
     ctx.lineCap='butt';ctx.restore();
   }else if(pst===5){ // THROWN — extrapolated projectile + motion blur
     var vx=pl[3],vy=pl[4],tf=(now-(raw.rx||now))/1000;
