@@ -7987,10 +7987,10 @@ body{position:relative;}
     <div class="tw-mega" onclick="go('torneo')" style="border-color:rgba(255,200,60,.55);background:linear-gradient(155deg,#140d05 0%,#241705 45%,#33200a 100%);box-shadow:0 10px 30px rgba(0,0,0,.5),0 0 26px rgba(255,190,50,.18);">
       <div style="position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:54px;filter:drop-shadow(0 0 16px rgba(255,200,60,.65));">🏆</div>
       <div style="position:relative;padding-right:70px;">
-        <span class="tw-mega-badge" style="background:rgba(255,200,60,.16);color:#ffd76b;border-color:rgba(255,200,60,.45);">🏆 GRATIS · ELIMINAZIONE DIRETTA</span>
-        <div class="tw-mega-title" style="color:#ffd76b;text-shadow:0 0 18px rgba(255,200,60,.55);">TORNEO COLOSSEO</div>
-        <div class="tw-mega-sub">Lobby da 10 gladiatori · vinci e avanza fino alla finale · guarda i match live</div>
-        <div class="tw-mega-cta">VAI AL TORNEO <span class="dm-arrow">▸</span></div>
+        <span class="tw-mega-badge" style="background:rgba(255,200,60,.16);color:#ffd76b;border-color:rgba(255,200,60,.45);">🏆 GRATIS · PREMI VERI</span>
+        <div class="tw-mega-title" style="color:#ffd76b;text-shadow:0 0 18px rgba(255,200,60,.55);">TORNEI</div>
+        <div class="tw-mega-sub" id="trn-mega-next">Prossimamente… tieni d'occhio questa card</div>
+        <div class="tw-mega-cta">VAI AI TORNEI <span class="dm-arrow">▸</span></div>
       </div>
     </div>
 
@@ -9709,11 +9709,11 @@ body{position:relative;}
   <div class="tw-overlay" id="gld-overlay"><div class="tw-modal" id="gld-modal"></div></div>
 </div>
 
-<!-- ═══════════════ TORNEO COLOSSEO — eliminazione diretta, gratis ═══════════════ -->
+<!-- ═══════════════ TORNEI — tab multi-gioco: prossimi tornei + torneo live ═══════════════ -->
 <div id="torneo" class="screen">
   <div class="game-hdr">
     <button class="back-btn" onclick="trnBack()">←</button>
-    <div class="game-title" style="color:#ffd76b;">🏆 TORNEO</div>
+    <div class="game-title" style="color:#ffd76b;">🏆 TORNEI</div>
     <div class="game-bal" id="trn-hdr-st" style="color:#f5d27a;"></div>
   </div>
   <div class="game-content" id="trn-body"></div>
@@ -34249,6 +34249,25 @@ function pvpHeroLoop(){
     }
   },120);
 }
+// ── TORNEO: banner "🏆 TORNEI" in PVP DUELS — prossimo torneo in programma ──
+// fetch lazy quando si apre #duel, cache 60s (stesso GET /tournament/state dell'hub)
+var DLTRN={at:0,txt:''};
+function dlTrnBanner(){
+  var el=document.getElementById('trn-mega-next');
+  if(!el)return;
+  if(DLTRN.txt&&(Date.now()-DLTRN.at)<60000){el.innerHTML=DLTRN.txt;return;}
+  fetch(BACKEND+'/tournament/state?user_id='+encodeURIComponent(S.userId||''))
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(!d||d.error)return;
+      var t=(d.upcoming&&d.upcoming[0])||null,h;
+      if(t)h='<b style="color:#ffd76b;">'+trnEsc(t.name||'Torneo')+'</b> · '+trnEsc(t.starts_at_text||'da annunciare')+(t.prize_text?' · 🏆 '+trnEsc(t.prize_text):'');
+      else if(d.active&&d.status==='live')h='🔴 <b style="color:#ffd76b;">'+trnEsc(d.name||'Torneo')+'</b> · LIVE ORA — guarda i match!';
+      else h='Prossimamente… tieni d\'occhio questa card';
+      DLTRN.at=Date.now();DLTRN.txt=h;
+      var e2=document.getElementById('trn-mega-next');if(e2)e2.innerHTML=h;
+    }).catch(function(){});
+}
 function initDuel(){
   dlInjectCSS();
   pvpHeroLoop();
@@ -34256,6 +34275,7 @@ function initDuel(){
   if(typeof loadBalance==='function')loadBalance().then(function(){ dlUpdateStatsDom(); });
   dlLoadIncoming();
   dlLoadRecent();
+  dlTrnBanner();   // TORNEO: banner prossimo torneo (cache 60s)
   // pick up a result that may have landed while away (a challenge we sent got accepted)
   if(S.userId){
     fetch(BACKEND+'/duel/app_status',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId,mode:'dice'})})
@@ -37692,7 +37712,7 @@ var GLD={
   _torches:null,_flags:null,_flagTile:null,_vig:null,
   _three:false,zone1:false,zone2:false,_cdPrev:{},_pilTick:0,_pilRdy:false,_lastSt:-1,_lastSearchN:0,_lastCd:0,heartOn:false,
   // ── TORNEO: flag tour (match a stake 0) + modalità spettatore (watch/unwatch) ──
-  tour:false,spec:false,specRid:null,pendingWatch:null,viewers:0
+  tour:false,spec:false,specRid:null,pendingWatch:null,viewers:0,_specLeft:0
 };
 // NB: gli indici oltre il range base (helm>4, sword>4, emblem>6, skin>3) sono
 // cosmetici sbloccabili — il server (_gladiator_sanitize) li clampa se non posseduti.
@@ -37902,12 +37922,14 @@ function gldOnMsg(m){
   if(t==='watch_ok'){gldWatchOk(m);return;}
   if(t==='lobby'){
     if(m.game&&m.game!=='glad')return;
+    if(m.tour&&!GLD.tour)return;   // TORNEO: raduno abbandonato — ignora i lobby del ticker
+    if(m.tour)GLD.tour=true;   // TORNEO: raduno del match (stake 0)
     GLD.searchN=m.players||1;
     GLD.searchAt=(m.starts_in!=null)?(Date.now()+m.starts_in*1000):0;
     if(GLD.ui!=='search')gldShowSearch();
     var gsn=document.getElementById('gld-sn');
     if(gsn&&!GLD.practice){
-      gsn.textContent=GLD.tour?(GLD.searchN+' gladiatori presenti'):(GLD.searchN+'/8 gladiatori trovati');
+      gsn.textContent=GLD.tour?(GLD.searchN+(m.cap?'/'+m.cap:'')+' gladiatori presenti'):(GLD.searchN+'/8 gladiatori trovati');
       if(GLD.searchN>GLD._lastSearchN){ // B20: juice quando entra un gladiatore
         TWS.play('pick',0.7);grHaptic('pick');
         gsn.classList.remove('pop');void gsn.offsetWidth;gsn.classList.add('pop');
@@ -37919,6 +37941,7 @@ function gldOnMsg(m){
     return;
   }
   if(t==='left'){
+    if(GLD._specLeft&&Date.now()-GLD._specLeft<5000){GLD._specLeft=0;return;}   // ack dell'unwatch: già gestito da gldSpecExit
     if(GLD.tour){GLD.ui='';GLD.tour=false;toast('Hai lasciato il match del torneo','warn',2000);go('torneo');return;}
     GLD.ui='';gldShowLobby();toast('Buy-in rimborsato','ok',1600);if(typeof loadBalance==='function')loadBalance();return;
   }
@@ -37927,14 +37950,23 @@ function gldOnMsg(m){
     var e=m.msg||'errore';
     var it={'insufficient balance':'Saldo insufficiente','already in a lobby':'Sei già in una lobby',
             'auth failed':'Autenticazione fallita — riapri da Telegram','not in a lobby':'Non sei in lobby',
-            'ticket scaduto':'Match scaduto — le puntate sono state rimborsate'};
+            'ticket scaduto':(GLD.tour?'Match del torneo scaduto o già partito':'Match scaduto — le puntate sono state rimborsate'),
+            'room piena':'Room piena — troppi spettatori','match non trovato':'Match non trovato — forse è già finito'};
     toast(it[e]||e,'err',2600);
-    if(e==='ticket scaduto'){GLD.ui='';gldShowLobby();if(typeof loadBalance==='function')loadBalance();}
+    if(e==='room piena'||e==='match non trovato'){if(GLD.spec){gldSpecExit();}else if(CUR==='glad'){GLD.ui='';go('torneo');}return;}   // TORNEO: watch fallito → hub (anche da spettatore dopo reconnect: room sparita → esci, niente canvas congelato)
+    if(e==='ticket scaduto'){
+      GLD.ui='';
+      if(GLD.tour){GLD.tour=false;go('torneo');}   // TORNEO: niente rimborsi — torna all'hub
+      else{gldShowLobby();if(typeof loadBalance==='function')loadBalance();}
+    }
     return;
   }
   if(t==='start'){
     if(m.game!=='glad')return;
+    if(m.tour&&!GLD.tour)return;   // TORNEO: raduno abbandonato — mai render/audio su schermata nascosta
     GLD.practice=!!m.practice;
+    GLD.tour=!!m.tour;   // TORNEO: autoritativo dal server (ripulisce anche flag stantii)
+    if(m.viewers!=null)GLD.viewers=m.viewers;
     GLD.map=m.map;GLD.r0=(m.map&&m.map.size)||10;GLD.cols=(m.map&&m.map.cols)||[];GLD.r=GLD.r0;
     GLD.names=m.names||{};GLD.myId=String(m.you);
     GLD.potEur=m.pot_eur||0;if(m.rate)GLD.rate=m.rate;
@@ -37955,6 +37987,7 @@ function gldOnMsg(m){
   if(t==='s'&&m.g==='glad'){gldOnSnap(m);return;}
   if(t==='over'&&m.game==='glad'){
     if(GLD.spec){gldSpecOver(m);return;}
+    if(m.tour&&!GLD.tour)return;   // TORNEO: match abbandonato — esito ignorato (l'hub si aggiorna via /tournament/state)
     GLD.over=m;GLD.heartOn=false;try{TWS.heart(false);}catch(e){}
     // B3: hold 900ms sul vincitore (KO-cam + slow-mo restano visibili) prima dell'overlay
     if(GLD.ui==='match'){setTimeout(function(){if(GLD.over===m&&GLD.ui==='match')gldShowOver(m);},900);}
@@ -38011,7 +38044,7 @@ function gldSetTier(tk){GLD.tier=tk;
   var b=document.querySelectorAll('#gld-body .tw-tier');for(var i=0;i<b.length;i++)b[i].classList.toggle('sel',b[i].getAttribute('data-t')===tk);
 }
 function gldJoin(){
-  GLD.practice=false;
+  GLD.practice=false;GLD.tour=false;GLD.spec=false;GLD.specRid=null;   // TORNEO: join pubblico = flusso pagante classico
   TWS.init();TWS.res();
   try{tg.HapticFeedback&&tg.HapticFeedback.impactOccurred('medium');}catch(e){}
   if(!GLD.wsOk){GLD.pendingJoin=true;gldConnect();return;}
@@ -38021,10 +38054,10 @@ function gldLeave(){gldSend({t:'leave'});}
 function gldBack(){
   if(GLD.spec){gldSpecExit();return;}   // TORNEO: uscita spettatore
   if(GLD.ui==='search'){
-    if(GLD.tour&&!confirm('Sei nel raduno del tuo match del torneo: se esci ora rischi l\'eliminazione. Uscire?'))return;
+    if(GLD.tour){gldTourAbandon();return;}   // TORNEO: niente {t:'leave'} sul ticket — abbandono locale
     gldLeave();
   }
-  else if(GLD.ui==='match'){if(!confirm(GLD.tour?'Sei nel match del torneo: se esci ora sei eliminato. Uscire?':'Sei nell\'arena: se esci ora perdi la puntata. Uscire?'))return;gldLeave();GLD.ui='';gldOvClose();}
+  else if(GLD.ui==='match'){if(!confirm(GLD.tour?'Sei nel match del torneo: se esci ora sei eliminato. Uscire?':'Sei nell\'arena: se esci ora perdi la puntata. Uscire?'))return;if(!GLD.tour)gldLeave();GLD.ui='';gldOvClose();}
   wsNetBanner('glad',0);
   if(GLD.tour){GLD.tour=false;go('torneo');return;}
   go('duel');
@@ -38067,13 +38100,19 @@ function gldPump(){
   else if(!GLD.sentAimZero){gldSend({t:'aim',on:0});GLD.sentAimZero=true;}
 }
 function gldOnSnap(m){
+  if(GLD.spec&&CUR!=='glad'){   // TORNEO: spettatore uscito dalla schermata → unwatch silenzioso
+    gldSend({t:'unwatch'});GLD._specLeft=Date.now();
+    GLD.spec=false;GLD.specRid=null;GLD.tour=false;GLD.ui='';GLD.map=null;GLD.snaps=[];GLD.lastRaw=null;
+    gldStopRaf();return;
+  }
+  if(!GLD.spec&&!GLD.tour&&m.viewers!=null)return;   // TORNEO: snapshot di un match abbandonato (solo le room torneo broadcastano viewers) — niente audio nascosto
   m.rx=performance.now();
   var idx={};(m.p||[]).forEach(function(r){idx[r[0]]=r;});
   m.idx=idx;
   GLD.snaps.push(m);if(GLD.snaps.length>7)GLD.snaps.shift();
   GLD.lastRaw=m;GLD.you=m.you||GLD.you;
   if(m.r!=null)GLD.r=m.r;GLD.sd=!!m.sd;
-  if(m.viewers!=null){   // TORNEO: contatore spettatori in broadcast
+  if(m.viewers!=null&&m.viewers!==GLD.viewers){   // TORNEO: contatore spettatori in broadcast — DOM solo quando cambia (no write 20x/s)
     GLD.viewers=m.viewers;
     var svn=document.getElementById('gld-spec-n');if(svn)svn.textContent='SPETTATORE 👁 '+m.viewers;
   }
@@ -38218,6 +38257,7 @@ function gldBanner(title,sub,ms){
 
 // ── views ───────────────────────────────────────────────────────────
 function gldShowLobby(keepOv){
+  GLD.spec=false;GLD.specRid=null;GLD.pendingWatch=null;   // TORNEO: la lobby paga non è mai spettatore
   if(!keepOv){GLD.ui='lobby';gldOvClose();try{GBMusic.play('arena');}catch(e){}}   // B18: tema arena in lobby (mai nel match)
   gldStopRaf();
   var el=document.getElementById('gld-body');if(!el)return;
@@ -38336,7 +38376,7 @@ function gldShowOver(m){
     gldShowLobby(true);
     return;
   }
-  if(GLD.tour){   // TORNEO: niente premi in denaro — si avanza (o si esce) e basta
+  if(GLD.tour||m.tour){   // TORNEO: niente premi in denaro — si avanza (o si esce) e basta
     var ht;
     if(m.you_won){
       TWS.play('win');gldSnd('boato',1);gldSnd('ovation',1);setTimeout(function(){gldSnd('corno',0.7);},450);
@@ -38381,7 +38421,12 @@ function gldAgain(){GLD.ui='';gldOvClose();gldShowLobby();}
 // ── TORNEO: helpers giocatore (match a stake 0) ─────────────────────
 function gldTourAbandon(){
   if(!confirm('Sei nel raduno del tuo match del torneo: se esci ora rischi l\'eliminazione. Uscire?'))return;
-  gldLeave();
+  // Niente {t:'leave'}: il server non lo supporta per chi attende su ticket
+  // (WHERE=('ticket',tk) → err "not in a lobby"). Abbandono lato client: con
+  // GLD.tour=false gldOnMsg ignora i messaggi postumi del match (lobby/start/s/over).
+  GLD.pendingTicket=null;
+  toast('Hai lasciato il raduno del match','warn',2000);
+  gldTourExit();
 }
 function gldTourExit(){GLD.tour=false;GLD.ui='';gldOvClose();wsNetBanner('glad',0);go('torneo');}
 // ── TORNEO: modalità SPETTATORE (watch/watch_ok/unwatch) ────────────
@@ -38400,7 +38445,7 @@ function gldWatchOk(m){
   GLD.spec=true;GLD.specRid=m.rid;GLD.practice=false;GLD.tour=true;
   GLD.map=m.map;GLD.r0=(m.map&&m.map.size)||10;GLD.cols=(m.map&&m.map.cols)||[];GLD.r=GLD.r0;
   GLD.names=m.names||{};GLD.myId=null;GLD.you=null;GLD.viewers=(m.viewers!=null)?m.viewers:1;
-  GLD.potEur=0;if(m.rate)GLD.rate=m.rate;
+  GLD.potEur=0;// niente rate in watch_ok: GLD.rate resta quello di hello_ok (e da spettatore non si mostra denaro)
   GLD.snaps=[];GLD.over=null;GLD.lastHp=null;GLD.anim={};GLD.fxq=[];
   GLD.pred={x:0,y:0,ok:false};GLD._lf=0;GLD.feedRows=[];GLD.banner=null;
   GLD.shake=0;GLD.flash=0;GLD.sd=false;GLD._sdSeen=false;GLD.stampQ=[];GLD.crowd=0;
@@ -38435,7 +38480,7 @@ function gldShowSpecMatch(){
   gldStartRaf();
 }
 function gldSpecExit(){
-  gldSend({t:'unwatch'});
+  if(GLD.wsOk){gldSend({t:'unwatch'});GLD._specLeft=Date.now();}   // il server risponde {t:'left'}: non è un refund — finestra ack solo se l'unwatch è partito davvero
   GLD.spec=false;GLD.specRid=null;GLD.tour=false;GLD.pendingWatch=null;
   GLD.ui='';GLD.map=null;GLD.lastRaw=null;GLD.snaps=[];
   gldStopRaf();gldOvClose();wsNetBanner('glad',0);
@@ -39623,6 +39668,273 @@ function gladEditSave(){
 function gladEditClose(){GLD._edit=null;gldOvClose();}
 
 // ═══════════════════════════════════════════════════════════════════
+// TORNEI — tab multi-gioco (v2): lista "PROSSIMI TORNEI" (state.upcoming,
+// iscrizione per tid) + hub del torneo live/done (invariato: bracket,
+// match live, spettatori). REST: GET /tournament/state (polling 10s quando
+// visibile) · POST /tournament/register | /tournament/unregister (auth
+// initData via monkey-patch fetch, tid opzionale). Spettatori: WS glad
+// watch_list/watch/watch_ok/unwatch.
+// REGOLA D'ORO: qui il denaro non esiste — stake 0, niente tier.
+// ═══════════════════════════════════════════════════════════════════
+var TRN={state:null,poll:null,busy:false,viewers:{}};
+function trnEsc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function trnInjectCSS(){
+  if(document.getElementById('trn-css'))return;
+  var s=document.createElement('style');s.id='trn-css';
+  s.textContent=''
+   +'.trn-card{background:rgba(255,255,255,.04);border:1px solid rgba(255,200,60,.25);border-radius:14px;padding:12px 14px;margin:10px 0;}'
+   +'.trn-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:5px 0;font-size:12px;}'
+   +'.trn-k{color:var(--txt2);white-space:nowrap;}'
+   +'.trn-v{color:#f5d27a;font-weight:700;text-align:right;}'
+   +'.trn-huge{width:100%;font-size:17px;padding:16px 12px;letter-spacing:1px;animation:trnPulse 1.4s ease-in-out infinite;}'
+   +'@keyframes trnPulse{0%,100%{box-shadow:0 0 14px rgba(255,200,60,.35);}50%{box-shadow:0 0 30px rgba(255,210,80,.75);transform:scale(1.012);}}'
+   +'.trn-live-row{display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(255,60,60,.07);border:1px solid rgba(255,90,80,.3);border-radius:12px;padding:10px 12px;margin:8px 0;}'
+   +'.trn-live-info{display:flex;flex-direction:column;gap:2px;font-size:12px;color:#fff;font-weight:700;}'
+   +'.trn-live-info span{font-size:10px;color:var(--txt2);font-weight:400;}'
+   +'.trn-watch{width:auto;padding:9px 14px;font-size:12px;white-space:nowrap;}'
+   +'.trn-round-t{font-family:\'Russo One\',sans-serif;font-size:12px;letter-spacing:2px;color:#ffd76b;margin:12px 0 6px;}'
+   +'.trn-match{background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.09);border-radius:12px;padding:8px 10px;margin:6px 0;}'
+   +'.trn-match.live{border-color:rgba(255,90,80,.55);box-shadow:0 0 12px rgba(255,80,60,.25);}'
+   +'.trn-match.done{opacity:.85;}'
+   +'.trn-match-hd{font-size:10px;color:var(--txt2);letter-spacing:1px;margin-bottom:5px;display:flex;justify-content:space-between;gap:8px;}'
+   +'.trn-match-pl{display:flex;flex-wrap:wrap;gap:5px;}'
+   +'.trn-pl{font-size:11px;padding:3px 8px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#ddd;max-width:46%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}'
+   +'.trn-pl.win{background:rgba(255,200,60,.16);border-color:rgba(255,200,60,.6);color:#ffd76b;font-weight:800;}'
+   +'.trn-pl.me{border-color:rgba(120,220,255,.7);color:#aee6ff;}'
+   +'.trn-pl.out{opacity:.45;text-decoration:line-through;}'
+   /* v2 — card "PROSSIMI TORNEI" (tab TORNEI multi-gioco) */
+   +'.trn-up{background:linear-gradient(155deg,rgba(255,200,60,.08),rgba(255,255,255,.03));border:1px solid rgba(255,200,60,.35);border-radius:14px;padding:12px 14px;margin:10px 0;}'
+   +'.trn-up-hd{display:flex;justify-content:space-between;align-items:center;gap:8px;}'
+   +'.trn-up-badge{font-size:9px;font-weight:800;letter-spacing:1px;padding:3px 8px;border-radius:20px;background:rgba(224,165,42,.16);color:#f5d27a;border:1px solid rgba(224,165,42,.4);text-transform:uppercase;}'
+   +'.trn-up-n{font-size:11px;color:var(--txt2);font-weight:700;white-space:nowrap;}'
+   +'.trn-up-name{font-family:\'Russo One\',sans-serif;font-size:16px;letter-spacing:.5px;color:#fff;margin-top:7px;}'
+   +'.trn-up-when{font-size:11px;color:var(--txt2);margin-top:3px;}'
+   +'.trn-up-prize{font-family:\'Russo One\',sans-serif;font-size:19px;color:#ffd76b;text-shadow:0 0 16px rgba(255,200,60,.5);margin:7px 0 9px;}';
+  document.head.appendChild(s);
+}
+function initTorneo(){
+  trnInjectCSS();
+  var el=document.getElementById('trn-body');
+  if(el&&!TRN.state)el.innerHTML='<div class="tw-radar"><div class="twr-radar-sweep"></div>🏆</div><div class="tw-search-t">CARICAMENTO TORNEO…</div>';
+  else if(TRN.state)trnRender();
+  trnFetch();
+  if(TRN.poll)clearInterval(TRN.poll);
+  TRN.poll=setInterval(function(){
+    if(CUR!=='torneo'){clearInterval(TRN.poll);TRN.poll=null;return;}
+    if(document.hidden)return;   // polling 10s solo quando visibile
+    trnFetch();
+  },10000);
+}
+function trnBack(){wsNetBanner('glad',0);go('duel');}
+function trnFetch(){
+  fetch(BACKEND+'/tournament/state?user_id='+encodeURIComponent(S.userId||''))
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(!d||d.error)return;
+      TRN.state=d;
+      if(CUR==='torneo')trnRender();
+    }).catch(function(){});
+}
+// v2 — lista "PROSSIMI TORNEI" (multi-gioco): card con badge gioco, quando,
+// 🏆 premio in evidenza, iscritti e iscrizione per tid
+function trnUpcomingHTML(d){
+  var up=(d&&d.upcoming)||[];
+  if(!up.length)return '';
+  var h='<div class="section-ttl">📅 PROSSIMI TORNEI</div>';
+  up.forEach(function(t){
+    var tid=String(t.id||'').replace(/[^A-Za-z0-9_-]/g,'');
+    var full=(t.max_players!=null&&(t.players_count||0)>=t.max_players);
+    h+='<div class="trn-up">'
+     +'<div class="trn-up-hd"><span class="trn-up-badge">🎮 '+trnEsc(t.game_label||t.game||'Colosseo')+'</span>'
+     +'<span class="trn-up-n">👥 '+(t.players_count||0)+(t.max_players?'/'+t.max_players:'')+' iscritti</span></div>'
+     +'<div class="trn-up-name">'+trnEsc(t.name||'Torneo')+'</div>'
+     +'<div class="trn-up-when">📅 '+trnEsc(t.starts_at_text||'da annunciare')+'</div>'
+     +(t.prize_text?'<div class="trn-up-prize">🏆 '+trnEsc(t.prize_text)+'</div>':'')
+     +(t.registered
+        ?'<button class="action-btn gold" style="width:100%;" onclick="trnUnregister(\''+tid+'\')">✅ ISCRITTO — tocca per annullare</button>'
+        :(full
+          ?'<button class="action-btn" style="width:100%;opacity:.55;" onclick="void(0)">🚫 COMPLETO</button>'
+          :'<button class="action-btn gold" style="width:100%;" onclick="trnRegister(\''+tid+'\')">⚔️ ISCRIVITI GRATIS</button>'))
+     +'</div>';
+  });
+  return h;
+}
+function trnRender(){
+  var d=TRN.state,el=document.getElementById('trn-body');
+  if(!el)return;
+  var up=trnUpcomingHTML(d);
+  var hd=document.getElementById('trn-hdr-st');
+  if(hd)hd.textContent=(!d||!d.active)?(up?'⏳ ISCRIZIONI':''):(d.status==='reg'?'⏳ ISCRIZIONI':(d.status==='live'?'🔴 LIVE':(d.status==='done'?'🏁 CONCLUSO':'')));
+  if(!d||!d.active){
+    el.innerHTML='<div class="tw-hero"><div class="tw-hero-t" style="color:#ffd76b;text-shadow:0 0 20px rgba(255,200,60,.5);">TORNEI</div>'
+      +'<div class="tw-hero-s">'+(up?'Iscriviti gratis — si vince roba vera':'Nessun torneo in programma al momento')+'</div></div>'
+      +(up
+        ?up+'<div class="tw-note" style="text-align:center;">Ingresso GRATIS · eliminazione diretta · il premio si riscuote in privato da @ShamanoRomanoReborn</div>'
+        :'<div style="text-align:center;font-size:44px;margin:26px 0 10px;">🏛️</div>'
+         +'<div class="tw-note" style="text-align:center;">Il prossimo torneo sarà annunciato dal bot — tieni d\'occhio le notifiche!</div>');
+    return;
+  }
+  var h=up   // v2: prossimi tornei in alto, sotto la vista live/done esistente (invariata)
+    +'<div class="tw-hero"><div class="tw-hero-t" style="color:#ffd76b;text-shadow:0 0 20px rgba(255,200,60,.5);">'+trnEsc(d.name||'TORNEO DEL COLOSSEO')+'</div>'
+    +(d.status==='live'?'<div class="tw-hero-live">🔴 LIVE</div>':'')
+    +'<div class="tw-hero-s">Eliminazione diretta · lobby da max 10 · ingresso GRATIS</div></div>';
+  if(d.status==='reg'){
+    h+='<div class="trn-card">'
+     +'<div class="trn-row"><span class="trn-k">📅 Si gioca</span><span class="trn-v">'+trnEsc(d.starts_at_text||'da annunciare')+'</span></div>'
+     +'<div class="trn-row"><span class="trn-k">👥 Iscritti</span><span class="trn-v">'+(d.players_count||0)+'</span></div>'
+     +'<div class="trn-row"><span class="trn-k">🏆 Premio</span><span class="trn-v">in privato da @ShamanoRomanoReborn</span></div>'
+     +'</div>';
+    if(d.registered){
+      h+='<button class="action-btn gold" style="width:100%;" onclick="void(0)">✅ ISCRITTO — ci vediamo nell\'arena</button>'
+       +'<button class="twr-editbtn" onclick="trnUnregister()">✖ ANNULLA ISCRIZIONE <span>puoi ripensarci finché le iscrizioni sono aperte</span></button>';
+    }else{
+      h+='<button class="action-btn gold trn-huge" onclick="trnRegister()">⚔️ ISCRIVITI GRATIS</button>';
+    }
+    h+='<div class="tw-note">Lobby da max 10 gladiatori · eliminazione diretta · 3 minuti per presentarti al tuo match · l\'ultimo in piedi avanza</div>';
+  }
+  else if(d.status==='live'){
+    var mm=d.my_match;
+    if(mm&&mm.ticket&&(mm.status==='pending'||mm.status==='live')){
+      h+='<button class="action-btn gold trn-huge" onclick="trnEnterMatch()">⚔️ ENTRA NEL TUO MATCH</button>'
+       +'<div class="tw-note" style="margin-top:2px;">Hai 3 minuti dal via del round per presentarti — chi non c\'è è eliminato</div>';
+    }
+    var lm=d.live_matches||[];
+    if(lm.length){
+      h+='<div class="section-ttl">🔴 MATCH LIVE · guardali ora</div>';
+      lm.forEach(function(r){
+        var srid=String(r.rid||'').replace(/[^A-Za-z0-9_-]/g,'');
+        h+='<div class="trn-live-row"><div class="trn-live-info">ROUND '+(r.round!=null?r.round:'?')
+         +'<span>Match '+trnEsc(String(r.mid||''))+'</span></div>'
+         +'<button class="action-btn gold trn-watch" id="trn-watch-'+srid+'" onclick="trnWatch(\''+srid+'\')">👁 Guarda ('+(TRN.viewers[r.rid]!=null?TRN.viewers[r.rid]:(r.viewers||0))+')</button></div>';
+      });
+    }
+    h+=trnBracketHTML(d);
+  }
+  else if(d.status==='done'){
+    var tr2='';for(var ci=0;ci<12;ci++){tr2+='<span class="twr-coin" style="left:'+(4+Math.random()*92)+'%;animation-delay:'+(Math.random()*1.6)+'s;">🏆</span>';}
+    h+='<div style="position:relative;text-align:center;padding:18px 0 8px;overflow:hidden;">'
+     +'<div class="twr-rain">'+tr2+'</div>'
+     +'<div style="font-size:54px;" class="twr-trophy">🏆</div>'
+     +'<div class="tw-win-t">'+trnEsc(d.winner_name||'CAMPIONE')+'</div>'
+     +'<div class="tw-ov-sub">Campione del torneo — AVE!</div></div>'
+     +'<div class="tw-note" style="text-align:center;">Il campione riceve il codice premio in DM dal bot · si riscuote scrivendo a @ShamanoRomanoReborn</div>'
+     +'<button class="action-btn gold trn-huge" onclick="trnFetch()">⚔️ ISCRIVITI AL PROSSIMO TORNEO</button>'
+     +'<div class="tw-note" style="text-align:center;">Appena il prossimo torneo apre le iscrizioni lo troverai qui</div>';
+    h+=trnBracketHTML(d);
+  }
+  else if(d.status==='cancelled'){
+    h+='<div style="text-align:center;font-size:44px;margin:22px 0 8px;">🚫</div>'
+     +'<div class="tw-lose-t" style="text-align:center;">TORNEO ANNULLATO</div>'
+     +'<div class="tw-note" style="text-align:center;">Il prossimo torneo sarà annunciato dal bot</div>';
+  }
+  el.innerHTML=h;
+  if(d.status==='live')trnAskViewers();
+}
+function trnBracketHTML(d){
+  var br=d.bracket||[];
+  if(!br.length)return '';
+  var h='<div class="section-ttl">📜 TABELLONE</div>';
+  var lastN=br[br.length-1].n;
+  br.forEach(function(rd){
+    var ms=rd.matches||[];
+    var fin=(rd.n===lastN&&ms.length===1);
+    h+='<div class="trn-round-t">'+(fin?'🏁 FINALE':'ROUND '+rd.n)+'</div>';
+    ms.forEach(function(m){
+      var st=m.status==='live'?'🔴 LIVE':(m.status==='done'?'✅ CONCLUSO':'⏳ IN ATTESA');
+      h+='<div class="trn-match'+(m.status==='live'?' live':(m.status==='done'?' done':''))+'">'
+       +'<div class="trn-match-hd"><span>'+st+'</span>'
+       +(m.status==='done'&&m.winner_name?'<span>👑 '+trnEsc(m.winner_name)+'</span>':'')
+       +'</div><div class="trn-match-pl">';
+      (m.players||[]).forEach(function(p){
+        var nm=(p&&p.name)||'Gladiatore';
+        var isWin=(m.status==='done'&&m.winner_name&&nm===m.winner_name);
+        var isMe=(p&&p.uid!=null&&String(p.uid)===String(S.userId||''));
+        var cls='trn-pl'+(isWin?' win':'')+(isMe?' me':'')+((m.status==='done'&&!isWin)?' out':'');
+        h+='<span class="'+cls+'">'+(isWin?'👑 ':'')+trnEsc(nm)+'</span>';
+      });
+      h+='</div></div>';
+    });
+  });
+  return h;
+}
+// v2: aggiorna l'entry di upcoming dopo register/unregister col tid (ottimistico, poi trnFetch riallinea)
+function trnUpMark(tid,reg,cnt){
+  if(!TRN.state||!TRN.state.upcoming)return;
+  TRN.state.upcoming.forEach(function(t){
+    if(String(t.id)===String(tid)){t.registered=reg;if(cnt!=null)t.players_count=cnt;}
+  });
+}
+function trnRegister(tid){
+  if(TRN.busy)return;
+  if(!S.userId){toast('Apri da Telegram per iscriverti','err');return;}
+  TRN.busy=true;grHaptic('enter');
+  var body={user_id:S.userId,username:(S.username||S.name||'Player')};
+  if(tid)body.tid=tid;   // v2: iscrizione al torneo scelto tra i prossimi
+  fetch(BACKEND+'/tournament/register',{method:'POST',headers:dlBjHdr(),body:JSON.stringify(body)})
+    .then(function(r){return r.json();}).then(function(d){
+      TRN.busy=false;
+      if(!d||d.error){toast('⚠️ '+((d&&d.error)||'iscrizione non riuscita'),'err',2400);return;}
+      toast('⚔️ Iscritto al torneo — AVE!','ok',2200);grHaptic('win');
+      if(TRN.state){
+        if(tid)trnUpMark(tid,true,d.players_count);
+        else{TRN.state.registered=true;if(d.players_count!=null)TRN.state.players_count=d.players_count;}
+        if(CUR==='torneo')trnRender();
+      }
+      DLTRN.at=0;   // TORNEO: invalida la cache del banner in PVP DUELS
+      trnFetch();
+    }).catch(function(){TRN.busy=false;toast('Errore di rete','err');});
+}
+function trnUnregister(tid){
+  if(TRN.busy)return;
+  if(!confirm('Vuoi davvero annullare l\'iscrizione al torneo?'))return;
+  TRN.busy=true;
+  var body={user_id:S.userId};
+  if(tid)body.tid=tid;   // v2: annulla l'iscrizione al torneo scelto
+  fetch(BACKEND+'/tournament/unregister',{method:'POST',headers:dlBjHdr(),body:JSON.stringify(body)})
+    .then(function(r){return r.json();}).then(function(d){
+      TRN.busy=false;
+      if(!d||d.error){toast('⚠️ '+((d&&d.error)||'operazione non riuscita'),'err',2400);return;}
+      toast('Iscrizione annullata','warn',2000);
+      if(TRN.state){
+        if(tid)trnUpMark(tid,false,d.players_count);
+        else{TRN.state.registered=false;if(d.players_count!=null)TRN.state.players_count=d.players_count;}
+        if(CUR==='torneo')trnRender();
+      }
+      DLTRN.at=0;
+      trnFetch();
+    }).catch(function(){TRN.busy=false;toast('Errore di rete','err');});
+}
+function trnEnterMatch(){
+  var d=TRN.state,mm=d&&d.my_match;
+  if(!mm||!mm.ticket){toast('Nessun match da giocare al momento','warn',2200);return;}
+  try{TWS.init();TWS.res();}catch(e){}
+  grHaptic('enter');
+  window.GLD_TICKET=mm.ticket;window.GLD_PRACTICE=false;window.GLD_TOUR=true;
+  go('glad');
+}
+function trnWatch(rid){
+  if(!rid)return;
+  try{TWS.init();TWS.res();}catch(e){}
+  grHaptic('pick');
+  window.GLD_WATCH=rid;
+  go('glad');
+}
+// chiede al server WS glad i conteggi spettatori per i bottoni "👁 Guarda (N)"
+function trnAskViewers(){
+  gldConnect();
+  if(GLD.wsOk)gldSend({t:'watch_list'});
+}
+function trnOnWatchList(rooms){
+  TRN.viewers={};
+  (rooms||[]).forEach(function(r){TRN.viewers[r.rid]=r.viewers||0;});
+  if(CUR!=='torneo')return;
+  (rooms||[]).forEach(function(r){
+    var b=document.getElementById('trn-watch-'+String(r.rid||'').replace(/[^A-Za-z0-9_-]/g,''));
+    if(b)b.textContent='👁 Guarda ('+(r.viewers||0)+')';
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // ARCADE PACK — one multiplexed real-time client for 7 games:
 // HOCKEY · PONG · SUMO · SHOVE · POOL(8/15) · ALLEY · STREET RACE
 // Shares the WS server, escrow, interpolation and sound engine.
@@ -39660,7 +39972,15 @@ var ARC_SOUNDS={
   crunch:function(v){TWS.noise({d:0.16,g:0.5*v,lp:1600,lp2:200,hp:180});TWS.tone({f:150,f2:60,type:'square',d:0.14,g:0.3*v});},
   scrape:function(v){TWS.noise({d:0.26,g:0.24*v,hp:1400,lp:5200});TWS.tone({f:520,f2:280,type:'sawtooth',d:0.2,g:0.08*v,lp:2000});},
   cp:function(v){TWS.tone({f:1320,d:0.05,g:0.12*v,type:'triangle'});TWS.tone({f:1760,d:0.06,g:0.10*v,type:'triangle',at:0.04});},
-  finish:function(v){[784,1046,1318].forEach(function(f,i){TWS.tone({f:f,type:'triangle',d:0.16,g:0.2*v,at:i*0.08});});}
+  finish:function(v){[784,1046,1318].forEach(function(f,i){TWS.tone({f:f,type:'triangle',d:0.16,g:0.2*v,at:i*0.08});});},
+  // ── BACKGAMMON FX (sintetizzati, zero asset) ──
+  dcup:function(v){for(var i=0;i<3;i++)TWS.noise({d:0.06,g:0.16*v,hp:1600,lp:5200,at:i*0.05});TWS.tone({f:150,f2:90,d:0.1,g:0.14*v,at:0.02});},   // rattle bussolotto
+  dtick:function(v){TWS.tone({f:820,f2:360,type:'triangle',d:0.045,g:0.26*v});TWS.noise({d:0.03,g:0.08*v,hp:1800});},                              // colpo dado (rimbalzo)
+  dsettle:function(v){TWS.tone({f:300,f2:120,type:'square',d:0.12,g:0.3*v,lp:1400});TWS.noise({d:0.05,g:0.1*v,lp:900});},                          // assestamento
+  wtick:function(v){TWS.tone({f:220,f2:110,d:0.1,g:0.32*v,lp:1000});TWS.noise({d:0.04,g:0.08*v,lp:600});},                                        // tonfo legno morbido
+  dhit:function(v){TWS.tone({f:180,f2:60,type:'square',d:0.09,g:0.42*v});TWS.noise({d:0.06,g:0.24*v,lp:1400,hp:200});},                           // knock secco su hit
+  bearoff:function(v){[659,880,1175].forEach(function(f,i){TWS.tone({f:f,type:'triangle',d:0.14,g:0.22*v,at:i*0.06});});},                        // chime salente
+  bgwin:function(v){[523,659,784,1046,1318].forEach(function(f,i){TWS.tone({f:f,type:'triangle',d:0.26,g:0.2*v,at:i*0.1});});TWS.tone({f:392,d:0.5,g:0.12*v,at:0.1});}
 };
 (function(){
   var old=TWS.play;
@@ -40248,7 +40568,7 @@ function rtdFeedEvent(e){
       TWS.play('horn');RTD.shake=Math.min(12,RTD.shake+8);
       rtdStamp(e.who===me?'GOAL!':'SUBITO!',e.who===me?'#39ff14':'#f87171');
       break;
-    case 'hit':TWS.play(RTD.game==='race'?'crunch':'puckhit',0.8);if(RTD.game==='race')RTD.shake=Math.min(8,RTD.shake+3);break;
+    case 'hit':if(g==='backg'){TWS.play('dhit',0.9);RTD.shake=Math.min(9,RTD.shake+5);var _hb=RTD._bg||(RTD._bg={});_hb.hitFx=performance.now();}else{TWS.play(g==='race'?'crunch':'puckhit',0.8);if(g==='race')RTD.shake=Math.min(8,RTD.shake+3);}break;
     case 'cushion':TWS.play('bounce2',0.5);break;
     case 'clack':TWS.play('clack',Math.min(1,(e.v||1)/4));break;
     case 'pot':TWS.play('pock');if(e.n===0)TWS.play('lose',0.4);break;
@@ -40270,11 +40590,14 @@ function rtdFeedEvent(e){
     case 'cap':TWS.play('clack',0.8);RTD.shake=Math.min(6,RTD.shake+3);break;
     case 'king':TWS.play('gold',0.7);rtdStamp('DAMA!','#ffd700');break;
     case 'chain':TWS.play('pick',0.8);if(e.who===RTD.myId)rtdStamp('ANCORA!','#a3e635');break;
-    case 'dice':TWS.play('clack',0.5);try{setTimeout(function(){TWS.play('clack',0.4);},90);}catch(_ce){}
-      try{var _bb=RTD._bg||(RTD._bg={});var _dd=e.d||[];_bb.roll={t0:performance.now(),dur:620,full:e.dbl?[_dd[0],_dd[0],_dd[0],_dd[0]]:_dd.slice(),dbl:!!e.dbl,mine:(e.who===RTD.myId),seed:(_bb._s=(_bb._s+1)|0),land:0,gold:0};}catch(_re){}
+    case 'dice':TWS.play('dcup',0.7);
+      try{var _bb=RTD._bg||(RTD._bg={});var _dd=e.d||[];_bb.roll={t0:performance.now(),dur:780,full:e.dbl?[_dd[0],_dd[0],_dd[0],_dd[0]]:_dd.slice(),dbl:!!e.dbl,mine:(e.who===RTD.myId),seed:(_bb._s=(_bb._s+1)|0),land:0,gold:0,b1:0,b2:0};}catch(_re){}
       if(e.who===RTD.myId)rtdFeed('🎲 '+(e.d||[]).join(' · ')+(e.dbl?' — DOPPIO!':''));break;
     case 'stuck':rtdFeed((e.who===RTD.myId?'Non puoi muovere':'Lui è bloccato')+' — turno passato');break;
-    case 'bearoff':TWS.play('pock',0.8);if(e.who===RTD.myId)rtdFeed('🏠 fuori: '+e.off+'/15');break;
+    case 'undo':TWS.play('wtick',0.55);if(e.who===RTD.myId)rtdFeed('↶ mossa annullata');break;
+    case 'bearoff':if((e.off||0)>=15)TWS.play('bgwin',0.9);else TWS.play('bearoff',0.8);
+      try{bgBurst(RTD.cv.width*0.72,RTD.cv.height*(e.who===RTD.myId?0.60:0.40),14,44,2.6);}catch(_bo){}
+      if(e.who===RTD.myId)rtdFeed('🏠 fuori: '+e.off+'/15');break;
     case 'take':TWS.play('pock',0.7);if(g==='scopa')scEvent(e);break;
     case 'drop':TWS.play('clack',0.35);if(g==='scopa')scEvent(e);break;
     case 'scopa':TWS.play('gold',0.9);rtdStamp(e.who===RTD.myId?'SCOPA!':'SCOPA SUA','#fbbf24');RTD.shake=Math.min(8,RTD.shake+5);if(g==='scopa')scEvent(e);break;
@@ -42173,10 +42496,10 @@ function rtdDrawDama(ctx,raw,lp,now,w,hh){
 // snapshot: pts[24] (+me0/-me1… segno per seat0), bar, off, dice, mv [[src,die]…], seat
 function bgGeom(w,hh){
   var bw=(w-46)/12;                    // 12 colonne + bar centrale
-  var R=Math.min(bw*0.42,13);
-  return {bw:bw,barX:w/2-9,H:hh,top:8,bot:hh-8,ph:hh*0.36,R:R,step:R*1.9};
+  var R=Math.min(bw*0.46,hh*0.041);    // A1: pedine GRANDI (tolto il tappo a 13px)
+  return {bw:bw,barX:w/2-9,H:hh,top:8,bot:hh-8,ph:hh*0.36,R:R,step:R*1.85};
 }
-function bgStep(g,n){return (n>5)?g.R*1.25:g.R*1.9;}
+function bgStep(g,n){return (n>5)?g.R*1.15:g.R*1.85;}   // A1: stack compatto oltre 5
 function bgPtXY(eng,k,seat,g,w,hh,n){
   var vis=(seat===1)?23-eng:eng;
   var col=(vis<12)?(11-vis):(vis-12);
@@ -42206,7 +42529,10 @@ function bgTap(pxy){
   if(raw.turn!==RTD.myId){TWS.play('lose',0.2);return;}
   var b=RTD._bg||(RTD._bg={});
   var seat=raw.seat||0,w=RTD.cv.width,hh=RTD.cv.height,mv=raw.mv||[];   // device px: identica geometria del render (dpr>1)
-  var dead=Math.abs(pxy.y-0.5)<0.10;   // banda centrale dadi/stato (dead-zone anti-mistap)
+  // B1: tap sul bottone UNDO (annulla l'ultima mossa non committata del turno; il server decide)
+  if((raw.undoN||0)>0){var _ub=bgUndoBtn(w,hh),_ux=pxy.x*w,_uy=pxy.y*hh;
+    if(_ux>=_ub.x&&_ux<=_ub.x+_ub.w&&_uy>=_ub.y&&_uy<=_ub.y+_ub.h){rtdSend({t:'act',a:'undo'});TWS.play('wtick',0.6);b.sel=-2;b.cand=[];return;}}
+  var dead=Math.abs(pxy.y-0.5)<0.08;   // banda centrale dadi/stato (dead-zone anti-mistap, ristretta A6)
   // se ho una sorgente armata, un tap su una destinazione candidata conferma (anche i vassoi bear-off in banda centrale)
   if(b.sel!=null&&b.sel!==-2&&b.cand&&b.cand.length){
     var hit=bgHitDest(pxy,w,hh,seat,b);
@@ -42239,7 +42565,7 @@ function bgHitDest(pxy,w,hh,seat,b){
   var tp=bgPointAt(pxy,w,hh,seat),i;
   for(i=0;i<b.cand.length;i++){if(b.cand[i].kind==='point'&&tp===b.cand[i].dst)return b.cand[i];}
   var x=pxy.x*w,y=pxy.y*hh;
-  if(Math.abs(x-w*0.72)<w*0.20&&Math.abs(y-hh*0.60)<hh*0.12){
+  if(Math.abs(x-w*0.72)<w*0.22&&Math.abs(y-hh*0.60)<hh*0.14){   // A5: hit-zone bear-off ingrandita (stesse coord → nessun desync)
     var bo=[];for(i=0;i<b.cand.length;i++){if(b.cand[i].kind==='bearoff')bo.push(b.cand[i]);}
     if(!bo.length)return null;
     if(bo.length===1)return bo[0];
@@ -42252,6 +42578,25 @@ function bgHitDest(pxy,w,hh,seat,b){
 }
 function bgRnd(a){a=(a^61)^(a>>>16);a=(a+(a<<3))|0;a=a^(a>>>4);a=(a*0x27d4eb2d)|0;a=a^(a>>>15);return a>>>0;}
 function bgEase(p){p=p<0?0:(p>1?1:p);var q=1-p;return 1-q*q*q;}
+// i18n label per il canvas (il canvas non passa da GB_T): IT default, EN on demand
+var BG_EN={'PORTA FUORI':'BEAR OFF','DEVI RIENTRARE DALLA BAR':'ENTER FROM THE BAR','ANNULLA':'UNDO','TOCCA A TE':'YOUR TURN','centro = annulla':'center = cancel','CASA':'HOME'};
+function bgL(s){return (window.GB_LANG==='en'&&BG_EN[s])?BG_EN[s]:s;}
+// A7: pool particelle zero-alloc (polvere dado / oro bear-off), cap 80
+function bgBurst(x,y,n,hue,spd){
+  var b=RTD._bg||(RTD._bg={}),P=b.parts||(b.parts=[]);
+  for(var i=0;i<n;i++){var a=Math.random()*6.283,sp=(spd||2.2)*(0.5+Math.random());
+    P.push({x:x,y:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1.4,t0:performance.now(),life:420+Math.random()*360,r:1.4+Math.random()*2.6,hue:hue+Math.random()*20});}
+  if(P.length>80)P.splice(0,P.length-80);
+}
+function bgDrawParts(ctx,now){
+  var b=RTD._bg||(RTD._bg={}),P=b.parts;if(!P||!P.length)return;
+  var keep=b._pk||(b._pk=[]);keep.length=0;ctx.save();
+  for(var i=0;i<P.length;i++){var p=P[i],age=now-p.t0;if(age>=p.life)continue;keep.push(p);
+    var k=age/p.life,x=p.x+p.vx*age*0.045,y=p.y+p.vy*age*0.045+0.00015*age*age;
+    ctx.globalAlpha=1-k;ctx.fillStyle='hsl('+p.hue+',88%,'+(58+16*(1-k))+'%)';
+    ctx.beginPath();ctx.arc(x,y,p.r*(1-0.4*k),0,6.283);ctx.fill();}
+  ctx.restore();b.parts=keep;b._pk=P;P.length=0;
+}
 function bgBoard(w,hh){
   var b=RTD._bg||(RTD._bg={}),key=w+'x'+hh;
   if(b.board&&b.boardKey===key)return b.board;
@@ -42269,8 +42614,8 @@ function bgBoard(w,hh){
     var xL=col<6?(6+col*g.bw):(w/2+12+(col-6)*g.bw);
     var top=vis<12,baseY=top?8:hh-8,dir=top?1:-1,apexY=baseY+dir*ph;
     var lg=x.createLinearGradient(0,baseY,0,apexY);
-    if(vis%2===0){lg.addColorStop(0,'#c98a4e');lg.addColorStop(1,'#8a5a2e');}
-    else{lg.addColorStop(0,'#7a4a2a');lg.addColorStop(1,'#4d2f1c');}
+    if(vis%2===0){lg.addColorStop(0,'#e8c9a0');lg.addColorStop(1,'#c99b6b');}   // A7: punte chiare a contrasto reale
+    else{lg.addColorStop(0,'#5a3a22');lg.addColorStop(1,'#3a2414');}            // A7: punte scure
     x.fillStyle=lg;
     x.beginPath();x.moveTo(xL,baseY);x.lineTo(xL+g.bw-3,baseY);x.lineTo(xL+(g.bw-3)/2,apexY);x.closePath();x.fill();
     x.fillStyle='rgba(0,0,0,.22)';
@@ -42281,16 +42626,19 @@ function bgBoard(w,hh){
   b.board=cv;b.boardKey=key;return cv;
 }
 function bgMakeChip(R,face,rim){
-  var pad=4,S=R*2+pad*2;
+  // A2: sprite bake-once con volume (anelli, doppio highlight, ombra di contatto)
+  var pad=Math.max(4,R*0.5),S=R*2+pad*2;
   var cv=document.createElement('canvas');cv.width=S;cv.height=S;var x=cv.getContext('2d'),cx=S/2,cy=S/2;
-  x.fillStyle='rgba(0,0,0,.35)';x.beginPath();x.arc(cx,cy+2,R,0,6.283);x.fill();
-  var gp=x.createRadialGradient(cx-R*0.35,cy-R*0.4,R*0.15,cx,cy,R);
-  gp.addColorStop(0,'#ffffff');gp.addColorStop(0.3,face);gp.addColorStop(1,rim);
+  x.fillStyle='rgba(0,0,0,.4)';x.beginPath();x.arc(cx,cy+R*0.12,R,0,6.283);x.fill();   // ombra di contatto
+  var gp=x.createRadialGradient(cx-R*0.35,cy-R*0.42,R*0.12,cx,cy,R);
+  gp.addColorStop(0,'#ffffff');gp.addColorStop(0.28,face);gp.addColorStop(1,rim);
   x.fillStyle=gp;x.beginPath();x.arc(cx,cy,R,0,6.283);x.fill();
-  x.strokeStyle='rgba(0,0,0,.55)';x.lineWidth=1.5;x.beginPath();x.arc(cx,cy,R-0.5,0,6.283);x.stroke();
+  x.strokeStyle='rgba(0,0,0,.55)';x.lineWidth=Math.max(1.5,R*0.14);x.beginPath();x.arc(cx,cy,R-R*0.07,0,6.283);x.stroke();  // anello esterno scuro
+  x.strokeStyle='rgba(255,255,255,.26)';x.lineWidth=Math.max(1,R*0.09);x.beginPath();x.arc(cx,cy,R*0.62,0,6.283);x.stroke(); // anello interno chiaro (bordo fiche)
   x.fillStyle='rgba(255,255,255,.5)';
-  if(x.ellipse){x.beginPath();x.ellipse(cx-R*0.3,cy-R*0.35,R*0.42,R*0.26,-0.5,0,6.283);x.fill();}
+  if(x.ellipse){x.beginPath();x.ellipse(cx-R*0.3,cy-R*0.38,R*0.42,R*0.24,-0.5,0,6.283);x.fill();}
   else{x.beginPath();x.arc(cx-R*0.3,cy-R*0.35,R*0.32,0,6.283);x.fill();}
+  x.fillStyle='rgba(255,255,255,.32)';x.beginPath();x.arc(cx+R*0.33,cy+R*0.3,R*0.13,0,6.283);x.fill();   // secondo highlight
   return cv;
 }
 function bgChips(R){
@@ -42314,22 +42662,34 @@ function bgDiceGrad(ctx){
 }
 var bgPips={1:[[0,0]],2:[[-1,-1],[1,1]],3:[[-1,-1],[0,0],[1,1]],4:[[-1,-1],[1,-1],[-1,1],[1,1]],5:[[-1,-1],[1,-1],[0,0],[-1,1],[1,1]],6:[[-1,-1],[1,-1],[-1,0],[1,0],[-1,1],[1,1]]};
 function bgDrawDie(ctx,cx,cy,val,o){
+  // A3: dado GRANDE con volume 3D. Disegno in spazio canonico S=13 → gradienti
+  // cache validi, scala uniforme o.S/13 (ZERO alloc per-frame). o.sx/o.sy = squash&stretch.
   o=o||{};var sc=o.scale||1,rot=o.rot||0,al=(o.alpha==null?1:o.alpha),S=13,dg=bgDiceGrad(ctx),i;
-  ctx.save();ctx.globalAlpha=al;ctx.translate(cx,cy);if(rot)ctx.rotate(rot);ctx.scale(sc,sc);
-  ctx.shadowColor='rgba(0,0,0,.45)';ctx.shadowBlur=7;ctx.shadowOffsetY=3;
-  ctx.fillStyle=(o.tone==='grey')?dg.gray:(o.tone==='gold'?dg.gold:dg.white);
+  var ss=(o.S?o.S/13:1)*sc;
+  ctx.save();ctx.globalAlpha=al;ctx.translate(cx,cy);if(rot)ctx.rotate(rot);
+  ctx.scale(ss*(o.sx||1),ss*(o.sy||1));
+  ctx.fillStyle=(o.tone==='grey')?'#767e8c':(o.tone==='gold'?'#b8891f':'#aeb7c4');   // faccia laterale (spessore cubo)
+  bgRR(ctx,-S+2,-S+2.6,S*2,S*2,5);ctx.fill();
+  ctx.shadowColor='rgba(0,0,0,.4)';ctx.shadowBlur=6;ctx.shadowOffsetY=3;
+  ctx.fillStyle=(o.tone==='grey')?dg.gray:(o.tone==='gold'?dg.gold:dg.white);         // faccia superiore
   bgRR(ctx,-S,-S,S*2,S*2,5);ctx.fill();
   ctx.shadowBlur=0;ctx.shadowOffsetY=0;
-  ctx.strokeStyle='rgba(255,255,255,.7)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-S+3,-S+2);ctx.lineTo(S-3,-S+2);ctx.stroke();
-  if(o.ring){ctx.strokeStyle=o.ring;ctx.lineWidth=2;bgRR(ctx,-S-1,-S-1,S*2+2,S*2+2,6);ctx.stroke();}
-  var P=bgPips[val]||[];
+  ctx.strokeStyle='rgba(255,255,255,.75)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-S+3,-S+2);ctx.lineTo(S-3,-S+2);ctx.stroke();
+  if(o.ring){ctx.strokeStyle=o.ring;ctx.lineWidth=2.2;bgRR(ctx,-S-1.5,-S-1.5,S*2+3,S*2+3,6);ctx.stroke();}
   ctx.fillStyle=(o.tone==='grey')?'#5b6472':'#14181f';
-  for(i=0;i<P.length;i++){ctx.beginPath();ctx.arc(P[i][0]*5,P[i][1]*5,2.4,0,6.283);ctx.fill();}
+  if(o.big){                                                                          // fallback cifra (schermi stretti)
+    ctx.font='bold 15px Russo One, sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(''+val,0,1);
+  }else{
+    var P=bgPips[val]||[];
+    for(i=0;i<P.length;i++){ctx.beginPath();ctx.arc(P[i][0]*4.6,P[i][1]*4.6,2.7,0,6.283);ctx.fill();}
+  }
   ctx.restore();
 }
 function bgSelGlow(ctx,x,y,R,now){ctx.strokeStyle='rgba(163,230,53,'+(0.5+0.3*Math.sin(now/280))+')';ctx.lineWidth=3;ctx.beginPath();ctx.arc(x,y,R+3,0,6.283);ctx.stroke();}
-function bgCountPill(ctx,x,y,n){ctx.fillStyle='rgba(8,12,18,.85)';bgRR(ctx,x-11,y-8,22,16,8);ctx.fill();ctx.fillStyle='#fff';ctx.font='bold 10px Russo One, sans-serif';ctx.textAlign='center';ctx.fillText('×'+n,x,y+4);}
+function bgCountPill(ctx,x,y,n,col){ctx.fillStyle='rgba(8,12,18,.9)';bgRR(ctx,x-14,y-10,28,20,9);ctx.fill();ctx.strokeStyle=col||'rgba(255,255,255,.5)';ctx.lineWidth=1.6;bgRR(ctx,x-14,y-10,28,20,9);ctx.stroke();ctx.fillStyle='#fff';ctx.font='bold 12px Russo One, sans-serif';ctx.textAlign='center';ctx.textBaseline='alphabetic';ctx.fillText('×'+n,x,y+4);}
 function bgFlash(ctx,x,y,R,a){if(a<=0)return;ctx.fillStyle='rgba(255,255,255,'+Math.min(0.8,a*0.8)+')';ctx.beginPath();ctx.arc(x,y,R+2,0,6.283);ctx.fill();}
+// B1: geometria condivisa del bottone UNDO (render + hit-test), device px
+function bgUndoBtn(w,hh){var bw=Math.min(112,w*0.32),bh=Math.max(30,hh*0.05);return {x:w*0.04,y:hh-bh-8,w:bw,h:bh};}
 function bgTray(ctx,cx,cy,g,label,cnt,col){
   var tw=g.bw*3.0,th=g.R*2.4,i,coins=Math.min(Math.max(0,cnt),10),cw=(tw-8)/10;
   bgRR(ctx,cx-tw/2,cy-th/2,tw,th,6);ctx.fillStyle='rgba(10,14,20,.55)';ctx.fill();
@@ -42376,6 +42736,14 @@ function bgSyncSnap(raw,now,g,w,hh){
     for(i=0;i<m;i++)bgMkAnim(b,sources[i],dests[i],c,seat,g,w,hh,now);
   }
   b.prevPts=pts.slice?pts.slice():[];b.prevBar=[bar[0]||0,bar[1]||0];b.prevOff=[off[0]||0,off[1]||0];
+  // A4: auto-arm quando esiste UNA sola sorgente legale (anche con più dadi):
+  // il giocatore tocca solo la destinazione (2 tap → 1). Client-only, deriva da raw.mv;
+  // il server valida comunque ogni intento 'shot'. Estende l'auto-move (mv.length===1).
+  if(raw.turn===RTD.myId){
+    var _mv=raw.mv||[],_u=null,_multi=false,_ii;
+    for(_ii=0;_ii<_mv.length;_ii++){if(_u===null)_u=_mv[_ii][0];else if(_u!==_mv[_ii][0]){_multi=true;break;}}
+    if(!_multi&&_u!==null){b.sel=_u;b.cand=bgCands(raw,_u,seat);}
+  }
 }
 function rtdDrawBackg(ctx,raw,lp,now,w,hh){
   var b=RTD._bg||(RTD._bg={});
@@ -42390,24 +42758,30 @@ function rtdDrawBackg(ctx,raw,lp,now,w,hh){
     else if(a0.dKind==='bar')barDec[a0.c]=(barDec[a0.c]||0)+1;
   }
   var chips=bgChips(g.R),mine=raw.turn===RTD.myId;
-  // marcatori sorgenti legali (nessuna selezione attiva)
+  // A4: sorgenti legali OVVIE — anello lime sulla pedina in cima + micro-lift,
+  //     resto attenuato. Nessuna selezione attiva → deriva da raw.mv (server-authoritative).
+  var srcSet=null;
   if(mine&&(b.sel==null||b.sel===-2)){
-    var ss={};for(i=0;i<mv.length;i++)ss[mv[i][0]]=1;
-    for(var kk in ss){if(ss.hasOwnProperty(kk)&&kk!=='-1'){var eng2=+kk;var bp=bgPtXY(eng2,0,seat,g,w,hh,1);ctx.fillStyle='rgba(163,230,53,.55)';ctx.beginPath();ctx.arc(bp.x,(bp.top?g.top+2:g.bot-2),2.6,0,6.283);ctx.fill();}}
-    if((bar[seat]||0)>0){var _bpr=0.5+0.3*Math.sin(now/280);ctx.strokeStyle='rgba(163,230,53,'+_bpr+')';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(w/2,hh*0.60,g.R+4,0,6.283);ctx.stroke();}
+    srcSet={};for(i=0;i<mv.length;i++){if(mv[i][0]!==-1)srcSet[mv[i][0]]=1;}
+    if((bar[seat]||0)>0){var _bpr=0.5+0.35*Math.sin(now/240);ctx.strokeStyle='rgba(163,230,53,'+_bpr+')';ctx.lineWidth=3;ctx.beginPath();ctx.arc(w/2,hh*0.60,g.R+5,0,6.283);ctx.stroke();}
   }
   // pedine sui punti
   for(var eng=0;eng<24;eng++){
     var n=pts[eng]||0;if(n===0)continue;
     var c=(n>0)?0:1,cnt=Math.abs(n),drawn=cnt-(ptDec[eng]||0);
     if(drawn<=0)continue;
+    var isSrc=!!(srcSet&&srcSet[eng]),dim=!!(srcSet&&!isSrc);
     var spr=(c===seat)?chips.mine:chips.opp,topK=Math.min(drawn,5)-1,selTop=(b.sel===eng);
+    if(dim)ctx.globalAlpha=0.62;                          // pedine NON muovibili attenuate
     for(k=0;k<Math.min(drawn,5);k++){
-      var pxy=bgPtXY(eng,k,seat,g,w,hh,drawn),yy=pxy.y-((selTop&&k===topK)?6:0);
+      var lift=(selTop&&k===topK)?6:((isSrc&&k===topK)?3:0);
+      var pxy=bgPtXY(eng,k,seat,g,w,hh,drawn),yy=pxy.y-lift;
       bgBlit(ctx,spr,pxy.x,yy);
       if(selTop&&k===topK)bgSelGlow(ctx,pxy.x,yy,g.R,now);
+      else if(isSrc&&k===topK){ctx.strokeStyle='rgba(163,230,53,'+(0.4+0.3*Math.sin(now/240))+')';ctx.lineWidth=3;ctx.beginPath();ctx.arc(pxy.x,yy,g.R+3,0,6.283);ctx.stroke();}
     }
-    if(drawn>5){var tp=bgPtXY(eng,4,seat,g,w,hh,drawn);bgCountPill(ctx,tp.x,tp.y,drawn);}
+    if(dim)ctx.globalAlpha=1;
+    if(drawn>5){var tp=bgPtXY(eng,4,seat,g,w,hh,drawn);bgCountPill(ctx,tp.x,tp.y,drawn,(c===seat)?'#38bdf8':'#f87171');}
   }
   // pedine sulla bar
   for(var st=0;st<2;st++){
@@ -42420,6 +42794,15 @@ function rtdDrawBackg(ctx,raw,lp,now,w,hh){
   // vassoi bear-off
   bgTray(ctx,w*0.72,hh*0.40,g,'LUI',(off[1-seat]||0)-(offDec[1-seat]||0),'#f87171');
   bgTray(ctx,w*0.72,hh*0.60,g,'TU',(off[seat]||0)-(offDec[seat]||0),'#38bdf8');
+  // A5: bear-off evidente — pulsa il vassoio TU + label quando puoi PORTARE FUORI
+  var boAvail=false;
+  if(mine){for(i=0;i<mv.length;i++){var _bs=mv[i][0];if(_bs>=0){var _bj=(seat===0)?_bs-mv[i][1]:_bs+mv[i][1];if(_bj<0||_bj>=24){boAvail=true;break;}}}}
+  if(boAvail){
+    var _tp=0.45+0.3*Math.sin(now/220),_tw=g.bw*3.0,_th=g.R*2.4;
+    ctx.strokeStyle='rgba(250,204,21,'+_tp+')';ctx.lineWidth=3;bgRR(ctx,w*0.72-_tw/2-3,hh*0.60-_th/2-3,_tw+6,_th+6,8);ctx.stroke();
+    ctx.fillStyle='rgba(250,204,21,'+Math.min(1,_tp+0.25)+')';ctx.font='bold 10px Russo One, sans-serif';ctx.textAlign='center';ctx.textBaseline='alphabetic';
+    ctx.fillText('→ '+bgL('PORTA FUORI'),w*0.72,hh*0.60-_th/2-8);
+  }
   // destinazioni candidate evidenziate
   if(mine&&b.sel!=null&&b.sel!==-2&&b.cand&&b.cand.length){
     var _boN=0;for(i=0;i<b.cand.length;i++){if(b.cand[i].kind==='bearoff')_boN++;}
@@ -42432,22 +42815,29 @@ function rtdDrawBackg(ctx,raw,lp,now,w,hh){
       ctx.fillStyle='rgba(163,230,53,'+pr+')';ctx.font='bold 12px Russo One, sans-serif';ctx.textAlign='center';ctx.fillText(cd.die,hx,hy+4);
     }
   }
-  // pedine in volo
+  // pedine in volo (A7: lift+ombra, micro-bounce all'atterraggio, arco+spin sul bear-off)
   var keep=[];
   for(i=0;i<anim.length;i++){var a=anim[i],p=(now-a.t0)/a.dur;
-    if(p>=1){if(a.type==='slide'||a.type==='reentry')TWS.play('pock');continue;}
+    if(p>=1){if(a.type==='slide'||a.type==='reentry'){TWS.play('wtick',0.55);try{bgBurst(a.bx,a.by,4,190,1.4);}catch(_ws){}}continue;}
     var ea=bgEase(p),ax2=a.ax+(a.bx-a.ax)*ea,ay2=a.ay+(a.by-a.ay)*ea;
     if(a.arc)ay2-=a.arc*Math.sin(Math.PI*p);
-    var spr2=a.mine?chips.mine:chips.opp,scv=(a.type==='bearoff')?(1-0.25*ea):1;
-    bgBlit(ctx,spr2,ax2,ay2,scv);
-    if(a.type==='hit'&&p<0.5)bgFlash(ctx,ax2,ay2,g.R,1-p*2);
+    var lift=(p<0.88)?(g.R*0.5*Math.sin(Math.PI*Math.min(1,p/0.88))):(-g.R*0.16*Math.sin(Math.PI*(p-0.88)/0.12));
+    var spr2=a.mine?chips.mine:chips.opp,scv=(a.type==='bearoff')?(1-0.28*ea):1;
+    ctx.save();ctx.globalAlpha=0.28*(1-p);ctx.fillStyle='#000';ctx.beginPath();ctx.arc(ax2,ay2+g.R*0.3,g.R*(0.7+0.2*ea),0,6.283);ctx.fill();ctx.restore();
+    if(a.type==='bearoff'){ctx.save();ctx.translate(ax2,ay2-lift);ctx.rotate(ea*6.283);bgBlit(ctx,spr2,0,0,scv);ctx.restore();}
+    else bgBlit(ctx,spr2,ax2,ay2-lift,scv);
+    if(a.type==='hit'&&p<0.5)bgFlash(ctx,ax2,ay2-lift,g.R,1-p*2);
     keep.push(a);
   }
   b.anim=keep;
-  // stato turno
-  ctx.textAlign='center';ctx.font='bold '+Math.round(w*0.030)+'px Russo One, sans-serif';
-  ctx.fillStyle=mine?'rgba(163,230,53,.95)':'rgba(248,113,113,.9)';
-  ctx.fillText(mine?'TOCCA A TE':'TIRA LUI · '+Math.ceil(raw.turn_t||0)+'s',w/2,hh*0.50-26);
+  // stato turno (A6: banner rafforzato; se sei sulla bar spiega perché gli altri tap sono rifiutati)
+  ctx.textAlign='center';ctx.textBaseline='alphabetic';
+  var _onBar=mine&&(bar[seat]||0)>0;
+  var _bnT=mine?(_onBar?bgL('DEVI RIENTRARE DALLA BAR'):bgL('TOCCA A TE')):('TIRA LUI · '+Math.ceil(raw.turn_t||0)+'s');
+  ctx.font='bold '+Math.round(w*(_onBar?0.026:0.030))+'px Russo One, sans-serif';
+  ctx.fillStyle=mine?(_onBar?'rgba(250,204,21,.98)':'rgba(163,230,53,.98)'):'rgba(248,113,113,.9)';
+  ctx.fillText(_bnT,w/2,hh*0.50-26);
+  if(mine&&b.sel!=null&&b.sel!==-2){ctx.fillStyle='rgba(148,163,184,.75)';ctx.font='bold 8px Russo One, sans-serif';ctx.fillText('✕ '+bgL('centro = annulla'),w/2,hh*0.50+30);}
   // dadi
   var roll=b.roll,rem={},faces=[];
   for(i=0;i<dice.length;i++)rem[dice[i]]=(rem[dice[i]]||0)+1;
@@ -42459,37 +42849,65 @@ function rtdDrawBackg(ctx,raw,lp,now,w,hh){
   }else{for(i=0;i<dice.length;i++)faces.push({val:dice[i],spent:false});}
   var N=faces.length;
   if(N){
-    var pAll=roll?(now-roll.t0)/roll.dur:1;
-    if(roll&&pAll>=0.80&&!roll.land){TWS.play('pock',0.6);if(roll.dbl){TWS.play('gold',0.7);roll.gold=now;}roll.land=1;}
-    var spacing=((roll&&roll.dbl)||N>=3)?26:30,baseX=w/2-(N-1)*spacing/2,diceY=hh*0.50-4;
-    if((roll&&roll.dbl)||N>=4){
-      var ha=0.28+0.14*Math.sin(now/260);ctx.fillStyle='rgba(250,204,21,'+ha+')';
-      ctx.beginPath();ctx.arc(w/2,diceY,N*spacing*0.5+6,0,6.283);ctx.fill();
+    // A3: dadi GRANDI e leggibili. Timeline throw→tumble→2 rimbalzi→settle su dur≈780ms.
+    // MONEY-SAFE cardine: durante il tumble le facce ciclano pseudo-random SOLO estetico,
+    // ma dal 68% del tempo il valore è BLOCCATO su f.val = valore server. Nessun RNG d'esito.
+    var S=Math.max(16,Math.min(w*0.07,hh*0.058)),bigNum=(S<18||w<320);
+    var elapsed=roll?(now-roll.t0):1e9,pAll=roll?elapsed/roll.dur:1;
+    var spacing=((roll&&roll.dbl)||N>=3)?S*1.35:S*1.6,baseX=w/2-(N-1)*spacing/2,diceY=hh*0.50-4;
+    if(roll){
+      if(pAll>=0.42&&!roll.b1){TWS.play('dtick',0.5);roll.b1=1;}
+      if(pAll>=0.64&&!roll.b2){TWS.play('dtick',0.42);roll.b2=1;}
+      if(pAll>=0.86&&!roll.land){TWS.play('dsettle',0.7);if(roll.dbl){TWS.play('gold',0.6);roll.gold=now;}roll.land=1;RTD.shake=Math.min(6,RTD.shake+3);
+        try{for(var _bd=0;_bd<N;_bd++)bgBurst(baseX+_bd*spacing,diceY+S*0.5,6,42,1.8);}catch(_dbe){}}
     }
+    if((roll&&roll.dbl)||N>=4){var ha=0.28+0.14*Math.sin(now/260);ctx.fillStyle='rgba(250,204,21,'+ha+')';ctx.beginPath();ctx.arc(w/2,diceY,N*spacing*0.55+6,0,6.283);ctx.fill();}
+    var throwFromR=(seat===1);   // origine lancio specchiata per seat (solo estetica, simmetrica)
     for(i=0;i<N;i++){
-      var f=faces[i],slotX=baseX+i*spacing,cx=slotX,cy=diceY,val=f.val,sc=1,rot=0,al=1,tone='white',ring=null;
-      if(roll&&(now-roll.t0)<(roll.dur+(N-1)*60)){
-        var pdel=(now-roll.t0-i*60)/roll.dur;
-        if(pdel<0.74){
-          var tick=Math.floor((now-roll.t0)/55);
-          val=1+(bgRnd(roll.seed*131+i*17+tick*7)%6);
-          rot=0.24*Math.sin(now/40+i)+((i%2)?0.2:-0.2);
-          cy=diceY-26*Math.sin(Math.PI*Math.min((now-roll.t0)/(roll.dur*0.5),1));
-          cx=w/2+(slotX-w/2)*bgEase(Math.min(1,(now-roll.t0)/(roll.dur*0.74)));
+      var f=faces[i],slotX=baseX+i*spacing,cx=slotX,cy=diceY,val=f.val,sc=1,rot=0,al=1,tone='white',ring=null,sx=1,sy=1;
+      if(roll&&elapsed<(roll.dur+(N-1)*70)){
+        var pdel=(elapsed-i*70)/roll.dur;
+        if(pdel<0.68){
+          var tick=Math.floor(elapsed/52);
+          val=1+(bgRnd(roll.seed*131+i*17+tick*7)%6);   // facce estetiche in volo (NON esito)
+          rot=0.5*Math.sin(now/38+i*1.7)+((i%2)?0.3:-0.3);
+          var pu=Math.min(1,elapsed/(roll.dur*0.5));cy=diceY-S*1.9*Math.sin(Math.PI*pu);
+          var ox=throwFromR?(w*0.9):(w*0.1);cx=ox+(slotX-ox)*bgEase(Math.min(1,elapsed/(roll.dur*0.72)));
+          var stt=1+0.12*Math.sin(now/60+i);sx=stt;sy=2-stt;
         }else{
-          var ps=Math.min(1,(pdel-0.74)/0.26);sc=1+0.14*(1-ps)*Math.cos(ps*3.14);if(sc<0.9)sc=0.9;val=f.val;
+          val=f.val;                                     // ATTERRAGGIO: valore server, bloccato
+          var q=(pdel-0.68)/0.32;if(q>1)q=1;var bnc=Math.abs(Math.cos(q*4.5))*(1-q);
+          cy=diceY-S*0.75*bnc;sx=1+0.2*bnc;sy=1-0.16*bnc;
         }
       }else{
         if(f.spent){tone='grey';al=0.34;sc=0.9;}
-        else if(mine){var us=false;for(k=0;k<mv.length;k++){if(mv[k][1]===f.val){us=true;break;}}if(us){sc=1+0.03*Math.sin(now/300);ring='rgba(163,230,53,'+(0.4+0.3*Math.sin(now/300))+')';}}
+        else if(mine){
+          var usable=false;
+          if(b.sel!=null&&b.sel!==-2&&b.cand&&b.cand.length){for(k=0;k<b.cand.length;k++){if(b.cand[k].die===f.val){usable=true;break;}}}
+          else{for(k=0;k<mv.length;k++){if(mv[k][1]===f.val){usable=true;break;}}}
+          if(usable){sc=1+0.03*Math.sin(now/300);ring='rgba(163,230,53,'+(0.4+0.3*Math.sin(now/300))+')';}
+          else if(b.sel!=null&&b.sel!==-2){tone='grey';al=0.5;}   // A5: dado non spendibile dalla sorgente scelta
+        }
       }
-      bgDrawDie(ctx,cx,cy,val,{scale:sc,rot:rot,alpha:al,tone:tone,ring:ring});
+      bgDrawDie(ctx,cx,cy,val,{scale:sc,rot:rot,alpha:al,tone:tone,ring:ring,S:S,sx:sx,sy:sy,big:bigNum});
     }
     if(roll&&roll.dbl){
-      if(roll.gold){var ga=1-(now-roll.gold)/260;if(ga>0){ctx.fillStyle='rgba(255,236,150,'+(ga*0.5)+')';ctx.beginPath();ctx.arc(w/2,diceY,N*spacing*0.5+10,0,6.283);ctx.fill();}}
-      ctx.fillStyle='rgba(250,204,21,.95)';ctx.font='bold 10px Russo One, sans-serif';ctx.textAlign='center';
-      ctx.fillText('×2 · 4 MOSSE',w/2,diceY+22);
+      if(roll.gold){var ga=1-(now-roll.gold)/260;if(ga>0){ctx.fillStyle='rgba(255,236,150,'+(ga*0.5)+')';ctx.beginPath();ctx.arc(w/2,diceY,N*spacing*0.55+10,0,6.283);ctx.fill();}}
+      ctx.fillStyle='rgba(250,204,21,.95)';ctx.font='bold 10px Russo One, sans-serif';ctx.textAlign='center';ctx.fillText('×2 · 4 MOSSE',w/2,diceY+S+14);
     }
+  }
+  bgDrawParts(ctx,now);   // A7: polvere dado / oro bear-off sopra tutto
+  // A7: anello rosso espandente su hit (posizionato via raw.last inerte se presente)
+  if(b.hitFx){var _ha=(now-b.hitFx)/420;if(_ha>=1){b.hitFx=0;}else{var _lst=raw.last,_hx=w/2,_hy=hh*0.5;
+    if(_lst&&_lst.hit&&_lst.dst>=0&&_lst.dst<24){var _hp=bgPtXY(_lst.dst,0,seat,g,w,hh,1);_hx=_hp.x;_hy=_hp.y;}
+    ctx.strokeStyle='rgba(248,113,113,'+(1-_ha)+')';ctx.lineWidth=3;ctx.beginPath();ctx.arc(_hx,_hy,g.R+_ha*g.R*2.4,0,6.283);ctx.stroke();}}
+  // B1: bottone UNDO su canvas quando il server espone passi annullabili nel turno corrente
+  if(mine&&(raw.undoN||0)>0){
+    var ub=bgUndoBtn(w,hh),_up=0.5+0.2*Math.sin(now/300);
+    bgRR(ctx,ub.x,ub.y,ub.w,ub.h,8);ctx.fillStyle='rgba(20,26,36,.92)';ctx.fill();
+    bgRR(ctx,ub.x,ub.y,ub.w,ub.h,8);ctx.strokeStyle='rgba(163,230,53,'+_up+')';ctx.lineWidth=2;ctx.stroke();
+    ctx.fillStyle='#e2e8f0';ctx.font='bold 11px Russo One, sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('↶ '+bgL('ANNULLA'),ub.x+ub.w/2,ub.y+ub.h/2+1);ctx.textBaseline='alphabetic';
   }
 }
 
@@ -43653,6 +44071,11 @@ function init(){
   },30000);
   // Also retry balance once after 1.5s in case TG WebApp was slow
   setTimeout(function(){if(S.userId && S.btc===0)loadBalance();},1500);
+  // TORNEO: deep-link — ?screen=torneo oppure start_param 'torneo' → apri la tab TORNEI dopo l'init
+  try{
+    var tsp=(window.Telegram&&window.Telegram.WebApp&&window.Telegram.WebApp.initDataUnsafe&&window.Telegram.WebApp.initDataUnsafe.start_param)||'';
+    if(/[?&]screen=torneo(?:&|$)/.test(location.search)||tsp==='torneo')setTimeout(function(){go('torneo');},400);
+  }catch(e){}
 }
 
 if(document.readyState==='loading'){
