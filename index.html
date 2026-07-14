@@ -11412,7 +11412,12 @@ body{position:relative;}
     "da annunciare":"to be announced",
     "Il prossimo torneo sarà annunciato dal bot — tieni d'occhio le notifiche!":"The next tournament will be announced by the bot — keep an eye on notifications!",
     "ISCRIZIONI APERTE":"REGISTRATION OPEN",
-    "Prossimamente… tieni d'occhio questa card":"Coming soon… keep an eye on this card"
+    "Prossimamente… tieni d'occhio questa card":"Coming soon… keep an eye on this card",
+    "🕸 LA RETE DEL TORNEO":"🕸 THE TOURNAMENT BRACKET",
+    "CAMPIONE":"CHAMPION",
+    "🏜 deserta":"🏜 deserted",
+    "⏳ in attesa":"⏳ waiting",
+    "🔴 LIVE · 👁 guarda":"🔴 LIVE · 👁 watch"
   };
 
   // 4) parametric strings (number/name varies). First-match-wins is not used here:
@@ -39757,7 +39762,24 @@ function trnInjectCSS(){
    +'.trn-up-n{font-size:11px;color:var(--txt2);font-weight:700;white-space:nowrap;}'
    +'.trn-up-name{font-family:\'Russo One\',sans-serif;font-size:16px;letter-spacing:.5px;color:#fff;margin-top:7px;}'
    +'.trn-up-when{font-size:11px;color:var(--txt2);margin-top:3px;}'
-   +'.trn-up-prize{font-family:\'Russo One\',sans-serif;font-size:19px;color:#ffd76b;text-shadow:0 0 16px rgba(255,200,60,.5);margin:7px 0 9px;}';
+   +'.trn-up-prize{font-family:\'Russo One\',sans-serif;font-size:19px;color:#ffd76b;text-shadow:0 0 16px rgba(255,200,60,.5);margin:7px 0 9px;}'
+   /* RETE del torneo: colonne per round, lobby-chip, campione a destra */
+   +'.trn-net-wrap{flex-shrink:0;overflow-x:auto;-webkit-overflow-scrolling:touch;margin:8px -4px 4px;padding:4px;scrollbar-width:thin;}'
+   +'.trn-net{display:flex;align-items:center;gap:0;min-width:max-content;}'
+   +'.trn-net-col{display:flex;flex-direction:column;justify-content:center;gap:8px;min-width:120px;}'
+   +'.trn-net-rt{font-family:\'Russo One\',sans-serif;font-size:10px;letter-spacing:2px;color:#ffd76b;text-align:center;margin-bottom:2px;}'
+   +'.trn-node{position:relative;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:6px 9px;font-size:10px;color:#cfd4de;text-align:center;}'
+   +'.trn-node .tn-m{font-size:9px;letter-spacing:1px;color:var(--txt2);}'
+   +'.trn-node .tn-w{font-size:11px;font-weight:800;color:#ffd76b;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0 auto;}'
+   +'.trn-node.live{border-color:rgba(255,90,80,.65);box-shadow:0 0 10px rgba(255,80,60,.3);cursor:pointer;animation:trnNodeLive 1.4s ease-in-out infinite;}'
+   +'@keyframes trnNodeLive{0%,100%{box-shadow:0 0 6px rgba(255,80,60,.25);}50%{box-shadow:0 0 16px rgba(255,80,60,.55);}}'
+   +'.trn-node.done{border-color:rgba(255,200,60,.4);}'
+   +'.trn-node.pend{opacity:.6;}'
+   +'.trn-net-link{display:flex;flex-direction:column;justify-content:center;gap:8px;padding:0 4px;color:rgba(255,200,60,.55);font-size:13px;}'
+   +'.trn-net-champ{min-width:96px;text-align:center;}'
+   +'.trn-net-champ .tc-cup{font-size:30px;filter:drop-shadow(0 0 12px rgba(255,200,60,.6));}'
+   +'.trn-net-champ .tc-n{font-family:\'Russo One\',sans-serif;font-size:11px;color:#ffd76b;max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:3px auto 0;}'
+   +'.trn-net-champ .tc-q{font-size:16px;color:var(--txt2);}';
   document.head.appendChild(s);
 }
 function initTorneo(){
@@ -39878,10 +39900,41 @@ function trnRender(){
   el.innerHTML=h;
   if(d.status==='live')trnAskViewers();
 }
+// RETE del torneo: vista a colonne — ogni round una colonna di lobby-chip,
+// i vincitori "scorrono" verso destra fino al trofeo. LIVE = tap per guardare.
+function trnNetHTML(d){
+  var br=d.bracket||[];
+  if(!br.length)return '';
+  var lastN=br[br.length-1].n;
+  var h='<div class="section-ttl">🕸 LA RETE DEL TORNEO</div><div class="trn-net-wrap"><div class="trn-net">';
+  br.forEach(function(rd,ri){
+    var ms=rd.matches||[];
+    var fin=(rd.n===lastN&&ms.length===1&&d.status!=='reg');
+    h+='<div class="trn-net-col"><div class="trn-net-rt">'+(ms.length===1&&br.length>1&&ri===br.length-1?'🏁 FINALE':'ROUND '+rd.n)+'</div>';
+    ms.forEach(function(m){
+      var cls=m.status==='live'?'live':(m.status==='done'?'done':'pend');
+      var srid=String(m.rid||'').replace(/[^A-Za-z0-9_-]/g,'');
+      var click=(m.status==='live'&&srid)?' onclick="trnWatch(\''+srid+'\')"':'';
+      var body;
+      if(m.status==='done')body=m.winner_name?'<div class="tn-w">👑 '+trnEsc(m.winner_name)+'</div>':'<div class="tn-w" style="color:var(--txt2);">🏜 deserta</div>';
+      else if(m.status==='live')body='<div class="tn-w" style="color:#ff9a8a;">🔴 LIVE · 👁 guarda</div>';
+      else body='<div class="tn-w" style="color:var(--txt2);">⏳ in attesa</div>';
+      h+='<div class="trn-node '+cls+'"'+click+'><div class="tn-m">🏟 '+trnEsc(String(m.mid||''))+' · '+((m.players||[]).length)+'⚔️</div>'+body+'</div>';
+    });
+    h+='</div><div class="trn-net-link">'+(ri<br.length-1?'➤':'➤')+'</div>';
+  });
+  var champ=(d.status==='done'&&d.winner_name)
+    ?'<div class="tc-cup">🏆</div><div class="tc-n">'+trnEsc(d.winner_name)+'</div>'
+    :'<div class="tc-cup" style="opacity:.45;">🏆</div><div class="tc-q">?</div>';
+  h+='<div class="trn-net-col trn-net-champ"><div class="trn-net-rt">CAMPIONE</div>'+champ+'</div>';
+  h+='</div></div>';
+  return h;
+}
 function trnBracketHTML(d){
   var br=d.bracket||[];
   if(!br.length)return '';
-  var h='<div class="section-ttl">📜 TABELLONE</div>';
+  var h=trnNetHTML(d);
+  h+='<div class="section-ttl">📜 TABELLONE</div>';
   var lastN=br[br.length-1].n;
   br.forEach(function(rd){
     var ms=rd.matches||[];
@@ -46439,6 +46492,13 @@ function obBSFire(i, el){
       <div class="ob-title">COLOSSEUM</div>
       <div class="ob-desc">2–8 gladiators, one arena. Sword, shield and perfectly-timed parries decide it — the last fighter standing walks off with the entire pot.</div>
       <button class="ob-try" onclick="obTry('glad')">🏛️ Enter the arena</button>
+    </div>
+    <div class="ob-slide">
+      <div class="ob-media"><div class="ob-emoji" style="filter:drop-shadow(0 0 18px rgba(255,200,60,.7));">🏆</div></div>
+      <div class="ob-eyebrow">SCHEDULED EVENTS · REAL PRIZES</div>
+      <div class="ob-title">TOURNAMENTS</div>
+      <div class="ob-desc">Single-elimination brackets on the multiplayer games — win your lobby, climb the rounds, take the crown and a real prize. Watch any match live as a spectator, train for free against bots, and follow the play-by-play in chat.</div>
+      <button class="ob-try" style="background:linear-gradient(135deg,#ffd700,#ff9500);color:#1a1206;" onclick="obTry('torneo')">🏆 See tournaments</button>
     </div>
     <div class="ob-slide">
       <div class="ob-media"><div class="ob-emoji">🎁</div></div>
