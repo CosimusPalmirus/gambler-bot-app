@@ -42532,8 +42532,8 @@ function rtdShowMatch(){
       +'<div class="arc-ov-right">'
       +'<button class="arc-act" id="arc-item" style="border-color:rgba(56,189,248,.6);color:#bae6fd;opacity:.4;" '
         +'ontouchstart="event.preventDefault();sclItemDown();" ontouchend="event.preventDefault();sclItemUp();" ontouchcancel="sclItemUp();" '
-        +'onmousedown="sclItemDown();" onmouseup="sclItemUp();" onmouseleave="sclItemUp();">🎒<span>OGGETTO</span></button>'
-      +'<button class="arc-act" id="arc-act" style="border-color:rgba(250,204,21,.6);color:#fef08a;" ontouchstart="event.preventDefault();sclDash();" onmousedown="sclDash();">🦘<span>SCATTO</span></button>'
+        +'onmousedown="sclItemDown();" onmouseup="sclItemUp();" onmouseleave="sclItemUp();">🎒<span>STRUMENTO</span></button>'
+      +'<button class="arc-act" id="arc-act" style="border-color:rgba(250,204,21,.6);color:#fef08a;" ontouchstart="event.preventDefault();sclJump();" onmousedown="sclJump();">⬆️<span>SALTO</span></button>'
       +'</div>';
   }else if(inp==='stick+3btn'){
     // BOLGIA §2.1: stick + colonna 3 bottoni (dall'alto: SPECIALE, TIRA, PASSA).
@@ -43288,7 +43288,24 @@ function rtdFrame(){
   else if(g==='backg')rtdDrawBackg(ctx,raw,lp,now,w,hh);
   else if(g==='scopa')rtdDrawScopa(ctx,raw,lp,now,w,hh);
   rtdScoreBar(ctx,raw,now,w,hh);
-  }catch(e){/* un frame rotto non deve spegnere il gioco */}
+  }catch(e){
+    // DIAGNOSTICA (18/07): l'errore di render non deve restare INVISIBILE (canvas nero
+    // su mobile). Mostralo a schermo così lo screenshot rivela la causa esatta.
+    RTD._rerr=(e&&(e.message||e.name))||(''+e);
+    try{console.error('rtdFrame draw err ['+g+']:',e);}catch(_){}
+    try{
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.fillStyle='rgba(10,0,0,.9)';ctx.fillRect(0,0,w,hh);
+      ctx.fillStyle='#ff5252';ctx.font='bold 14px monospace';ctx.textAlign='left';
+      ctx.fillText('RENDER ERR ['+g+']',10,26);
+      ctx.fillStyle='#fff';ctx.font='12px monospace';
+      var _m=(RTD._rerr||'?')+'';
+      for(var _li=0;_li<4&&_li*38<_m.length;_li++)ctx.fillText(_m.slice(_li*38,_li*38+38),10,50+_li*18);
+      var _st=((e&&e.stack)||'').split('\n').slice(0,5);
+      ctx.fillStyle='#ffcc66';ctx.font='10px monospace';
+      for(var _si=0;_si<_st.length;_si++)ctx.fillText(_st[_si].trim().slice(0,48),10,140+_si*14);
+    }catch(_2){}
+  }
   var keep=[];
   var cellFx=RTD._sc.fxCell||w/8;
   RTD.fxq.forEach(function(f){
@@ -47678,14 +47695,15 @@ function sclSec(r){
 //    salto è predetto localmente (sclApplyJump al prossimo passo pred): salta se
 //    grounded/coyote/scala, monta dal bordo, drop-through con giù, altrimenti
 //    bufferizza. Gate = grounded/coyote/hang, non più un cooldown dash. ──
-function sclDash(){
+function sclJump(){
   if(RTD.game!=='scalata'||RTD.ui!=='match')return;
-  rtdSend({t:'act',a:'attack'});
+  rtdSend({t:'act',a:'attack'});   // v3: 'attack' = SALTO (niente più dash)
   SC.pred.jreq=1;          // consumato dal prossimo passo di prediction (§3)
   SC.antT=performance.now();
   TWS.play('sclDash',0.7);
   try{tg.HapticFeedback&&tg.HapticFeedback.impactOccurred('medium');}catch(e){}
 }
+var sclDash=sclJump;   // retro-compat: qualunque vecchio riferimento a sclDash salta
 
 // ── input: bottone OGGETTO hold-to-aim (ITEMS §1: touchstart=shield → mira
 //    telegrafata flag 128 + slow 0.6; touchend=special → FIRE con il vettore
