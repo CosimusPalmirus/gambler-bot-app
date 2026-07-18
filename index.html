@@ -9846,11 +9846,37 @@ body{position:relative;}
       </div>
     </div>
 
+    <!-- ═══ RICARICA CON CARTA: link pubblico MoonPay (carta/Apple Pay → BTC
+         diretto sul deposit address; l'accredito lo fa il watcher esistente) ═══ -->
+    <button class="action-btn gold" style="width:100%;margin-top:4px;" onclick="cardTopupToggle()" id="card-open-btn">💳 RICARICA CON CARTA</button>
+    <div class="info-card" id="card-panel" style="display:none;margin-top:10px;">
+      <div style="font-size:12px;color:var(--txt2);line-height:1.55;margin-bottom:10px;text-align:center;">
+        Compra BTC con <strong style="color:var(--gold);">carta, Apple Pay o Google Pay</strong> su MoonPay e falli arrivare direttamente al tuo indirizzo qui sopra: il saldo si aggiorna da solo.
+      </div>
+      <button class="action-btn" style="width:100%;" id="card-step1" onclick="cardCopyAddr()">1️⃣ COPIA IL TUO INDIRIZZO BTC</button>
+      <button class="action-btn gold" style="width:100%;margin-top:8px;" onclick="cardOpenMoonpay()">2️⃣ APRI MOONPAY 💳</button>
+      <div style="font-size:11px;color:var(--txt3);margin-top:10px;line-height:1.5;">
+        Su MoonPay: scegli <strong>Bitcoin (BTC)</strong>, l'importo, e quando ti chiede il <strong>wallet address</strong> incolla l'indirizzo copiato al passo 1.<br>
+        ℹ️ La prima volta MoonPay ti chiede una verifica identità (~5 min, solo una volta). Commissioni MoonPay ~5%. I BTC arrivano in 10–30 min e vengono accreditati automaticamente.
+      </div>
+    </div>
+
+    <!-- ═══ TON via @wallet: scorciatoia che preseleziona TON nello swap ═══ -->
+    <button class="action-btn" style="width:100%;margin-top:8px;border-color:rgba(56,189,248,.5);color:#7dd3fc;" onclick="tonQuickStart()" id="ton-open-btn">💎 DEPOSITA CON TON (@wallet)</button>
+
     <!-- ═══ INSTANT-SWAP: hai altre crypto? convertile in BTC ═══ -->
-    <button class="action-btn gold" style="width:100%;margin-top:4px;" onclick="swapToggle()" id="swap-open-btn">🔄 CONVERTI E DEPOSITA</button>
+    <button class="action-btn gold" style="width:100%;margin-top:8px;" onclick="swapToggle()" id="swap-open-btn">🔄 CONVERTI E DEPOSITA</button>
     <div class="info-card" id="swap-panel" style="display:none;margin-top:10px;">
       <div style="font-size:12px;color:var(--txt2);line-height:1.5;margin-bottom:10px;text-align:center;">
         Hai già USDT, ETH, TON, SOL…? Convertile in BTC che arriva <strong style="color:var(--gold);">direttamente</strong> al tuo indirizzo di deposito qui sopra. Nessuna custodia, nessun account.
+      </div>
+
+      <div id="ton-hint" style="display:none;margin-bottom:10px;padding:10px;border:1px solid rgba(56,189,248,.4);border-radius:8px;background:rgba(56,189,248,.07);font-size:11.5px;color:var(--txt2);line-height:1.55;">
+        <strong style="color:#7dd3fc;">💎 Come depositare da @wallet di Telegram:</strong><br>
+        1️⃣ Scegli l'importo TON qui sotto e premi CONVERTI IN BTC<br>
+        2️⃣ Apri @wallet → Invia → TON → incolla l'<strong>indirizzo</strong> e il <strong style="color:var(--gold);">MEMO (obbligatorio!)</strong> che ti diamo<br>
+        3️⃣ I BTC arrivano da soli sul tuo saldo
+        <button class="action-btn" style="width:100%;margin-top:8px;padding:8px;border-color:rgba(56,189,248,.5);color:#7dd3fc;" onclick="tonOpenWallet()">💎 APRI @wallet</button>
       </div>
 
       <div id="swap-form">
@@ -9880,6 +9906,8 @@ body{position:relative;}
           <div id="swap-r-memo" style="font-family:'Orbitron';font-size:13px;color:var(--gold);word-break:break-all;padding:8px;background:rgba(0,0,0,.5);border-radius:6px;"></div>
           <button class="action-btn" style="width:100%;margin-top:6px;" onclick="swapCopy('swap-r-memo')">📋 COPIA MEMO</button>
         </div>
+
+        <button class="action-btn" id="swap-r-wallet-btn" style="display:none;width:100%;margin-top:10px;border-color:rgba(56,189,248,.5);color:#7dd3fc;" onclick="tonOpenWallet()">💎 APRI @wallet E INVIA</button>
 
         <div style="font-size:11px;color:var(--txt3);margin-top:10px;line-height:1.4;text-align:center;">Invia <strong>esattamente</strong> l'importo indicato, dalla rete corretta. I BTC arriveranno nel tuo saldo dopo le conferme di rete.</div>
 
@@ -31991,6 +32019,53 @@ function copyAddr(){
 }
 function renderWithdraw(){}
 
+/* ── RICARICA CON CARTA (link pubblico MoonPay — l'utente compra BTC con carta
+ *    e li manda al PROPRIO deposit address; l'accredito e' il watcher esistente.
+ *    Niente API key: il prefill dell'address via URL richiederebbe un account
+ *    partner firmato, quindi flusso a 2 passi copia+incolla). ─────────────── */
+function cardTopupToggle(){
+  var p=document.getElementById('card-panel'); if(!p)return;
+  p.style.display=(p.style.display==='none'||!p.style.display)?'block':'none';
+}
+function cardCopyAddr(){
+  if(!S.address){toast('Indirizzo non ancora caricato, riprova tra poco','warn');return;}
+  copyAddr();
+  var b=document.getElementById('card-step1');
+  if(b){b.textContent='✅ INDIRIZZO COPIATO';setTimeout(function(){b.textContent='1️⃣ COPIA IL TUO INDIRIZZO BTC';},2500);}
+}
+function cardOpenMoonpay(){
+  if(!S.address){toast('Indirizzo non ancora caricato, riprova tra poco','warn');return;}
+  // ricopia per sicurezza: su MoonPay va incollato come wallet di destinazione
+  if(navigator.clipboard){try{navigator.clipboard.writeText(S.address);}catch(e){}}
+  var url='https://www.moonpay.com/buy/btc';
+  var tg=window.Telegram&&Telegram.WebApp;
+  // openLink = browser ESTERNO: il KYC MoonPay non va fatto nella webview Telegram
+  if(tg&&tg.openLink){try{tg.openLink(url);return;}catch(e){}}
+  window.open(url,'_blank');
+}
+
+/* ── TON via @wallet: scorciatoia sullo swap esistente con TON preselezionato ── */
+function tonQuickStart(){
+  var p=document.getElementById('swap-panel');
+  if(p&&(p.style.display==='none'||!p.style.display))swapToggle();
+  var hint=document.getElementById('ton-hint'); if(hint)hint.style.display='block';
+  (function trySel(n){                       // la lista monete arriva in async
+    var sel=document.getElementById('swap-coin');
+    if(SWAP.loaded&&sel){
+      sel.value='ton_ton';
+      if(sel.value==='ton_ton'){swapCoinChanged();return;}
+    }
+    if(n>0)setTimeout(function(){trySel(n-1);},400);
+  })(20);
+  if(p){try{p.scrollIntoView({behavior:'smooth',block:'start'});}catch(e){}}
+}
+function tonOpenWallet(){
+  var tg=window.Telegram&&Telegram.WebApp;
+  if(tg&&tg.openTelegramLink){try{tg.openTelegramLink('https://t.me/wallet');return;}catch(e){}}
+  if(tg&&tg.openLink){try{tg.openLink('https://t.me/wallet');return;}catch(e){}}
+  window.open('https://t.me/wallet','_blank');
+}
+
 /* ═══════════════════════════════════════════════════════════════════
  * INSTANT-SWAP (ChangeNOW) — convert any crypto → BTC to the user's own
  * deposit address. The backend forces the payout to the authenticated
@@ -32102,6 +32177,8 @@ function swapShowResult(c,d){
     document.getElementById('swap-r-memo').textContent=d.payinExtraId;
     memoBox.style.display='block';
   } else { memoBox.style.display='none'; }
+  var wBtn=document.getElementById('swap-r-wallet-btn');
+  if(wBtn)wBtn.style.display=(c.ticker==='ton')?'block':'none';
   SWAP.curId=d.id;
   swapRenderSteps('waiting');
   if(d.id) swapStartPoll(d.id);
@@ -49233,7 +49310,12 @@ function dpEdDraw(){
       bc.fillStyle='rgba(0,0,0,.4)';bc.fillRect(hx,hy,9,3.5);
       bc.fillStyle='rgba(255,255,255,.07)';bc.fillRect(hx,hy-1.5,9,1.5);
     }
-    bc.fillStyle='rgba(0,0,0,.5)';bc.fillRect(0,H*0.46-2,W*0.56,4);   // binario lama
+    bc.fillStyle='rgba(0,0,0,.5)';bc.fillRect(0,H*0.30-2,W*0.56,4);   // binario lama (ALTO: mai dietro la testa del rig)
+    // CENGIA sotto i piedi del personaggio (piedi a gy=H*0.74): senza, il rig
+    // "sta in piedi sul vuoto" (visto in verifica screenshot 19/07)
+    bc.fillStyle='#1b2333';bc.fillRect(W*0.05,H*0.74+8,W*0.51,14);
+    bc.fillStyle='#232e44';bc.fillRect(W*0.05,H*0.74+8,W*0.51,2.5);
+    bc.fillStyle='rgba(0,0,0,.35)';bc.fillRect(W*0.05,H*0.74+22,W*0.51,5);
     bc.fillStyle='#94a3b8';bc.fillRect(W*0.63,6,2.5,20);   // bandierina in vetta
     bc.fillStyle='#f87171';
     bc.beginPath();bc.moveTo(W*0.63+2.5,7);bc.lineTo(W*0.63+17,11.5);bc.lineTo(W*0.63+2.5,16);bc.closePath();bc.fill();
@@ -49241,38 +49323,36 @@ function dpEdDraw(){
   }
   ctx.drawImage(DP_ED.bgCv,0,0);
   var lk=sclNormLook(DP_ED.look),ci=DP_ED.ci;
-  var T=5400,t=(now-DP_ED.t0)%T,cyc=Math.floor((now-DP_ED.t0)/T);
+  // SHOWCASE v2 (feedback 19/07 "l'animazione nell'editor fa schifo"): la vecchia
+  // timeline scalava fino a topY=17% dove il rig (ancorato ai PIEDI, ~62px di
+  // corpo VERSO L'ALTO) usciva dal canvas (si vedevano solo le gambe), e faceva
+  // un DASH che nel gioco non esiste piu. Ora: personaggio su una cengia in
+  // basso, SEMPRE tutto in quadro, con le pose VERE del match (sclPose con
+  // flag/velocita reali): respira -> corre A/R -> salta (squash all'atterraggio
+  // rilevato da sclPose) -> esulta. La lama pattuglia il binario come decorazione.
+  var T=6400,t=(now-DP_ED.t0)%T,cyc=Math.floor((now-DP_ED.t0)/T);
   var pr=26;
-  var wallX=W*0.66,topY=H*0.17,botY=H*0.85,bladeY=H*0.46;
-  var px=wallX,py=botY,scx=1,scy=1,dash=0,k;
-  // timeline: 0-2200 scala fino alla lama · 2200-2750 DASH laterale (near-miss)
-  // · 2750-4400 rientra e scala fino in vetta · 4400-5400 esulta in vetta
-  if(t<2200){
-    k=t/2200;
-    py=botY-(botY-(bladeY+34))*k;
-    px=wallX+Math.sin(t/260)*4;
-    scy=1+0.05*Math.sin(t/130);
-  }else if(t<2750){
-    k=(t-2200)/550;
-    var e2=k<0.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
-    px=wallX-Math.sin(Math.min(1,k)*3.1416)*46;   // scarto laterale: la lama passa a un soffio
-    py=(bladeY+34)-64*e2;                          // supera la quota lama mentre e' scostato
-    dash=k<0.45?1:0;
-    scx=dash?1.2:1;scy=dash?0.85:1;
-    if(DP_ED.dashCyc!==cyc){DP_ED.dashCyc=cyc;try{TWS.play('sclDash',0.7);}catch(e){}}
-  }else if(t<4400){
-    k=(t-2750)/1650;
-    py=(bladeY-30)-((bladeY-30)-topY)*k;
-    px=wallX+Math.sin(t/240)*4;
-    scy=1+0.05*Math.sin(t/130);
-  }else{
-    k=(t-4400)/1000;
-    px=wallX;
-    py=topY-Math.abs(Math.sin(k*6.283))*10;   // saltello in vetta
+  var bladeY=H*0.30,gy=H*0.74;                  // piedi a gy (corpo ~62px sopra => mai tagliato); lama in ALTO, lontana dal rig
+  var x0=W*0.17,x1=W*0.50,k;                    // corsia di corsa sulla cengia
+  var px=x0,py=gy,vx=0,vy=0,air=false,winp=false;
+  if(t<1600){                                   // IDLE — respiro, peso che si sposta
+    px=x0;
+  }else if(t<2900){                             // CORSA andata (verso destra)
+    k=(t-1600)/1300;px=x0+(x1-x0)*k;vx=4.2;
+  }else if(t<4200){                             // CORSA ritorno (verso sinistra)
+    k=(t-2900)/1300;px=x1-(x1-x0)*k;vx=-4.2;
+  }else if(t<5000){                             // SALTO sul posto (parabola)
+    k=(t-4200)/800;px=x0;
+    py=gy-56*Math.sin(k*3.1416);
+    vy=Math.cos(k*3.1416)*10;
+    air=k<0.96;                                 // torna "a terra" un pelo prima => sclPose vede l'atterraggio (squash)
+  }else{                                        // ESULTANZA (posa vittoria + saltello)
+    k=(t-5000)/1400;px=x0;winp=true;
+    py=gy-Math.abs(Math.sin(k*6.283))*7;
   }
-  // LAMA circolare sul binario: avanza mentre scali, near-miss durante il dash
-  var bk=t<2200?t/2200:(t<2750?1:Math.max(0,1-(t-2750)/700));
-  var bx=-24+(wallX-34+24)*bk,brad=17;
+  // LAMA circolare: pattuglia il tratto DESTRO del binario in alto — decorazione,
+  // mai sopra la corsia del salto (x0): nel jump la testa sale a quota binario
+  var bk=0.5+0.5*Math.sin(now/1900),bx=W*0.32+(W*0.20)*bk,brad=17;
   ctx.save();
   ctx.translate(bx,bladeY);ctx.rotate(now/70);
   ctx.fillStyle='#9ca3af';ctx.beginPath();ctx.arc(0,0,brad,0,6.283);ctx.fill();
@@ -49280,39 +49360,36 @@ function dpEdDraw(){
   for(var th2=0;th2<8;th2++){ctx.save();ctx.rotate(th2*0.785);ctx.fillRect(brad-3,-3,7,6);ctx.restore();}
   ctx.fillStyle='#1f2937';ctx.beginPath();ctx.arc(0,0,5,0,6.283);ctx.fill();
   ctx.restore();
-  if(t>=2200&&t<2400&&DP_ED.clangCyc!==cyc){   // near-miss: scintille + scrape
+  ctx.globalAlpha=0.22;ctx.fillStyle='#000';    // ombra: resta sulla cengia, si stringe in volo
+  var shk=Math.max(0.45,1-(gy-py)/90);
+  ctx.beginPath();ctx.ellipse(px,gy+pr*0.62,pr*0.8*shk,pr*0.34*shk,0,0,6.283);ctx.fill();
+  ctx.globalAlpha=1;
+  ctx.save();
+  ctx.translate(px,py);
+  // RIG UMANO col motore pose del match: flag+velocita come in partita
+  var edAn=DP_ED._an||(DP_ED._an={rig:null,vxs:0,vys:0,grazeT:0});
+  edAn.vxs=vx;edAn.vys=vy;
+  var edRr=DP_ED._rr||(DP_ED._rr=[0,2,10]);
+  edRr[7]=vx;edRr[8]=vy;
+  var edFl=winp?32:(air?2:1);
+  sclPose(edAn,edRr,edFl,now,true,ci);
+  // POLVERE d'atterraggio: sfrutta il fronte aria->terra gia' rilevato da sclPose
+  if(edAn.landT&&now-edAn.landT<40&&DP_ED.clangCyc!==cyc){
     DP_ED.clangCyc=cyc;
-    try{TWS.play('scrape',0.5);}catch(e){}
-    for(var fi=0;fi<DP_ED.spark.length;fi++){
-      var sp=DP_ED.spark[fi];sp.on=1;sp.x=wallX-30;sp.y=bladeY;
-      sp.vx=-20-Math.random()*70;sp.vy=(Math.random()-0.5)*90;sp.t0=now;
+    for(var fi=0;fi<8;fi++){
+      var sp=DP_ED.spark[fi];sp.on=1;sp.x=px;sp.y=gy+4;
+      sp.vx=(fi%2?1:-1)*(18+Math.random()*40);sp.vy=-14-Math.random()*26;sp.t0=now;
     }
   }
-  ctx.globalAlpha=0.22;ctx.fillStyle='#000';   // ombra sull'appoggio
-  ctx.beginPath();ctx.ellipse(px,py+pr*0.62,pr*0.8,pr*0.34,0,0,6.283);ctx.fill();
-  ctx.globalAlpha=1;
-  if(dash){   // streak dash: stesso linguaggio del match (lighter + squash)
-    ctx.globalCompositeOperation='lighter';ctx.globalAlpha=0.35;
-    ctx.fillStyle='#e0f2fe';
-    ctx.beginPath();ctx.ellipse(px+20,py+10,pr*1.6,pr*0.6,-0.5,0,6.283);ctx.fill();
-    ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';
-  }
-  ctx.save();
-  ctx.translate(px,py);ctx.scale(scx,scy);
-  // RIG UMANO nel preview: pose derivata dalla timeline dello stage
-  var edAn=DP_ED._an||(DP_ED._an={rig:null,vxs:0,vys:0,grazeT:0});
-  var edFl=dash?2:(t>=4400?32:1);
-  edAn.vys=(t<2200||(t>=2750&&t<4400))?3:0;   // salita nelle fasi di scalata
-  sclPose(edAn,DP_ED._rr||(DP_ED._rr=[0,2,10]),edFl,now,true,ci);
   sclDrawClimber(ctx,edAn.rig,lk,ci,true,pr,now);
   ctx.restore();
-  for(var qi=0;qi<DP_ED.spark.length;qi++){   // scintille (pool locale riusato)
+  for(var qi=0;qi<DP_ED.spark.length;qi++){   // polvere d'atterraggio (pool riusato)
     var pf=DP_ED.spark[qi];
     if(!pf.on)continue;
     var pk=(now-pf.t0)/650;
     if(pk>=1){pf.on=0;continue;}
-    ctx.globalAlpha=1-pk;ctx.fillStyle=qi%2?'#fde047':'#fca5a5';
-    ctx.fillRect(pf.x+pf.vx*pk,pf.y+pf.vy*pk+40*pk*pk,2.5,2.5);
+    ctx.globalAlpha=(1-pk)*0.7;ctx.fillStyle=qi%2?'#cbd5e1':'#94a3b8';
+    ctx.fillRect(pf.x+pf.vx*pk,pf.y+pf.vy*pk+40*pk*pk,3,3);
   }
   ctx.globalAlpha=1;
 }
@@ -53742,7 +53819,9 @@ function whInit(){
 }
 
 // ===== WELCOME FUNNEL (onboarding tour) \u2014 self-contained overlay, English copy =====
-var OB = { i:0, n:15, grReady:false, bsReady:false };
+// n = numero REALE di .ob-slide nel track (era rimasto 15 con 16 slide: l'ultima
+// slide, TOURNAMENTS, era irraggiungibile — fix 19/07 + slide LOAD YOUR WALLET)
+var OB = { i:0, n:17, grReady:false, bsReady:false };
 function obOpen(){
   var ov=document.getElementById('onboard'); if(!ov) return;
   OB.i=0;
@@ -53949,6 +54028,17 @@ function obBSFire(i, el){
       <div class="ob-eyebrow">WELCOME</div>
       <div class="ob-title">GAMBLER BOT</div>
       <div class="ob-desc">Provably-fair crypto games, live 1v1 duels, and a roguelike where you descend for the big score. Take the quick tour 👇</div>
+    </div>
+    <div class="ob-slide">
+      <div class="ob-media"><div class="ob-emoji">💳</div></div>
+      <div class="ob-eyebrow">GET STARTED</div>
+      <div class="ob-title">LOAD YOUR WALLET</div>
+      <div class="ob-desc">Three ways to top up, balance credited <b>automatically</b>:<br>
+        ₿ <b>Bitcoin</b> — send BTC to your personal deposit address<br>
+        💳 <b>Card / Apple Pay</b> — buy BTC on MoonPay straight to your address<br>
+        💎 <b>TON from @wallet</b> — instant conversion to BTC, no account needed<br>
+        Find them all under <b>WALLET → DEPOSIT</b>.</div>
+      <button class="ob-try" onclick="obTry('deposit')">▶ Load your wallet</button>
     </div>
     <div class="ob-slide">
       <div class="ob-media"><video data-ob-vid muted playsinline loop preload="none" src="GAMBLER%20SLOTS.mp4" onerror="this.onerror=null;this.src='wheel-intro.mp4';"></video></div>
