@@ -43262,7 +43262,24 @@ function rtdAlleyBlocked(raw,x,y){
 // ── frame dispatcher ────────────────────────────────────────────────
 function rtdFrame(){
   var ctx=RTD.ctx;
-  if(!ctx||!RTD.lastRaw)return;
+  if(!ctx)return;
+  if(!RTD.lastRaw){
+    // DIAG (18/07): lo stato "nessuno snapshot" era MUTO (canvas nero coi soli tasti).
+    // Ora si vede, con lo stato che serve a capire perché.
+    try{
+      var _w=RTD.cv.width,_h=RTD.cv.height;
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.fillStyle='#12121c';ctx.fillRect(0,0,_w,_h);
+      ctx.fillStyle='#ffcc00';ctx.font='bold 15px monospace';ctx.textAlign='left';
+      ctx.fillText('IN ATTESA DATI ['+RTD.game+']',12,30);
+      ctx.fillStyle='#9fe';ctx.font='12px monospace';
+      ctx.fillText('snaps:'+((RTD.snaps||[]).length)+'  ui:'+RTD.ui+'  cur:'+(typeof CUR!=='undefined'?CUR:'?'),12,56);
+      ctx.fillText('ws:'+(RTD.wsOk?'OK':'NO')+'  cv:'+_w+'x'+_h+'  raf:'+(RTD.raf?'on':'off'),12,76);
+      ctx.fillText('you:'+(RTD.myId||'-')+'  spec:'+(RTD.spec?'1':'0'),12,96);
+      if(RTD._rerr){ctx.fillStyle='#ff6b6b';ctx.fillText('lastErr:'+(''+RTD._rerr).slice(0,34),12,116);}
+    }catch(_){}
+    return;
+  }
   var now=performance.now();
   var dt=Math.min(0.05,(now-(RTD._lf||now))/1000);RTD._lf=now;
   var w=RTD.cv.width,hh=RTD.cv.height;
