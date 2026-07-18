@@ -47606,8 +47606,20 @@ var SC={
   FANS:5.5,       // = climb_rt FAN_SPD (fans con dy=0)
   BALLV:7.0,      // = climb_rt BALL_SPD
   LX0:[1,9,17,25],LX1:[7,15,23,30],SEP:[8,16,24],   // = climb_rt LANE_X0/X1/SEP_COLS
-  VIEW:13,        // = SCALATA_WIDE §3 VIEW_X (celle visibili in orizzontale)
-  LEADK:0.55,     // = SCALATA_WIDE §3 CAM_LEAD_K (lookahead ∝ vy, clamp [-1.5,+2.8])
+  VIEW:16,        // celle visibili in orizzontale. Era 13 su una mappa W=36:
+                  // si vedeva il 36% del campo, e siccome WORLD v4 "M" e' una
+                  // serpentina che scivola di ~10 colonne per livello, il ripiano
+                  // successivo era SEMPRE fuori quadro (req.3 "percorso verticale
+                  // LEGGIBILE a colpo d'occhio" — misurato negli screenshot R1_*).
+                  // A 16 si vede il 44% del campo e, col bias laterale CAMSIDE,
+                  // il salto successivo e' sempre inquadrato. Oltre 16 le celle
+                  // scendono sotto ~30px e i personaggi diventano illeggibili.
+  LEADK:0.55,     // = SCALATA_WIDE §3 CAM_LEAD_K (lookahead ∝ vy, clamp [-2.6,+2.8])
+  CAMSIDE:3.2,    // req.4: bias LATERALE max (celle) verso il prossimo ripiano
+  CAMUP:1.35,     // req.4: bias FISSO di camera verso l'alto (celle). LEVEL_DY=3,
+                  // quindi 1.35 alza l'orizzonte di quasi mezzo livello: il
+                  // ripiano successivo entra sempre in quadro senza schiacciare
+                  // il giocatore sul bordo basso (vh/2 ≈ 12 celle).
   TROWS:18,TCOLS:8,CBAKE:56,BPU:13,   // §4: tile 8×18 a 56px/cella (448×1008), decal 13px/u
   // ── MIRROR climb_rt v3 PLATFORMER (§2 — bit-identici, gate xcheck §7.m). y
   //    cresce verso l'ALTO; player = AABB largo 2R alto PH, piedi a (x,y). ──
@@ -47693,16 +47705,24 @@ var SCL_WUP={P:'sclCreak',H:'sclCreak',W:'sclCreak',O:'sclCreak',L:'sclTick',S:'
 var SCL_KF={P:[0.69,0.89,0.55],L:[0.64,1.0,0.48],S:[0.709,1.0,0.582],H:[0.817,0.867,0.65],
             A:[0.657,1.0,0.357],W:[0.722,1.0,0.556],F:[0.767,1.0,0.6]};
 var SCL_CAUSE={blade:'lama rotante',press:'pressa',laser:'laser',spike:'punte',ball:'palla di cannone',
-               acid:'acido',wall:'muri che si chiudono',fall:'caduta nel buco',lava:'lava',crush:'schiacciato'};
+               acid:'acido',wall:'muri che si chiudono',fall:'caduta nel buco',lava:'lava',
+               flame:'getto di fiamma',crush:'schiacciato'};   // 'flame' = trappola F (prima diceva 'lava' come la marea)
 // biomi §6.1 (0=base camp, 1..5 settori, 6=vetta/caveau)
+// WORLD v4 "M" — palette SOBRIA ad ALTO CONTRASTO (committente req.3: "piu
+// pulito e aperto meno confusionario possibile"). REGOLA: lo SFONDO e' sempre
+// scuro e desaturato (non compete mai), la PIATTAFORMA e' il solo elemento
+// chiaro. bg/bg2 = fondo (righe alterne), wall = CORPO della piattaforma,
+// wl = SUPERFICIE CALPESTABILE (la banda piu chiara del frame), acc = appiglio.
+// Il settore 4 "CIELO" era azzurro brillante (#7fc9f2) con piattaforme oro:
+// contrasto quasi nullo, la causa visiva dell'"accozzaglia". Ora e' notturno.
 var SCL_BIO=[
-  {bg:'#161d26',bg2:'#111721',wall:'#2b3644',wl:'#4d5f74',acc:'#94a3b8'},
-  {bg:'#14261c',bg2:'#0f1d15',wall:'#274435',wl:'#3f6b52',acc:'#4ade80'},
-  {bg:'#241410',bg2:'#1a0e0b',wall:'#5a2413',wl:'#8a3a1c',acc:'#f97316'},
-  {bg:'#150929',bg2:'#0f0524',wall:'#241447',wl:'#4a357f',acc:'#f0abfc'},
-  {bg:'#7fc9f2',bg2:'#9cd8f8',wall:'#a1741d',wl:'#fbbf24',acc:'#ffffff'},
-  {bg:'#1b1610',bg2:'#12100c',wall:'#3f2c12',wl:'#facc15',acc:'#facc15'},
-  {bg:'#141014',bg2:'#0d0a0d',wall:'#3f2c12',wl:'#facc15',acc:'#fde68a'}
+  {bg:'#0f131a',bg2:'#0c1016',wall:'#3d4a5c',wl:'#cfdcee',acc:'#8aa2bd'},
+  {bg:'#0d1512',bg2:'#0a1210',wall:'#33513f',wl:'#b6ebcd',acc:'#4ade80'},
+  {bg:'#17100c',bg2:'#120c09',wall:'#5e3a22',wl:'#f4c69e',acc:'#f97316'},
+  {bg:'#110c1d',bg2:'#0d0917',wall:'#3d2c60',wl:'#dcc9f7',acc:'#c084fc'},
+  {bg:'#131d29',bg2:'#0f1822',wall:'#44586e',wl:'#d8e9fa',acc:'#7dd3fc'},
+  {bg:'#16120a',bg2:'#110e08',wall:'#4d3c17',wl:'#f6e2a6',acc:'#facc15'},
+  {bg:'#141014',bg2:'#0d0a0d',wall:'#4d3c17',wl:'#f8e8bd',acc:'#fde68a'}
 ];
 var SCL_COLS=['#f87171','#38bdf8','#a3e635','#facc15','#c084fc','#fb923c','#2dd4bf','#f472b6','#e5e7eb','#94a3b8'];
 function sclSec(r){
@@ -48295,14 +48315,54 @@ function sclSuitDraw(ctx,st,pelX,pelY,cx,cy,sA,U){
 // scratch giunti (zero alloc per-frame): 9 segmenti [thighL,shinL,armLU,armLF,torso,thighR,shinR,armRU,armRF]
 var _rgX1=[0,0,0,0,0,0,0,0,0],_rgY1=[0,0,0,0,0,0,0,0,0],
     _rgX2=[0,0,0,0,0,0,0,0,0],_rgY2=[0,0,0,0,0,0,0,0,0],_rgW=[0,0,0,0,0,0,0,0,0];
+// ── PROPORZIONI GAMBA (18/07) ───────────────────────────────────────────────
+// Erano 0.70/0.66 (L=1.36U): gambe troppo corte sia per l'AABB dell'engine
+// (PH=1.7 celle = 4.0U) sia per la FALCATA. Con una falcata così corta, a
+// V_WALK=5.6 celle/s un ciclo senza pattinaggio sarebbe costato ~5.4 cicli/s
+// (zampettio illeggibile). Allungate: L=1.85U ⇒ ~3.5 cicli/s a velocità piena.
+var SCL_THIGH=0.95, SCL_SHIN=0.90;
+// bacino di DEFAULT: calcolato perché nella posa IDLE (lLT=-0.10, lLS=0.16) i
+// PIEDI cadano ESATTAMENTE sull'origine (= y dei piedi passata dall'engine).
+var SCL_PEL_Y=-(Math.cos(-0.10)*SCL_THIGH+Math.cos(0.06)*SCL_SHIN);
+// ── CICLO DEL PASSO ─────────────────────────────────────────────────────────
+// Bersaglio del piede per una gamba a fase p∈[0,1). APPOGGIO: scorre LINEARE
+// all'indietro esattamente di quanto il corpo avanza ⇒ il piede resta
+// INCHIODATO al mondo (zero pattinaggio). VOLO: torna avanti con un arco.
+var _sclFT=[0,0];
+function sclFootTarget(p,A,duty,lift){
+  if(p<duty){ _sclFT[0]=A-2*A*(p/duty); _sclFT[1]=0; }
+  else{ var u=(p-duty)/(1-duty),s=u*u*(3-2*u);
+        _sclFT[0]=-A+2*A*s; _sclFT[1]=-lift*Math.sin(3.141592653589793*u); }
+  return _sclFT;
+}
+// IK a 2 segmenti: porta il PIEDE sul bersaglio (tx,ty). Tutto in unità U.
+// Ritorna [coscia, stinco RELATIVO] nella convenzione del rig (0 = giù, +x = sin).
+// kneeDir = verso di marcia: il ginocchio si piega in avanti come quello umano.
+var _sclIK=[0,0];
+function sclLegIK(hx,hy,tx,ty,kneeDir){
+  var dx=tx-hx,dy=ty-hy,d=Math.sqrt(dx*dx+dy*dy);
+  var L1=SCL_THIGH,L2=SCL_SHIN,mx=L1+L2-0.004,mn=Math.abs(L1-L2)+0.004;
+  if(d>mx)d=mx; if(d<mn)d=mn;
+  var th=Math.atan2(dx,dy);
+  var ca=(L1*L1+d*d-L2*L2)/(2*L1*d); ca=ca<-1?-1:(ca>1?1:ca);
+  var t1=th+kneeDir*Math.acos(ca);
+  var kx=hx+Math.sin(t1)*L1,ky=hy+Math.cos(t1)*L1;
+  _sclIK[0]=t1; _sclIK[1]=Math.atan2(tx-kx,ty-ky)-t1;
+  return _sclIK;
+}
 // r = an.rig (angoli). U = pr (vecchio raggio). origine = centro mondo (bacino).
 function sclDrawClimber(ctx,r,plk,seat,isMe,U,now){
   if(!r)return;
   var col=SCL_COLS[seat%SCL_COLS.length];
   var out=isMe?'rgba(255,255,255,.92)':'rgba(0,0,0,.62)';
   var lean=r.lean,sl=Math.sin(lean),cl=Math.cos(lean);
-  var pelX=r.pdx*U, pelY=0.40*U+r.breath*U;
-  var cx=pelX+sl*0.95*U, cy=pelY-cl*0.95*U;                   // petto
+  // FIX 18/07 "camminano in aria": l'origine passata è la y dei PIEDI (engine: AABB
+  // con feet at (x,y)), non il bacino. Il rig disegnava il corpo SOTTO l'origine →
+  // piedi 1.7553U (=0.746 celle) sotto la superficie, ripiano all'altezza della coscia.
+  // Bacino alzato di 1.7553U (0.40 - 1.7553) così i PIEDI cadono ESATTAMENTE sull'origine;
+  // il respiro ora muove il TORACE, non i piedi (prima faceva ondeggiare l'appoggio).
+  var pelX=r.pdx*U, pelY=(r.pelY!=null?r.pelY:SCL_PEL_Y)*U;
+  var cx=pelX+sl*0.95*U, cy=pelY-cl*0.95*U+r.breath*U;        // petto (respiro qui)
   var sA=lean+r.spineA;
   var hpx=cx+Math.sin(sA)*0.60*U, hpy=cy-Math.cos(sA)*0.60*U; // testa
   var shx=cl*0.40*U, shy=sl*0.40*U;
@@ -48314,10 +48374,10 @@ function sclDrawClimber(ctx,r,plk,seat,isMe,U,now){
   var elRx=shRx+Math.sin(aRU)*0.62*U, elRy=shRy-Math.cos(aRU)*0.62*U;
   var haRx=elRx+Math.sin(aRU+r.aRF)*0.56*U, haRy=elRy-Math.cos(aRU+r.aRF)*0.56*U;
   var lLT=r.lLT,lRT=r.lRT;
-  var knLx=hipLx+Math.sin(lLT)*0.70*U, knLy=hipY+Math.cos(lLT)*0.70*U;
-  var ftLx=knLx+Math.sin(lLT+r.lLS)*0.66*U, ftLy=knLy+Math.cos(lLT+r.lLS)*0.66*U;
-  var knRx=hipRx+Math.sin(lRT)*0.70*U, knRy=hipY+Math.cos(lRT)*0.70*U;
-  var ftRx=knRx+Math.sin(lRT+r.lRS)*0.66*U, ftRy=knRy+Math.cos(lRT+r.lRS)*0.66*U;
+  var knLx=hipLx+Math.sin(lLT)*SCL_THIGH*U, knLy=hipY+Math.cos(lLT)*SCL_THIGH*U;
+  var ftLx=knLx+Math.sin(lLT+r.lLS)*SCL_SHIN*U, ftLy=knLy+Math.cos(lLT+r.lLS)*SCL_SHIN*U;
+  var knRx=hipRx+Math.sin(lRT)*SCL_THIGH*U, knRy=hipY+Math.cos(lRT)*SCL_THIGH*U;
+  var ftRx=knRx+Math.sin(lRT+r.lRS)*SCL_SHIN*U, ftRy=knRy+Math.cos(lRT+r.lRS)*SCL_SHIN*U;
   var tw=0.50*U,thw=0.30*U,shw=0.24*U,uaw=0.22*U,faw=0.18*U;
   _rgX1[0]=hipLx;_rgY1[0]=hipY;_rgX2[0]=knLx;_rgY2[0]=knLy;_rgW[0]=thw;
   _rgX1[1]=knLx;_rgY1[1]=knLy;_rgX2[1]=ftLx;_rgY2[1]=ftLy;_rgW[1]=shw;
@@ -48360,7 +48420,9 @@ function sclDrawClimber(ctx,r,plk,seat,isMe,U,now){
 // riempie an.rig dallo stato (CLIMBER_SPEC §4). Nessuna alloc: muta un oggetto per pid.
 function sclPose(an,rr,fl,now,isMe,seat){
   var r=an.rig;
-  if(!r)r=an.rig={lean:0,spineA:0,headTilt:0,breath:0,pdx:0,aLU:-0.3,aLF:-0.4,aRU:0.3,aRF:-0.4,lLT:-0.12,lLS:0.2,lRT:0.12,lRS:0.2};
+  if(!r)r=an.rig={lean:0,spineA:0,headTilt:0,breath:0,pdx:0,aLU:-0.3,aLF:-0.4,aRU:0.3,aRF:-0.4,lLT:-0.12,lLS:0.2,lRT:0.12,lRS:0.2,pelY:SCL_PEL_Y};
+  // altezza bacino di DEFAULT (piedi sull'origine): solo la camminata la varia.
+  r.pelY=SCL_PEL_Y;
   // CLIMBER_SPEC §4 v3: stato PLATFORMER dai flag+velocità AUTORITATIVE (row[7,8],
   // fallback ai campioni derivati). Ogni stato ha una posa DISTINTA: l'idle e la
   // camminata tengono le braccia BASSE (lungo i fianchi), NON al cielo.
@@ -48409,15 +48471,50 @@ function sclPose(an,rr,fl,now,isMe,seat){
     r.aLU=-0.30-sU*0.42;r.aLF=-0.35-Math.max(0,-sU)*0.3;
     r.lRT=0.14+sU*0.28;r.lRS=0.18+Math.max(0,-sU)*0.4;
     r.lLT=-0.14+sU*0.28;r.lLS=0.18+Math.max(0,sU)*0.4;
-  }else if(Math.abs(vx)>1.5){  // CAMMINATA — gambe alternate, braccia basse che oscillano
-    var spdW=Math.min(1,Math.abs(vx)/5.6),dirW=vx<0?-1:1;
-    var rateW=7+spdW*7,phW=now/1000*rateW,sW=Math.sin(phW);
-    var ampW=0.34+spdW*0.30,swW=0.28+spdW*0.24;
-    r.lean=0.12*dirW;r.spineA=0;r.headTilt=0;r.breath=0;r.pdx=0;
-    r.lLT=sW*ampW;r.lLS=0.16+Math.max(0,-sW)*0.5;
-    r.lRT=-sW*ampW;r.lRS=0.16+Math.max(0,sW)*0.5;
-    r.aLU=-2.60-sW*swW;r.aLF=-0.34;
-    r.aRU=2.60-sW*swW;r.aRF=-0.34;
+  }else if(Math.abs(vx)>1.5){
+    // ── CAMMINATA/CORSA (rifatta 18/07) ───────────────────────────────────
+    // Prima: fase del ciclo presa dall'OROLOGIO (now/1000*rate) e gambe poste
+    // ad angoli liberi ⇒ (a) il piede d'appoggio pattinava (misurato: ±15px a
+    // frame mentre il corpo ne faceva 1), (b) agli estremi del ciclo ENTRAMBI
+    // i piedi restavano per aria (0.13U e 0.33U sopra il ripiano).
+    // Ora: la fase avanza con la DISTANZA PERCORSA e le gambe sono risolte in
+    // IK su un bersaglio-piede che durante l'appoggio sta a y=0 e indietreggia
+    // esattamente quanto il corpo avanza ⇒ piede INCHIODATO al ripiano.
+    var dirW=vx<0?-1:1;
+    // velocita' LISCIATA: A/duty entrano nella posizione del piede d'appoggio,
+    // quindi se sobbalzano a ogni frame il piede piantato si sposta lo stesso.
+    // Filtrandola, l'appoggio resta fermo anche mentre si accelera.
+    var spdI=Math.min(1,Math.abs(vx)/5.6);
+    an.spdS=(an.spdS==null)?spdI:an.spdS+(spdI-an.spdS)*0.08;
+    var spdW=an.spdS;
+    var pelH=1.80-0.22*spdW;                 // il bacino si abbassa correndo
+    var Lg=SCL_THIGH+SCL_SHIN;
+    var Amax=Math.sqrt(Math.max(0.01,Lg*Lg-pelH*pelH))*0.90;   // falcata raggiungibile
+    var A=Math.min(0.52+0.30*spdW,Amax);
+    var duty=0.62-0.20*spdW;                 // appoggio: 0.62 (cammina) → 0.42 (corre)
+    var Cw=2*A/duty;                         // avanzamento del corpo per ciclo (U)
+    var cellU=1/(SC.PR*1.25);                // 1 cella = 2.353 U
+    var wxN=(rr&&rr[1]!=null)?rr[1]:0;
+    if(an.gx0==null||Math.abs(wxN-an.gx0)>3)an.gx0=wxN;   // respawn/teleport: riaggancia
+    an.gph=((an.gph||0)+Math.abs(wxN-an.gx0)*cellU/Cw)%1;
+    an.gx0=wxN;
+    // INVERSIONE DI MARCIA: la falcata si specchia, quindi a metà appoggio il
+    // piede piantato schizzerebbe da un capo all'altro. Si riparte da inizio
+    // appoggio: chi si gira PIANTA il piede guida, che è anche il gesto giusto.
+    if(an.gdir!==dirW){an.gdir=dirW;an.gph=0;}
+    var phW=an.gph,lift=0.30+0.16*spdW;
+    var bobW=0.055*Math.cos(12.566370614*(phW-0.30));   // 2 massimi/ciclo (metà appoggio)
+    r.pelY=-(pelH+bobW);
+    r.lean=(0.10+0.16*spdW)*dirW;r.spineA=0;r.breath=0;r.pdx=0;
+    r.headTilt=-0.04*dirW+0.03*Math.sin(6.283185307179586*phW);
+    var hipY=-(pelH+bobW),ft,ik;
+    ft=sclFootTarget(phW,A,duty,lift);
+    ik=sclLegIK(-0.27,hipY,-0.1485+ft[0]*dirW,ft[1],dirW);r.lLT=ik[0];r.lLS=ik[1];
+    ft=sclFootTarget((phW+0.5)%1,A,duty,lift);
+    ik=sclLegIK(0.27,hipY,0.1485+ft[0]*dirW,ft[1],dirW);r.lRT=ik[0];r.lRS=ik[1];
+    var swW=0.22+0.24*spdW,acW=Math.cos(6.283185307179586*phW);   // braccia in CONTROFASE
+    r.aLU=-2.60+dirW*acW*swW;r.aLF=-0.34-Math.max(0,dirW*acW)*0.30;
+    r.aRU=2.60-dirW*acW*swW;r.aRF=-0.34-Math.max(0,-dirW*acW)*0.30;
   }else{              // IDLE — in piedi, braccia rilassate lungo i fianchi, respiro
     r.lean=0.04;r.spineA=0;r.headTilt=Math.sin(now/900)*0.05;r.breath=Math.sin(now/650)*0.03;r.pdx=0;
     r.aLU=-2.62;r.aLF=-0.34;r.aRU=2.62;r.aRF=-0.34;r.lLT=-0.10;r.lLS=0.16;r.lRT=0.10;r.lRS=0.16;
@@ -48959,21 +49056,24 @@ function sclMiniCv(mw,mh){
   if(e&&e.w===mw&&e.h===mh)return e.c;
   var cv=document.createElement('canvas');cv.width=Math.ceil(mw);cv.height=Math.ceil(mh);
   var c=cv.getContext('2d'),i,k;
-  c.fillStyle='rgba(4,8,16,.78)';c.fillRect(0,0,cv.width,cv.height);
-  for(var s=1;s<=5;s++){
-    var fams=(SC.laneFam&&SC.laneFam[s])||[];
-    var yT=mh-((4+s*16)/SC.H)*mh,yB=mh-((4+(s-1)*16)/SC.H)*mh;
-    for(k=0;k<4;k++){
-      c.globalAlpha=0.34;c.fillStyle=SCL_FAM[fams[k]||0].col;
-      c.fillRect((SC.LX0[k]/SC.W)*mw,yT,((SC.LX1[k]-SC.LX0[k]+1)/SC.W)*mw,yB-yT);
-    }
-    c.globalAlpha=0.6;c.fillStyle='#000';c.fillRect(0,yT,mw,1);   // confine settore
-  }
+  // req.3: la mappa strategica dipingeva 4 BANDE COLORATE a tutta altezza (le
+  // "vie" di SCALATA_WIDE) a alpha 0.34: in WORLD v4 "M" le vie NON ESISTONO
+  // piu' — era una colonna oro/oliva alta quanto lo schermo, l'elemento piu'
+  // rumoroso rimasto in campo (misurato sugli screenshot R1_*/R2_*). Ora la
+  // mappa mostra SOLO cio' che serve: il fondo, i confini di settore, la
+  // SERPENTINA vera (ogni ripiano = un trattino) e la meta' in oro.
+  c.fillStyle='rgba(4,8,16,.62)';c.fillRect(0,0,cv.width,cv.height);
+  c.globalAlpha=0.5;c.fillStyle='#000';
+  for(var s=1;s<=5;s++)c.fillRect(0,mh-((4+s*16)/SC.H)*mh,mw,1);   // confini settore
   c.globalAlpha=1;
-  c.fillStyle='rgba(255,255,255,.85)';   // tick = snodi (varchi cambio via)
-  var SN=SC.snodi||[];
-  for(i=0;i<SN.length;i++)
-    c.fillRect((SN[i][0]/SC.W)*mw-1.5,mh-((SN[i][1]+0.5)/SC.H)*mh,3,1.6);
+  // ROTTA: un trattino per ogni corpo di piattaforma = il percorso a colpo d'occhio
+  var PLM=(RTD.map&&RTD.map.plats)||[];
+  c.fillStyle='rgba(203,213,225,.62)';
+  for(i=0;i<PLM.length;i++){
+    var pm=PLM[i];if((pm[3]|0)!==1)continue;
+    var mx0=((pm[1]|0)/SC.W)*mw,mx1=(((pm[2]|0)+1)/SC.W)*mw;
+    c.fillRect(mx0,mh-(((pm[0]|0)+1)/SC.H)*mh-1,Math.max(2,mx1-mx0),1.8);
+  }
   c.fillStyle='#facc15';   // tick oro = Y_TOP
   c.fillRect(0,mh-(SC.YT/SC.H)*mh-1,mw,2.5);
   SC.mm={c:cv,w:mw,h:mh};
@@ -49240,6 +49340,24 @@ function rtdBuildScalata(){
       for(i=0;i<WL.length;i++)SC.wallA[WL[i][1]*SC.W+WL[i][0]]=1;
     }
   }
+  // ── req.4 "mostra il prossimo salto" — ROUTE LOOKAHEAD ORIZZONTALE ─────────
+  //    WORLD v4 "M" e' una SERPENTINA larga: W=36 colonne, una piattaforma per
+  //    livello (12-14 celle) che scivola di lato ~10 colonne ogni 3 righe. Con
+  //    VIEW colonne visibili il ripiano SUCCESSIVO cade fuori quadro proprio
+  //    mentre lo si deve mirare: il percorso NON si legge. Qui si prepara, UNA
+  //    VOLTA per mappa (zero costo per-frame), SC.nextCx[y] = centro x del primo
+  //    ripiano sopra la riga y, di cui la camera terra' conto lateralmente.
+  SC.nextCx=new Float32Array(SC.H);
+  var _pls=RTD.map.plats||[],_pi,_pr,_lvY=-1,_lvC=SC.W/2;
+  for(y2=SC.H-1;y2>=0;y2--){
+    for(_pi=0;_pi<_pls.length;_pi++){
+      _pr=_pls[_pi];
+      if((_pr[3]|0)!==1)continue;              // solo i CORPI (le testate sono 1 cella)
+      if((_pr[0]|0)<=y2||(_pr[0]|0)>y2+6)continue;   // il primo livello utile sopra
+      if(_lvY<0||(_pr[0]|0)<_lvY){_lvY=_pr[0]|0;_lvC=((_pr[1]|0)+(_pr[2]|0))/2;}
+    }
+    SC.nextCx[y2]=_lvC;_lvY=-1;
+  }
   // ── v3 §4.3: "mplats" piattaforme mobili f(t) [kind,x0c,y0c,len,amp,per,phase] ──
   SC.mplats=[];
   var MP=RTD.map.mplats||[];
@@ -49280,6 +49398,21 @@ function rtdBuildScalata(){
     // dalla x, così le trappole di destra NON vengono cullate/accorciate a torto.
     // Puramente cosmetico: i kill restano server-authoritative (feed 'splat').
     for(var _lj=0;_lj<SC.LX0.length;_lj++){if(o.x>=SC.LX0[_lj]&&o.x<=SC.LX1[_lj]){o.lb0=SC.LX0[_lj];o.lb1=SC.LX1[_lj];break;}}
+    // WORLD v4 "M" — BOUNDS VERI DELLA TRAPPOLA. climb_rt._place_trap costruisce
+    // ogni trappola su un RUN di piattaforma e la sua geometria di kill usa
+    // tr["lb"] = (bx0,bx1) DI QUEL RUN (climb_rt.py:1871/1957/1968/1979), ma il
+    // payload map_info manda solo p2 (l'indice di via LEGACY). Il client stava
+    // quindi disegnando palla/laser/muri sui confini delle 4 vie, che NON
+    // ESISTONO PIU': il telegrafo compariva dove il pericolo non era. Il run e'
+    // ricavabile client-side senza toccare il protocollo: la trappola sta sulla
+    // riga calpestabile del run, cioe' run[0] === o.y-1, e il CORPO e' kind 1.
+    var _tp=RTD.map.plats||[];
+    for(var _tj=0;_tj<_tp.length;_tj++){
+      var _tr=_tp[_tj];
+      if((_tr[3]|0)!==1||(_tr[0]|0)!==(o.y|0)-1)continue;
+      if(o.x<(_tr[1]|0)||o.x>(_tr[2]|0))continue;
+      o.lb0=_tr[1]|0;o.lb1=_tr[2]|0;break;
+    }
     var kf=SCL_KF[o.tid];
     if(kf&&o.per>0){o.k0=kf[0]*o.per;o.k1=kf[1]*o.per;o.tl=kf[2]*o.per;}
     if(o.tid==='L'||o.tid==='S')o.len=Math.max(1,Math.min((o.p1|0),o.lb1-o.x+1));
@@ -49344,22 +49477,13 @@ function sclTileCv(tc,trw){
     sec=sclSec(r);b=SCL_BIO[sec];
     c.fillStyle=(r&1)?b.bg:b.bg2;
     c.fillRect(0,yy,cv.width,CB+1);
-    // tinta identità della via (SCALATA_WIDE §3.5): velo + stripe sul bordo sx
-    if(sec>=1&&sec<=5&&r>=4&&r<84&&SC.laneFam&&SC.laneFam[sec]){
-      var fam=SCL_FAM[SC.laneFam[sec][tc]||0];
-      var tl0=Math.max(gx0,SC.LX0[tc]),tl1=Math.min(gx0+cols-1,SC.LX1[tc]);
-      if(tl1>=tl0){
-        c.globalAlpha=0.055;c.fillStyle=fam.col;
-        c.fillRect((tl0-gx0)*CB,yy,(tl1-tl0+1)*CB,CB+1);
-        c.globalAlpha=0.30;
-        c.fillRect((tl0-gx0)*CB,yy,3,CB+1);
-        c.globalAlpha=1;
-      }
-    }
-    // separatore di settore: trave metallica
+    // WORLD v4 "M" req.3: la TINTA DI VIA (velo colorato + stripe per corsia) e'
+    // RIMOSSA. Il mondo non ha piu' 4 corsie: e' una sola serpentina, quindi la
+    // tinta era rumore puro che spezzava lo sfondo in bande colorate.
+    // Resta SOLO il separatore di settore, come unico riferimento di quota.
     if(r>4&&r<SC.H-8&&((r-4)%SC.secRows)===0){
-      c.fillStyle='rgba(0,0,0,.5)';c.fillRect(0,yy+CB*0.86,cv.width,CB*0.14);
-      c.fillStyle='rgba(255,255,255,.10)';c.fillRect(0,yy+CB*0.86,cv.width,2);
+      c.fillStyle='rgba(0,0,0,.55)';c.fillRect(0,yy+CB*0.88,cv.width,CB*0.12);
+      c.fillStyle='rgba(255,255,255,.07)';c.fillRect(0,yy+CB*0.88,cv.width,2);
     }
   }
   // grana seeded (bake-once)
@@ -49367,52 +49491,40 @@ function sclTileCv(tc,trw){
     c.fillStyle=rnd()<0.5?'rgba(0,0,0,.12)':'rgba(255,255,255,.045)';
     c.fillRect(rnd()*cv.width,rnd()*cv.height,2,2);
   }
-  // decor bioma (tutto bakeato, shadowBlur ammesso SOLO qui)
-  for(r=gy0;r<=topRow;r++){
+  // ── WORLD v4 "M" req.3: DECOR DI BIOMA RIMOSSO ────────────────────────────
+  // Erano tubi+melma (fogna), ingranaggi+catene (fabbrica), insegne neon glow +
+  // pioggia (neon city), nuvole bianche opache (cielo), lingotti+venature
+  // (caveau): 5 famiglie di oggetti disegnate OGNI 3-5 RIGHE su tutta la torre.
+  // Insieme alla tinta di via erano *l'accozzaglia*: elementi luminosi grandi
+  // quanto una piattaforma, sullo stesso piano visivo, che rendevano impossibile
+  // leggere a colpo d'occhio dove si cammina. Al loro posto: SOLO strati di
+  // roccia orizzontali, scurissimi, che danno materia al fondo senza mai
+  // avvicinarsi alla luminanza di una piattaforma.
+  for(r=gy0;r<=topRow;r+=4){
     if(r>=SC.H)continue;
-    sec=sclSec(r);b=SCL_BIO[sec];yy=(topRow-r)*CB;
-    if(sec===1&&(r%5)===2){   // FOGNA: tubo orizzontale + melma
-      c.fillStyle='rgba(23,52,38,.85)';c.fillRect(0,yy+CB*0.3,cv.width,CB*0.24);
-      c.fillStyle='rgba(255,255,255,.06)';c.fillRect(0,yy+CB*0.3,cv.width,3);
-      for(cx=0;cx<7;cx+=3){c.fillStyle='rgba(74,222,128,.35)';c.fillRect((cx+rnd())*CB,yy+CB*0.54,3,CB*(0.4+rnd()*0.5));}
-    }
-    if(sec===2&&(r%4)===1){   // FABBRICA: ingranaggio + catena
-      var gxp=(0.8+rnd()*6)*CB,gy=yy+CB*0.5,gr=CB*(0.35+rnd()*0.3);
-      c.strokeStyle='rgba(249,115,22,.30)';c.lineWidth=Math.max(2,CB*0.09);
-      c.beginPath();c.arc(gxp,gy,gr,0,6.283);c.stroke();
-      for(var th=0;th<6;th++){var ta=th*1.047;c.beginPath();c.moveTo(gxp+Math.cos(ta)*gr,gy+Math.sin(ta)*gr);c.lineTo(gxp+Math.cos(ta)*gr*1.28,gy+Math.sin(ta)*gr*1.28);c.stroke();}
-      c.fillStyle='rgba(63,63,70,.5)';
-      for(var ch2=0;ch2<2;ch2++)c.fillRect((0.5+rnd()*7)*CB,yy,3,CB);
-    }
-    if(sec===3&&(r%3)===1){   // NEON CITY: insegne glow bakeate + pioggia
-      var nx=(0.6+rnd()*6)*CB,nw=CB*(0.6+rnd()*1.2),nc=rnd()<0.5?'#f0f':'#0ff';
-      c.save();c.shadowColor=nc;c.shadowBlur=10;
-      c.strokeStyle=nc;c.globalAlpha=0.5;c.lineWidth=2.5;
-      c.strokeRect(nx,yy+CB*0.25,nw,CB*0.4);
-      c.restore();c.globalAlpha=1;
-      c.strokeStyle='rgba(190,210,255,.08)';c.lineWidth=1;
-      for(var rn=0;rn<4;rn++){var rx=rnd()*cv.width;c.beginPath();c.moveTo(rx,yy);c.lineTo(rx-CB*0.2,yy+CB);c.stroke();}
-    }
-    if(sec===4&&(r%4)===2){   // CIELO: nuvola + trave impalcatura
-      c.fillStyle='rgba(255,255,255,.55)';
-      var cx2=(0.6+rnd()*6)*CB,cy2=yy+CB*0.45;
-      c.beginPath();c.ellipse(cx2,cy2,CB*1.05,CB*0.34,0,0,6.283);c.fill();
-      c.beginPath();c.ellipse(cx2+CB*0.6,cy2-CB*0.16,CB*0.6,CB*0.26,0,0,6.283);c.fill();
-      c.strokeStyle='rgba(120,80,20,.28)';c.lineWidth=Math.max(2,CB*0.07);
-      c.beginPath();c.moveTo(0,yy+CB*0.9);c.lineTo(cv.width,yy+CB*0.9);c.stroke();
-    }
-    if(sec>=5&&(r%3)===0){    // CAVEAU: lingotti + venature marmo
-      c.fillStyle='rgba(250,204,21,.35)';
-      var lx=(0.6+rnd()*6)*CB,ly2=yy+CB*0.62;
-      c.beginPath();c.moveTo(lx,ly2+CB*0.3);c.lineTo(lx+CB*0.16,ly2);c.lineTo(lx+CB*0.6,ly2);c.lineTo(lx+CB*0.76,ly2+CB*0.3);c.closePath();c.fill();
-      c.fillStyle='rgba(255,255,255,.5)';c.fillRect(lx+CB*0.2,ly2+CB*0.06,CB*0.16,2);
-      c.strokeStyle='rgba(255,255,255,.05)';c.lineWidth=1;
-      c.beginPath();c.moveTo(rnd()*cv.width,yy);c.quadraticCurveTo(rnd()*cv.width,yy+CB*0.5,rnd()*cv.width,yy+CB);c.stroke();
-    }
+    yy=(topRow-r)*CB;
+    c.fillStyle='rgba(0,0,0,.20)';c.fillRect(0,yy+CB*0.30,cv.width,CB*0.10);
+    c.fillStyle='rgba(255,255,255,.022)';c.fillRect(0,yy+CB*0.30,cv.width,1);
   }
   // muri con luci/ombre baked (bordo chiaro alto, scuro basso) — i SEPARATORI
   // di via (col 8/16/24 e pareti 0/31) hanno stile dedicato: più scuri + rivetti
-  var eg=Math.max(2,CB*0.09);
+  // ── ALLINEAMENTO (VINCOLANTE, DIAG §5.2): la cella (gx,r) occupa il mondo
+  //    [r, r+1] e la sua faccia CALPESTABILE e' y=r+1. Nel bake la riga r vive
+  //    nella banda [yy, yy+CB] con yy=(topRow-r)*CB, quindi **yy E' ESATTAMENTE
+  //    LA SUPERFICIE**: ogni pixel di "cima" va disegnato a partire da yy,
+  //    verso il BASSO. Nessun disegno di una piattaforma puo' stare sopra yy.
+  //
+  //    Tre ruoli distinti, tre look distinti (req.3 "si deve vedere DOVE si
+  //    cammina e DOVE ci si aggrappa"):
+  //      SIDE  = colonne 0 / W-1  -> parete di fondo, scura, NON e' un appoggio
+  //      FLOOR = righe 0-1        -> base camp, lastra piena
+  //      CAP   = tutto il resto   -> le testate SOLIDE della piattaforma, cioe'
+  //                                  gli APPIGLI (_ledge_scan aggancia SOLO una
+  //                                  cella solida con la cella sopra libera):
+  //                                  vanno rese come PILASTRI marcati, con la
+  //                                  superficie chiara continua col ripiano e
+  //                                  una fascia ACCENTO sullo spigolo esterno.
+  var eg=Math.max(2,CB*0.09),lipH=Math.max(3,CB*0.14);
   for(r=gy0;r<=topRow;r++){
     if(r>=SC.H)continue;
     b=SCL_BIO[sclSec(r)];yy=(topRow-r)*CB;
@@ -49420,21 +49532,29 @@ function sclTileCv(tc,trw){
       gx=gx0+cx;
       if(gx>=SC.W||!SC.wallA[r*SC.W+gx])continue;
       xx=cx*CB;
-      var isSep=(gx===0||gx===SC.W-1||gx===8||gx===16||gx===24);
-      if(isSep){
-        c.fillStyle='#181c26';c.fillRect(xx,yy,CB+0.6,CB+0.6);
-        c.fillStyle='rgba(255,255,255,.09)';c.fillRect(xx,yy,3,CB);
-        c.fillRect(xx+CB-3,yy,3,CB);
-        c.fillStyle='rgba(148,163,184,.35)';   // rivetti
-        c.fillRect(xx+CB*0.42,yy+CB*0.22,CB*0.16,CB*0.16);
-        c.fillRect(xx+CB*0.42,yy+CB*0.62,CB*0.16,CB*0.16);
+      var isSide=(gx===0||gx===SC.W-1),isFloor=(r<=1);
+      if(isSide){
+        // parete laterale: fondale, luminanza BASSA, zero dettaglio "salteggiabile"
+        c.fillStyle='#14181f';c.fillRect(xx,yy,CB+0.6,CB+0.6);
+        c.fillStyle='rgba(0,0,0,.45)';
+        c.fillRect(gx===0?xx+CB-4:xx,yy,4,CB+0.6);
       }else{
+        // corpo pieno
         c.fillStyle=b.wall;c.fillRect(xx,yy,CB+0.6,CB+0.6);
-        c.fillStyle='rgba(255,255,255,.14)';c.fillRect(xx,yy,CB,eg);
-        c.fillStyle='rgba(0,0,0,.36)';c.fillRect(xx,yy+CB-eg,CB,eg);
-        c.fillStyle=b.wl;c.globalAlpha=0.3;
-        c.fillRect(xx+CB*0.1,yy+CB*0.46,CB*0.8,Math.max(1,CB*0.06));
-        c.globalAlpha=1;
+        // SUPERFICIE CALPESTABILE: banda chiara ancorata a yy (= mondo r+1)
+        c.fillStyle=b.wl;c.fillRect(xx,yy,CB+0.6,lipH);
+        c.fillStyle='rgba(255,255,255,.55)';c.fillRect(xx,yy,CB+0.6,2);
+        // spigolo inferiore scuro (da' spessore, separa dalla cella sotto)
+        c.fillStyle='rgba(0,0,0,.42)';c.fillRect(xx,yy+CB-eg,CB+0.6,eg);
+        if(!isFloor){
+          // APPIGLIO: montanti verticali sui lati esterni del pilastro
+          var freeL=!(gx>0&&(SC.wallA[r*SC.W+gx-1]||SC.onewayA[r*SC.W+gx-1]));
+          var freeR=!(gx<SC.W-1&&(SC.wallA[r*SC.W+gx+1]||SC.onewayA[r*SC.W+gx+1]));
+          c.fillStyle=b.acc;c.globalAlpha=0.85;
+          if(freeL)c.fillRect(xx,yy,Math.max(3,CB*0.11),CB*0.62);
+          if(freeR)c.fillRect(xx+CB-Math.max(3,CB*0.11),yy,Math.max(3,CB*0.11),CB*0.62);
+          c.globalAlpha=1;
+        }
       }
     }
   }
@@ -49442,7 +49562,17 @@ function sclTileCv(tc,trw){
   //    come RIPIANI vista-di-lato: superficie calpestabile chiara in cima,
   //    corpo con spessore, spigolo inferiore scuro e OMBRA proiettata nella cella
   //    sottostante. Seamless sui run (bevel/tiranti solo alle estremità). Baked. ──
-  var owTh=Math.max(4,CB*0.38);
+  //    WORLD v4 "M": il CORPO di ogni piattaforma e' one-way, le due testate
+  //    sono solide (appigli). Spessore portato da 0.38 a 0.60 celle: il ripiano
+  //    sottile si perdeva sul fondo e, letto da lontano, sembrava una riga.
+  //    ALLINEAMENTO: il ripiano parte da yy (= mondo r+1 = superficie) e cresce
+  //    SOLO verso il basso. La banda chiara b.wl in cima E' la superficie.
+  //    lipH e' identico a quello dei pilastri solidi -> la piattaforma si legge
+  //    come UN unico oggetto continuo, non come plancia + blocchi staccati.
+  var owTh=Math.max(6,CB*0.60);
+  // gradiente d'ombra bakeato UNA VOLTA per tile (era ricreato per ogni cella)
+  var owShG=c.createLinearGradient(0,0,0,CB*0.70);
+  owShG.addColorStop(0,'rgba(0,0,0,.42)');owShG.addColorStop(1,'rgba(0,0,0,0)');
   for(r=gy0;r<=topRow;r++){
     if(r>=SC.H)continue;
     b=SCL_BIO[sclSec(r)];yy=(topRow-r)*CB;
@@ -49450,26 +49580,24 @@ function sclTileCv(tc,trw){
       gx=gx0+cx;if(gx>=SC.W)continue;
       if(!SC.onewayA[r*SC.W+gx])continue;
       xx=cx*CB;
-      var owL=!(gx>0&&SC.onewayA[r*SC.W+gx-1]);   // estremo sx del run
-      var owR=!(gx<SC.W-1&&SC.onewayA[r*SC.W+gx+1]); // estremo dx del run
-      // OMBRA PROIETTATA (cade sotto il ripiano, nella cella inferiore)
-      var owShG=c.createLinearGradient(0,yy+owTh,0,yy+owTh+CB*0.62);
-      owShG.addColorStop(0,'rgba(0,0,0,.36)');owShG.addColorStop(1,'rgba(0,0,0,0)');
-      c.fillStyle=owShG;
-      c.fillRect(xx+(owL?CB*0.1:0),yy+owTh,CB+0.6-(owL?CB*0.1:0)-(owR?CB*0.1:0),CB*0.62);
-      // CORPO del ripiano + superficie chiara + spigoli
+      // estremo del ripiano = nessun altro pezzo di piattaforma di fianco
+      var owL=!(gx>0&&(SC.onewayA[r*SC.W+gx-1]||SC.wallA[r*SC.W+gx-1]));
+      var owR=!(gx<SC.W-1&&(SC.onewayA[r*SC.W+gx+1]||SC.wallA[r*SC.W+gx+1]));
+      // OMBRA PROIETTATA sotto il ripiano: stacca la piattaforma dal fondo e
+      // rende inequivocabile che sotto c'e' il VUOTO (req.3, contrasto alto)
+      c.save();c.translate(0,yy+owTh);
+      c.fillStyle=owShG;c.fillRect(xx,0,CB+0.6,CB*0.70);
+      c.restore();
+      // CORPO
       c.fillStyle=b.wall;c.fillRect(xx,yy,CB+0.6,owTh);
-      c.fillStyle=b.wl;c.fillRect(xx,yy,CB+0.6,Math.max(2,CB*0.1));
-      c.fillStyle='rgba(255,255,255,.18)';c.fillRect(xx,yy,CB+0.6,2);
-      c.fillStyle='rgba(0,0,0,.44)';c.fillRect(xx,yy+owTh-Math.max(2,CB*0.07),CB+0.6,Math.max(2,CB*0.07));
-      // venatura accent lungo l'asse (leggibilità del ripiano)
-      c.globalAlpha=0.26;c.fillStyle=b.acc;
-      c.fillRect(xx,yy+owTh*0.52,CB+0.6,Math.max(1,CB*0.03));c.globalAlpha=1;
-      // estremità: smusso scuro + tirante di sostegno (accenno "sospeso")
-      if(owL){c.fillStyle='rgba(0,0,0,.32)';c.fillRect(xx,yy,CB*0.08,owTh);
-        c.fillStyle='rgba(0,0,0,.24)';c.fillRect(xx+CB*0.12,yy+owTh,CB*0.11,CB*0.3);}
-      if(owR){c.fillStyle='rgba(0,0,0,.32)';c.fillRect(xx+CB-CB*0.08,yy,CB*0.08,owTh);
-        c.fillStyle='rgba(0,0,0,.24)';c.fillRect(xx+CB*0.77,yy+owTh,CB*0.11,CB*0.3);}
+      // SUPERFICIE CALPESTABILE ancorata a yy (identica ai pilastri)
+      c.fillStyle=b.wl;c.fillRect(xx,yy,CB+0.6,lipH);
+      c.fillStyle='rgba(255,255,255,.55)';c.fillRect(xx,yy,CB+0.6,2);
+      // spigolo inferiore netto: dice dove FINISCE il solido
+      c.fillStyle='rgba(0,0,0,.50)';c.fillRect(xx,yy+owTh-Math.max(2,CB*0.09),CB+0.6,Math.max(2,CB*0.09));
+      // testata: smusso scuro verticale (chiude il volume del ripiano)
+      if(owL){c.fillStyle='rgba(0,0,0,.35)';c.fillRect(xx,yy,Math.max(2,CB*0.07),owTh);}
+      if(owR){c.fillStyle='rgba(0,0,0,.35)';c.fillRect(xx+CB-Math.max(2,CB*0.07),yy,Math.max(2,CB*0.07),owTh);}
     }
   }
   // ── celle dei 5 modi di salita + snodi + hole statici (SCALATA_WIDE §2) ──
@@ -49583,9 +49711,11 @@ function sclTileCv(tc,trw){
     }
   }
   SC.tiles[key]={c:cv,t:++SC.tileT,tc:tc,tr:trw};
-  // LRU 9: droppa il tile più LONTANO dalla camera in 2D (§4)
+  // LRU 12: droppa il tile più LONTANO dalla camera in 2D (§4). Era 9, ma con
+  // VIEW=16 la finestra puo' coprire 3x3=9 tile: a 9 il pool stava esattamente
+  // al limite e ri-bakeava a ogni scroll (stall visibile). 12 da' margine.
   var ks=Object.keys(SC.tiles);
-  if(ks.length>9){
+  if(ks.length>12){
     var ccx=SC.cam.x/cols-0.5,ccy=SC.cam.y/rows-0.5,far=null,fd=-1;
     for(var ki=0;ki<ks.length;ki++){
       var te=SC.tiles[ks[ki]];
@@ -49600,8 +49730,10 @@ function sclTileCv(tc,trw){
 // ── parallax 2 layer (bake per bioma, zero gradient per frame §6.2) ──
 function sclSky(sec,w,hh){
   return rtdBg('sclSky'+sec,w,hh,function(c){
-    var tops=['#0d1420','#0a1810','#160b06','#0f0524','#4db3ea','#0f0c07','#0f0c07'];
-    var bots=['#141d2b','#12271a','#28130b','#1c0f38','#a8ddfb','#241a0c','#241a0c'];
+    // req.3: cieli SCURI e desaturati in ogni settore. Escursione di luminanza
+    // minima (top->bot) cosi il fondo non ruba mai l'occhio alle piattaforme.
+    var tops=['#080b11','#070d0a','#0d0705','#080512','#0a121b','#0a0805','#0a0805'];
+    var bots=['#111721','#0d1613','#170e08','#120c22','#152232','#151107','#151107'];
     var g=c.createLinearGradient(0,0,0,hh);
     g.addColorStop(0,tops[sec]);g.addColorStop(1,bots[sec]);
     c.fillStyle=g;c.fillRect(0,0,w,hh);
@@ -49609,19 +49741,21 @@ function sclSky(sec,w,hh){
 }
 function sclPar(sec,w,hh){
   return rtdBg('sclPar'+sec,w,hh,function(c){
+    // req.3: parallax RIDOTTO A ZERO RUMORE. Prima erano 10 gruppi di insegne
+    // neon / nuvole bianche / ciminiere che si accavallavano sulle piattaforme.
+    // Ora: sole silhouette VERTICALI larghe e quasi invisibili (alpha .05-.08),
+    // che danno profondita' e senso di altezza senza competere con nulla.
     var sd=sec*127.3+7;
     function rnd(){sd=(sd*9301+49297)%233280;return sd/233280;}
-    function item(y){   // disegnato anche a ±hh: layer tileabile in verticale
-      for(var rep=-1;rep<=1;rep++){
-        var yy=y+rep*hh;
-        if(sec===1){c.fillStyle='rgba(34,70,50,.4)';c.fillRect(0,yy,w,8);c.fillRect(rnd()*w,yy-26,10,26);}
-        else if(sec===2){var bx=rnd()*w;c.fillStyle='rgba(90,36,19,.4)';c.fillRect(bx,yy,26,60);c.fillRect(bx+8,yy-18,10,18);}
-        else if(sec===3){var sx=rnd()*w,swd=20+rnd()*40,sh2=50+rnd()*90;c.fillStyle='rgba(28,16,58,.55)';c.fillRect(sx,yy,swd,sh2);c.fillStyle=rnd()<0.5?'rgba(255,0,255,.35)':'rgba(0,255,255,.35)';c.fillRect(sx+4,yy+6,swd-8,4);}
-        else if(sec===4){c.fillStyle='rgba(255,255,255,.4)';c.beginPath();c.ellipse(rnd()*w,yy,34+rnd()*30,12+rnd()*8,0,0,6.283);c.fill();}
-        else{c.fillStyle='rgba(120,83,15,.35)';var px2=rnd()*w;c.fillRect(px2,yy,14,90);c.fillRect(px2-5,yy-8,24,8);}
-      }
+    var col=['rgba(120,140,170,',  'rgba(90,150,120,',  'rgba(180,110,70,',
+             'rgba(140,110,200,',  'rgba(110,150,200,', 'rgba(190,160,80,',
+             'rgba(190,160,80,'][sec]||'rgba(120,140,170,';
+    for(var i=0;i<5;i++){
+      var bw=w*(0.16+rnd()*0.20),bx=rnd()*w-bw*0.5;
+      var by=rnd()*hh,bh=hh*(0.30+rnd()*0.45);
+      c.fillStyle=col+(0.05+rnd()*0.03).toFixed(3)+')';
+      for(var rep=-1;rep<=1;rep++)c.fillRect(bx,by+rep*hh,bw,bh);
     }
-    for(var i=0;i<10;i++)item(rnd()*hh);
   });
 }
 
@@ -49647,7 +49781,7 @@ function sclLerp(now){
 function sclDecal(wx,wy,cause){
   var c=SC.bloodCx;if(!c)return;
   var px=wx*SC.BPU,py=(SC.H-wy)*SC.BPU;
-  var col=cause==='lava'?'rgba(20,12,8,.7)':(cause==='acid'?'rgba(101,163,13,.55)':'rgba(112,22,14,.55)');
+  var col=(cause==='lava'||cause==='flame')?'rgba(20,12,8,.7)':(cause==='acid'?'rgba(101,163,13,.55)':'rgba(112,22,14,.55)');
   var sd=Math.abs(wx*73.9+wy*151.3)%1;
   var shape=((wx*31.7+wy*57.1)|0)&3;
   var i,a,d;
@@ -49689,7 +49823,7 @@ function sclSplatEv(e){
   var me=String(RTD.myId),who=String(e.who);
   var cell=SC.cellD||SC.cell||40;
   var px=SC.ox+(e.x||0)*cell,py=SC.hh2+(SC.cam.y-(e.y||0))*cell;
-  var isLava=e.c==='lava',isAcid=e.c==='acid';
+  var isLava=(e.c==='lava'||e.c==='flame'),isAcid=e.c==='acid';
   var bcol=isLava?'#3a2a1c':(isAcid?'#84cc16':'#d81b3c');
   for(var i=0;i<14;i++){   // 14 bloodP radiali (gravità 520, drag .98 §5.1)
     var a=Math.random()*6.283,sp=(50+Math.random()*160)*RTD.dpr;
@@ -49918,9 +50052,26 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
     ty=_lr2[2];tx=_lr2[1];SC.myY=ty;SC.myX=tx;   // 'near' delle trappole relativo alla camera
   }else{ty=6;tx=SC.W/2;}
   // LOOKAHEAD verticale (NORMATIVO): lead = clamp(vy·0.55, −1.5, +2.8), stesso lerp
-  var lead=Math.max(-1.5,Math.min(2.8,SC.predVy*SC.LEADK));
-  SC.lead+=(lead-SC.lead)*Math.min(1,7*dt);
+  // req.4 "camera che MOSTRA IL PROSSIMO SALTO": il gioco e' sempre verso l'ALTO
+  // e i livelli distano LEVEL_DY=3 celle, ma il lookahead era solo ∝ vy, cioe'
+  // ZERO mentre si cammina fermi in verticale -> la piattaforma da prendere
+  // stava fuori campo proprio nell'istante in cui la si deve mirare. Ora c'e'
+  // un bias FISSO verso l'alto (CAM_UP celle) che tiene sempre in quadro il
+  // livello successivo, piu' il termine ∝ vy per le cadute lunghe.
+  var lead=SC.CAMUP+Math.max(-2.6,Math.min(2.8,SC.predVy*SC.LEADK));
+  // salita: il lookahead segue subito; discesa: rientra piu' morbido (no scatti)
+  SC.lead+=(lead-SC.lead)*Math.min(1,(lead>SC.lead?7:4.5)*dt);
   ty+=SC.lead;
+  // LOOKAHEAD ORIZZONTALE verso il PROSSIMO RIPIANO (SC.nextCx, bakeato a inizio
+  // mappa). La serpentine slitta di ~10 colonne per livello: senza questo bias
+  // la piattaforma da prendere e' fuori quadro e il percorso non si legge. Il
+  // bias e' CLAMPATO a CAMSIDE celle, cosi' il giocatore non finisce mai
+  // schiacciato sul bordo, e viene smorzato dallo stesso lerp del follow.
+  if(SC.nextCx){
+    var _ny=ty|0;if(_ny<0)_ny=0;else if(_ny>=SC.H)_ny=SC.H-1;
+    var _dxn=SC.nextCx[_ny]-tx;
+    tx+=Math.max(-SC.CAMSIDE,Math.min(SC.CAMSIDE,_dxn));
+  }
   if(SC.koCam&&now-SC.koCam.t0<300&&SC.meDead){ty=ty+(SC.koCam.y-ty)*0.55;tx=tx+((SC.koCam.x!=null?SC.koCam.x:tx)-tx)*0.55;}
   else if(SC.koCam&&now-SC.koCam.t0>=300)SC.koCam=null;
   if(SC.win){ty=SC.win.y;tx=SC.win.x;}   // POLISH §6: la camera si incolla al VINCITORE
@@ -49959,9 +50110,16 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
   ctx.drawImage(par,pOffX,pOff);
   ctx.drawImage(par,pOffX+w,pOff-hh);
   ctx.drawImage(par,pOffX+w,pOff);
-  // ── TILE visibili (2-6 drawImage scalati 56px→cell, LRU 9 — WIDE §4) ──
-  var tc0=Math.max(0,Math.floor((camX-SC.VIEW/2-0.5)/SC.TCOLS)),tc1=Math.min(3,Math.floor((camX+SC.VIEW/2+0.5)/SC.TCOLS));
-  var tr0=Math.max(0,Math.floor((camY-vh/2-1)/SC.TROWS)),tr1=Math.min(5,Math.floor((camY+vh/2+1)/SC.TROWS));
+  // ── TILE visibili (drawImage scalati 56px→cell, LRU 12 — WIDE §4) ──
+  //    I limiti erano CABLATI (tc1<=3, tr1<=5) su una mappa 32x92: WORLD v4 "M"
+  //    e' larga W=36, cioe' 5 colonne di tile (36/8=4.5). Con il cap a 3 le
+  //    colonne 32..35 NON venivano MAI disegnate: le piattaforme che arrivano a
+  //    x=34 (es. run (3,21,34) e (39,21,32)) sparivano nel fondo, il giocatore
+  //    ci camminava sopra ma li' non c'era nulla di disegnato. Ora i limiti si
+  //    derivano da SC.W/SC.H, quindi valgono per QUALSIASI dimensione di mappa.
+  var tcMax=Math.max(0,Math.ceil(SC.W/SC.TCOLS)-1),trMax=Math.max(0,Math.ceil(SC.H/SC.TROWS)-1);
+  var tc0=Math.max(0,Math.floor((camX-SC.VIEW/2-0.5)/SC.TCOLS)),tc1=Math.min(tcMax,Math.floor((camX+SC.VIEW/2+0.5)/SC.TCOLS));
+  var tr0=Math.max(0,Math.floor((camY-vh/2-1)/SC.TROWS)),tr1=Math.min(trMax,Math.floor((camY+vh/2+1)/SC.TROWS));
   for(var trI=tr0;trI<=tr1;trI++)for(var tcI=tc0;tcI<=tc1;tcI++){
     ctx.drawImage(sclTileCv(tcI,trI),
       ox+tcI*SC.TCOLS*cell,hh2+(camY-(trI*SC.TROWS+SC.TROWS))*cell,
@@ -49997,9 +50155,14 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
     ctx.beginPath();ctx.ellipse(msx+mw3/2,msTop+cell*1.35,mw3*0.5,cell*0.2,0,0,6.283);ctx.fill();
     ctx.globalAlpha=1;
     // corpo meccanico (acciaio) + superficie calpestabile + spigolo inferiore
-    ctx.fillStyle='#3b4657';ctx.fillRect(msx,msTop,mw3,mth);
-    ctx.fillStyle='#7c8aa0';ctx.fillRect(msx,msTop,mw3,Math.max(2,cell*0.11));
-    ctx.fillStyle='rgba(255,255,255,.2)';ctx.fillRect(msx,msTop,mw3,2*RTD.dpr);
+    // req.3: stessa GRAMMATICA delle piattaforme statiche (corpo scuro + banda
+    // chiara ancorata alla superficie), ma in ACCIAIO+AMBRA cosi' si legge
+    // "macchina che si muove" e non "ripiano fisso". Prima era troppo spento
+    // (#7c8aa0) e su fondo scuro spariva.
+    ctx.fillStyle='#454f61';ctx.fillRect(msx,msTop,mw3,mth);
+    ctx.fillStyle='#cbd5e1';ctx.fillRect(msx,msTop,mw3,Math.max(3,cell*0.14));
+    ctx.fillStyle='rgba(255,255,255,.55)';ctx.fillRect(msx,msTop,mw3,2*RTD.dpr);
+    ctx.fillStyle='rgba(245,158,11,.85)';ctx.fillRect(msx,msTop+mth-Math.max(2,cell*0.12),mw3,Math.max(2,cell*0.05));
     ctx.fillStyle='rgba(0,0,0,.46)';ctx.fillRect(msx,msTop+mth-Math.max(2,cell*0.08),mw3,Math.max(2,cell*0.08));
     // bulloni d'angolo ambra (leggibilità "macchina mobile", non trappola)
     ctx.fillStyle='#f59e0b';
@@ -50931,7 +51094,7 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
   sclLavaSnd(lvw>0.01,lavaVis?Math.max(0.1,Math.min(1,1-(SC.myY-lvw)/14)):0.08);
   // ── MAPPA STRATEGICA 44px CSS (SCALATA_WIDE §3 — sostituisce la barra 10px):
   //    statico bakeato una volta (vie/snodi/Y_TOP) + dinamico per frame ≤30 draw ──
-  var mtW=44*RTD.dpr,mtX=w-mtW-4*RTD.dpr,mtY=8*RTD.dpr,mtH=hh-16*RTD.dpr;
+  var mtW=30*RTD.dpr,mtX=w-mtW-4*RTD.dpr,mtY=8*RTD.dpr,mtH=hh-16*RTD.dpr;   // 44→30px: meno campo rubato
   ctx.drawImage(sclMiniCv(mtW,mtH),mtX,mtY);
   // (d) banda lava
   if(lvw>0.01){
