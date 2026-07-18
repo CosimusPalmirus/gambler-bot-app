@@ -42836,7 +42836,11 @@ function rtdStartRaf(){
   rtdStopRaf();
   var loop=function(){
     if(CUR!=='arc'||RTD.ui!=='match'){RTD.raf=null;return;}
-    rtdFrame();
+    // HARDENING (18/07): se rtdFrame lancia FUORI dal suo try interno (loop fx/stamp),
+    // senza questo catch il rAF non veniva più rischedulato → disegno MORTO per sempre
+    // (canvas nero coi soli tasti DOM visibili). Ora il loop sopravvive sempre.
+    try{ rtdFrame(); }
+    catch(e){ RTD._rerr=(e&&(e.message||e.name))||(''+e); try{console.error('rtdFrame fatal:',e);}catch(_){} }
     RTD.raf=requestAnimationFrame(loop);
   };
   RTD.raf=requestAnimationFrame(loop);
@@ -47884,7 +47888,10 @@ function sclP(x,y,vx,vy,dur,col,r,g,add,drg){
   p.on=1;p.x=x;p.y=y;p.vx=vx;p.vy=vy;p.t0=performance.now();p.dur=dur;p.col=col;p.r=r;p.g=g;p.add=add;p.drg=drg||0.98;
 }
 function sclG(x,y,vx,vy,dur,col){
-  var p=SC.G[SC.gi];SC.gi=(SC.gi+1)%24;
+  // NB: il pool dei gib è SC.GIB — MAI SC.G, che è la COSTANTE di gravità (42.0,
+  // mirror climb_rt G). Assegnarvi un array azzera la fisica predittiva (vy=NaN
+  // → camera NaN → mondo non disegnato). Vedi rtdBuildScalata.
+  var p=SC.GIB[SC.gi];SC.gi=(SC.gi+1)%24;
   p.on=1;p.x=x;p.y=y;p.vx=vx;p.vy=vy;p.rot=Math.random()*6.283;p.vr=(Math.random()-0.5)*14;
   p.t0=performance.now();p.dur=dur;p.col=col;p.r=(2.4+Math.random()*2.4)*RTD.dpr;
   p.bnc=2+((Math.random()*2)|0);   // POLISH §5: 2-3 rimbalzi contro le celle piene
@@ -49277,7 +49284,7 @@ function rtdBuildScalata(){
   if(!SC.P){
     SC.P=[];for(i=0;i<96;i++)SC.P.push({on:0,x:0,y:0,vx:0,vy:0,t0:0,dur:1,col:'#fff',r:2,g:0,add:0,drg:1});
     // gib: +bnc = rimbalzi residui (POLISH §5 — fisica semplice contro le celle piene)
-    SC.G=[];for(i=0;i<24;i++)SC.G.push({on:0,x:0,y:0,vx:0,vy:0,rot:0,vr:0,t0:0,dur:1,col:'#fff',r:3,bnc:0});
+    SC.GIB=[];for(i=0;i<24;i++)SC.GIB.push({on:0,x:0,y:0,vx:0,vy:0,rot:0,vr:0,t0:0,dur:1,col:'#fff',r:3,bnc:0});
     // gib ANATOMICI (CLIMBER_SPEC §5): coord MONDO, si depositano sul decal persistente
     SC.GA=[];for(i=0;i<12;i++)SC.GA.push({on:0,wx:0,wy:0,vx:0,vy:0,rot:0,vr:0,part:0,seat:0,look:null,t0:0,dur:1,bnc:0});SC.gai=0;
     // impronte (POLISH §1): coordinate MONDO — restano incollate all'impalcatura
@@ -49286,7 +49293,7 @@ function rtdBuildScalata(){
     SC.CH=[];for(i=0;i<28;i++)SC.CH.push({on:0,x:0,y:0,vx:0,vy:0,rot:0,vr:0,t0:0,dur:1});
   }else{
     for(i=0;i<96;i++)SC.P[i].on=0;
-    for(i=0;i<24;i++)SC.G[i].on=0;
+    for(i=0;i<24;i++)SC.GIB[i].on=0;
     if(SC.GA)for(i=0;i<12;i++)SC.GA[i].on=0;
     for(i=0;i<16;i++)SC.FP[i].on=0;
     for(i=0;i<28;i++)SC.CH[i].on=0;
@@ -50793,7 +50800,7 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
   // rtdScalBlocked del mirror: se la cella è piena, la componente che entra nel
   // muro si inverte e si smorza. 2-3 rimbalzi, poi scivola.
   for(var gq=0;gq<24;gq++){
-    var gg=SC.G[gq];
+    var gg=SC.GIB[gq];
     if(!gg.on)continue;
     var gk3=(now-gg.t0)/gg.dur;
     if(gk3>=1){gg.on=0;continue;}
