@@ -7890,6 +7890,23 @@ body{position:relative;}
 .rc-ed-cur::before{content:'— ';color:var(--txt3);}
 .rc-ed-badge{margin-left:auto;font-size:8px;letter-spacing:.5px;color:#fbbf24;border:1px solid rgba(251,191,36,.4);border-radius:8px;padding:1px 6px;font-weight:700;text-transform:none;white-space:nowrap;}
 .rc-ed-note{font-size:9.5px;color:var(--txt3);margin-top:7px;text-align:center;line-height:1.4;}
+/* ── editor DEAD PEAK · designer rifatto, palette brand viola/ciano ── */
+.dp-secs{display:flex;flex-direction:column;gap:8px;margin-top:4px;}
+.dp-grp{font-family:'Russo One',sans-serif;font-size:9.5px;letter-spacing:2.5px;color:#c4b5fd;text-transform:uppercase;margin:11px 2px 0;display:flex;align-items:center;gap:8px;}
+.dp-grp::before{content:'';width:15px;height:2px;border-radius:2px;background:linear-gradient(90deg,#a855f7,#22d3ee);flex-shrink:0;}
+.dp-grp::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(168,85,247,.45),rgba(34,211,238,.04));}
+.dp-field{border:1px solid rgba(168,85,247,.2);background:linear-gradient(150deg,rgba(32,21,56,.72),rgba(15,19,37,.72));border-radius:14px;padding:9px 11px 10px;box-shadow:0 4px 14px rgba(0,0,0,.28);}
+.dp-field-h{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.dp-field-ic{font-size:15px;line-height:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6));}
+.dp-field-nm{font-family:'Russo One',sans-serif;font-size:11.5px;letter-spacing:.4px;color:#ece6ff;}
+.dp-field-cur{margin-left:auto;font-size:8.5px;letter-spacing:.6px;font-weight:800;color:#7ee9fb;text-transform:uppercase;background:rgba(34,211,238,.1);border:1px solid rgba(34,211,238,.28);border-radius:20px;padding:2px 9px;max-width:48%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.dp-field-cur::before{content:none;}
+.dp-secs .twr-optrow{gap:6px;flex-wrap:wrap;}
+.dp-secs .twr-opt{padding:7px 12px;font-size:10.5px;border-radius:10px;border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.035);color:#b9c0d0;font-weight:700;transition:transform .08s ease,border-color .15s,background .15s;}
+.dp-secs .twr-opt:active{transform:scale(.93);}
+.dp-secs .twr-opt.sel{border-color:transparent;color:#fff;background:linear-gradient(135deg,#7c3aed,#22d3ee);box-shadow:0 3px 12px rgba(124,58,237,.45),inset 0 0 0 1px rgba(255,255,255,.18);}
+.dp-secs .twr-opt.locked{opacity:.42;border-style:dashed;background:transparent;color:var(--txt2);}
+.rc-ed-stage[data-dp="1"]{border-color:rgba(168,85,247,.4)!important;box-shadow:0 10px 30px rgba(0,0,0,.5),inset 0 0 44px rgba(124,58,237,.1)!important;}
 /* ── editor DERBY · griglia skin sbloccabili (SKINS_SPEC §5.3) ── */
 .db-sk-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;}
 .db-sk-card{position:relative;border:1px solid var(--border2);border-radius:12px;background:var(--card2);padding:8px 6px 7px;text-align:center;}
@@ -47862,23 +47879,25 @@ var SC={
   LEADK:0.42,     // lookahead ∝ vy, clamp [-1.6,+2.2]. Ridotto da 0.55 perche'
                   // ora l'ANCORA ALTA (ANCH) da' gia' il campo visivo davanti:
                   // il termine ∝ vy serve solo a non farsi sorprendere in caduta.
-  ANCH:0.64,      // req.COMMITTENTE "personaggio fissato piu in alto nello schermo
-                  // con camera che segue": frazione dell'ALTEZZA misurata DAL BORDO
-                  // SUPERIORE a cui vive il punto di ancoraggio della camera (e
-                  // quindi il giocatore). 0.5 = centro (vecchio comportamento);
-                  // 0.64 = il 64% dello schermo sta SOPRA il giocatore, cioe' si
-                  // vede quasi il doppio della salita davanti rispetto a dietro.
-                  // Entra SOLO in hh2 (origine schermo della camera) e nei clamp
-                  // asimmetrici: la fisica e la convenzione piedi non la vedono.
+  ANCH:0.30,      // req.COMMITTENTE "personaggio TENUTO IN ALTO nello schermo,
+                  // camera che segue, controlli in basso NON sopra il personaggio":
+                  // frazione dell'ALTEZZA misurata DAL BORDO SUPERIORE a cui vive
+                  // il punto di ancoraggio della camera (e quindi il giocatore).
+                  // 0.5 = centro. 0.30 = il giocatore sta al 30% dall'ALTO (terzo
+                  // superiore) cosi i controlli in basso NON lo coprono mai; sotto
+                  // di lui resta il 70% di finestra = si vede la salita che arriva.
+                  // NB: la v5 aveva 0.64 = giocatore al 64% dall'alto = IN BASSO,
+                  // proprio sopra i controlli (bug segnalato). Entra SOLO in hh2 e
+                  // nei clamp asimmetrici: fisica e convenzione piedi non la vedono.
   CAMSIDE:1.9,    // req.4: bias LATERALE max (celle) verso il prossimo ripiano.
                   // Scalato con VIEW (era 3.2 con VIEW=16, cioe' 0.2×VIEW): con
                   // VIEW=10 mezza finestra e' 5 celle, 1.9 tiene il giocatore
                   // sempre dentro il quadro senza incollarlo al bordo.
-  CAMUP:0.45,     // bias FISSO di camera verso l'alto (celle). Era 1.35 quando la
-                  // camera era CENTRATA e serviva a tirare su l'orizzonte a mano;
-                  // ora lo fa l'ancora (ANCH), quindi resta solo un filo di aria
-                  // sopra la testa. Sommare i due darebbe un orizzonte troppo alto
-                  // (il giocatore uscirebbe dal bordo basso).
+  CAMUP:0.15,     // bias FISSO di camera verso l'alto (celle). Era 1.35 con camera
+                  // CENTRATA; ora l'ancora ALTA (ANCH=0.30) tiene gia' il giocatore
+                  // in cima, quindi questo resta solo un filo d'aria sopra la testa.
+                  // Tenuto BASSO: con ANCH gia' basso un CAMUP alto ributterebbe il
+                  // giocatore verso il centro/basso, annullando "tienilo in alto".
   CAMKY:9.0,      // follow critically-damped: costante (1/s) dello smorzamento in
   CAMKX:6.5,      // Y e X. Applicato come 1-exp(-k*dt) => INDIPENDENTE dal frame
                   // rate (il vecchio min(1,7*dt) era lineare: a 30fps smorzava il
@@ -48766,7 +48785,8 @@ function sclDrawClimber(ctx,r,plk,seat,isMe,U,now){
   var cx=pelX+sl*0.95*U, cy=pelY-cl*0.95*U+r.breath*U;        // petto (respiro qui)
   var sA=lean+r.spineA;
   var hpx=cx+Math.sin(sA)*0.60*U, hpy=cy-Math.cos(sA)*0.60*U; // testa
-  var shx=cl*0.40*U, shy=sl*0.40*U;
+  var shA2=lean+(r.shTw||0), shW2=0.46;   // spalle piu larghe + twist del busto
+  var shx=Math.cos(shA2)*shW2*U, shy=Math.sin(shA2)*shW2*U;
   var shLx=cx-shx, shLy=cy-shy, shRx=cx+shx, shRy=cy+shy;
   var hipLx=pelX-0.27*U, hipRx=pelX+0.27*U, hipY=pelY;
   var aLU=r.aLU,aRU=r.aRU;
@@ -48790,6 +48810,9 @@ function sclDrawClimber(ctx,r,plk,seat,isMe,U,now){
   _rgX1[7]=shRx;_rgY1[7]=shRy;_rgX2[7]=elRx;_rgY2[7]=elRy;_rgW[7]=uaw;
   _rgX1[8]=elRx;_rgY1[8]=elRy;_rgX2[8]=haRx;_rgY2[8]=haRy;_rgW[8]=faw;
   ctx.save();
+  // SQUASH & STRETCH: scala il rig attorno a un pivot (bacino in volo, piedi=y0 in
+  // atterraggio). Neutro quando sqy==null ⇒ nessun effetto sugli altri stati.
+  if(r.sqy!=null){var _pvy=(r.sqPy!=null?r.sqPy*U:pelY);ctx.translate(pelX,_pvy);ctx.scale(r.sqx||1,r.sqy);ctx.translate(-pelX,-_pvy);}
   ctx.lineCap='round';ctx.lineJoin='round';
   var i,ow=Math.max(1.6,0.13*U);
   sclKitDraw(ctx,plk,cx,cy,sl,cl,U,shRx,shRy);   // kit dietro il corpo
@@ -48827,7 +48850,7 @@ function sclDrawClimber(ctx,r,plk,seat,isMe,U,now){
   sclGloveDraw(ctx,plk.gl|0,haLx,haLy,U,out);
   sclGloveDraw(ctx,plk.gl|0,haRx,haRy,U,out);
   sclCollarDraw(ctx,plk.bd|0,cx+(hpx-cx)*0.28,cy+(hpy-cy)*0.28,U,sA,out);
-  var hs=1.45*U, hsp=sclHeadSprite(plk.hm|0,plk.gg|0,plk.hr|0,seat,isMe);   // testa
+  var hs=1.36*U, hsp=sclHeadSprite(plk.hm|0,plk.gg|0,plk.hr|0,seat,isMe);   // testa (proporzione piu adulta)
   ctx.save();ctx.translate(hpx,hpy);ctx.rotate(r.headTilt+lean*0.5);
   ctx.drawImage(hsp,-hs/2,-hs/2,hs,hs);
   ctx.restore();
@@ -48843,11 +48866,18 @@ function sclPose(an,rr,fl,now,isMe,seat){
   if(!r)r=an.rig={lean:0,spineA:0,headTilt:0,breath:0,pdx:0,aLU:-0.3,aLF:-0.4,aRU:0.3,aRF:-0.4,lLT:-0.12,lLS:0.2,lRT:0.12,lRS:0.2,pelY:SCL_PEL_Y};
   // altezza bacino di DEFAULT (piedi sull'origine): solo la camminata la varia.
   r.pelY=SCL_PEL_Y;
+  // reset per-frame dei canali nuovi (twist spalle + squash&stretch): se uno stato
+  // non li setta restano neutri (nessun residuo dal frame precedente).
+  r.shTw=0;r.sqx=1;r.sqy=null;r.sqPy=null;
   // CLIMBER_SPEC §4 v3: stato PLATFORMER dai flag+velocità AUTORITATIVE (row[7,8],
   // fallback ai campioni derivati). Ogni stato ha una posa DISTINTA: l'idle e la
   // camminata tengono le braccia BASSE (lungo i fianchi), NON al cielo.
   var vx=(rr&&rr[7]!=null)?rr[7]:(an.vxs||0);
   var vy=(rr&&rr[8]!=null)?rr[8]:(an.vys||0);
+  // rilevo l'ATTERRAGGIO: fronte di discesa airborne→terra ⇒ marca il momento.
+  var _isAir=!!(fl&2);
+  if(an._wasAir&&!_isAir)an.landT=now;
+  an._wasAir=_isAir;
   var onLad=false;
   if(SC.ladA&&SC.W){var _lc=(rr[2]|0)*SC.W+(rr[1]|0);onLad=(SC.ladA[_lc]===1)||(SC.chnA&&SC.chnA[_lc]===1);}
   if(fl&32){          // FINISHED — braccia al cielo (vittoria)
@@ -48873,13 +48903,15 @@ function sclPose(an,rr,fl,now,isMe,seat){
     r.lRT=0.14+sL*0.28;r.lRS=0.18+Math.max(0,-sL)*0.4;
     r.lLT=-0.14+sL*0.28;r.lLS=0.18+Math.max(0,sL)*0.4;
   }else if(fl&2){     // AIRBORNE (bit1 = salto/caduta): STACCO / APICE / CADUTA distinti
-    if(vy>1.5){          // stacco/salita — raccolto, braccia in alto per la spinta
+    if(vy>1.5){          // stacco/salita — corpo STRETCH verticale, braccia in alto, gambe raccolte
       r.lean=0.05;r.spineA=0;r.headTilt=-0.12;r.breath=0;r.pdx=0;
       r.aLU=-0.6;r.aLF=-0.25;r.aRU=0.6;r.aRF=-0.25;r.lLT=0.5;r.lLS=0.95;r.lRT=-0.28;r.lRS=0.8;
-    }else if(vy<-1.5){   // caduta — flail, gambe divaricate, braccia larghe
+      r.sqx=0.93;r.sqy=1.10;   // allunga (pivot bacino)
+    }else if(vy<-1.5){   // caduta — flail, gambe divaricate, braccia larghe, ancora allungato
       var fj=Math.sin(now/70)*0.35;
       r.lean=-0.16;r.spineA=-0.1;r.headTilt=-0.4;r.breath=0;r.pdx=0;
       r.aLU=-0.8+fj;r.aLF=-0.2;r.aRU=0.8-fj;r.aRF=-0.2;r.lLT=-0.5;r.lLS=0.7;r.lRT=0.5;r.lRS=0.7;
+      r.sqx=0.94;r.sqy=1.07;
     }else{               // apice — sospeso un istante, braccia larghe
       r.lean=0;r.spineA=0;r.headTilt=-0.05;r.breath=0;r.pdx=0;
       r.aLU=-1.1;r.aLF=-0.2;r.aRU=1.1;r.aRF=-0.2;r.lLT=0.14;r.lLS=0.45;r.lRT=-0.14;r.lRS=0.45;
@@ -48925,8 +48957,13 @@ function sclPose(an,rr,fl,now,isMe,seat){
     var phW=an.gph,lift=0.30+0.16*spdW;
     var bobW=0.055*Math.cos(12.566370614*(phW-0.30));   // 2 massimi/ciclo (metà appoggio)
     r.pelY=-(pelH+bobW);
-    r.lean=(0.10+0.16*spdW)*dirW;r.spineA=0;r.breath=0;r.pdx=0;
-    r.headTilt=-0.04*dirW+0.03*Math.sin(6.283185307179586*phW);
+    r.lean=(0.10+0.16*spdW)*dirW;r.breath=0;r.pdx=0;
+    // TWIST DEL BUSTO: spalle contro-ruotano ai fianchi (2 osc/ciclo, cresce con la
+    // velocità) e leggera flessione avanti a ogni appoggio ⇒ non "scivola".
+    var _tw=Math.cos(6.283185307179586*phW);
+    r.shTw=-(0.10+0.22*spdW)*_tw*dirW;
+    r.spineA=(0.05+0.06*spdW)*Math.sin(12.566370614359172*phW);
+    r.headTilt=-0.06*dirW+0.05*Math.sin(6.283185307179586*phW);
     var hipY=-(pelH+bobW),ft,ik;
     ft=sclFootTarget(phW,A,duty,lift);
     ik=sclLegIK(-0.27,hipY,-0.1485+ft[0]*dirW,ft[1],dirW);r.lLT=ik[0];r.lLS=ik[1];
@@ -48935,9 +48972,24 @@ function sclPose(an,rr,fl,now,isMe,seat){
     var swW=0.22+0.24*spdW,acW=Math.cos(6.283185307179586*phW);   // braccia in CONTROFASE
     r.aLU=-2.60+dirW*acW*swW;r.aLF=-0.34-Math.max(0,dirW*acW)*0.30;
     r.aRU=2.60-dirW*acW*swW;r.aRF=-0.34-Math.max(0,-dirW*acW)*0.30;
-  }else{              // IDLE — in piedi, braccia rilassate lungo i fianchi, respiro
-    r.lean=0.04;r.spineA=0;r.headTilt=Math.sin(now/900)*0.05;r.breath=Math.sin(now/650)*0.03;r.pdx=0;
-    r.aLU=-2.62;r.aLF=-0.34;r.aRU=2.62;r.aRF=-0.34;r.lLT=-0.10;r.lLS=0.16;r.lRT=0.10;r.lRS=0.16;
+  }else{              // IDLE — peso che oscilla, respiro del torace, spalle vive (18/07)
+    var _ws=Math.sin(now/1450);          // weight-shift lento (~9s)
+    var _br=Math.sin(now/650);           // respiro
+    r.lean=0.04+_ws*0.03;
+    r.spineA=-_ws*0.05;
+    r.shTw=_ws*0.12;                     // spalle contro-ruotano al bacino
+    r.headTilt=Math.sin(now/900)*0.05-_ws*0.05;
+    r.breath=_br*0.038;
+    r.pdx=_ws*0.05;                      // micro-shift del peso
+    r.aLU=-2.62+_ws*0.05+Math.max(0,_br)*0.05;r.aLF=-0.34-Math.max(0,_br)*0.06;
+    r.aRU=2.62+_ws*0.05-Math.max(0,-_br)*0.05;r.aRF=-0.34-Math.max(0,-_br)*0.06;
+    r.lLT=-0.10;r.lLS=0.16;r.lRT=0.10;r.lRS=0.16;
+  }
+  // ATTERRAGGIO: schiacciata breve (squash) coi piedi PIANTATI a y=0 (pivot sqPy=0),
+  // subito dopo un volo. Ammortizza l'impatto senza scollare i piedi dal ripiano.
+  if(an.landT!=null&&(now-an.landT)<170&&!_isAir&&!(fl&(4|32|512|1024))){
+    var _lk=(now-an.landT)/170,_sq=Math.sin(_lk*3.141592653589793);
+    r.sqx=1+0.12*_sq;r.sqy=1-0.15*_sq;r.sqPy=0;
   }
   if((fl&256)&&!(fl&2)&&!(fl&4)){   // MAGNESITE — mani che sfregano davanti al petto
     var rub=Math.sin(now/40)*0.18;
@@ -49021,9 +49073,9 @@ function deadpeakEditor(){
   var html='<div class="pvp-m-title" style="color:#7dd3fc;">🎨 IL TUO SCALATORE</div>'
     +'<div class="rc-ed-h" style="margin-top:0;">POSTO — anteprima<span class="rc-ed-badge">in gara la tinta e\' il TUO posto</span></div>'
     +'<div class="twr-swrow" data-f="ci" style="justify-content:center;margin-bottom:7px;">'+sw10+'</div>'
-    +'<div class="rc-ed-stage" style="border-color:rgba(56,189,248,.35);"><canvas id="dp-ed-cv" width="360" height="250"></canvas></div>'
+    +'<div class="rc-ed-stage" data-dp="1"><canvas id="dp-ed-cv" width="360" height="250"></canvas></div>'
     +'<div class="rc-ed-note">Il colore resta quello del POSTO: personalizzi forma, dettagli e finitura.</div>'
-    +'<div class="rc-ed-secs" id="dp-secs">'+dpEdSections()+'</div>'
+    +'<div class="rc-ed-secs dp-secs" id="dp-secs">'+dpEdSections()+'</div>'
     +'<div class="rc-ed-h" style="margin-top:16px;">🏆 SKIN DA SBLOCCARE<span class="rc-ed-badge">solo giocando — niente acquisti</span></div>'
     +'<div id="dp-skins" class="db-sk-grid"></div>'
     +'<button class="action-btn gold" style="width:100%;margin-top:14px;" onclick="dpEdSave()">💾 SALVA SCALATORE</button>'
@@ -49051,8 +49103,16 @@ function deadpeakEditor(){
 }
 // sezioni opzioni: mostra SOLO indici raggiungibili (free o con skin che li concede)
 function dpEdSections(){
-  var opts=function(f,names){
-    var out='<div class="twr-optrow" data-f="'+f+'">';
+  // ogni slot = una card "field" con icona + nome IT leggibile + valore corrente
+  // (span#dp-cur-<f>, aggiornato da dpEdMark) + chip selezionabili. Contratto
+  // invariato: row[data-f] + button[data-i]/.sel/.locked (dpEdMark), dpEdSet/
+  // dpLockedTap/dpIdxState/dpEdSave identici. Solo presentazione, zero logica look.
+  var field=function(ic,lbl,f,names){
+    var out='<div class="dp-field"><div class="dp-field-h">'
+      +'<span class="dp-field-ic">'+ic+'</span>'
+      +'<span class="dp-field-nm">'+lbl+'</span>'
+      +'<span class="dp-field-cur" id="dp-cur-'+f+'"></span></div>'
+      +'<div class="twr-optrow" data-f="'+f+'">';
     names.forEach(function(nm2,i){
       if(!nm2)return;
       var st=dpIdxState(f,i);
@@ -49060,22 +49120,24 @@ function dpEdSections(){
       if(st===1)out+='<button class="twr-opt locked" onclick="dpLockedTap(\''+f+'\','+i+')">🔒 '+nm2+'</button>';
       else out+='<button class="twr-opt" data-i="'+i+'" onclick="dpEdSet(\''+f+'\','+i+')">'+nm2+'</button>';
     });
-    return out+'</div>';
+    return out+'</div></div>';
   };
-  var hd=function(lbl,f){
-    return '<div class="rc-ed-h">'+lbl+(f?'<span class="rc-ed-cur" id="dp-cur-'+f+'"></span>':'')+'</div>';
-  };
-  return hd('TUTA','st')+opts('st',SCL_STN)
-    +hd('CASCO','hm')+opts('hm',SCL_HMN)
-    +hd('CAPELLI','hr')+opts('hr',SCL_HRN)
-    +hd('OCCHIALONI','gg')+opts('gg',SCL_GGN)
-    +hd('COLLO','bd')+opts('bd',SCL_BDN)
-    +hd('GUANTI','gl')+opts('gl',SCL_GLN)
-    +hd('IMBRAGO','hb')+opts('hb',SCL_HBN)
-    +hd('SCARPE','bo')+opts('bo',SCL_BON)
-    +hd('ZAINO','bp')+opts('bp',SCL_BPN)
-    +hd('PICCOZZA COSMETICA','ax')+opts('ax',SCL_AXN)
-    +hd('FINITURA RIM-LIGHT','rim')+opts('rim',SCL_RIMN);
+  var grp=function(t){return '<div class="dp-grp">'+t+'</div>';};
+  return grp('Testa')
+    +field('⛑️','Casco','hm',SCL_HMN)
+    +field('💇','Capelli','hr',SCL_HRN)
+    +field('🥽','Occhialoni','gg',SCL_GGN)
+    +field('🧣','Collo','bd',SCL_BDN)
+    +grp('Corpo')
+    +field('🧥','Tuta','st',SCL_STN)
+    +field('🎗️','Imbrago','hb',SCL_HBN)
+    +field('🎒','Zaino','bp',SCL_BPN)
+    +grp('Mani &amp; Piedi')
+    +field('🧤','Guanti','gl',SCL_GLN)
+    +field('🥾','Scarpe','bo',SCL_BON)
+    +grp('Stile')
+    +field('⛏️','Piccozza','ax',SCL_AXN)
+    +field('✨','Rim-light','rim',SCL_RIMN);
 }
 // 0 = libero/sbloccato · 1 = bloccato (skin nota) · 2 = non raggiungibile oggi
 function dpIdxState(f,i){
