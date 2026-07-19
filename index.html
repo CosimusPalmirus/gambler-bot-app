@@ -30,8 +30,22 @@
   var BACKEND_DOMAIN = '62-238-17-24.sslip.io';
   var ORIGINAL_FETCH = window.fetch.bind(window);
   function getInitData() {
-    return (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || '';
+    // ANTI-RELOAD (fix 19/07 "DERBY coda infinita"): l'initData vive nel
+    // fragment dell'URL e NON sopravvive ai reload silenziosi della webview
+    // (Android la ricarica sotto pressione di memoria) → la pagina ripristinata
+    // si autenticava a vuoto (WS 4003 in loop). Rimedio: al primo giro salviamo
+    // l'initData in localStorage e quando Telegram non la fornisce usiamo la
+    // copia salvata (il backend la accetta per 24h; una vera riapertura dal bot
+    // la rimpiazza con una fresca). Esposta come window.gbInitData per i moduli WS.
+    var v = '';
+    try { v = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || ''; } catch (e) {}
+    try {
+      if (v) { localStorage.setItem('gb_init_data', v); }
+      else { v = localStorage.getItem('gb_init_data') || ''; }
+    } catch (e) {}
+    return v;
   }
+  window.gbInitData = getInitData;
   window.fetch = function(input, init) {
     init = init || {};
     var url = (typeof input === 'string') ? input : (input && input.url) || '';
@@ -11905,7 +11919,7 @@ body{position:relative;}
     /* ── DEAD PEAK ITEMS: nomi oggetti, bottone, stamp, card regole ── */
     "OGGETTO":"ITEM",
     "RAMPINO":"GRAPPLE",
-    "CHIODO DA SCALATA":"CLIMBING PITON",
+    "CHECKPOINT":"CHECKPOINT",
     "MURO":"WALL",
     "PICCOZZA":"PICKAXE",
     "MASSO":"BOULDER",
@@ -12015,7 +12029,7 @@ body{position:relative;}
     [/ aggancia col rampino /g,' grapple-hooks '],
     [/ spacca un muro/g,' smashes a wall'],
     [/hai raccolto: RAMPINO/g,'you got: GRAPPLE'],
-    [/hai raccolto: CHIODO DA SCALATA/g,'you got: CLIMBING PITON'],
+    [/hai raccolto: CHECKPOINT/g,'you got: CHECKPOINT'],
     [/hai raccolto: MURO/g,'you got: WALL'],
     [/hai raccolto: PICCOZZA/g,'you got: PICKAXE'],
     [/hai raccolto: MASSO/g,'you got: BOULDER'],
@@ -35449,7 +35463,7 @@ function twrConnect(){
     TWR.wsOk=true;wsNetBanner('turf',0);
     setTimeout(function(){if(TWR.ws===ws&&TWR.wsOk)TWR.retries=0;},10000);   // retries azzerati SOLO dopo 10s stabili
     var initData='';
-    try{initData=(window.Telegram&&window.Telegram.WebApp&&window.Telegram.WebApp.initData)||'';}catch(e){}
+    try{initData=(window.gbInitData&&window.gbInitData())||(window.Telegram&&window.Telegram.WebApp&&window.Telegram.WebApp.initData)||'';}catch(e){}
     ws.send(JSON.stringify({t:'hello',user_id:String(S.userId||''),init_data:initData,profile:twrProfile()}));
   };
   ws.onmessage=function(evm){
@@ -37827,7 +37841,7 @@ function tkConnect(){
     TKD.wsOk=true;wsNetBanner('tank',0);
     setTimeout(function(){if(TKD.ws===ws&&TKD.wsOk)TKD.retries=0;},10000);   // retries azzerati SOLO dopo 10s stabili
     var initData='';
-    try{initData=(window.Telegram&&window.Telegram.WebApp&&window.Telegram.WebApp.initData)||'';}catch(e){}
+    try{initData=(window.gbInitData&&window.gbInitData())||(window.Telegram&&window.Telegram.WebApp&&window.Telegram.WebApp.initData)||'';}catch(e){}
     ws.send(JSON.stringify({t:'hello',user_id:String(S.userId||''),init_data:initData,profile:twrProfile()}));
   };
   ws.onmessage=function(evm){
@@ -38859,7 +38873,7 @@ function gldConnect(){
     GLD.wsOk=true;wsNetBanner('glad',0);
     setTimeout(function(){if(GLD.ws===ws&&GLD.wsOk)GLD.retries=0;},10000);   // retries azzerati SOLO dopo 10s stabili
     var initData='';
-    try{initData=(window.Telegram&&window.Telegram.WebApp&&window.Telegram.WebApp.initData)||'';}catch(e){}
+    try{initData=(window.gbInitData&&window.gbInitData())||(window.Telegram&&window.Telegram.WebApp&&window.Telegram.WebApp.initData)||'';}catch(e){}
     ws.send(JSON.stringify({t:'hello',user_id:String(S.userId||''),init_data:initData,profile:twrProfile()}));
   };
   ws.onmessage=function(evm){var msg;try{msg=JSON.parse(evm.data);}catch(e){return;}gldOnMsg(msg);};
@@ -41402,7 +41416,7 @@ function rtdConnect(){
     RTD.wsOk=true;wsNetBanner('arc',0);
     setTimeout(function(){if(RTD.ws===ws&&RTD.wsOk)RTD.retries=0;},10000);   // retries azzerati SOLO dopo 10s stabili
     var initData='';
-    try{initData=(window.Telegram&&window.Telegram.WebApp&&window.Telegram.WebApp.initData)||'';}catch(e){}
+    try{initData=(window.gbInitData&&window.gbInitData())||(window.Telegram&&window.Telegram.WebApp&&window.Telegram.WebApp.initData)||'';}catch(e){}
     ws.send(JSON.stringify({t:'hello',user_id:String(S.userId||''),init_data:initData,profile:twrProfile()}));
   };
   ws.onmessage=function(evm){
@@ -42473,6 +42487,15 @@ function rtdFeedEvent(e){
       if(g!=='scalata')break;
       if(e.who===me)rtdStamp('SEI IN TESTA','#facc15');
       else rtdFeed('🥇 '+rtdName(e.who)+' è in testa');
+      break;
+    case 'ckpt':   // CHECKPOINT 19/07: respawn al chiodo (consumato) — engine feed {who,x,y}
+      if(g!=='scalata')break;
+      if(String(e.who)===String(me)){
+        rtdStamp('RITORNO AL CHECKPOINT','#fbbf24');
+        TWS.play('dpkPin',0.95);
+        try{if(window.SC){SC.ckptT=performance.now();SC.flash={t0:SC.ckptT,dur:420,a:0.26,col:'#fbbf24'};}}catch(_ck){}
+        try{tg.HapticFeedback&&tg.HapticFeedback.notificationOccurred('success');}catch(_ck2){}
+      }else rtdFeed('🚩 '+rtdName(e.who)+' riparte dal suo checkpoint');
       break;
     /* ── BOLGIA (calcio) §7 ── */
     case 'palo':
@@ -47918,8 +47941,8 @@ var SC={
   CLIMB:0.75,     // = climb_rt CLIMB_MUL (salita my>0)
   CLIMB_LAD:1.05, // = climb_rt CLIMB_MUL_LAD (celle piolo)
   CLIMB_CHN:0.66, // = climb_rt CLIMB_MUL_CHN (celle catena)
-  UPDL:4.2,       // = climb_rt UPD_LIFT (fans con dy=+1 = correnti)
-  UPDV:6.5,       // = climb_rt UPD_VCAP (cap vy netto in corrente)
+  UPDL:4.2,       // SOLO VISUALE (velocita' shimmer correnti) — il mirror fisico e' UPDLIFT
+  UPDV:6.5,       // legacy inutilizzato — il mirror fisico e' UPDVCAP
   UPDLAT:1.6,     // = climb_rt UPD_LAT (spinta laterale corrente, segno = dx fan)
   DSPD:13.0,      // = climb_rt DASH_SPD
   DT:0.22,        // = climb_rt DASH_T
@@ -47935,7 +47958,7 @@ var SC={
   BELT:3.2,       // = climb_rt BELT_SPD
   FANS:5.5,       // = climb_rt FAN_SPD (fans con dy=0)
   BALLV:7.0,      // = climb_rt BALL_SPD
-  LX0:[1,9,17,25],LX1:[7,15,23,30],SEP:[8,16,24],   // = climb_rt LANE_X0/X1/SEP_COLS
+  LX0:[1,10,19,28],LX1:[9,18,27,34],SEP:[],   // = climb_rt LANE_X0/X1/SEP_COLS (WORLD v4 "M": campo 36, nessun separatore)
   VIEW:10,        // req.COMMITTENTE "camera piu zoommata": 16 → 10 celle visibili
                   // in orizzontale. A 16 le celle stavano a ~24px su 390px di
                   // viewport mobile e il personaggio (1 cella larga) era un
@@ -48006,14 +48029,14 @@ var SC={
   MANTUP:1.15,    // = climb_rt MANTLE_UP (sollevamento mantle)
   MANTFWD:0.55,   // = climb_rt MANTLE_FWD (avanzamento mantle)
   HANGMAX:1.4,    // = climb_rt HANG_MAX_T (auto-mantle anti-camp)
-  PH:1.7,         // = climb_rt PH (altezza AABB, testa a y+PH)
+  PH:1.95,        // = climb_rt PH (altezza AABB, testa a y+PH — rework CHECKPOINT 19/07)
   JHOLD:0.2,      // = climb_rt JUMP_HOLD_MIN (my≤ → G_CUT hop corto)
   MANTMY:0.5,     // = climb_rt MANTLE_MY (my> da hang → mantle)
   DROPMY:0.5,     // = climb_rt DROP_MY (my< → lascia bordo / drop one-way)
   WFLOOR:0.31,    // = climb_rt WFLOOR (pavimento mondo calpestabile)
   UPDLIFT:7.5,    // = climb_rt UPD_LIFT (lift correnti dy>0)
   UPDVCAP:9.0,    // = climb_rt UPD_VCAP (cap vy netto in corrente)
-  W:32,H:92,YT:86,secRows:16, // sovrascritti da map_info (w/h/ytop)
+  W:36,H:92,YT:86,secRows:16, // sovrascritti da map_info (w/h/ytop) — default = WORLD v4 "M" 36×92
   // pred platformer: x,y,vx,vy + stato fisico locale (grounded/coyote/jbuf/drop/
   // noledge/ride/hang) + acc/jreq. Riconciliato verso la row autoritativa (§3.2).
   pred:{ok:false,x:0,y:0,vx:0,vy:0,grounded:false,coyote:0,jbuf:0,drop:0,noledge:0,ride:null,hang:false,jreq:0},
@@ -48032,6 +48055,7 @@ var SC={
   myInv:[],mySel:0,hudInv:'',invNprev:null,   // §M2 inventario (3 slot fissi)
   pull:{who:null,victim:null,t0:0},   // fune di traino (feed hook)
   axeFx:null,r6prev:null,wlPrev:null,pinPrev:null,prPrev:null,bldSndT:0,dustT:0,
+  myCkpt:null,ckptT:0,   // CHECKPOINT 19/07: snapshot per-viewer raw.ckpt [x,y,ttl] + t ultimo respawn-al-checkpoint
   bloodCv:null,bloodCx:null,bloodFade:0,mm:null,
   P:null,pi:0,G:null,gi:0,anim:{},trailT:0,emberT:0,startAt:0,
   myY:0,myX:16,meDead:false,rockT:0,
@@ -48048,7 +48072,7 @@ var SC={
 // 4 piccozza, 5 masso, 6 magnesite; mapping fisso id→emoji per HUD §8)
 var SCL_ITEM=[null,
   {ico:'🪝',nm:'RAMPINO',col:'#38bdf8'},
-  {ico:'📌',nm:'CHIODO DA SCALATA',col:'#fbbf24'},
+  {ico:'🚩',nm:'CHECKPOINT',col:'#fbbf24'},   // rework 19/07: chiodo = checkpoint personale (respawn one-shot)
   {ico:'🧱',nm:'MURO',col:'#a8a29e'},
   {ico:'⛏️',nm:'PICCOZZA',col:'#e2e8f0'},
   {ico:'🪨',nm:'MASSO',col:'#a89f98'},
@@ -48606,14 +48630,17 @@ function sclSprite(ci,me,lk){
 // (capsule = linee lineCap round) disegnato per-frame. La TINTA resta il SEAT
 // COLOR (SCL_COLS, intoccabile); l'outline scuro/bianco `me` resta il segnale.
 function sclHeadSprite(hm,gg,hr,seat,me){
-  return rtdSprite('sclh|'+hm+'|'+gg+'|'+hr+'|'+seat+(me?'m':''),44,44,function(c){
+  // bake 56×56 (19/07: era 44 — caschi/creste alti venivano CLIPPATI): centro
+  // testa al centro canvas, ~15px di aria sopra per silhouette dei caschi.
+  return rtdSprite('sclh|'+hm+'|'+gg+'|'+hr+'|'+seat+(me?'m':''),56,56,function(c){
     var col=SCL_COLS[seat%SCL_COLS.length];
-    c.translate(22,23);
+    c.translate(28,28);
     var rh=13;
     // CAPELLI (hr) DIETRO la testa (chioma/coda che spunta) — palette neutra
-    if(hr===2){c.fillStyle='#2c241b';c.beginPath();c.moveTo(-rh,-2);c.quadraticCurveTo(-rh-3,10,-rh+3,13);c.lineTo(-rh+6,10);c.quadraticCurveTo(-rh+2,2,-rh,-2);c.closePath();c.fill();
-               c.beginPath();c.moveTo(rh,-2);c.quadraticCurveTo(rh+3,10,rh-3,13);c.lineTo(rh-6,10);c.quadraticCurveTo(rh-2,2,rh,-2);c.closePath();c.fill();}
-    else if(hr===4){c.fillStyle='#33281d';c.beginPath();c.ellipse(-rh-2,3,4,8,-0.3,0,6.283);c.fill();c.strokeStyle='rgba(0,0,0,.4)';c.lineWidth=1;c.stroke();}
+    if(hr===2){c.fillStyle='#2c241b';c.beginPath();c.moveTo(-rh,-2);c.quadraticCurveTo(-rh-5,12,-rh+3,17);c.lineTo(-rh+7,13);c.quadraticCurveTo(-rh+2,3,-rh,-2);c.closePath();c.fill();
+               c.beginPath();c.moveTo(rh,-2);c.quadraticCurveTo(rh+5,12,rh-3,17);c.lineTo(rh-7,13);c.quadraticCurveTo(rh-2,3,rh,-2);c.closePath();c.fill();}
+    else if(hr===4){c.fillStyle='#33281d';c.beginPath();c.ellipse(-rh-3,5,5,11,-0.35,0,6.283);c.fill();c.strokeStyle='rgba(0,0,0,.4)';c.lineWidth=1.2;c.stroke();
+                    c.strokeStyle='rgba(255,255,255,.14)';c.beginPath();c.moveTo(-rh-4,-1);c.quadraticCurveTo(-rh-7,7,-rh-4,13);c.stroke();}
     var g0=c.createRadialGradient(-4,-5,3,0,0,rh+3);
     g0.addColorStop(0,col);g0.addColorStop(1,'rgba(12,12,18,.92)');
     c.fillStyle=g0;c.beginPath();c.arc(0,0,rh,0,6.283);c.fill();
@@ -48621,43 +48648,51 @@ function sclHeadSprite(hm,gg,hr,seat,me){
     c.beginPath();c.arc(0,0,rh,0,6.283);c.stroke();
     c.strokeStyle='rgba(255,255,255,.28)';c.lineWidth=2;   // rim speculare (volume)
     c.beginPath();c.arc(0,0,rh-1.5,3.5,5.0);c.stroke();
-    // occhialoni gg (occhi a ±5,-2)
-    if(gg===3){   // BENDA
-      c.strokeStyle='rgba(0,0,0,.75)';c.lineWidth=2.2;
-      c.beginPath();c.moveTo(-12,-6);c.lineTo(11,1);c.stroke();
-      c.fillStyle='#0b0d12';c.beginPath();c.arc(-5,-2,4.2,0,6.283);c.fill();
-      c.fillStyle='#0b1220';c.beginPath();c.arc(5,-2,3.6,0,6.283);c.fill();
-      c.fillStyle='#e0f2fe';c.beginPath();c.arc(6,-3,1.5,0,6.283);c.fill();
-    }else{
+    // occhialoni gg (occhi a ±5,-2) — INGRANDITI 19/07: leggibili a colpo d'occhio
+    if(gg===3){   // BENDA: fascia larga a tracolla + occhio coperto
+      c.strokeStyle='rgba(0,0,0,.8)';c.lineWidth=3.4;
+      c.beginPath();c.moveTo(-14,-7);c.lineTo(13,2);c.stroke();
+      c.fillStyle='#0b0d12';c.beginPath();c.arc(-5,-2,5.2,0,6.283);c.fill();
+      c.strokeStyle='rgba(255,255,255,.2)';c.lineWidth=1.2;
+      c.beginPath();c.arc(-5,-2,5.2,0,6.283);c.stroke();
+      c.fillStyle='#0b1220';c.beginPath();c.arc(5,-2,3.8,0,6.283);c.fill();
+      c.fillStyle='#e0f2fe';c.beginPath();c.arc(6,-3,1.6,0,6.283);c.fill();
+    }else if(gg===1){   // SCURI: mascherona unica stile ghiacciaio + montatura
+      c.fillStyle='#0b0d12';
+      c.beginPath();c.moveTo(-11,-6);c.lineTo(11,-6);c.quadraticCurveTo(13,-2,11,1.5);c.lineTo(-11,1.5);c.quadraticCurveTo(-13,-2,-11,-6);c.closePath();c.fill();
+      c.strokeStyle='rgba(0,0,0,.85)';c.lineWidth=1.8;c.stroke();
+      c.strokeStyle='rgba(255,255,255,.25)';c.lineWidth=1.4;
+      c.beginPath();c.moveTo(-9,-4.5);c.lineTo(8,-4.5);c.stroke();
+      c.strokeStyle='rgba(0,0,0,.7)';c.lineWidth=2;
+      c.beginPath();c.moveTo(-13,-3);c.lineTo(-rh,-3);c.moveTo(13,-3);c.lineTo(rh,-3);c.stroke();
+    }else if(gg===2){   // SPECCHIO: due lenti GRANDI azzurrate + cinghia
+      c.strokeStyle='rgba(0,0,0,.7)';c.lineWidth=2;
+      c.beginPath();c.moveTo(-13,-2);c.lineTo(13,-2);c.stroke();
+      c.fillStyle='#0b1220';
+      c.beginPath();c.arc(-5,-2,4.8,0,6.283);c.fill();
+      c.beginPath();c.arc(5,-2,4.8,0,6.283);c.fill();
+      c.fillStyle='rgba(165,213,250,.8)';
+      c.beginPath();c.arc(-5,-2,3.8,0,6.283);c.fill();
+      c.beginPath();c.arc(5,-2,3.8,0,6.283);c.fill();
+      c.fillStyle='rgba(255,255,255,.85)';
+      c.beginPath();c.arc(-6.4,-3.4,1.3,0,6.283);c.fill();
+      c.beginPath();c.arc(3.6,-3.4,1.3,0,6.283);c.fill();
+    }else{   // STANDARD: occhi vivi
       c.fillStyle='#0b1220';
       c.beginPath();c.arc(-5,-2,3.7,0,6.283);c.fill();
       c.beginPath();c.arc(5,-2,3.7,0,6.283);c.fill();
-      if(gg===0){   // STANDARD
-        c.fillStyle='#e0f2fe';
-        c.beginPath();c.arc(-4,-3,1.5,0,6.283);c.fill();
-        c.beginPath();c.arc(6,-3,1.5,0,6.283);c.fill();
-      }else if(gg===1){   // SCURI
-        c.strokeStyle='rgba(0,0,0,.8)';c.lineWidth=1.4;
-        c.beginPath();c.arc(-5,-2,3.7,0,6.283);c.stroke();
-        c.beginPath();c.arc(5,-2,3.7,0,6.283);c.stroke();
-        c.beginPath();c.moveTo(-1.3,-2);c.lineTo(1.3,-2);c.stroke();
-      }else{   // SPECCHIO
-        c.fillStyle='rgba(165,213,250,.75)';
-        c.beginPath();c.arc(-5,-2,2.7,0,6.283);c.fill();
-        c.beginPath();c.arc(5,-2,2.7,0,6.283);c.fill();
-        c.fillStyle='rgba(255,255,255,.8)';
-        c.beginPath();c.arc(-6,-3,0.9,0,6.283);c.fill();
-        c.beginPath();c.arc(4,-3,0.9,0,6.283);c.fill();
-      }
+      c.fillStyle='#e0f2fe';
+      c.beginPath();c.arc(-4,-3,1.5,0,6.283);c.fill();
+      c.beginPath();c.arc(6,-3,1.5,0,6.283);c.fill();
     }
     c.strokeStyle='rgba(0,0,0,.5)';c.lineWidth=2;   // bocca
     c.beginPath();c.moveTo(-3,6);c.quadraticCurveTo(0,8,3,6);c.stroke();
     // CAPELLI (hr) sulla FRONTE — sotto il casco (che poi copre), palette neutra
     if(hr>0){
       c.fillStyle=(hr===3?'#2a2018':'#33281d');
-      if(hr===3){   // CRESTA (mohawk): striscia dritta in cima
-        c.beginPath();c.moveTo(-3,-rh+2);c.lineTo(3,-rh+2);c.lineTo(2,-rh-6);c.lineTo(0,-rh-8);c.lineTo(-2,-rh-6);c.closePath();c.fill();
-        c.fillStyle='#241b13';c.fillRect(-1,-rh-6,2,rh-2);
+      if(hr===3){   // CRESTA (mohawk): ALTA e seghettata (19/07: c'e' aria nel bake 56)
+        c.beginPath();c.moveTo(-4,-rh+2);c.lineTo(4,-rh+2);c.lineTo(3.4,-rh-7);c.lineTo(1.6,-rh-5);c.lineTo(0.6,-rh-12);c.lineTo(-1.6,-rh-6);c.lineTo(-3,-rh-9);c.closePath();c.fill();
+        c.fillStyle='#241b13';c.fillRect(-1,-rh-8,2,rh-1);
       }else{   // CORTI/LUNGHI/CODA: calotta di capelli sulla fronte
         c.beginPath();c.arc(0,0,rh,3.55,5.87);   // arco superiore
         c.quadraticCurveTo(rh*0.7,-rh*0.35,rh*0.5,-rh*0.2);
@@ -48667,57 +48702,95 @@ function sclHeadSprite(hm,gg,hr,seat,me){
         c.strokeStyle='rgba(255,255,255,.12)';c.lineWidth=1;c.stroke();
       }
     }
-    // casco hm sopra la testa
-    if(hm===1){   // SCALATORE
-      c.fillStyle='rgba(255,255,255,.28)';
-      c.beginPath();c.arc(0,-2,rh+1,3.35,6.07);c.fill();
-    }else if(hm===2){   // MINATORE
-      c.fillStyle='rgba(255,255,255,.28)';
-      c.beginPath();c.arc(0,-2,rh+1,3.35,6.07);c.fill();
-      c.fillStyle='#fde047';c.beginPath();c.arc(0,-12,2.6,0,6.283);c.fill();
-      c.strokeStyle='rgba(253,224,71,.35)';c.lineWidth=1.4;
-      c.beginPath();c.arc(0,-12,4.4,0,6.283);c.stroke();
-    }else if(hm===3){   // INTEGRALE
-      c.fillStyle='rgba(255,255,255,.3)';
-      c.beginPath();c.arc(0,-1,rh+2,3.05,6.37);c.fill();
-      c.strokeStyle='rgba(0,0,0,.5)';c.lineWidth=1.8;
-      c.beginPath();c.moveTo(-11,-2);c.lineTo(11,-2);c.stroke();
-    }else if(hm===4){   // CAPPUCCIO
-      c.fillStyle='rgba(0,0,0,.5)';
-      c.beginPath();c.moveTo(-13,-1);c.quadraticCurveTo(-11,-15,0,-17);c.quadraticCurveTo(11,-15,13,-1);c.quadraticCurveTo(0,-7,-13,-1);c.closePath();c.fill();
-      c.strokeStyle='rgba(255,255,255,.18)';c.lineWidth=1.2;
-      c.beginPath();c.moveTo(-10,-3);c.quadraticCurveTo(0,-8,10,-3);c.stroke();
-    }else if(hm===5){   // CILINDRO
+    // casco hm sopra la testa — SILHOUETTE MARCATE 19/07 (leggibili a U~26)
+    if(hm===1){   // SCALATORE: calotta PIENA con visierina e cinturino
+      c.fillStyle='#e8edf3';
+      c.beginPath();c.arc(0,-3,rh+2,3.14159,6.28318);c.closePath();c.fill();
+      c.strokeStyle='rgba(0,0,0,.6)';c.lineWidth=1.8;
+      c.beginPath();c.arc(0,-3,rh+2,3.14159,6.28318);c.stroke();
+      c.fillStyle='#c9ced6';c.fillRect(-rh-3,-4,2*rh+6,2.6);   // bordo/visierina
+      c.strokeStyle='rgba(0,0,0,.35)';c.lineWidth=1.6;         // fori di aerazione
+      c.beginPath();c.moveTo(-6,-12);c.lineTo(-4,-8);c.moveTo(0,-13.5);c.lineTo(0,-9);c.moveTo(6,-12);c.lineTo(4,-8);c.stroke();
+      c.strokeStyle='rgba(0,0,0,.5)';c.lineWidth=1.4;          // cinturino sottogola
+      c.beginPath();c.moveTo(-rh-1,-2);c.quadraticCurveTo(0,10,rh+1,-2);c.stroke();
+    }else if(hm===2){   // MINATORE: calotta gialla + LAMPADA GRANDE accesa
+      c.fillStyle='#d9c463';
+      c.beginPath();c.arc(0,-3,rh+2,3.14159,6.28318);c.closePath();c.fill();
+      c.strokeStyle='rgba(0,0,0,.6)';c.lineWidth=1.8;
+      c.beginPath();c.arc(0,-3,rh+2,3.14159,6.28318);c.stroke();
+      c.fillStyle='#8f8140';c.fillRect(-rh-3,-4,2*rh+6,2.6);
+      c.fillStyle='#26292f';c.beginPath();c.arc(0,-13,4.6,0,6.283);c.fill();   // ghiera lampada
+      c.fillStyle='#fde047';c.beginPath();c.arc(0,-13,3.2,0,6.283);c.fill();
+      c.fillStyle='rgba(255,255,255,.9)';c.beginPath();c.arc(-1,-14,1.2,0,6.283);c.fill();
+      c.strokeStyle='rgba(253,224,71,.4)';c.lineWidth=2.2;                     // alone acceso
+      c.beginPath();c.arc(0,-13,6.6,0,6.283);c.stroke();
+    }else if(hm===3){   // INTEGRALE: guscio che scende sulle guance + presa d'aria
+      c.fillStyle='#dde3ea';
+      c.beginPath();c.moveTo(-rh-3,6);c.lineTo(-rh-3,-4);
+      c.quadraticCurveTo(-rh-3,-rh-4,0,-rh-4);c.quadraticCurveTo(rh+3,-rh-4,rh+3,-4);
+      c.lineTo(rh+3,6);c.quadraticCurveTo(rh,9,rh-3,7);c.lineTo(rh-3,-1);c.lineTo(-rh+3,-1);c.lineTo(-rh+3,7);c.quadraticCurveTo(-rh,9,-rh-3,6);c.closePath();c.fill();
+      c.strokeStyle='rgba(0,0,0,.6)';c.lineWidth=1.8;c.stroke();
+      c.strokeStyle='rgba(0,0,0,.55)';c.lineWidth=2.4;   // bordo visiera
+      c.beginPath();c.moveTo(-rh+3,-1);c.lineTo(rh-3,-1);c.stroke();
+      c.fillStyle='rgba(0,0,0,.4)';c.fillRect(-3,-rh-2,6,2);   // presa d'aria
+    }else if(hm===4){   // CAPPUCCIO: sagoma AMPIA a punta che ingoia la testa
+      c.fillStyle='#20242c';
+      c.beginPath();c.moveTo(-rh-4,4);c.quadraticCurveTo(-rh-4,-13,-4,-rh-6);
+      c.quadraticCurveTo(0,-rh-9,4,-rh-6);
+      c.quadraticCurveTo(rh+4,-13,rh+4,4);
+      c.quadraticCurveTo(rh,-4,0,-5);c.quadraticCurveTo(-rh,-4,-rh-4,4);c.closePath();c.fill();
+      c.strokeStyle='rgba(0,0,0,.65)';c.lineWidth=1.8;c.stroke();
+      c.strokeStyle='rgba(255,255,255,.2)';c.lineWidth=1.4;
+      c.beginPath();c.moveTo(-rh-1,0);c.quadraticCurveTo(0,-9,rh+1,0);c.stroke();
+      c.fillStyle='#20242c';c.beginPath();c.moveTo(2,-rh-8);c.quadraticCurveTo(7,-rh-10,8,-rh-5);c.quadraticCurveTo(5,-rh-5,2,-rh-8);c.closePath();c.fill();   // punta piegata
+    }else if(hm===5){   // CILINDRO: alto, con nastro chiaro e lucido
       c.fillStyle='#101318';
-      c.fillRect(-7,-24,14,10);
-      c.fillRect(-11,-15,22,3);
-      c.fillStyle='rgba(255,255,255,.16)';c.fillRect(-7,-24,3,10);
-      c.fillStyle='#c9ced6';c.fillRect(-7,-16.5,14,2);
+      c.fillRect(-8,-27,16,13);
+      c.fillRect(-13,-15,26,3.4);
+      c.fillStyle='rgba(255,255,255,.18)';c.fillRect(-8,-27,3.4,13);
+      c.fillStyle='#c9ced6';c.fillRect(-8,-17.4,16,2.6);
+      c.strokeStyle='rgba(0,0,0,.55)';c.lineWidth=1.4;
+      c.strokeRect(-8,-27,16,13);c.strokeRect(-13,-15,26,3.4);
     }
   });
 }
 // zaino bp + piccozza cosmetica ax DIETRO il busto (procedurale compatto)
 function sclKitDraw(ctx,plk,cx,cy,sl,cl,U,shRx,shRy){
   var bp=plk.bp|0,ax=plk.ax|0;
-  if(bp>0){
-    var bx=cx-cl*0.30*U+sl*0.12*U, by=cy-sl*0.30*U-cl*0.04*U;
+  if(bp>0){   // ZAINO INGRANDITO 19/07: sporge DAVVERO dalla schiena + spallaccio
+    var bx=cx-cl*0.44*U+sl*0.14*U, by=cy-sl*0.44*U+cl*0.06*U;
     ctx.save();ctx.translate(bx,by);ctx.rotate(sl);
-    if(bp===1){ctx.fillStyle='#8a7355';ctx.beginPath();ctx.ellipse(0,0,0.26*U,0.36*U,0,0,6.283);ctx.fill();}
-    else if(bp===2){ctx.fillStyle='#3f4a3a';ctx.fillRect(-0.2*U,-0.34*U,0.4*U,0.68*U);}
-    else if(bp===3){ctx.fillStyle='#9aa3ad';ctx.beginPath();ctx.ellipse(0,0,0.2*U,0.4*U,0,0,6.283);ctx.fill();}
-    else{ctx.fillStyle='#6b5540';ctx.beginPath();ctx.arc(0,0,0.32*U,0,6.283);ctx.fill();}
-    ctx.strokeStyle='rgba(0,0,0,.5)';ctx.lineWidth=Math.max(1,0.05*U);ctx.stroke();
+    if(bp===1){ctx.fillStyle='#8a7355';ctx.beginPath();ctx.ellipse(0,0,0.38*U,0.54*U,0,0,6.283);ctx.fill();
+      ctx.strokeStyle='rgba(0,0,0,.5)';ctx.lineWidth=Math.max(1,0.05*U);ctx.stroke();
+      ctx.fillStyle='#6f5b43';ctx.beginPath();ctx.ellipse(0,-0.40*U,0.26*U,0.16*U,0,0,6.283);ctx.fill();ctx.stroke();   // patella
+      ctx.strokeStyle='rgba(0,0,0,.4)';ctx.beginPath();ctx.moveTo(-0.30*U,0.02*U);ctx.lineTo(0.30*U,0.02*U);ctx.stroke();}
+    else if(bp===2){ctx.fillStyle='#3f4a3a';ctx.fillRect(-0.30*U,-0.52*U,0.60*U,1.02*U);
+      ctx.strokeStyle='rgba(0,0,0,.5)';ctx.lineWidth=Math.max(1,0.05*U);ctx.strokeRect(-0.30*U,-0.52*U,0.60*U,1.02*U);
+      ctx.fillStyle='rgba(0,0,0,.3)';ctx.fillRect(-0.30*U,-0.12*U,0.60*U,0.14*U);ctx.fillRect(-0.30*U,0.24*U,0.60*U,0.14*U);   // tasconi
+      ctx.fillStyle='#c9ced6';ctx.fillRect(-0.06*U,-0.50*U,0.12*U,0.10*U);}
+    else if(bp===3){ctx.fillStyle='#9aa3ad';ctx.beginPath();ctx.ellipse(0,0,0.28*U,0.60*U,0,0,6.283);ctx.fill();   // sacca alpinismo slanciata
+      ctx.strokeStyle='rgba(0,0,0,.5)';ctx.lineWidth=Math.max(1,0.05*U);ctx.stroke();
+      ctx.strokeStyle='rgba(0,0,0,.4)';ctx.beginPath();ctx.moveTo(-0.2*U,-0.3*U);ctx.lineTo(0.2*U,-0.18*U);ctx.moveTo(-0.2*U,0.06*U);ctx.lineTo(0.2*U,0.18*U);ctx.stroke();   // corda arrotolata
+      ctx.strokeStyle='rgba(255,255,255,.25)';ctx.beginPath();ctx.moveTo(-0.2*U,-0.24*U);ctx.lineTo(0.2*U,-0.12*U);ctx.stroke();}
+    else{ctx.fillStyle='#6b5540';ctx.beginPath();ctx.arc(0,0,0.46*U,0,6.283);ctx.fill();   // fagotto tondo
+      ctx.strokeStyle='rgba(0,0,0,.5)';ctx.lineWidth=Math.max(1,0.05*U);ctx.stroke();
+      ctx.strokeStyle='rgba(0,0,0,.4)';ctx.beginPath();ctx.moveTo(-0.42*U,-0.12*U);ctx.lineTo(0.42*U,-0.12*U);ctx.moveTo(-0.42*U,0.16*U);ctx.lineTo(0.42*U,0.16*U);ctx.stroke();}
     ctx.restore();
+    ctx.strokeStyle='rgba(0,0,0,.45)';ctx.lineWidth=Math.max(1.2,0.07*U);   // spallaccio sul busto
+    ctx.beginPath();ctx.moveTo(cx-0.30*U,cy-0.24*U);ctx.lineTo(cx+0.22*U,cy+0.30*U);ctx.stroke();
   }
-  if(ax>0){
-    ctx.save();ctx.translate(shRx+0.14*U,shRy-0.04*U);ctx.rotate(0.5);
+  if(ax>0){   // PICCOZZA cosmetica: manico lungo + testa larga (si legge in silhouette)
+    ctx.save();ctx.translate(shRx+0.16*U,shRy-0.06*U);ctx.rotate(0.5);
     ctx.lineCap='round';
     ctx.strokeStyle=ax===1?'#e7e0d0':(ax===2?'#8b959f':(ax===3?'#8a6a10':'#3b3b3b'));
-    ctx.lineWidth=Math.max(2,0.08*U);
-    ctx.beginPath();ctx.moveTo(0,-0.3*U);ctx.lineTo(0,0.52*U);ctx.stroke();
-    if(ax===4){ctx.fillStyle='#f97316';ctx.fillRect(-0.12*U,-0.5*U,0.45*U,0.22*U);}
-    else{ctx.strokeStyle=ax===1?'#f5f0e4':(ax===3?'#ffd700':'#9ca3af');ctx.lineWidth=Math.max(2,0.09*U);
-      ctx.beginPath();ctx.moveTo(-0.26*U,-0.24*U);ctx.quadraticCurveTo(0,-0.5*U,0.26*U,-0.24*U);ctx.stroke();}
+    ctx.lineWidth=Math.max(2,0.10*U);
+    ctx.beginPath();ctx.moveTo(0,-0.44*U);ctx.lineTo(0,0.72*U);ctx.stroke();
+    ctx.strokeStyle='rgba(0,0,0,.4)';ctx.lineWidth=Math.max(1,0.05*U);   // impugnatura fasciata
+    ctx.beginPath();ctx.moveTo(-0.05*U,0.5*U);ctx.lineTo(0.05*U,0.56*U);ctx.moveTo(-0.05*U,0.6*U);ctx.lineTo(0.05*U,0.66*U);ctx.stroke();
+    if(ax===4){ctx.fillStyle='#f97316';ctx.fillRect(-0.16*U,-0.66*U,0.58*U,0.28*U);
+      ctx.strokeStyle='rgba(0,0,0,.5)';ctx.lineWidth=Math.max(1,0.05*U);ctx.strokeRect(-0.16*U,-0.66*U,0.58*U,0.28*U);}
+    else{ctx.strokeStyle=ax===1?'#f5f0e4':(ax===3?'#ffd700':'#9ca3af');ctx.lineWidth=Math.max(2,0.12*U);
+      ctx.beginPath();ctx.moveTo(-0.36*U,-0.30*U);ctx.quadraticCurveTo(0,-0.66*U,0.36*U,-0.30*U);ctx.stroke();}
     ctx.restore();
   }
 }
@@ -48725,39 +48798,43 @@ function sclKitDraw(ctx,plk,cx,cy,sl,cl,U,shRx,shRy){
 function sclSuitDraw(ctx,st,pelX,pelY,cx,cy,sA,U){
   if(!st)return;
   ctx.save();ctx.lineCap='round';
-  var mx=(pelX+cx)/2,my=(pelY+cy)/2,q,px,py,pxo=Math.cos(sA)*0.2*U,pyo=Math.sin(sA)*0.2*U;
-  if(st===1){   // IMBOTTITA
-    ctx.strokeStyle='rgba(0,0,0,.3)';ctx.lineWidth=Math.max(1,0.05*U);
-    for(q=0.3;q<=0.75;q+=0.22){px=pelX+(cx-pelX)*q;py=pelY+(cy-pelY)*q;
+  var mx=(pelX+cx)/2,my=(pelY+cy)/2,q,px,py,pxo=Math.cos(sA)*0.27*U,pyo=Math.sin(sA)*0.27*U;
+  if(st===1){   // IMBOTTITA: trapuntatura larga su tutto il busto
+    ctx.strokeStyle='rgba(0,0,0,.32)';ctx.lineWidth=Math.max(1.2,0.06*U);
+    for(q=0.18;q<=0.85;q+=0.22){px=pelX+(cx-pelX)*q;py=pelY+(cy-pelY)*q;
       ctx.beginPath();ctx.moveTo(px-pxo,py-pyo);ctx.lineTo(px+pxo,py+pyo);ctx.stroke();}
-  }else if(st===2){   // STRACCI
-    ctx.fillStyle='rgba(0,0,0,.3)';
-    ctx.beginPath();ctx.arc(mx-0.08*U,my,0.09*U,0,6.283);ctx.fill();
-    ctx.beginPath();ctx.arc(mx+0.1*U,my+0.12*U,0.07*U,0,6.283);ctx.fill();
-  }else if(st===3){   // TATTICA: X
-    ctx.strokeStyle='rgba(0,0,0,.4)';ctx.lineWidth=Math.max(1.4,0.08*U);
-    ctx.beginPath();ctx.moveTo(pelX-0.13*U,cy);ctx.lineTo(cx+0.13*U,pelY);
-    ctx.moveTo(pelX+0.13*U,cy);ctx.lineTo(cx-0.13*U,pelY);ctx.stroke();
-  }else if(st===4){   // TUTONE: zip
-    ctx.strokeStyle='rgba(0,0,0,.4)';ctx.lineWidth=Math.max(1.2,0.06*U);
+  }else if(st===2){   // STRACCI: toppe grandi + strappo
+    ctx.fillStyle='rgba(0,0,0,.32)';
+    ctx.beginPath();ctx.arc(mx-0.10*U,my,0.13*U,0,6.283);ctx.fill();
+    ctx.beginPath();ctx.arc(mx+0.13*U,my+0.16*U,0.10*U,0,6.283);ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,.3)';ctx.lineWidth=Math.max(1,0.05*U);
+    ctx.beginPath();ctx.moveTo(mx-0.05*U,my-0.28*U);ctx.lineTo(mx+0.12*U,my-0.18*U);ctx.stroke();
+  }else if(st===3){   // TATTICA: X a bandoliera marcata
+    ctx.strokeStyle='rgba(0,0,0,.45)';ctx.lineWidth=Math.max(1.8,0.11*U);
+    ctx.beginPath();ctx.moveTo(pelX-0.17*U,cy);ctx.lineTo(cx+0.17*U,pelY);
+    ctx.moveTo(pelX+0.17*U,cy);ctx.lineTo(cx-0.17*U,pelY);ctx.stroke();
+    ctx.fillStyle='#c9ced6';ctx.fillRect(mx-0.05*U,my-0.05*U,0.10*U,0.10*U);   // piastra incrocio
+  }else if(st===4){   // TUTONE: zip doppia
+    ctx.strokeStyle='rgba(0,0,0,.45)';ctx.lineWidth=Math.max(1.6,0.08*U);
     ctx.beginPath();ctx.moveTo(pelX,pelY);ctx.lineTo(cx,cy);ctx.stroke();
-    ctx.strokeStyle='rgba(255,255,255,.3)';ctx.lineWidth=Math.max(0.8,0.03*U);
+    ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=Math.max(1,0.04*U);
     ctx.beginPath();ctx.moveTo(pelX,pelY);ctx.lineTo(cx,cy);ctx.stroke();
-  }else{   // PELLICCIA: ciuffi al collo
-    ctx.strokeStyle='rgba(255,255,255,.4)';ctx.lineWidth=Math.max(1,0.05*U);
-    for(q=-2;q<=2;q++){ctx.beginPath();ctx.moveTo(cx+q*0.06*U,cy);ctx.lineTo(cx+q*0.06*U,cy-0.12*U);ctx.stroke();}
+  }else{   // PELLICCIA: ciuffi folti al collo
+    ctx.strokeStyle='rgba(255,255,255,.45)';ctx.lineWidth=Math.max(1.2,0.06*U);
+    for(q=-3;q<=3;q++){ctx.beginPath();ctx.moveTo(cx+q*0.07*U,cy+0.02*U);ctx.lineTo(cx+q*0.075*U,cy-0.18*U);ctx.stroke();}
   }
   ctx.restore();
 }
 // scratch giunti (zero alloc per-frame): 9 segmenti [thighL,shinL,armLU,armLF,torso,thighR,shinR,armRU,armRF]
 var _rgX1=[0,0,0,0,0,0,0,0,0],_rgY1=[0,0,0,0,0,0,0,0,0],
     _rgX2=[0,0,0,0,0,0,0,0,0],_rgY2=[0,0,0,0,0,0,0,0,0],_rgW=[0,0,0,0,0,0,0,0,0];
-// ── PROPORZIONI GAMBA (18/07) ───────────────────────────────────────────────
-// Erano 0.70/0.66 (L=1.36U): gambe troppo corte sia per l'AABB dell'engine
-// (PH=1.7 celle = 4.0U) sia per la FALCATA. Con una falcata così corta, a
-// V_WALK=5.6 celle/s un ciclo senza pattinaggio sarebbe costato ~5.4 cicli/s
-// (zampettio illeggibile). Allungate: L=1.85U ⇒ ~3.5 cicli/s a velocità piena.
-var SCL_THIGH=0.95, SCL_SHIN=0.90;
+// ── PROPORZIONI CORPO 2.0 CELLE (19/07) ─────────────────────────────────────
+// Rig ricalibrato sull'AABB nuovo dell'engine (PH=1.95 celle = 4.59U, 1 cella
+// = 2.353U con U = R·1.25·cell): piedi a y=0, TESTA a ~1.96 celle ⇒ il corpo
+// disegnato RIEMPIE la scatola fisica (prima 1.6 celle: si fermava "a vuoto"
+// sotto i soffitti). Proporzioni ATLETICHE: gambe ~49% dell'altezza, testa
+// ~19% (era 21%), falcata scalata di conseguenza nel ciclo del passo.
+var SCL_THIGH=1.18, SCL_SHIN=1.12;
 // bacino di DEFAULT: calcolato perché nella posa IDLE (lLT=-0.10, lLS=0.16) i
 // PIEDI cadano ESATTAMENTE sull'origine (= y dei piedi passata dall'engine).
 var SCL_PEL_Y=-(Math.cos(-0.10)*SCL_THIGH+Math.cos(0.06)*SCL_SHIN);
@@ -48791,9 +48868,9 @@ function sclLegIK(hx,hy,tx,ty,kneeDir){
 //    (mai una tinta libera: la tinta resta il SEAT). Procedurali, zero alloc. ──
 function sclBootDraw(ctx,bo,fx,fy,fdir,U,out){
   ctx.save();ctx.translate(fx,fy);ctx.lineJoin='round';
-  ctx.strokeStyle=out;ctx.lineWidth=Math.max(1,0.055*U);
+  ctx.strokeStyle=out;ctx.lineWidth=Math.max(1,0.06*U);
   var col=(bo===3?'#3b404a':(bo===0?'#2b3038':'#20242c'));
-  var toe=0.32*U*fdir, back=-0.15*U*fdir, up=(bo===2?0.48:0.22)*U, sole=0.17*U;
+  var toe=0.40*U*fdir, back=-0.19*U*fdir, up=(bo===2?0.60:0.28)*U, sole=0.20*U;   // 19/07: scarpone GRANDE
   ctx.fillStyle=col;
   ctx.beginPath();
   ctx.moveTo(back,-up);ctx.lineTo(0.08*U*fdir,-up);ctx.lineTo(0.11*U*fdir,-0.02*U);
@@ -48801,16 +48878,16 @@ function sclBootDraw(ctx,bo,fx,fy,fdir,U,out){
   ctx.lineTo(back,sole);ctx.closePath();ctx.fill();ctx.stroke();
   ctx.strokeStyle='rgba(232,238,244,.3)';ctx.lineWidth=Math.max(1,0.06*U);   // suola chiara
   ctx.beginPath();ctx.moveTo(back,sole-0.02*U);ctx.lineTo(toe-0.03*U*fdir,sole-0.02*U);ctx.stroke();
-  if(bo===1){   // RAMPONI: denti metallici sotto
+  if(bo===1){   // RAMPONI: denti metallici GRANDI sotto
     ctx.fillStyle='#d5dae2';
-    for(var d=0;d<3;d++){var dx=(-0.02+d*0.13)*U*fdir;ctx.beginPath();ctx.moveTo(dx,sole);ctx.lineTo(dx+0.03*U*fdir,sole+0.12*U);ctx.lineTo(dx+0.07*U*fdir,sole);ctx.closePath();ctx.fill();}
+    for(var d=0;d<4;d++){var dx=(-0.10+d*0.14)*U*fdir;ctx.beginPath();ctx.moveTo(dx,sole);ctx.lineTo(dx+0.04*U*fdir,sole+0.16*U);ctx.lineTo(dx+0.09*U*fdir,sole);ctx.closePath();ctx.fill();}
   }else if(bo===2){   // STIVALI: risvolto alto
     ctx.strokeStyle='rgba(0,0,0,.4)';ctx.lineWidth=Math.max(1,0.05*U);
     ctx.beginPath();ctx.moveTo(back,-up*0.5);ctx.lineTo(0.10*U*fdir,-up*0.5);ctx.stroke();
     ctx.strokeStyle='rgba(232,238,244,.25)';ctx.beginPath();ctx.moveTo(back,-up*0.5+0.04*U);ctx.lineTo(0.10*U*fdir,-up*0.5+0.04*U);ctx.stroke();
-  }else if(bo===3){   // PESANTI: fibbia
-    ctx.fillStyle='#c9ced6';ctx.fillRect(0.0,-up*0.55,0.10*U,0.08*U);
-    ctx.fillStyle='#6b7280';ctx.fillRect(0.02*U,-up*0.53,0.03*U,0.04*U);
+  }else if(bo===3){   // PESANTI: fibbia grande
+    ctx.fillStyle='#c9ced6';ctx.fillRect(-0.02*U,-up*0.6,0.14*U,0.11*U);
+    ctx.fillStyle='#6b7280';ctx.fillRect(0.01*U,-up*0.56,0.05*U,0.05*U);
   }
   ctx.restore();
 }
@@ -48818,32 +48895,48 @@ function sclGloveDraw(ctx,gl,hx,hy,U,out){
   if(gl<=0)return;   // NUDE = mano nuda (come lo storico)
   ctx.save();ctx.translate(hx,hy);
   ctx.fillStyle=(gl===2?'#2e343d':(gl===3?'#4a4038':'#3a3f47'));
-  ctx.strokeStyle=out;ctx.lineWidth=Math.max(1,0.05*U);
-  ctx.beginPath();ctx.arc(0,0,0.18*U,0,6.283);ctx.fill();ctx.stroke();
-  ctx.fillStyle='rgba(255,255,255,.14)';ctx.beginPath();ctx.arc(-0.05*U,-0.05*U,0.07*U,0,6.283);ctx.fill();   // luce
-  if(gl===1){ctx.strokeStyle='rgba(0,0,0,.4)';ctx.lineWidth=Math.max(1,0.04*U);ctx.beginPath();ctx.moveTo(-0.1*U,0);ctx.lineTo(0.1*U,0);ctx.stroke();}
-  else if(gl===2){ctx.fillStyle='#c9ced6';ctx.fillRect(-0.05*U,-0.07*U,0.10*U,0.03*U);}          // borchia tattica
-  else if(gl===3){ctx.strokeStyle='rgba(0,0,0,.45)';ctx.lineWidth=Math.max(1,0.07*U);ctx.beginPath();ctx.arc(0,0.02*U,0.19*U,0.3,2.84);ctx.stroke();}   // polsino manopola
+  ctx.strokeStyle=out;ctx.lineWidth=Math.max(1,0.055*U);
+  ctx.beginPath();ctx.arc(0,0,0.24*U,0,6.283);ctx.fill();ctx.stroke();   // 19/07: guantone grande
+  ctx.fillStyle='rgba(255,255,255,.16)';ctx.beginPath();ctx.arc(-0.07*U,-0.07*U,0.09*U,0,6.283);ctx.fill();   // luce
+  if(gl===1){ctx.strokeStyle='rgba(0,0,0,.45)';ctx.lineWidth=Math.max(1,0.05*U);ctx.beginPath();ctx.moveTo(-0.14*U,0);ctx.lineTo(0.14*U,0);ctx.moveTo(-0.11*U,0.08*U);ctx.lineTo(0.11*U,0.08*U);ctx.stroke();}
+  else if(gl===2){ctx.fillStyle='#c9ced6';ctx.fillRect(-0.08*U,-0.10*U,0.16*U,0.05*U);}          // borchia tattica
+  else if(gl===3){ctx.strokeStyle='rgba(0,0,0,.5)';ctx.lineWidth=Math.max(1.4,0.10*U);ctx.beginPath();ctx.arc(0,0.03*U,0.25*U,0.3,2.84);ctx.stroke();}   // polsino manopola
   ctx.restore();
 }
-function sclCollarDraw(ctx,bd,nkx,nky,U,sA,out){
+function sclCollarDraw(ctx,bd,nkx,nky,U,sA,out,now,lean){
   if(bd<=0)return;
+  // CODA AL VENTO 19/07: la coda di bandana/sciarpa sventola CONTRO la corsa
+  // (lean ∝ direzione+velocita') con flutter sin(now) — zero alloc, sole path.
+  var wnd=-(lean||0)*1.6, fl1=Math.sin((now||0)/120)*0.10, fl2=Math.sin((now||0)/85+1.7)*0.08;
   ctx.save();ctx.translate(nkx,nky);ctx.rotate(sA);ctx.lineJoin='round';
-  ctx.strokeStyle=out;ctx.lineWidth=Math.max(1,0.05*U);
-  if(bd===1){   // BANDANA: fascia + nodo che pende davanti
+  ctx.strokeStyle=out;ctx.lineWidth=Math.max(1,0.055*U);
+  if(bd===1){   // BANDANA: fascia larga + CODA doppia che sventola
     ctx.fillStyle='#3b4250';
-    ctx.beginPath();ctx.moveTo(-0.3*U,-0.04*U);ctx.quadraticCurveTo(0,0.1*U,0.3*U,-0.04*U);
-    ctx.lineTo(0.26*U,0.1*U);ctx.quadraticCurveTo(0,0.22*U,-0.26*U,0.1*U);ctx.closePath();ctx.fill();ctx.stroke();
-    ctx.fillStyle='#2a303b';ctx.beginPath();ctx.moveTo(-0.04*U,0.12*U);ctx.lineTo(0.08*U,0.14*U);ctx.lineTo(0.02*U,0.34*U);ctx.closePath();ctx.fill();ctx.stroke();
-  }else if(bd===2){   // SCIARPA: giro morbido + coda
+    ctx.beginPath();ctx.moveTo(-0.38*U,-0.06*U);ctx.quadraticCurveTo(0,0.14*U,0.38*U,-0.06*U);
+    ctx.lineTo(0.32*U,0.14*U);ctx.quadraticCurveTo(0,0.30*U,-0.32*U,0.14*U);ctx.closePath();ctx.fill();ctx.stroke();
+    ctx.fillStyle='#2a303b';
+    ctx.beginPath();ctx.moveTo(0.10*U,0.10*U);
+    ctx.quadraticCurveTo((0.42+wnd*0.5+fl1)*U,(0.26+fl2*0.5)*U,(0.62+wnd+fl1*2)*U,(0.14+fl2)*U);
+    ctx.lineTo((0.56+wnd+fl2*2)*U,(0.30+fl1)*U);
+    ctx.quadraticCurveTo((0.34+wnd*0.5)*U,(0.40+fl1*0.5)*U,0.16*U,0.26*U);ctx.closePath();ctx.fill();ctx.stroke();
+    ctx.beginPath();ctx.moveTo(0.12*U,0.16*U);
+    ctx.quadraticCurveTo((0.36+wnd*0.4-fl2)*U,(0.44+fl1)*U,(0.46+wnd*0.8-fl1*2)*U,(0.52+fl2*1.4)*U);
+    ctx.lineTo((0.36+wnd*0.7)*U,(0.56+fl1)*U);
+    ctx.quadraticCurveTo(0.18*U,0.42*U,0.08*U,0.26*U);ctx.closePath();ctx.fill();ctx.stroke();
+  }else if(bd===2){   // SCIARPA: giro morbido + coda lunga al vento
     ctx.fillStyle='#6b5540';
-    ctx.beginPath();ctx.ellipse(0,0.02*U,0.32*U,0.16*U,0,0,6.283);ctx.fill();ctx.stroke();
-    ctx.fillStyle='#5a4634';ctx.beginPath();ctx.moveTo(0.12*U,0.08*U);ctx.lineTo(0.28*U,0.06*U);ctx.lineTo(0.2*U,0.4*U);ctx.lineTo(0.08*U,0.34*U);ctx.closePath();ctx.fill();ctx.stroke();
-    ctx.strokeStyle='rgba(255,255,255,.18)';ctx.lineWidth=Math.max(1,0.04*U);ctx.beginPath();ctx.moveTo(0.14*U,0.14*U);ctx.lineTo(0.2*U,0.34*U);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(0,0.02*U,0.40*U,0.20*U,0,0,6.283);ctx.fill();ctx.stroke();
+    ctx.fillStyle='#5a4634';
+    ctx.beginPath();ctx.moveTo(0.14*U,0.10*U);
+    ctx.quadraticCurveTo((0.44+wnd*0.6+fl1)*U,(0.30+fl2)*U,(0.50+wnd+fl2*2)*U,(0.62+fl1*1.6)*U);
+    ctx.lineTo((0.30+wnd*0.8)*U,(0.68+fl2)*U);
+    ctx.quadraticCurveTo(0.16*U,0.44*U,0.04*U,0.28*U);ctx.closePath();ctx.fill();ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,.2)';ctx.lineWidth=Math.max(1,0.05*U);
+    ctx.beginPath();ctx.moveTo(0.18*U,0.20*U);ctx.quadraticCurveTo((0.36+wnd*0.6)*U,(0.38+fl1)*U,(0.40+wnd*0.9)*U,(0.58+fl1)*U);ctx.stroke();
   }else{   // COLLETTO alto (dolcevita) neutro
     ctx.fillStyle='#2b3038';
-    ctx.beginPath();ctx.moveTo(-0.26*U,0.08*U);ctx.lineTo(-0.22*U,-0.14*U);ctx.lineTo(0.22*U,-0.14*U);ctx.lineTo(0.26*U,0.08*U);ctx.closePath();ctx.fill();ctx.stroke();
-    ctx.strokeStyle='rgba(232,238,244,.22)';ctx.lineWidth=Math.max(1,0.04*U);ctx.beginPath();ctx.moveTo(-0.2*U,-0.1*U);ctx.lineTo(0.2*U,-0.1*U);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(-0.32*U,0.10*U);ctx.lineTo(-0.27*U,-0.18*U);ctx.lineTo(0.27*U,-0.18*U);ctx.lineTo(0.32*U,0.10*U);ctx.closePath();ctx.fill();ctx.stroke();
+    ctx.strokeStyle='rgba(232,238,244,.22)';ctx.lineWidth=Math.max(1,0.05*U);ctx.beginPath();ctx.moveTo(-0.24*U,-0.12*U);ctx.lineTo(0.24*U,-0.12*U);ctx.stroke();
   }
   ctx.restore();
 }
@@ -48859,18 +48952,18 @@ function sclDrawClimber(ctx,r,plk,seat,isMe,U,now){
   // Bacino alzato di 1.7553U (0.40 - 1.7553) così i PIEDI cadono ESATTAMENTE sull'origine;
   // il respiro ora muove il TORACE, non i piedi (prima faceva ondeggiare l'appoggio).
   var pelX=r.pdx*U, pelY=(r.pelY!=null?r.pelY:SCL_PEL_Y)*U;
-  var cx=pelX+sl*0.95*U, cy=pelY-cl*0.95*U+r.breath*U;        // petto (respiro qui)
+  var cx=pelX+sl*1.26*U, cy=pelY-cl*1.26*U+r.breath*U;        // petto (respiro qui) — busto lungo (corpo 2.0 celle)
   var sA=lean+r.spineA;
-  var hpx=cx+Math.sin(sA)*0.60*U, hpy=cy-Math.cos(sA)*0.60*U; // testa
-  var shA2=lean+(r.shTw||0), shW2=0.46;   // spalle piu larghe + twist del busto
+  var hpx=cx+Math.sin(sA)*0.62*U, hpy=cy-Math.cos(sA)*0.62*U; // testa (collo corto: testa attaccata alle spalle)
+  var shA2=lean+(r.shTw||0), shW2=0.50;   // spalle larghe (V atletica) + twist del busto
   var shx=Math.cos(shA2)*shW2*U, shy=Math.sin(shA2)*shW2*U;
   var shLx=cx-shx, shLy=cy-shy, shRx=cx+shx, shRy=cy+shy;
   var hipLx=pelX-0.27*U, hipRx=pelX+0.27*U, hipY=pelY;
   var aLU=r.aLU,aRU=r.aRU;
-  var elLx=shLx+Math.sin(aLU)*0.62*U, elLy=shLy-Math.cos(aLU)*0.62*U;
-  var haLx=elLx+Math.sin(aLU+r.aLF)*0.56*U, haLy=elLy-Math.cos(aLU+r.aLF)*0.56*U;
-  var elRx=shRx+Math.sin(aRU)*0.62*U, elRy=shRy-Math.cos(aRU)*0.62*U;
-  var haRx=elRx+Math.sin(aRU+r.aRF)*0.56*U, haRy=elRy-Math.cos(aRU+r.aRF)*0.56*U;
+  var elLx=shLx+Math.sin(aLU)*0.78*U, elLy=shLy-Math.cos(aLU)*0.78*U;
+  var haLx=elLx+Math.sin(aLU+r.aLF)*0.70*U, haLy=elLy-Math.cos(aLU+r.aLF)*0.70*U;
+  var elRx=shRx+Math.sin(aRU)*0.78*U, elRy=shRy-Math.cos(aRU)*0.78*U;
+  var haRx=elRx+Math.sin(aRU+r.aRF)*0.70*U, haRy=elRy-Math.cos(aRU+r.aRF)*0.70*U;
   var lLT=r.lLT,lRT=r.lRT;
   var knLx=hipLx+Math.sin(lLT)*SCL_THIGH*U, knLy=hipY+Math.cos(lLT)*SCL_THIGH*U;
   var ftLx=knLx+Math.sin(lLT+r.lLS)*SCL_SHIN*U, ftLy=knLy+Math.cos(lLT+r.lLS)*SCL_SHIN*U;
@@ -48912,13 +49005,16 @@ function sclDrawClimber(ctx,r,plk,seat,isMe,U,now){
     ctx.beginPath();ctx.moveTo(_rgX1[i]+ny,_rgY1[i]-nx);ctx.lineTo(_rgX2[i]+ny,_rgY2[i]-nx);ctx.stroke();
   }
   sclSuitDraw(ctx,plk.st|0,pelX,pelY,cx,cy,sA,U);
-  var hb=plk.hb|0;   // imbrago sul bacino
+  var hb=plk.hb|0;   // imbrago sul bacino — INGRANDITO 19/07 (cintura+cosciali leggibili)
   if(hb!==3){
-    ctx.strokeStyle='rgba(0,0,0,.55)';ctx.lineWidth=Math.max(1.4,0.09*U);
-    ctx.beginPath();ctx.moveTo(hipLx-0.05*U,hipY-0.02*U);ctx.lineTo(hipRx+0.05*U,hipY-0.02*U);ctx.stroke();
-    if(hb>=1){ctx.beginPath();ctx.moveTo(hipLx,hipY+0.14*U);ctx.lineTo(hipRx,hipY+0.14*U);ctx.stroke();}
-    if(hb===2){ctx.lineWidth=Math.max(1,0.06*U);ctx.beginPath();ctx.moveTo(pelX-0.14*U,hipY);ctx.lineTo(pelX-0.14*U,hipY+0.16*U);ctx.moveTo(pelX+0.14*U,hipY);ctx.lineTo(pelX+0.14*U,hipY+0.16*U);ctx.stroke();}
-    ctx.fillStyle='#c9ced6';ctx.fillRect(pelX-0.06*U,hipY-0.05*U,0.12*U,0.13*U);
+    ctx.strokeStyle='rgba(0,0,0,.6)';ctx.lineWidth=Math.max(1.8,0.12*U);
+    ctx.beginPath();ctx.moveTo(hipLx-0.08*U,hipY-0.02*U);ctx.lineTo(hipRx+0.08*U,hipY-0.02*U);ctx.stroke();
+    if(hb>=1){ctx.beginPath();ctx.moveTo(hipLx-0.03*U,hipY+0.20*U);ctx.lineTo(hipRx+0.03*U,hipY+0.20*U);ctx.stroke();}
+    if(hb===2){ctx.lineWidth=Math.max(1.2,0.08*U);ctx.beginPath();ctx.moveTo(pelX-0.18*U,hipY);ctx.lineTo(pelX-0.18*U,hipY+0.24*U);ctx.moveTo(pelX+0.18*U,hipY);ctx.lineTo(pelX+0.18*U,hipY+0.24*U);ctx.stroke();}
+    ctx.fillStyle='#c9ced6';ctx.fillRect(pelX-0.09*U,hipY-0.08*U,0.18*U,0.18*U);   // fibbia grande
+    ctx.fillStyle='#6b7280';ctx.fillRect(pelX-0.04*U,hipY-0.03*U,0.08*U,0.08*U);
+    if(hb>=1){ctx.strokeStyle='#9aa3ad';ctx.lineWidth=Math.max(1,0.05*U);   // moschettone che pende
+      ctx.beginPath();ctx.arc(hipRx+0.10*U,hipY+0.30*U,0.09*U,0,6.283);ctx.stroke();}
   }
   // SCARPE (bo) sui piedi + GUANTI (gl) sulle mani + COLLO (bd) al collo — neutri
   var fdir=(lean>=0?1:-1);
@@ -48926,14 +49022,22 @@ function sclDrawClimber(ctx,r,plk,seat,isMe,U,now){
   sclBootDraw(ctx,plk.bo|0,ftRx,ftRy,fdir,U,out);
   sclGloveDraw(ctx,plk.gl|0,haLx,haLy,U,out);
   sclGloveDraw(ctx,plk.gl|0,haRx,haRy,U,out);
-  sclCollarDraw(ctx,plk.bd|0,cx+(hpx-cx)*0.28,cy+(hpy-cy)*0.28,U,sA,out);
-  var hs=1.36*U, hsp=sclHeadSprite(plk.hm|0,plk.gg|0,plk.hr|0,seat,isMe);   // testa (proporzione piu adulta)
+  sclCollarDraw(ctx,plk.bd|0,cx+(hpx-cx)*0.28,cy+(hpy-cy)*0.28,U,sA,out,now,lean);
+  var hs=1.91*U, hsp=sclHeadSprite(plk.hm|0,plk.gg|0,plk.hr|0,seat,isMe);   // testa: raggio 13/56·hs=0.443U (top a ~1.96 celle, bake 56)
   ctx.save();ctx.translate(hpx,hpy);ctx.rotate(r.headTilt+lean*0.5);
   ctx.drawImage(hsp,-hs/2,-hs/2,hs,hs);
   ctx.restore();
-  if((plk.rim|0)===2){   // FINITURA NEON: ristroke silhouette additivo nella tinta
-    ctx.globalCompositeOperation='lighter';ctx.globalAlpha=0.5;ctx.strokeStyle=col;
-    for(i=0;i<9;i++){ctx.lineWidth=_rgW[i]+ow*1.3;ctx.beginPath();ctx.moveTo(_rgX1[i],_rgY1[i]);ctx.lineTo(_rgX2[i],_rgY2[i]);ctx.stroke();}
+  var _rim=plk.rim|0;   // FINITURE 19/07: rim SPESSE, si vedono a colpo d'occhio
+  if(_rim===1){   // GHIACCIO: bordo bianco freddo pieno (non additivo)
+    ctx.globalAlpha=0.42;ctx.strokeStyle='#e8f4ff';
+    for(i=0;i<9;i++){ctx.lineWidth=_rgW[i]+ow*2.0;ctx.beginPath();ctx.moveTo(_rgX1[i],_rgY1[i]);ctx.lineTo(_rgX2[i],_rgY2[i]);ctx.stroke();}
+    ctx.globalAlpha=1;
+  }else if(_rim===2){   // NEON: ristroke silhouette additivo nella tinta, spesso
+    ctx.globalCompositeOperation='lighter';ctx.globalAlpha=0.6;ctx.strokeStyle=col;
+    for(i=0;i<9;i++){ctx.lineWidth=_rgW[i]+ow*2.4;ctx.beginPath();ctx.moveTo(_rgX1[i],_rgY1[i]);ctx.lineTo(_rgX2[i],_rgY2[i]);ctx.stroke();}
+  }else if(_rim===3){   // ORO: alone dorato additivo
+    ctx.globalCompositeOperation='lighter';ctx.globalAlpha=0.5;ctx.strokeStyle='#ffd700';
+    for(i=0;i<9;i++){ctx.lineWidth=_rgW[i]+ow*2.2;ctx.beginPath();ctx.moveTo(_rgX1[i],_rgY1[i]);ctx.lineTo(_rgX2[i],_rgY2[i]);ctx.stroke();}
   }
   ctx.restore();
 }
@@ -48983,12 +49087,12 @@ function sclPose(an,rr,fl,now,isMe,seat){
     if(vy>1.5){          // stacco/salita — corpo STRETCH verticale, braccia in alto, gambe raccolte
       r.lean=0.05;r.spineA=0;r.headTilt=-0.12;r.breath=0;r.pdx=0;
       r.aLU=-0.6;r.aLF=-0.25;r.aRU=0.6;r.aRF=-0.25;r.lLT=0.5;r.lLS=0.95;r.lRT=-0.28;r.lRS=0.8;
-      r.sqx=0.93;r.sqy=1.10;   // allunga (pivot bacino)
+      r.sqx=0.96;r.sqy=1.06;   // allunga (pivot bacino) — 19/07: ridotto, col rig 2.0 celle non deve bucare il soffitto visivo
     }else if(vy<-1.5){   // caduta — flail, gambe divaricate, braccia larghe, ancora allungato
       var fj=Math.sin(now/70)*0.35;
       r.lean=-0.16;r.spineA=-0.1;r.headTilt=-0.4;r.breath=0;r.pdx=0;
       r.aLU=-0.8+fj;r.aLF=-0.2;r.aRU=0.8-fj;r.aRF=-0.2;r.lLT=-0.5;r.lLS=0.7;r.lRT=0.5;r.lRS=0.7;
-      r.sqx=0.94;r.sqy=1.07;
+      r.sqx=0.96;r.sqy=1.05;
     }else{               // apice — sospeso un istante, braccia larghe
       r.lean=0;r.spineA=0;r.headTilt=-0.05;r.breath=0;r.pdx=0;
       r.aLU=-1.1;r.aLF=-0.2;r.aRU=1.1;r.aRF=-0.2;r.lLT=0.14;r.lLS=0.45;r.lRT=-0.14;r.lRS=0.45;
@@ -49016,10 +49120,10 @@ function sclPose(an,rr,fl,now,isMe,seat){
     var spdI=Math.min(1,Math.abs(vx)/5.6);
     an.spdS=(an.spdS==null)?spdI:an.spdS+(spdI-an.spdS)*0.08;
     var spdW=an.spdS;
-    var pelH=1.80-0.22*spdW;                 // il bacino si abbassa correndo
+    var pelH=2.24-0.27*spdW;                 // il bacino si abbassa correndo (gambe 2.30U — corpo 2.0 celle)
     var Lg=SCL_THIGH+SCL_SHIN;
     var Amax=Math.sqrt(Math.max(0.01,Lg*Lg-pelH*pelH))*0.90;   // falcata raggiungibile
-    var A=Math.min(0.52+0.30*spdW,Amax);
+    var A=Math.min(0.64+0.38*spdW,Amax);
     var duty=0.62-0.20*spdW;                 // appoggio: 0.62 (cammina) → 0.42 (corre)
     var Cw=2*A/duty;                         // avanzamento del corpo per ciclo (U)
     var cellU=1/(SC.PR*1.25);                // 1 cella = 2.353 U
@@ -49031,8 +49135,8 @@ function sclPose(an,rr,fl,now,isMe,seat){
     // piede piantato schizzerebbe da un capo all'altro. Si riparte da inizio
     // appoggio: chi si gira PIANTA il piede guida, che è anche il gesto giusto.
     if(an.gdir!==dirW){an.gdir=dirW;an.gph=0;}
-    var phW=an.gph,lift=0.30+0.16*spdW;
-    var bobW=0.055*Math.cos(12.566370614*(phW-0.30));   // 2 massimi/ciclo (metà appoggio)
+    var phW=an.gph,lift=0.36+0.20*spdW;
+    var bobW=0.065*Math.cos(12.566370614*(phW-0.30));   // 2 massimi/ciclo (metà appoggio)
     r.pelY=-(pelH+bobW);
     r.lean=(0.10+0.16*spdW)*dirW;r.breath=0;r.pdx=0;
     // TWIST DEL BUSTO: spalle contro-ruotano ai fianchi (2 osc/ciclo, cresce con la
@@ -49097,8 +49201,8 @@ function sclGA(wx,wy,part,seat,look){
 function sclGADraw(ctx,g,px,py,cell){
   var U=cell*0.4,col=SCL_COLS[g.seat%SCL_COLS.length];
   ctx.save();ctx.translate(px,py);ctx.rotate(g.rot);ctx.lineCap='round';
-  if(g.part===0){   // testa
-    var hs=U*1.2,hsp=sclHeadSprite(g.look.hm|0,g.look.gg|0,g.seat,false);
+  if(g.part===0){   // testa (19/07: bake 56 → scala riallineata; hr/seat negli arg giusti)
+    var hs=U*1.55,hsp=sclHeadSprite(g.look.hm|0,g.look.gg|0,g.look.hr|0,g.seat,false);
     ctx.drawImage(hsp,-hs/2,-hs/2,hs,hs);
   }else{
     var len=(g.part===5?U*0.7:(g.part>=3?U*1.0:U*0.85)),w=(g.part===5?U*0.5:(g.part>=3?U*0.3:U*0.24));
@@ -49331,8 +49435,8 @@ function dpEdDraw(){
   // flag/velocita reali): respira -> corre A/R -> salta (squash all'atterraggio
   // rilevato da sclPose) -> esulta. La lama pattuglia il binario come decorazione.
   var T=6400,t=(now-DP_ED.t0)%T,cyc=Math.floor((now-DP_ED.t0)/T);
-  var pr=26;
-  var bladeY=H*0.30,gy=H*0.74;                  // piedi a gy (corpo ~62px sopra => mai tagliato); lama in ALTO, lontana dal rig
+  var pr=22;                                    // rig 2.0 celle (19/07): corpo ~4.6U=101px — a 26 il salto usciva dal canvas
+  var bladeY=H*0.30,gy=H*0.74;                  // piedi a gy; lama in ALTO, lontana dal rig
   var x0=W*0.17,x1=W*0.50,k;                    // corsia di corsa sulla cengia
   var px=x0,py=gy,vx=0,vy=0,air=false,winp=false;
   if(t<1600){                                   // IDLE — respiro, peso che si sposta
@@ -49362,7 +49466,7 @@ function dpEdDraw(){
   ctx.restore();
   ctx.globalAlpha=0.22;ctx.fillStyle='#000';    // ombra: resta sulla cengia, si stringe in volo
   var shk=Math.max(0.45,1-(gy-py)/90);
-  ctx.beginPath();ctx.ellipse(px,gy+pr*0.62,pr*0.8*shk,pr*0.34*shk,0,0,6.283);ctx.fill();
+  ctx.beginPath();ctx.ellipse(px,gy+pr*0.2,pr*0.9*shk,pr*0.3*shk,0,0,6.283);ctx.fill();
   ctx.globalAlpha=1;
   ctx.save();
   ctx.translate(px,py);
@@ -49863,6 +49967,7 @@ function rtdBuildScalata(){
   SC.myInv=[];SC.mySel=0;SC.hudInv='';SC.invNprev=null;   // §M2 reset inventario
   SC.pull.who=null;SC.pull.victim=null;SC.pull.t0=0;
   SC.wlPrev=null;SC.pinPrev=null;SC.prPrev=null;SC.bldSndT=0;SC.dustT=0;
+  SC.myCkpt=null;SC.ckptT=0;
   SC.iwallA=new Uint8Array(SC.W*SC.H);   // celle muri-item (wl)
   SC.pinA=new Uint8Array(SC.W*SC.H);     // celle dei MIEI chiodi (ponte §3.2a)
   SC.r6prev=new Int16Array(10);SC.r6prev.fill(-1);   // diff row[6] per seat (pickup/uso)
@@ -50420,7 +50525,10 @@ function sclSplatEv(e){
     sclShake('crush',0.85);
     RTD.shake=Math.min(14,RTD.shake+9);
     try{tg.HapticFeedback&&tg.HapticFeedback.notificationOccurred('error');}catch(_e){}
+    // POLISH 19/07: la morte MIA dice subito COSA mi ha ucciso (stamp causa) —
+    // il ritorno al checkpoint (se attivo) arriva col feed 'ckpt' al respawn.
     if(RTD.lastRaw&&RTD.lastRaw.lv!=null&&RTD.lastRaw.lv>SC.YT-8)rtdStamp('SEI FUORI','#f87171');
+    else rtdStamp('☠ '+(SCL_CAUSE[e.c]||'sei morto').toUpperCase(),'#f87171');
   }else if(SC.meDead){
     SC.koCam={x:e.x!=null?e.x:null,y:e.y||0,t0:now};SC.slowT=now+300;
   }else{
@@ -50506,7 +50614,9 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
       }
       SC.wlPrev=WLn;
     }
-    // chiodi: ponte SOLO sui MIEI (pred §5) + tink alla piantata
+    // chiodi=CHECKPOINT (rework 19/07): ponte SOLO sui MIEI (pred §5) + tink
+    // alla piantata + toast "CHECKPOINT PIAZZATO" quando il NUOVO chiodo è mio;
+    // se il MIO sparisce per TTL (non consumato da un respawn recente) avviso.
     SC.pinA.fill(0);
     for(var pj=0;pj<PNn.length;pj++)
       if(PNn[pj][0]===SC.mySeat)SC.pinA[PNn[pj][2]*SC.W+PNn[pj][1]]=1;
@@ -50515,7 +50625,20 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
       for(pk2=0;pk2<PNn.length;pk2++){
         pl2=0;
         if(pp2)for(pl2=0;pl2<pp2.length;pl2++)if(pp2[pl2][0]===PNn[pk2][0]&&pp2[pl2][1]===PNn[pk2][1]&&pp2[pl2][2]===PNn[pk2][2])break;
-        if(!pp2||pl2>=pp2.length)TWS.play('dpkPin',0.7*Math.max(0.25,1-Math.abs(PNn[pk2][2]-SC.myY)/12));
+        if(!pp2||pl2>=pp2.length){
+          TWS.play('dpkPin',0.7*Math.max(0.25,1-Math.abs(PNn[pk2][2]-SC.myY)/12));
+          if(PNn[pk2][0]===SC.mySeat){
+            rtdStamp('CHECKPOINT PIAZZATO','#fbbf24');
+            rtdFeed('🚩 checkpoint piazzato: se muori riparti da qui (one-shot)');
+            try{tg.HapticFeedback&&tg.HapticFeedback.impactOccurred('light');}catch(_cp){}
+          }
+        }
+      }
+      if(pp2)for(pl2=0;pl2<pp2.length;pl2++){
+        if(pp2[pl2][0]!==SC.mySeat)continue;
+        for(pk2=0;pk2<PNn.length;pk2++)if(PNn[pk2][0]===SC.mySeat)break;
+        if(pk2>=PNn.length&&performance.now()-SC.ckptT>1500)rtdFeed('🚩 checkpoint scaduto');
+        break;
       }
       SC.pinPrev=PNn;
     }
@@ -50612,6 +50735,9 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
     var inR=raw.inv;
     SC.myInv=(inR&&inR.length)?inR:[];
     SC.mySel=raw.sel|0;
+    // CHECKPOINT (engine 19/07): campo per-viewer 'ckpt' [x,y,ttl] SOLO nello
+    // snapshot del proprietario quando ha un chiodo attivo — assente altrimenti.
+    SC.myCkpt=(raw.ckpt&&raw.ckpt.length>=3)?raw.ckpt:null;
     sclInvHud();
     var invN=SC.myInv.length;
     if(SC.invNprev!=null&&invN>SC.invNprev){
@@ -51174,22 +51300,42 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
       ctx.drawImage(sclItemSpr(sid),spx3-cell*0.36,spy3-cell*0.5+bob,cell*0.72,cell*0.72);
     }
   }
-  // ── CHIODI (pin §3.2): piolo DORATO per l'owner, grigio ghost per gli altri
-  //    (ponte walkable solo owner → rendering differenziato, spec §8) ──
+  // ── CHECKPOINT (pin rework 19/07): il MIO = BANDIERINA dorata piantata con
+  //    alone che pulsa (è il punto di respawn!); quelli altrui restano un
+  //    chiodino grigio TENUE. Righe broadcast [seat,x,y,ttl] INVARIATE. ──
   var PNr=raw.pin||[];
   for(var pn2=0;pn2<PNr.length;pn2++){
     var pnr=PNr[pn2],pnx=pnr[1]+0.5,pny=pnr[2]+0.5;
     if(pny<botW||pny>topW||pnx<lftW||pnx>rgtW)continue;
     var px5=ox+pnx*cell,py5=hh2+(camY-pny)*cell,pmine=pnr[0]===SC.mySeat;
-    ctx.globalAlpha=pnr[3]<3?0.35+0.35*Math.sin(now/90):(pmine?0.95:0.5);   // blink < 3s TTL
-    ctx.strokeStyle=pmine?'#fbbf24':'#94a3b8';
-    ctx.lineWidth=Math.max(2,cell*0.08);
-    ctx.beginPath();ctx.moveTo(px5,py5+cell*0.26);ctx.lineTo(px5,py5-cell*0.2);ctx.stroke();
-    ctx.fillStyle=pmine?'#fde68a':'#cbd5e1';
-    ctx.beginPath();ctx.arc(px5,py5-cell*0.26,cell*0.11,0,6.283);ctx.fill();
-    if(pmine){   // la MIA cella-ponte/ancoraggio evidenziata
-      ctx.strokeStyle='rgba(253,230,138,.45)';ctx.lineWidth=1.5;
+    var pblk=pnr[3]<5?0.35+0.35*Math.sin(now/90):1;   // blink < 5s TTL
+    if(pmine){
+      // alone additivo che respira (bake sclItemGlow: nessun gradiente per-frame)
+      ctx.globalCompositeOperation='lighter';
+      ctx.globalAlpha=(0.30+0.14*Math.sin(now/240))*pblk;
+      ctx.drawImage(sclItemGlow(),px5-cell*0.85,py5-cell*0.85,cell*1.7,cell*1.7);
+      ctx.globalCompositeOperation='source-over';
+      ctx.globalAlpha=0.95*pblk;
+      ctx.strokeStyle='#fbbf24';ctx.lineWidth=Math.max(2,cell*0.08);   // asta
+      ctx.beginPath();ctx.moveTo(px5,py5+cell*0.32);ctx.lineTo(px5,py5-cell*0.42);ctx.stroke();
+      var pfw=Math.sin(now/160)*cell*0.06;   // bandierina che garrisce
+      ctx.fillStyle='#fbbf24';
+      ctx.beginPath();ctx.moveTo(px5,py5-cell*0.42);
+      ctx.lineTo(px5+cell*0.34,py5-cell*0.30+pfw);ctx.lineTo(px5,py5-cell*0.18);ctx.closePath();ctx.fill();
+      ctx.strokeStyle='rgba(0,0,0,.45)';ctx.lineWidth=1.2;ctx.stroke();
+      ctx.fillStyle='#fde68a';ctx.beginPath();ctx.arc(px5,py5+cell*0.30,cell*0.07,0,6.283);ctx.fill();   // base
+      ctx.strokeStyle='rgba(253,230,138,.45)';ctx.lineWidth=1.5;   // cella-ancoraggio
       ctx.strokeRect(px5-cell*0.42,py5-cell*0.42,cell*0.84,cell*0.84);
+      var pttl=pnr[3];   // barra TTL sottile sotto la cella (PIN_TTL 60s)
+      ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(px5-cell*0.34,py5+cell*0.44,cell*0.68,2.4*RTD.dpr);
+      ctx.fillStyle=pttl<10?'#f87171':'#fbbf24';
+      ctx.fillRect(px5-cell*0.34,py5+cell*0.44,cell*0.68*Math.max(0,Math.min(1,pttl/60)),2.4*RTD.dpr);
+    }else{   // altrui: chiodino grigio tenue
+      ctx.globalAlpha=0.4*pblk;
+      ctx.strokeStyle='#94a3b8';ctx.lineWidth=Math.max(2,cell*0.07);
+      ctx.beginPath();ctx.moveTo(px5,py5+cell*0.24);ctx.lineTo(px5,py5-cell*0.16);ctx.stroke();
+      ctx.fillStyle='#cbd5e1';
+      ctx.beginPath();ctx.arc(px5,py5-cell*0.2,cell*0.09,0,6.283);ctx.fill();
     }
   }
   ctx.globalAlpha=1;
@@ -51299,9 +51445,10 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
       // atterraggio: caduta veloce che si spegne su una cella piena sotto i piedi
       if(an.vys<-3.4&&nvy>-0.8&&now-an.dsT>150&&rtdScalBlocked(rr[1],rr[2]-0.62,false)){
         an.dsT=now;
-        sclDust(ppx,ppy+pr*0.8,4,-1,0.8,'rgba(203,213,225,.6)');
-        sclDust(ppx,ppy+pr*0.8,4,1,0.8,'rgba(203,213,225,.6)');
-        if(isMe)sclShake('spike',0.3);
+        var lnd=Math.min(1.3,0.55+Math.abs(an.vys)*0.045);   // POLISH 19/07: polvere ∝ violenza dell'impatto
+        sclDust(ppx,ppy+pr*0.25,6,-1,lnd,'rgba(203,213,225,.6)');
+        sclDust(ppx,ppy+pr*0.25,6,1,lnd,'rgba(203,213,225,.6)');
+        if(isMe)sclShake('spike',an.vys<-14?0.5:0.3);
       }
       // impronte: solo camminando su IMPALCATURE (fam 1 = SCF), ~un passo ogni 260ms
       if(Math.abs(nvx)>0.9&&now-an.stT>260){
@@ -51328,16 +51475,16 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
     if(fl&16){   // FURIA: halo additivo + scia
       ctx.globalCompositeOperation='lighter';
       ctx.globalAlpha=0.5+0.25*Math.sin(now/90);
-      ctx.drawImage(sclFurySpr(),ppx-pr*1.9,ppy-pr*1.9,pr*3.8,pr*3.8);
+      ctx.drawImage(sclFurySpr(),ppx-pr*1.9,ppy-pr*2.3-pr*1.9,pr*3.8,pr*3.8);   // alone sul BUSTO (rig 2 celle)
       ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';
       if(isMe&&now-SC.trailT>40){
         SC.trailT=now;
         sclP(ppx,ppy+pr*0.5,(Math.random()-0.5)*30,40*RTD.dpr,300,'#fb923c',2*RTD.dpr,0,1,0.94);
       }
     }
-    // ombra
+    // ombra AI PIEDI (origine = piedi: prima galleggiava 0.7U dentro il ripiano)
     ctx.globalAlpha=0.25;ctx.fillStyle='#000';
-    ctx.beginPath();ctx.ellipse(ppx,ppy+pr*0.7,pr*0.85,pr*0.4,0,0,6.283);ctx.fill();
+    ctx.beginPath();ctx.ellipse(ppx,ppy+pr*0.22,pr*0.95,pr*0.32,0,0,6.283);ctx.fill();
     ctx.globalAlpha=1;
     ctx.save();
     ctx.translate(ppx,ppy);
@@ -51350,13 +51497,15 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
       ctx.rotate(Math.atan2(-SC.dashDy,SC.dashDx));
       ctx.scale(aq,2-aq);
       ctx.rotate(-Math.atan2(-SC.dashDy,SC.dashDx));
-    }else if(fl&2){   // dash: squash lungo la direzione + streak
+    }else if((fl&2)&&(an.vys||0)<-13){   // POLISH 19/07: caduta RAPIDA — scia verticale leggera + stretch
+      // (il vecchio ramo era il residuo del DASH: squash orizzontale su OGNI
+      // airborne — il dash non esiste piu' nei controlli DEAD PEAK)
       ctx.globalCompositeOperation='lighter';
-      ctx.globalAlpha=0.35;
+      ctx.globalAlpha=0.2;
       ctx.fillStyle='#e0f2fe';
-      ctx.beginPath();ctx.ellipse(0,0,pr*1.7,pr*0.7,0,0,6.283);ctx.fill();
+      ctx.beginPath();ctx.ellipse(0,-pr*2.1,pr*0.5,pr*2.7,0,0,6.283);ctx.fill();
       ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';
-      ctx.scale(1.2,0.85);
+      ctx.scale(0.96,1.05);
     }
     if(fl&8)ctx.globalAlpha=0.55+0.35*Math.sin(now/60);   // invuln: blink
     sclDrawClimber(ctx,an.rig,plk,pi3,isMe,pr,now);   // RIG UMANO (§3) — era la palla sclSprite
@@ -51365,19 +51514,19 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
     if(fl&4){   // stun: stellina orbitante
       ctx.fillStyle='#fde047';ctx.globalAlpha=0.85;
       var sa2=now/140;
-      ctx.beginPath();ctx.arc(ppx+Math.cos(sa2)*pr*1.3,ppy-pr*1.5+Math.sin(sa2)*3,2.2*RTD.dpr,0,6.283);ctx.fill();
+      ctx.beginPath();ctx.arc(ppx+Math.cos(sa2)*pr*1.3,ppy-pr*3.4+Math.sin(sa2)*3,2.2*RTD.dpr,0,6.283);ctx.fill();   // orbita la TESTA (rig 2 celle)
       ctx.globalAlpha=1;
     }
     if(fl&128){   // ITEMS §1: posa di mira TELEGRAFATA a tutti — alone bianco pulsante
       ctx.globalAlpha=0.35+0.3*Math.sin(now/80);
       ctx.strokeStyle='#f8fafc';ctx.lineWidth=2.5*RTD.dpr;
-      ctx.beginPath();ctx.arc(ppx,ppy,pr*1.45,0,6.283);ctx.stroke();
+      ctx.beginPath();ctx.arc(ppx,ppy-pr*2.3,pr*1.7,0,6.283);ctx.stroke();
       ctx.globalAlpha=1;
     }
     if(fl&256){   // MAGNESITE (§3.6): aura gessosa additive + scia bianca (per me)
       ctx.globalCompositeOperation='lighter';
       ctx.globalAlpha=0.4+0.2*Math.sin(now/110);
-      ctx.drawImage(sclChalkSpr(),ppx-pr*1.7,ppy-pr*1.7,pr*3.4,pr*3.4);
+      ctx.drawImage(sclChalkSpr(),ppx-pr*1.7,ppy-pr*2.3-pr*1.7,pr*3.4,pr*3.4);
       ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';
       if(isMe&&now-SC.dustT>90){
         SC.dustT=now;
@@ -51387,19 +51536,19 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
     if(fl&64){    // agganciato / in volo rampino (bit 64): anello rosso (pred off, server-driven)
       ctx.globalAlpha=0.55+0.3*Math.sin(now/60);
       ctx.strokeStyle='#f87171';ctx.lineWidth=2*RTD.dpr;
-      ctx.beginPath();ctx.arc(ppx,ppy,pr*1.2,0,6.283);ctx.stroke();
+      ctx.beginPath();ctx.arc(ppx,ppy-pr*2.3,pr*1.5,0,6.283);ctx.stroke();
       ctx.globalAlpha=1;
     }
-    if(fl&32){   // finished: corona
+    if(fl&32){   // finished: corona SOPRA la testa (rig 2 celle)
       ctx.fillStyle='#facc15';
-      ctx.beginPath();ctx.moveTo(ppx-pr*0.5,ppy-pr*1.5);ctx.lineTo(ppx-pr*0.3,ppy-pr*1.9);ctx.lineTo(ppx,ppy-pr*1.55);ctx.lineTo(ppx+pr*0.3,ppy-pr*1.9);ctx.lineTo(ppx+pr*0.5,ppy-pr*1.5);ctx.closePath();ctx.fill();
+      ctx.beginPath();ctx.moveTo(ppx-pr*0.5,ppy-pr*4.95);ctx.lineTo(ppx-pr*0.3,ppy-pr*5.35);ctx.lineTo(ppx,ppy-pr*5.0);ctx.lineTo(ppx+pr*0.3,ppy-pr*5.35);ctx.lineTo(ppx+pr*0.5,ppy-pr*4.95);ctx.closePath();ctx.fill();
     }
     var nspr=sclName(pid);
     ctx.globalAlpha=0.8;
-    ctx.drawImage(nspr,ppx-nspr.width/2,ppy-pr-22*RTD.dpr);
-    if(dth>0){   // contatore ☠×N sopra lo sprite (bakeato §5.5)
+    ctx.drawImage(nspr,ppx-nspr.width/2,ppy-pr*4.9-14*RTD.dpr);   // nome SOPRA la testa (era a metà busto)
+    if(dth>0){   // contatore ☠×N sopra il nome (bakeato §5.5)
       var kspr=sclSkull(dth);
-      ctx.drawImage(kspr,ppx-kspr.width/2,ppy-pr-36*RTD.dpr);
+      ctx.drawImage(kspr,ppx-kspr.width/2,ppy-pr*4.9-28*RTD.dpr);
     }
     ctx.globalAlpha=1;
   }
@@ -51486,11 +51635,15 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
       ctx.setLineDash(SCL_DSH0);
       ctx.strokeStyle=hot?'#ef4444':'rgba(226,232,240,.9)';
       ctx.beginPath();ctx.arc(mpx0+rdx*SC.HOOKRNG*cell,mpy0-rdy*SC.HOOKRNG*cell,cell*0.2,0,6.283);ctx.stroke();
-    }else if(SC.myItem===2){   // CHIODO: cella bersaglio round(x+ax·1.2) (§3.2)
+    }else if(SC.myItem===2){   // CHECKPOINT: cella bersaglio round(x+ax·1.2) (§3.2) + bandierina ghost
       var ncx=Math.round(meRow[1]+rdx*1.2),ncy=Math.round(meRow[2]+rdy*1.2);
       ctx.globalAlpha=0.45+0.2*Math.sin(now/100);
       ctx.strokeStyle='#fbbf24';ctx.lineWidth=2;
       ctx.strokeRect(ox+ncx*cell+2,hh2+(camY-(ncy+1))*cell+2,cell-4,cell-4);
+      var gfx=ox+(ncx+0.5)*cell,gfy=hh2+(camY-(ncy+0.5))*cell;
+      ctx.beginPath();ctx.moveTo(gfx,gfy+cell*0.28);ctx.lineTo(gfx,gfy-cell*0.34);ctx.stroke();
+      ctx.fillStyle='#fbbf24';
+      ctx.beginPath();ctx.moveTo(gfx,gfy-cell*0.34);ctx.lineTo(gfx+cell*0.28,gfy-cell*0.24);ctx.lineTo(gfx,gfy-cell*0.14);ctx.closePath();ctx.fill();
       ctx.globalAlpha=1;
     }else if(SC.myItem===3){   // MURO: footprint ghost 3 celle H/V (|ax|≥|ay| → H, §3.3)
       var mhor=Math.abs(rdx)>=Math.abs(rdy);
@@ -51728,6 +51881,15 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
     if(mine){ctx.strokeStyle='#fff';ctx.lineWidth=1.2*RTD.dpr;ctx.stroke();}
     if((mr2[5]|0)===1){ctx.strokeStyle='#ffd700';ctx.lineWidth=1.2*RTD.dpr;   // leader (rank 1)
       ctx.beginPath();ctx.arc(mpx,mpy,4.4*RTD.dpr,0,6.283);ctx.stroke();}
+  }
+  // (g) il MIO CHECKPOINT sulla mappa strategica (bandierina oro, campo raw.ckpt)
+  if(SC.myCkpt){
+    var ckx=mtX+(Math.max(0,Math.min(SC.W,SC.myCkpt[0]))/SC.W)*mtW;
+    var cky=mtY+mtH-(Math.max(0,Math.min(SC.H,SC.myCkpt[1]))/SC.H)*mtH;
+    ctx.strokeStyle='#fbbf24';ctx.lineWidth=1.2*RTD.dpr;
+    ctx.beginPath();ctx.moveTo(ckx,cky+3*RTD.dpr);ctx.lineTo(ckx,cky-3.6*RTD.dpr);ctx.stroke();
+    ctx.fillStyle='#fbbf24';
+    ctx.beginPath();ctx.moveTo(ckx,cky-3.6*RTD.dpr);ctx.lineTo(ckx+3.6*RTD.dpr,cky-2.2*RTD.dpr);ctx.lineTo(ckx,cky-0.8*RTD.dpr);ctx.closePath();ctx.fill();
   }
   // finestrella camera (x E y con la camera-finestra)
   ctx.strokeStyle='rgba(255,255,255,.4)';ctx.lineWidth=1;
