@@ -41420,8 +41420,15 @@ function rtdConnect(){
     ws.send(JSON.stringify({t:'hello',user_id:String(S.userId||''),init_data:initData,profile:twrProfile()}));
   };
   ws.onmessage=function(evm){
-    var msg;try{msg=JSON.parse(evm.data);}catch(e){return;}
-    rtdOnMsg(msg);
+    // DIAG PHONE (19/07): contatori beacon — msg totali/snapshot/parse-error + timestamp
+    // ultimo msg. Servono al pannello IN ATTESA DATI e al watchdog anti-middlebox.
+    RTD._wsN=(RTD._wsN||0)+1;RTD._wsT=performance.now();
+    var msg;try{msg=JSON.parse(evm.data);}catch(e){RTD._wsPE=(RTD._wsPE||0)+1;RTD._rerr='parse:'+e;return;}
+    if(msg.t==='s')RTD._wsS=(RTD._wsS||0)+1;
+    try{rtdOnMsg(msg);}catch(e){
+      RTD._rerr=(msg.t||'?')+':'+(''+(e&&e.message||e)).slice(0,60);
+      try{ws.send(JSON.stringify({t:'clog',at:msg.t,msg:String(e&&e.stack||e).slice(0,300)}));}catch(_){}
+    }
   };
   ws.onclose=function(ev){
     RTD.wsOk=false;
@@ -41512,7 +41519,7 @@ function rtdOnMsg(m){
     RTD.map=m.map;RTD.names=m.names||{};RTD.profiles=m.profiles||{};RTD.myId=String(m.you);
     RTD.potEur=m.pot_eur||0;if(m.rate)RTD.rate=m.rate;
     RTD.snaps=[];RTD.over=null;RTD.lastRaw=null;RTD.pgSeat=null;RTD.anim={};RTD.fxq=[];RTD.skids=[];RTD.stampQ=[];
-    RTD.feedRows=[];RTD.shake=0;RTD.cam.ok=false;RTD._sc={};RTD._lf=0;RTD._lookC={};
+    RTD.feedRows=[];RTD.shake=0;RTD.cam.ok=false;RTD._sc={};RTD._lf=0;RTD._lookC={};RTD._wsRk=0;
     var ttl=document.getElementById('arc-title');
     if(ttl){ttl.textContent=rtdMeta().title;ttl.style.color=rtdMeta().color;}
     rtdShowMatch();
@@ -42318,6 +42325,18 @@ function rtdTouchInit(){
 function rtdPump(){
   if(RTD.spec)return;   // TORNEO spettatore: input SEMPRE off
   if(RTD.ui!=='match')return;
+  // WATCHDOG PHONE (19/07): il server manda snapshot a 20Hz — 4s senza NESSUN
+  // messaggio in match = canale morto lato ricezione (middlebox/VPN che stalla
+  // lo stream). Ricicla la TCP: send_to server-side fa fallback su CONNS[uid],
+  // la partita riprende sulla socket nuova SENZA rejoin. Max 3 tentativi
+  // (azzerati a ogni 'start'); handler della ws vecchia azzerati per non
+  // innescare banner/retry spuri da onclose.
+  if(RTD.wsOk&&RTD._wsT&&performance.now()-RTD._wsT>4000&&(RTD._wsRk||0)<3){
+    RTD._wsRk=(RTD._wsRk||0)+1;RTD._wsT=performance.now();
+    var _o=RTD.ws;
+    if(_o){try{_o.onclose=null;_o.onerror=null;_o.onmessage=null;_o.close();}catch(e){}}
+    RTD.ws=null;RTD.wsOk=false;rtdConnect();
+  }
   if(RTD.game==='pong')pgBarAxis();   // barra → RTD.joy (stesso {t:'in'} di sempre)
   if(rtdMeta().input==='touch'){
     // il disco insegue il dito: P-controller sulla distanza in unità mondo
@@ -43554,12 +43573,18 @@ function rtdFrame(){
       ctx.setTransform(1,0,0,1,0,0);
       ctx.fillStyle='#12121c';ctx.fillRect(0,0,_w,_h);
       ctx.fillStyle='#ffcc00';ctx.font='bold 15px monospace';ctx.textAlign='left';
-      ctx.fillText('IN ATTESA DATI ['+RTD.game+']',12,30);
+      // DIAG PHONE (19/07): dopo 3 ricicli ws senza dati il problema e' il percorso
+      // di rete (middlebox/VPN che stalla lo stream) — dillo esplicitamente.
+      ctx.fillText((RTD._wsRk||0)>=3?'CONNESSIONE BLOCCATA (VPN/proxy?)':'IN ATTESA DATI ['+RTD.game+']',12,30);
       ctx.fillStyle='#9fe';ctx.font='12px monospace';
       ctx.fillText('snaps:'+((RTD.snaps||[]).length)+'  ui:'+RTD.ui+'  cur:'+(typeof CUR!=='undefined'?CUR:'?'),12,56);
       ctx.fillText('ws:'+(RTD.wsOk?'OK':'NO')+'  cv:'+_w+'x'+_h+'  raf:'+(RTD.raf?'on':'off'),12,76);
       ctx.fillText('you:'+(RTD.myId||'-')+'  spec:'+(RTD.spec?'1':'0'),12,96);
-      if(RTD._rerr){ctx.fillStyle='#ff6b6b';ctx.fillText('lastErr:'+(''+RTD._rerr).slice(0,34),12,116);}
+      // DIAG PHONE (19/07): msgs=frame ws totali, s=snapshot, pe=parse error,
+      // age=secondi dall'ultimo msg, rk=ricicli watchdog. msgs congelato con age
+      // che cresce = i frame non arrivano al JS (rete); s>0 ma schermo fermo = handler.
+      ctx.fillText('msgs:'+(RTD._wsN||0)+' s:'+(RTD._wsS||0)+' pe:'+(RTD._wsPE||0)+' age:'+(RTD._wsT?((performance.now()-RTD._wsT)/1000|0)+'s':'-')+' rk:'+(RTD._wsRk||0),12,116);
+      if(RTD._rerr){ctx.fillStyle='#ff6b6b';ctx.fillText('lastErr:'+(''+RTD._rerr).slice(0,34),12,136);}
     }catch(_){}
     return;
   }
