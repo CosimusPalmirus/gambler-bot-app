@@ -42353,7 +42353,75 @@ function rtdStallCheck(){
     RTD.ws=null;RTD.wsOk=false;rtdConnect();
   }
 }
+// ── rAF-STALL WATCH (19/07) ────────────────────────────────────────
+// Su WebView vecchi (Vanadium/GrapheneOS, Pixel 7 Pro) il compositor GPU può
+// smettere di consegnare i callback requestAnimationFrame (texture/canvas
+// troppo grandi) mentre JS, DOM e WebSocket restano VIVI: sintomo reale =
+// "IN ATTESA DATI" congelato con msgs che cresce (msgs:5420 s:5373 pe:0),
+// poi crash della webview dopo ~1 min. Il derby ('calcio') è il renderer più
+// pesante (bake campo offscreen grande) ed è l'unico che moriva.
+// Gira da rtdPump (interval 33ms, INDIPENDENTE dal rAF). Escalation:
+//  stage 0→1: rAF fermo >2.5s con messaggi ws che ARRIVANO → beacon
+//             {t:'clog',at:'rafstall'} (una volta), MODALITÀ LITE on,
+//             rianimazione: cancel + ri-request del loop (rtdStartRaf).
+//  stage 1→2: dopo la rianimazione zero tick per altri >3s → fallback
+//             setInterval(50ms) che chiama la STESSA rtdFrame; beacon
+//             {t:'clog',at:'raffallback'} (una volta). Il primo tick rAF
+//             vero spegne l'interval (guardia in rtdStartRaf); teardown
+//             anche in rtdStopRaf e su cambio ui dentro il tick stesso.
+// MODALITÀ LITE: RTD.lite=true + localStorage 'gb_lite'='1' → dpr forzato a 1
+// al prossimo rtdCanvasInit e bake del campo calcio a MEZZA risoluzione
+// (subito, per il match in corso). USCITA solo manuale, da console:
+//   localStorage.removeItem('gb_lite'); RTD.lite=false;
+function rtdLiteOn(){
+  try{
+    if(!RTD.lite){
+      RTD.lite=true;
+      try{localStorage.setItem('gb_lite','1');}catch(_p){}
+    }
+    // campo calcio: ri-bake SUBITO a mezza risoluzione (il prossimo frame,
+    // rianimato o da fallback, fa il blit scalato — vedi rtdDrawBolgia)
+    if(RTD.game==='calcio'&&RTD.ui==='match'&&RTD.cv){try{blgBakeStatic();}catch(_k){}}
+  }catch(_e){}
+}
+function rtdRafWatch(){
+  try{
+    if(CUR!=='arc'||RTD.ui!=='match'||!RTD._rafT)return;
+    var now=performance.now();
+    if(!RTD._rw){
+      if(now-RTD._rafT<2500)return;                              // rAF vivo
+      if(!((RTD._wsN||0)>0&&RTD._wsT&&now-RTD._wsT<2500))return; // niente msg → è la rete: ci pensa rtdStallCheck
+      try{
+        if(!RTD._rsSent&&RTD.ws&&RTD.ws.readyState===1){RTD._rsSent=true;
+          RTD.ws.send(JSON.stringify({t:'clog',at:'rafstall',g:RTD.game,ms:Math.round(now-RTD._rafT),msgs:RTD._wsN||0,lite:RTD.lite?1:0}));}
+      }catch(_b){}
+      rtdLiteOn();
+      // rianimazione: rtdStartRaf fa cancel (via rtdStopRaf) + ri-request e
+      // azzera _rw/_rafT — lo stage va quindi impostato DOPO la chiamata.
+      try{rtdStartRaf();}catch(_r){}
+      RTD._rw=1;RTD._rwN0=RTD._rafN||0;RTD._rwT1=now;
+    }else if(RTD._rw===1){
+      if((RTD._rafN||0)!==RTD._rwN0){RTD._rw=0;return;}          // risorto
+      if(now-RTD._rwT1>3000){
+        try{
+          if(!RTD._rfbSent&&RTD.ws&&RTD.ws.readyState===1){RTD._rfbSent=true;
+            RTD.ws.send(JSON.stringify({t:'clog',at:'raffallback',g:RTD.game,lite:RTD.lite?1:0}));}
+        }catch(_b2){}
+        RTD._rw=2;
+        if(!RTD.fbTmr)RTD.fbTmr=setInterval(function(){
+          try{
+            if(CUR!=='arc'||RTD.ui!=='match'){if(RTD.fbTmr){clearInterval(RTD.fbTmr);RTD.fbTmr=null;}RTD._rw=0;return;}
+            rtdFrame();
+          }catch(_fe){}
+        },50);
+      }
+    }else{
+      if(!RTD.fbTmr)RTD._rw=0;   // il rAF è risorto: il suo primo tick ha già spento l'interval
+    }
+  }catch(_w){}
+}
 function rtdPump(){
+  rtdRafWatch();   // rAF-STALL (19/07): PRIMA dei return — deve girare anche da spettatore
   if(RTD.spec)return;   // TORNEO spettatore: input SEMPRE off
   if(RTD.ui!=='match')return;
   rtdStallCheck();
@@ -43154,7 +43222,12 @@ function rtdCanvasInit(){
   var cv=document.getElementById('arc-cv'),wrap=document.getElementById('arc-wrap');
   if(!cv||!wrap||!RTD.map)return;
   RTD.cv=cv;RTD.ctx=cv.getContext('2d');
-  RTD.dpr=Math.min(2,window.devicePixelRatio||1);
+  // MODALITÀ LITE (19/07, rAF-stall): dpr forzato a 1 → framebuffer 4x più piccolo
+  // sui device dpr2 (WebView vecchi con limiti GPU che uccidono il rAF). Attivata
+  // dal rilevatore rtdRafWatch (e persistita) o da localStorage 'gb_lite'==='1'.
+  // USCITA (solo manuale, da console): localStorage.removeItem('gb_lite'); RTD.lite=false;
+  try{if(!RTD.lite&&localStorage.getItem('gb_lite')==='1')RTD.lite=true;}catch(_lt){}
+  RTD.dpr=RTD.lite?1:Math.min(2,window.devicePixelRatio||1);
   var w=wrap.clientWidth||340;
   var ratio=(RTD.map.h&&RTD.map.w&&!RTD.map.race)?Math.min(1.5,RTD.map.h/RTD.map.w):1.15;
   if(RTD.game==='sumo')ratio=1;
@@ -43195,8 +43268,15 @@ function rtdCanvasInit(){
 }
 function rtdStartRaf(){
   rtdStopRaf();
+  // rAF-STALL (19/07): baseline heartbeat per rtdRafWatch — mai stale dal match prima.
+  RTD._rafT=performance.now();
   var loop=function(){
     if(CUR!=='arc'||RTD.ui!=='match'){RTD.raf=null;return;}
+    // rAF-STALL (19/07): heartbeat + contatore tick (diag 'rf:'). Se il fallback
+    // timer era attivo e il rAF è risorto, il PRIMO tick vero lo spegne qui
+    // (guardia anti-doppia-esecuzione). Solo assegnamenti: zero allocazioni.
+    RTD._rafT=performance.now();RTD._rafN=(RTD._rafN||0)+1;
+    if(RTD.fbTmr){clearInterval(RTD.fbTmr);RTD.fbTmr=null;}
     // HARDENING (18/07): se rtdFrame lancia FUORI dal suo try interno (loop fx/stamp),
     // senza questo catch il rAF non veniva più rischedulato → disegno MORTO per sempre
     // (canvas nero coi soli tasti DOM visibili). Ora il loop sopravvive sempre.
@@ -43238,7 +43318,7 @@ function rtdStartRaf(){
   };
   RTD.raf=requestAnimationFrame(loop);
 }
-function rtdStopRaf(){if(RTD.raf){cancelAnimationFrame(RTD.raf);RTD.raf=null;}if(RTD.overTmr){clearTimeout(RTD.overTmr);RTD.overTmr=null;}TWS.engine(false);if(typeof rcSndKill==='function')rcSndKill();if(typeof blgSndKill==='function')blgSndKill();if(typeof sclSndKill==='function')sclSndKill();}
+function rtdStopRaf(){if(RTD.raf){cancelAnimationFrame(RTD.raf);RTD.raf=null;}if(RTD.fbTmr){clearInterval(RTD.fbTmr);RTD.fbTmr=null;}RTD._rw=0;if(RTD.overTmr){clearTimeout(RTD.overTmr);RTD.overTmr=null;}TWS.engine(false);if(typeof rcSndKill==='function')rcSndKill();if(typeof blgSndKill==='function')blgSndKill();if(typeof sclSndKill==='function')sclSndKill();}
 // fondo statico per-renderer su canvas offscreen (keyed su w,hh) → i gradienti
 // del fondo si creano una volta sola, i frame fanno solo drawImage (stesso
 // pattern di RTD._snBg dello snake).
@@ -43679,7 +43759,8 @@ function rtdFrame(){
       // DIAG PHONE (19/07): msgs=frame ws totali, s=snapshot, pe=parse error,
       // age=secondi dall'ultimo msg, rk=ricicli watchdog. msgs congelato con age
       // che cresce = i frame non arrivano al JS (rete); s>0 ma schermo fermo = handler.
-      ctx.fillText('msgs:'+(RTD._wsN||0)+' s:'+(RTD._wsS||0)+' pe:'+(RTD._wsPE||0)+' age:'+(RTD._wsT?((performance.now()-RTD._wsT)/1000|0)+'s':'-')+' rk:'+(RTD._wsRk||0),12,116);
+      // rf=tick rAF totali (fermo = rAF morto), /FB=fallback timer attivo, /L=lite
+      ctx.fillText('msgs:'+(RTD._wsN||0)+' s:'+(RTD._wsS||0)+' pe:'+(RTD._wsPE||0)+' age:'+(RTD._wsT?((performance.now()-RTD._wsT)/1000|0)+'s':'-')+' rk:'+(RTD._wsRk||0)+' rf:'+(RTD._rafN||0)+(RTD.fbTmr?'/FB':'')+(RTD.lite?'/L':''),12,116);
       if(RTD._rerr){ctx.fillStyle='#ff6b6b';ctx.fillText('lastErr:'+(''+RTD._rerr).slice(0,34),12,136);}
     }catch(_){}
     return;
@@ -47269,8 +47350,16 @@ function blgBakeStatic(){
   BLG.W=W;BLG.H=H;BLG.gw=gw;
   var S=Math.min(w/H,hh/(W+1.3));BLG.S=S;   // +1.3u: spazio per le reti (0.5u) + traversa dietro le linee di porta
   var offX=(w-H*S)/2,offY=(hh-W*S)/2;BLG.offX=offX;BLG.offY=offY;
-  var st=document.createElement('canvas');st.width=w;st.height=hh;
+  // MODALITÀ LITE (19/07, rAF-stall): bake a MEZZA risoluzione → texture 4x più
+  // piccola per i WebView con limiti GPU. Il disegno resta in coordinate piene
+  // via c.scale; _lw/_lh = dimensione logica (check di rebake in rtdDrawBolgia,
+  // blit scalato ctx.drawImage(st,0,0,w,hh)).
+  var lsc=RTD.lite?0.5:1;
+  var st=document.createElement('canvas');
+  st.width=Math.max(2,Math.round(w*lsc));st.height=Math.max(2,Math.round(hh*lsc));
+  st._lw=w;st._lh=hh;
   var c=st.getContext('2d');
+  if(lsc!==1)c.scale(lsc,lsc);
   var sd=w*127.3+hh*7.1+1;
   function rnd(){sd=(sd*9301+49297)%233280;return sd/233280;}   // RNG seedato deterministico (pattern 41721)
   // notte fuori campo
@@ -47396,7 +47485,7 @@ function blgLerp(now){
 
 function rtdDrawBolgia(ctx,raw,lp,now,w,hh,dt){
   if(!raw||raw.g!=='calcio')return;   // primo frame: lastRaw può essere di un altro match
-  if(!RTD.st||RTD.st.width!==w||RTD.st.height!==hh)blgBakeStatic();
+  if(!RTD.st||(RTD.st._lw||RTD.st.width)!==w||(RTD.st._lh||RTD.st.height)!==hh)blgBakeStatic();   // _lw/_lh: dimensione LOGICA (lite bake a mezza risoluzione)
   if(raw.gw!=null&&Math.abs(raw.gw-BLG.gw)>0.01)blgBakeStatic();   // golden: porte più larghe → rebake (evento raro)
   blgMyTeam();
   // hit-stop (40-60ms: il clock virtuale avanza come il reale ⇒ mondo CONGELATO)
@@ -47413,7 +47502,7 @@ function rtdDrawBolgia(ctx,raw,lp,now,w,hh,dt){
     var zx=zr?zr.px:w/2,zy=zr?zr.py:hh/2,zs=1+0.07*zk;
     ctx.translate(zx,zy);ctx.scale(zs,zs);ctx.translate(-zx,-zy);
   }
-  ctx.drawImage(RTD.st,0,0);
+  ctx.drawImage(RTD.st,0,0,w,hh);   // blit a dimensione piena (identico se il bake non è lite)
   // folla animata: bob ∝ energia, braccia alzate dopo i gol, OLA nei momenti calmi (pattern COLOSSEO)
   var cr=BLG.crowd;
   cr.e=0.22+(cr.e-0.22)*Math.exp(-dt*0.35);
