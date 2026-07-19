@@ -41139,7 +41139,11 @@ var ARC_SOUNDS={
     TWS.noise({d:0.55,g:0.07*v,at:0.60,lp:900});
     TWS.noise({d:0.9,g:0.045*v,at:0.75,hp:2600});
   },
-  sclChips:function(v){TWS.tone({f:1980,f2:2640,type:'triangle',d:0.06,g:0.13*v});TWS.tone({f:990,f2:1320,d:0.09,g:0.08*v});TWS.noise({d:0.07,g:0.05*v,hp:2200});}  // fiches d'oro che sbattono
+  sclChips:function(v){TWS.tone({f:1980,f2:2640,type:'triangle',d:0.06,g:0.13*v});TWS.tone({f:990,f2:1320,d:0.09,g:0.08*v});TWS.noise({d:0.07,g:0.05*v,hp:2200});},  // fiches d'oro che sbattono
+  /* ── DEAD PEAK v3 §7.4: SFX movimento DEDICATI (il salto non ricicla più il whoosh dash) ── */
+  sclJump:function(v){TWS.tone({f:300,f2:640,type:'triangle',d:0.09,g:0.16*v,lp:2200});TWS.noise({d:0.06,g:0.05*v,hp:500,lp:2400});},   // boing corto ascendente (stacco)
+  sclThud:function(v){TWS.tone({f:150,f2:55,type:'sine',d:0.11,g:0.30*v,lp:700});TWS.noise({d:0.07,g:0.12*v,lp:900});},                 // thud atterraggio (volume ∝ impatto)
+  sclScrape:function(v){TWS.noise({d:0.16,g:0.14*v,hp:700,lp:3200});TWS.tone({f:420,f2:210,type:'sawtooth',d:0.12,g:0.04*v,lp:1100});}  // scrape skid (frenata a terra)
 };
 (function(){
   var old=TWS.play;
@@ -41414,6 +41418,14 @@ function rtdConnect(){
   RTD.ws=ws;
   ws.onopen=function(){
     RTD.wsOk=true;wsNetBanner('arc',0);
+    // KEEPALIVE NAT (19/07): il telefono salta WiFi<->dati e le mappature NAT
+    // scadono nei minuti passati in menu; un ping applicativo ogni 20s tiene
+    // vivo il percorso e fa emergere subito i socket zombie (il TCP in errore
+    // chiude la ws → scatta la riconnessione normale).
+    if(RTD.kaT){clearInterval(RTD.kaT);}
+    RTD.kaT=setInterval(function(){
+      try{if(RTD.ws&&RTD.ws.readyState===1)RTD.ws.send('{"t":"ping"}');}catch(e){}
+    },20000);
     setTimeout(function(){if(RTD.ws===ws&&RTD.wsOk)RTD.retries=0;},10000);   // retries azzerati SOLO dopo 10s stabili
     var initData='';
     try{initData=(window.gbInitData&&window.gbInitData())||(window.Telegram&&window.Telegram.WebApp&&window.Telegram.WebApp.initData)||'';}catch(e){}
@@ -42322,21 +42334,29 @@ function rtdTouchInit(){
   cv.addEventListener('mousemove',function(e){if(RTD._md)pos(e);});
   cv.addEventListener('mouseup',function(){RTD._md=false;end();});
 }
-function rtdPump(){
-  if(RTD.spec)return;   // TORNEO spettatore: input SEMPRE off
-  if(RTD.ui!=='match')return;
-  // WATCHDOG PHONE (19/07): il server manda snapshot a 20Hz — 4s senza NESSUN
-  // messaggio in match = canale morto lato ricezione (middlebox/VPN che stalla
-  // lo stream). Ricicla la TCP: send_to server-side fa fallback su CONNS[uid],
+function rtdStallCheck(){
+  // WATCHDOG PHONE (19/07, v2): il server manda snapshot a 20Hz — 4s senza NESSUN
+  // messaggio in match = canale morto lato ricezione (socket zombie da handover
+  // WiFi<->dati: Android tiene la vecchia rete ~30s, poi la conn muore SENZA
+  // close event). Ricicla la TCP: send_to server-side fa fallback su CONNS[uid],
   // la partita riprende sulla socket nuova SENZA rejoin. Max 3 tentativi
   // (azzerati a ogni 'start'); handler della ws vecchia azzerati per non
-  // innescare banner/retry spuri da onclose.
+  // innescare banner/retry spuri da onclose. v2: chiamato ANCHE da rtdFrame —
+  // rtdPump gira solo col loop input avviato, e chi fissa lo schermo senza
+  // toccare i controlli non lo faceva mai partire (visto sul Pixel: rk fermo a 0).
+  if(RTD.spec)return;
+  if(RTD.ui!=='match')return;
   if(RTD.wsOk&&RTD._wsT&&performance.now()-RTD._wsT>4000&&(RTD._wsRk||0)<3){
     RTD._wsRk=(RTD._wsRk||0)+1;RTD._wsT=performance.now();
     var _o=RTD.ws;
     if(_o){try{_o.onclose=null;_o.onerror=null;_o.onmessage=null;_o.close();}catch(e){}}
     RTD.ws=null;RTD.wsOk=false;rtdConnect();
   }
+}
+function rtdPump(){
+  if(RTD.spec)return;   // TORNEO spettatore: input SEMPRE off
+  if(RTD.ui!=='match')return;
+  rtdStallCheck();
   if(RTD.game==='pong')pgBarAxis();   // barra → RTD.joy (stesso {t:'in'} di sempre)
   if(rtdMeta().input==='touch'){
     // il disco insegue il dito: P-controller sulla distanza in unità mondo
@@ -42353,9 +42373,12 @@ function rtdPump(){
   else if(RTD.joy.on){
     var _pmx=RTD.joy.mx,_pmy=RTD.joy.my;
     if(RTD.game==='calcio'){var _bw=blgToWorld(_pmx,_pmy);_pmx=_bw[0];_pmy=_bw[1];}   // BOLGIA §2.1 punto (1): stick schermo → mondo
-    else if(RTD.game==='scalata'){_pmy=-_pmy;}   // SCALATA: y schermo (giù+) → y mondo (su+ = scalata)
+    else if(RTD.game==='scalata'){_pmy=sclSynMy(-_pmy);}   // SCALATA: y invertita + §1.4 my sintetico (bottone SALTO tenuto)
     rtdSend({t:'in',mx:_pmx,my:_pmy});RTD.sentZero=false;
   }
+  // SCALATA §1.4: stick fermo ma bottone SALTO tenuto in salita → il my sintetico
+  // va spedito comunque (0.25 = gravità piena), altrimenti il primo zero lo spegne.
+  else if(RTD.game==='scalata'&&sclSynMy(0)>0){rtdSend({t:'in',mx:0,my:sclSynMy(0)});RTD.sentZero=false;}
   else if(!RTD.sentZero){rtdSend({t:'in',mx:0,my:0});RTD.sentZero=true;}
   if(rtdMeta().input==='race'){
     if(RTD.aim.on){rtdSend({t:'aim',ax:1,ay:0,on:1});RTD.sentAimZero=false;}
@@ -42489,6 +42512,32 @@ function rtdFeedEvent(e){
       TWS.play('boom',1);rtdStamp(e.who===me?'K.O.!':'SEI K.O.',e.who===me?'#39ff14':'#f87171');RTD.shake=14;break;
     /* ── SCALATA (torre) §5 ── */
     case 'splat':if(g==='scalata')sclSplatEv(e);break;
+    case 'brk':   // DEAD PEAK v3 §6.3: parete FRIABILE demolita (masso/piccozza) — via aperta PER TUTTI
+      if(g!=='scalata')break;
+      try{
+        if(window.SC&&SC.wallA){
+          var bkx2=e.x|0,bky2=e.y|0;
+          if(bkx2>=0&&bkx2<SC.W&&bky2>=0&&bky2<SC.H){
+            SC.wallA[bky2*SC.W+bkx2]=0;                  // mirror _solid: ora si passa (anche pred)
+            if(SC.brkA)SC.brkA[bky2*SC.W+bkx2]=0;
+            if(SC.tiles){                                 // invalida il tile LRU → re-bake lazy
+              var btc=Math.floor(bkx2/SC.TCOLS),btr=Math.floor(bky2/SC.TROWS);
+              delete SC.tiles[btc*8+btr];
+              // al bordo tile anche il vicino orizzontale (montanti-appiglio dei vicini)
+              if(bkx2%SC.TCOLS===0&&btc>0)delete SC.tiles[(btc-1)*8+btr];
+              if(bkx2%SC.TCOLS===SC.TCOLS-1)delete SC.tiles[(btc+1)*8+btr];
+            }
+            if(SC.cell){                                  // polvere sclDust sul varco
+              var bpx3=SC.ox+(bkx2+0.5)*SC.cell,bpy3=SC.hh2+(SC.cam.y-(bky2+0.5))*SC.cell;
+              sclDust(bpx3,bpy3,6,-1,0.8,'rgba(168,162,158,.7)');
+              sclDust(bpx3,bpy3,6,1,0.8,'rgba(168,162,158,.7)');
+            }
+          }
+        }
+      }catch(_bk3){}
+      TWS.play('dpkBreak',0.85);
+      rtdFeed('🪨 varco aperto: una parete friabile è crollata');
+      break;
     case 'graze':if(g==='scalata')sclGrazeEv(e);break;   // POLISH §2: near-miss (feed engine, seat)
     case 'shove':
       if(g!=='scalata')break;
@@ -42808,10 +42857,24 @@ function rtdShowMatch(){
         +'<div class="scl-slot" id="scl-slot-1"></div>'
         +'<div class="scl-slot" id="scl-slot-2"></div>'
       +'</div>'
-      +'<button class="arc-act" id="arc-item" style="border-color:rgba(56,189,248,.6);color:#bae6fd;opacity:.4;" '
-        +'ontouchstart="event.preventDefault();sclItemDown();" ontouchend="event.preventDefault();sclItemUp();" ontouchcancel="sclItemUp();" '
-        +'onmousedown="sclItemDown();" onmouseup="sclItemUp();" onmouseleave="sclItemUp();">🎒<span>USA</span></button>'
-      +'<button class="arc-act" id="arc-act" style="border-color:rgba(250,204,21,.6);color:#fef08a;" ontouchstart="event.preventDefault();sclJump();" onmousedown="sclJump();">⬆️<span>SALTO</span></button>'
+      // §5.1 v3 DRAG-TO-AIM: touchstart=mira, touchMOVE sul bottone=vettore di
+      // piazzamento (14px=1u), rilascio=fire {a:'special',ax,ay,power:2} o
+      // annulla (zona 24px → unshield). L'anello #arc-ring è il timer AIM_MAX_T.
+      +'<div style="position:relative;">'
+        +'<div id="arc-ring" style="position:absolute;inset:-5px;border-radius:50%;pointer-events:none;display:none;'
+          +'-webkit-mask:radial-gradient(closest-side,transparent 76%,#000 78%);mask:radial-gradient(closest-side,transparent 76%,#000 78%);"></div>'
+        +'<div id="arc-aimx" style="position:absolute;inset:0;display:none;align-items:center;justify-content:center;'
+          +'font-size:30px;color:#f87171;pointer-events:none;z-index:2;text-shadow:0 0 8px #000;">✕</div>'
+        +'<button class="arc-act" id="arc-item" style="border-color:rgba(56,189,248,.6);color:#bae6fd;opacity:.4;" '
+          +'ontouchstart="event.preventDefault();sclItemDown(event);" ontouchmove="event.preventDefault();sclItemMove(event);" '
+          +'ontouchend="event.preventDefault();sclItemUp();" ontouchcancel="sclItemUp();" '
+          +'onmousedown="sclItemDown(event);">🎒<span>USA</span></button>'
+      +'</div>'
+      // §1.4 v3 SALTO VARIABILE SUL BOTTONE: touchend → sclJumpUp (SC.jHold);
+      // tap = hop corto (G_CUT), hold = salto pieno con stick tutto orizzontale.
+      +'<button class="arc-act" id="arc-act" style="border-color:rgba(250,204,21,.6);color:#fef08a;" '
+        +'ontouchstart="event.preventDefault();sclJump();" ontouchend="event.preventDefault();sclJumpUp();" ontouchcancel="sclJumpUp();" '
+        +'onmousedown="sclJump();" onmouseup="sclJumpUp();" onmouseleave="sclJumpUp();">⬆️<span>SALTO</span></button>'
       +'</div>';
   }else if(inp==='stick+3btn'){
     // BOLGIA §2.1: stick + colonna 3 bottoni (dall'alto: SPECIALE, TIRA, PASSA).
@@ -43138,7 +43201,39 @@ function rtdStartRaf(){
     // senza questo catch il rAF non veniva più rischedulato → disegno MORTO per sempre
     // (canvas nero coi soli tasti DOM visibili). Ora il loop sopravvive sempre.
     try{ rtdFrame(); }
-    catch(e){ RTD._rerr=(e&&(e.message||e.name))||(''+e); try{console.error('rtdFrame fatal:',e);}catch(_){} }
+    catch(e){
+      RTD._rerr=(e&&(e.message||e.name))||(''+e);
+      try{console.error('rtdFrame fatal:',e);}catch(_){}
+      // PANNELLO EMERGENZA (19/07): se il ramo render lancia PRIMA di ridipingere,
+      // il canvas resta inchiodato all'ultimo frame buono (visto sul Pixel: pannello
+      // IN ATTESA congelato a msgs:2 mentre _rerr aveva gia' la risposta). Qui si
+      // dipinge lo stato VIVO: errore, stack e contatori — leggibili da screenshot.
+      try{
+        var ctx2=RTD.ctx;
+        if(ctx2){
+          var w2=RTD.cv.width,h2=RTD.cv.height;
+          ctx2.setTransform(1,0,0,1,0,0);
+          ctx2.fillStyle='#1a1220';ctx2.fillRect(0,0,w2,h2);
+          ctx2.fillStyle='#ff5566';ctx2.font='bold 20px monospace';ctx2.textAlign='left';
+          ctx2.fillText('ERRORE RENDER ['+RTD.game+']',12,34);
+          ctx2.fillStyle='#ffcc00';ctx2.font='13px monospace';
+          var em=(''+(RTD._rerr||'?'));
+          ctx2.fillText(em.slice(0,50),12,64);
+          if(em.length>50)ctx2.fillText(em.slice(50,100),12,82);
+          ctx2.fillText('msgs:'+(RTD._wsN||0)+' s:'+(RTD._wsS||0)+' age:'+(RTD._wsT?((performance.now()-RTD._wsT)/1000|0)+'s':'-'),12,106);
+          var st=String(e&&e.stack||'').split('\n').slice(0,3).join(' | ');
+          ctx2.fillText(st.slice(0,60),12,130);
+          if(st.length>60)ctx2.fillText(st.slice(60,120),12,148);
+          if(st.length>120)ctx2.fillText(st.slice(120,180),12,166);
+        }
+      }catch(_2){}
+      // una sola volta per match: manda l'errore al server (tipo clog, ignorato
+      // in silenzio finche' il ramo server non e' deployato — poi finisce nei log)
+      try{
+        if(!RTD._ferrSent&&RTD.ws&&RTD.ws.readyState===1){RTD._ferrSent=true;
+          RTD.ws.send(JSON.stringify({t:'clog',at:'frame',msg:String(e&&e.stack||e).slice(0,300)}));}
+      }catch(_3){}
+    }
     RTD.raf=requestAnimationFrame(loop);
   };
   RTD.raf=requestAnimationFrame(loop);
@@ -43565,6 +43660,7 @@ function rtdAlleyBlocked(raw,x,y){
 function rtdFrame(){
   var ctx=RTD.ctx;
   if(!ctx)return;
+  rtdStallCheck();
   if(!RTD.lastRaw){
     // DIAG (18/07): lo stato "nessuno snapshot" era MUTO (canvas nero coi soli tasti).
     // Ora si vede, con lo stato che serve a capire perché.
@@ -48040,20 +48136,39 @@ var SC={
   VWALK:5.6,      // = climb_rt V_WALK (vel orizz max a terra)
   AGROUND:60.0,   // = climb_rt A_GROUND (accel verso lo stick a terra)
   FGROUND:55.0,   // = climb_rt F_GROUND (attrito a terra, input=0)
-  AAIR:30.0,      // = climb_rt A_AIR (controllo aereo, metà terra)
+  AAIR:38.0,      // = climb_rt A_AIR (controllo aereo — v3 §1.1: 30→38)
   VWALKAIR:5.6,   // = climb_rt V_WALK_AIR (cap orizz in aria)
   VJUMP:17.0,     // = climb_rt V_JUMP (impulso stacco → apice 3.44, t_apex .40s)
-  COYOTE:0.10,    // = climb_rt COYOTE_T (grazia salto dopo il bordo)
-  JBUF:0.13,      // = climb_rt JUMP_BUF_T (salto bufferizzato pre-atterraggio)
+  COYOTE:0.15,    // = climb_rt COYOTE_T (grazia salto dopo il bordo — v3 §1.1: 0.10→0.15)
+  JBUF:0.15,      // = climb_rt JUMP_BUF_T (salto bufferizzato pre-atterraggio — v3: 0.13→0.15)
   DROPT:0.20,     // = climb_rt DROP_T (finestra pass-through one-way)
   VCLIMB:4.2,     // = climb_rt V_CLIMB (scale/corde, gravità sospesa)
   LGDX:0.42,      // = climb_rt LEDGE_GRAB_DX (dist orizz max dal bordo per agganciare)
   LGDY:0.55,      // = climb_rt LEDGE_GRAB_DY (testa entro questa sotto il top)
   LGVY:3.0,       // = climb_rt LEDGE_VY_MAX (aggancio solo se |vy|≤)
-  MANTT:0.34,     // = climb_rt MANTLE_T (durata montata, server-driven)
+  MANTT:0.26,     // = climb_rt MANTLE_T (durata montata — v3 §1.6: 0.34→0.26, ora PREDETTA tranne mplat)
   MANTUP:1.15,    // = climb_rt MANTLE_UP (sollevamento mantle)
   MANTFWD:0.55,   // = climb_rt MANTLE_FWD (avanzamento mantle)
   HANGMAX:1.4,    // = climb_rt HANG_MAX_T (auto-mantle anti-camp)
+  // ── MIRROR v3 (DEADPEAK_V3_SPEC §1.1 — coppie xcheck nuove) ──
+  APEXVY:2.5,     // = climb_rt APEX_VY (|vy|< → apex-hang Celeste, §1.2)
+  APEXMUL:0.55,   // = climb_rt APEX_MUL (×G all'apice)
+  AAIRAPEX:1.35,  // = climb_rt A_AIR_APEX (×A_AIR all'apice)
+  FSKID:90.0,     // = climb_rt F_SKID (decel turn-around a terra, §1.2)
+  WSLIDEV:6.0,    // = climb_rt WALL_SLIDE_V (cap caduta in wall-slide, §1.5)
+  WJVX:8.5,       // = climb_rt WJ_VX (spinta orizzontale wall-jump)
+  WJVY:15.5,      // = climb_rt WJ_VY (impulso verticale wall-jump, apice ~2.9)
+  WJLOCK:0.18,    // = climb_rt WJ_LOCK_T (input verso la parete ignorato)
+  WCOY:0.10,      // = climb_rt WALL_COYOTE (grazia wall-jump dopo il distacco)
+  PINRNG:4.0,     // = climb_rt PIN_RANGE (offset max CHECKPOINT, §5.2 — ghost = server)
+  WALLRNG:5.0,    // = climb_rt WALL_RANGE (offset max MURO, §5.2)
+  ROCKRNG:3.0,    // = climb_rt ROCK_OFF (offset max sgancio MASSO, §5.2)
+  BLDV:6.0,       // = climb_rt BLD_V (discesa masso u/s — preview 12 punti §5.3)
+  // JHOLD_SYN = 0.25: convenzione CLIENT-ONLY (§1.4, commentata anche in climb_rt,
+  // NON coppia xcheck): bottone SALTO tenuto → my sintetico max(my,0.25) SOLO se
+  // airborne in salita fuori da scale/corde. 0.25 > JUMP_HOLD_MIN 0.2 (gravità
+  // piena) e < MANTLE_MY 0.5 (zero side-effect mantle). Il server legge my come sempre.
+  JHOLDSYN:0.25,
   PH:1.95,        // = climb_rt PH (altezza AABB, testa a y+PH — rework CHECKPOINT 19/07)
   JHOLD:0.2,      // = climb_rt JUMP_HOLD_MIN (my≤ → G_CUT hop corto)
   MANTMY:0.5,     // = climb_rt MANTLE_MY (my> da hang → mantle)
@@ -48064,7 +48179,10 @@ var SC={
   W:36,H:92,YT:86,secRows:16, // sovrascritti da map_info (w/h/ytop) — default = WORLD v4 "M" 36×92
   // pred platformer: x,y,vx,vy + stato fisico locale (grounded/coyote/jbuf/drop/
   // noledge/ride/hang) + acc/jreq. Riconciliato verso la row autoritativa (§3.2).
-  pred:{ok:false,x:0,y:0,vx:0,vy:0,grounded:false,coyote:0,jbuf:0,drop:0,noledge:0,ride:null,hang:false,jreq:0},
+  pred:{ok:false,x:0,y:0,vx:0,vy:0,grounded:false,coyote:0,jbuf:0,drop:0,noledge:0,ride:null,hang:false,jreq:0,
+    // v3: wall-slide/wall-jump (§1.5), skid (§1.2), hang→mantle PREDETTO (§1.6)
+    wallside:0,wallCoy:0,lastWs:0,wjLock:0,wjSide:0,wjLast:0,skidT:0,
+    hangT:0,hcx:0,hcy:0,hside:'R',mant:0,mantT:0,msx:0,msy:0,mtx:0,mty:0},
   predVy:0,prevFl:0,dashT:0,dashDx:0,dashDy:1,dashCdUntil:0,
   mplats:null,onewayA:null,_m:{x:0,y:0,land:false,ceil:false,ride:null,hit:false},
   cam:{x:16,y:6,ok:false},lead:0,leadX:0,vo:0,slowT:0,koCam:null,flash:null,
@@ -48077,6 +48195,13 @@ var SC={
   pinA:null,     // celle dei MIEI chiodi → ponte sui buchi (solo owner §3.2a)
   mySeat:-1,     // indice della MIA row in "p" (seat, VINCOLO §4.2)
   myItem:0,myUses:0,itemDown:0,hudIt:-1,
+  // ── v3 §1.4 salto variabile sul bottone + §5.1 drag-to-aim su #arc-item ──
+  jHold:false,                                  // bottone SALTO tenuto (touchend → sclJumpUp)
+  aimOn:0,aimSx:0,aimSy:0,                      // drag: attivo + punto di touchstart (px schermo)
+  aimVx:0,aimVy:0,                              // vettore di mira in UNITÀ MONDO (14px = 1u, cap 90px)
+  aimCancel:0,aimT0:0,aimSentT:0,aimRingQ:-1,   // zona annulla 24px / t0 anello AIM_MAX_T / throttle shield
+  aimRock:null,aimRockN:0,                      // preview masso: 12 punti (Float32Array 24, §5.3)
+  rejSig:'',myWf:null,                          // reason-code rej [code,t] (§5.2) + footprint-cd wf (§8.2)
   myInv:[],mySel:0,hudInv:'',invNprev:null,   // §M2 inventario (3 slot fissi)
   pull:{who:null,victim:null,t0:0},   // fune di traino (feed hook)
   axeFx:null,r6prev:null,wlPrev:null,pinPrev:null,prPrev:null,bldSndT:0,dustT:0,
@@ -48085,7 +48210,9 @@ var SC={
   P:null,pi:0,G:null,gi:0,anim:{},trailT:0,emberT:0,startAt:0,
   myY:0,myX:16,meDead:false,rockT:0,
   // ── POLISH (solo presentazione) ──
-  antT:0,                                       // §1 micro-anticipazione dash (t0 dello squash)
+  antT:0,antDx:0,                               // §7.2 v3 jump-squat 50ms: t0 + mx alla pressione (carica su (mx,+1))
+  brkA:null,                                    // §6.3 v3: celle PARETE FRIABILE ancora chiuse (map_info brk, feed 'brk' le apre)
+  scut:null,arch:null,                          // §6.1/§3 v3: cache skip-platform + archetipi (map_info, ||[] se assenti)
   shk:{t0:0,dur:0,amp:0,dx:0,dy:0,f:0,rum:0},   // §3 screen-shake direzionale per trappola
   FP:null,fpi:0,                                // §1 pool impronte (footstep su impalcature)
   CH:null,chi:0,                                // §6 pool fiches d'oro (esplosione caveau)
@@ -48104,6 +48231,14 @@ var SCL_ITEM=[null,
   {ico:'✨',nm:'MAGNESITE',col:'#f8fafc'}
 ];
 var SCL_DSH=[6,5],SCL_DSH0=[];   // pattern tratteggio mirino (allocati UNA volta)
+// §5.1 v3: raggio drag per item (unità mondo) = mirror ESATTO di
+// HOOK_RANGE 8.5 / PIN_RANGE 4.0 / WALL_RANGE 5.0 / AXE_R 1.7 / ROCK_OFF 3.0.
+// Indice = id item (SCL_ITEM); 6=magnesite: self-buff, nessuna mira (0).
+var SCL_RANGE=[0,8.5,4.0,5.0,1.7,3.0,0];
+// §5.2 v3: reason code del server (reply action / fallback raw.rej) → toast
+var SCL_REJ={row:'FUORI FASCIA (righe 5–83)',occ:'CELLA OCCUPATA',near:'TROPPO VICINO A UN PLAYER',
+             chain:'TROPPO VICINO A UN ALTRO MURO',seal:'CHIUDEREBBE LA VIA',
+             pocket:'CREEREBBE UNA SACCA CHIUSA',cd:'ZONA IN COOLDOWN'};
 // identità di via (SCALATA_WIDE §3.5: colori costanti client, id = climb_rt FAM_ID)
 var SCL_FAM=[
   {col:'#facc15',nm:'PIOLI',ico:'🪜'},        // 0 LAD
@@ -48161,31 +48296,106 @@ function sclSec(r){
 //    bufferizza. Gate = grounded/coyote/hang, non più un cooldown dash. ──
 function sclJump(){
   if(RTD.game!=='scalata'||RTD.ui!=='match')return;
+  SC.jHold=true;           // §1.4 v3: bottone TENUTO → my sintetico (sclSynMy) finché airborne in salita
   rtdSend({t:'act',a:'attack'});   // v3: 'attack' = SALTO (niente più dash)
   SC.pred.jreq=1;          // consumato dal prossimo passo di prediction (§3)
   SC.antT=performance.now();
-  TWS.play('sclDash',0.7);
+  SC.antDx=RTD.joy.on?RTD.joy.mx:0;   // §7.2 v3: la carica del jump-squat è orientata su (mx,+1)
+  TWS.play('sclJump',0.8); // §7.4 v3: suono di salto DEDICATO (prima riciclava il whoosh 'sclDash')
   try{tg.HapticFeedback&&tg.HapticFeedback.impactOccurred('medium');}catch(e){}
+}
+// §1.4 v3: rilascio del bottone SALTO (touchend/mouseup) — fine del "tieni il salto".
+function sclJumpUp(){SC.jHold=false;}
+// §1.4 v3: my SINTETICO condiviso da sender (rtdPump) e prediction (STESSO input
+// integrato da client e server). Attivo se bottone tenuto, prediction viva, non
+// in hang/mantle, non su scala/corda, e: airborne in salita (vy>0) OPPURE a
+// terra/coyote con stick non-giù (copre il PRIMO tick server dopo l''attack':
+// senza, il server integra un tick a G_CUT e il salto tenuto perde ~1.2 celle
+// — misurato col bridge engine reale). Stick GIÙ mai mascherato (my<0 resta:
+// il drop-through giù+salto continua a funzionare).
+// JHOLDSYN 0.25: >JUMP_HOLD_MIN 0.2 → gravità piena; <MANTLE_MY 0.5 → zero side-effect.
+function sclSynMy(my){
+  var p=SC.pred;
+  if(SC.jHold&&p.ok&&!p.hang&&!p.mant&&SC.ladA&&SC.chnA){
+    var rising=!p.grounded&&p.vy>0;
+    var takeoff=(p.grounded||p.coyote>0||p.jreq)&&my>=0;
+    if(rising||takeoff){
+      var bi=(p.y|0)*SC.W+(p.x|0);
+      if(bi>=0&&bi<SC.ladA.length&&SC.ladA[bi]!==1&&SC.chnA[bi]!==1)return Math.max(my,SC.JHOLDSYN);
+    }
+  }
+  return my;
 }
 var sclDash=sclJump;   // retro-compat: qualunque vecchio riferimento a sclDash salta
 
-// ── input: bottone OGGETTO hold-to-aim (ITEMS §1: touchstart=shield → mira
-//    telegrafata flag 128 + slow 0.6; touchend=special → FIRE con il vettore
-//    stick al rilascio; tap breve = stesso flusso; unshield MAI mandato in v1) ──
-function sclItemDown(){
+// ── input: bottone OGGETTO — DRAG-TO-AIM v3 (§5.1, Brawl Stars / Clash Royale):
+//    touchstart su #arc-item = mira ('shield', slow 0.6 invariato) + salva il
+//    punto di partenza; touchMOVE sul bottone = il DELTA dal punto di partenza
+//    è il vettore di mira/piazzamento (14px = 1 unità mondo, clamp al range
+//    dell'item SCL_RANGE, raggio drag cap 90px); lo stick SINISTRO resta libero
+//    (cammini MENTRE miri). Trascinare indietro entro 24px = ZONA ANNULLA
+//    (rilascio lì → 'unshield', item intatto). touchend fuori dalla zona =
+//    FIRE {a:'special',ax,ay,power:2} — power=2 = protocollo cell-offset §5.2
+//    (il relay passa msg['power'] fino ad action(); client vecchi senza power
+//    → ramo legacy server identico). NESSUNA azione WS nuova. ──
+function sclItemDown(ev){
   if(RTD.game!=='scalata'||RTD.ui!=='match'||RTD.spec)return;
   if(SC.myItem<=0)return;   // mani vuote: bottone inerte (il server è comunque no-op §1)
-  SC.itemDown=performance.now();
+  var now=performance.now();
+  SC.itemDown=now;
+  var t=(ev&&ev.touches&&ev.touches[0])||ev;
+  SC.aimOn=1;SC.aimT0=now;SC.aimSentT=now;SC.aimRingQ=-1;
+  SC.aimSx=t?(t.clientX||0):0;SC.aimSy=t?(t.clientY||0):0;
+  SC.aimVx=0;SC.aimVy=0;
+  SC.aimCancel=(SCL_RANGE[SC.myItem]||0)>0?1:0;   // si parte in zona annulla (nessun drag ancora); magnesite: niente mira → fire al rilascio
   rtdSend({t:'act',a:'shield'});
+  if(ev&&ev.type==='mousedown'){   // desktop: drag seguito a livello window (fuori dal bottone)
+    window.addEventListener('mousemove',sclAimMM);
+    window.addEventListener('mouseup',sclAimMU);
+  }
   try{tg.HapticFeedback&&tg.HapticFeedback.impactOccurred('light');}catch(e){}
+}
+function sclItemMove(ev){
+  var t=ev&&ev.touches&&ev.touches[0];
+  if(t)sclAimMoveXY(t.clientX,t.clientY);
+}
+function sclAimMM(ev){sclAimMoveXY(ev.clientX,ev.clientY);}
+function sclAimMU(){
+  window.removeEventListener('mousemove',sclAimMM);
+  window.removeEventListener('mouseup',sclAimMU);
+  sclItemUp();
+}
+function sclAimMoveXY(tx,ty){
+  if(!SC.aimOn)return;
+  var dxp=tx-SC.aimSx,dyp=ty-SC.aimSy,dp=Math.hypot(dxp,dyp);
+  var rng=SCL_RANGE[SC.myItem]||0;
+  SC.aimCancel=(rng>0&&dp<=24)?1:0;              // §5.1(4): zona annulla 24px
+  var capPx=Math.min(90,rng*14),upx=Math.min(dp,capPx);
+  if(dp>0.001){SC.aimVx=(dxp/dp)*upx/14;SC.aimVy=-(dyp/dp)*upx/14;}   // schermo → mondo (y invertita)
+  else{SC.aimVx=0;SC.aimVy=0;}
+  // §5.1: shield ripetuto ~150ms tiene fresco lo stato di mira; set_aim (già
+  // whitelisted) aggiorna p['ax'],p['ay'] per il fallback _fire_dir del server.
+  var now=performance.now();
+  if(now-SC.aimSentT>150){
+    SC.aimSentT=now;
+    rtdSend({t:'act',a:'shield'});
+    var m=Math.hypot(SC.aimVx,SC.aimVy);
+    if(m>0.001)rtdSend({t:'aim',ax:SC.aimVx/m,ay:SC.aimVy/m,on:1});
+  }
 }
 function sclItemUp(){
   if(!SC.itemDown)return;
   SC.itemDown=0;
+  var wasAim=SC.aimOn,cancel=SC.aimCancel;
+  SC.aimOn=0;SC.aimCancel=0;
+  var rg=document.getElementById('arc-ring');
+  if(rg)rg.style.display='none';
   if(RTD.game!=='scalata'||RTD.ui!=='match'||RTD.spec)return;
-  // dir = stick al rilascio, schermo → mondo (my invertita, stessa convenzione rtdPump)
-  var ax=RTD.joy.on?RTD.joy.mx:0,ay=RTD.joy.on?-RTD.joy.my:0;
-  rtdSend({t:'act',a:'special',ax:ax,ay:ay});
+  if(wasAim&&cancel){rtdSend({t:'act',a:'unshield'});return;}   // annulla: item INTATTO (§5.1)
+  var ax,ay;
+  if(wasAim&&(SC.aimVx||SC.aimVy)){ax=SC.aimVx;ay=SC.aimVy;}
+  else{ax=RTD.joy.on?RTD.joy.mx:0;ay=RTD.joy.on?-RTD.joy.my:0;}   // fallback legacy: vettore stick
+  rtdSend({t:'act',a:'special',ax:ax,ay:ay,power:2});   // §5.2: power=2 → ax,ay = OFFSET in unità mondo
 }
 // ── HUD bottone USA (§8): mostra l'oggetto SELEZIONATO (row[6]=item*4+usi del
 //    solo slot selezionato), aggiornato SOLO su diff (pattern _hudH) ──
@@ -48250,9 +48460,26 @@ function sclLavaSnd(on,prox){
     if(SCA.s)SCA.g.gain.setTargetAtTime(on?(0.006+0.075*prox):0.0001,TWS.ctx.currentTime,0.2);
   }catch(e){}
 }
+// §7.4 v3: loop WALL-SLIDE del MIO player — bed persistente (pattern sclLavaSnd):
+// nodi creati UNA volta, gain via setTargetAtTime, MAI nodi nel RAF.
+var SCWS={s:null,g:null};
+function sclSlideSnd(on){
+  if(!TWS.ctx||!TWS.on)on=false;
+  try{
+    if(on&&!SCWS.s){
+      var c=TWS.ctx,b=rcNoiseBuf();if(!b)return;
+      SCWS.g=c.createGain();SCWS.g.gain.value=0.0001;SCWS.g.connect(TWS.mg);
+      var bp=c.createBiquadFilter();bp.type='bandpass';bp.frequency.value=1100;bp.Q.value=0.9;bp.connect(SCWS.g);
+      SCWS.s=c.createBufferSource();SCWS.s.buffer=b;SCWS.s.loop=true;SCWS.s.playbackRate.value=1.15;SCWS.s.connect(bp);SCWS.s.start();
+    }
+    if(SCWS.s)SCWS.g.gain.setTargetAtTime(on?0.028:0.0001,TWS.ctx.currentTime,0.06);
+  }catch(e){}
+}
 function sclSndKill(){
   try{if(SCA.s)SCA.s.stop();}catch(e){}
   SCA.s=null;SCA.g=null;
+  try{if(SCWS.s)SCWS.s.stop();}catch(e){}
+  SCWS.s=null;SCWS.g=null;
   try{if(SCAM.s)SCAM.s.stop();}catch(e){}
   try{if(SCAM.osc)SCAM.osc.stop();}catch(e){}
   SCAM.s=null;SCAM.osc=null;SCAM.g=null;SCAM.og=null;SCAM.lp=null;SCAM.hp=null;SCAM.sec=-1;
@@ -48780,11 +49007,14 @@ function sclHeadSprite(hm,gg,hr,seat,me){
   });
 }
 // zaino bp + piccozza cosmetica ax DIETRO il busto (procedurale compatto)
-function sclKitDraw(ctx,plk,cx,cy,sl,cl,U,shRx,shRy){
-  var bp=plk.bp|0,ax=plk.ax|0;
+function sclKitDraw(ctx,plk,cx,cy,sl,cl,U,shRx,shRy,kox,koy){
+  // §7.2 v3 SECONDARY MOTION: kox/koy (unità U) = offset a molla dello zaino
+  // (k=60 damp=8, integrato a monte in sclKitSpring — 0/undefined = neutro,
+  // contratto dpEd invariato). Lo zaino "rincorre" il corpo e ondeggia.
+  var bp=plk.bp|0,ax=plk.ax|0,kx=(kox||0)*U,ky=(koy||0)*U;
   if(bp>0){   // ZAINO INGRANDITO 19/07: sporge DAVVERO dalla schiena + spallaccio
-    var bx=cx-cl*0.44*U+sl*0.14*U, by=cy-sl*0.44*U+cl*0.06*U;
-    ctx.save();ctx.translate(bx,by);ctx.rotate(sl);
+    var bx=cx-cl*0.44*U+sl*0.14*U+kx, by=cy-sl*0.44*U+cl*0.06*U+ky;
+    ctx.save();ctx.translate(bx,by);ctx.rotate(sl+(kox||0)*0.9);
     if(bp===1){ctx.fillStyle='#8a7355';ctx.beginPath();ctx.ellipse(0,0,0.38*U,0.54*U,0,0,6.283);ctx.fill();
       ctx.strokeStyle='rgba(0,0,0,.5)';ctx.lineWidth=Math.max(1,0.05*U);ctx.stroke();
       ctx.fillStyle='#6f5b43';ctx.beginPath();ctx.ellipse(0,-0.40*U,0.26*U,0.16*U,0,0,6.283);ctx.fill();ctx.stroke();   // patella
@@ -49010,7 +49240,7 @@ function sclDrawClimber(ctx,r,plk,seat,isMe,U,now){
   if(r.sqy!=null){var _pvy=(r.sqPy!=null?r.sqPy*U:pelY);ctx.translate(pelX,_pvy);ctx.scale(r.sqx||1,r.sqy);ctx.translate(-pelX,-_pvy);}
   ctx.lineCap='round';ctx.lineJoin='round';
   var i,ow=Math.max(1.6,0.13*U);
-  sclKitDraw(ctx,plk,cx,cy,sl,cl,U,shRx,shRy);   // kit dietro il corpo
+  sclKitDraw(ctx,plk,cx,cy,sl,cl,U,shRx,shRy,r.kox,r.koy);   // kit dietro il corpo (+molla zaino §7.2)
   // OMBREGGIATURA A 2 TONI (18/07): ogni arto e' un tubo — bordo scuro (outline),
   // corpo nella tinta seat, poi un lato in OMBRA (seat scurito, spostato in basso-dx)
   // e un filo di LUCE (seat schiarito) sul lato alto-sx ⇒ volume leggibile al nuovo
@@ -49066,6 +49296,61 @@ function sclDrawClimber(ctx,r,plk,seat,isMe,U,now){
   }
   ctx.restore();
 }
+// ═══ DEAD PEAK v3 §7.1 — BLEND LAYER (opt-in A MONTE di sclDrawClimber) ═══
+// Ogni canale CONTINUO del rig passa per r=lerp(prev,target,1-exp(-k*dt)) con
+// k per-stato: corsa 25/s (reattiva), transizioni aria/atterraggio 14/s, hang
+// 8/s. I canali squash (sqx/sqy/sqPy) restano ISTANTANEI: sono inviluppi già
+// temporizzati (jump-squat / atterraggio 3 fasi) e un secondo smoothing li
+// ammorbidirebbe. Stato: UN Float32Array(15) per slot an (≤10 player, alloc
+// una-tantum alla prima vista del pid — mai nel RAF a regime). sclDrawClimber
+// e il contratto dpEd NON cambiano: lo stage dpEdDraw passa k=999 ⇒ istantaneo.
+var SCL_RIGCH=['lean','spineA','headTilt','breath','pdx','aLU','aLF','aRU','aRF','lLT','lLS','lRT','lRS','pelY','shTw'];
+function sclRigK(fl,vx){
+  if(fl&512)return 8;                                   // hang: molle
+  if(!(fl&(2|1024|64))&&Math.abs(vx)>1.5)return 25;     // corsa a terra: reattivo
+  return 14;                                            // aria / atterraggi / resto
+}
+function sclRigBlend(an,k,dt){
+  var r=an.rig;if(!r)return;
+  var b=an.bl;
+  if(!b){b=an.bl=new Float32Array(15);an.blOn=0;}
+  var i;
+  if(!an.blOn||k>=999){                 // primo frame o stage dpEd: pose istantanea
+    for(i=0;i<15;i++)b[i]=r[SCL_RIGCH[i]]||0;
+    an.blOn=1;return;
+  }
+  var f=1-Math.exp(-k*(dt>0.05?0.05:dt));
+  for(i=0;i<15;i++){
+    b[i]+=((r[SCL_RIGCH[i]]||0)-b[i])*f;
+    r[SCL_RIGCH[i]]=b[i];
+  }
+}
+// §7.2 v3 SECONDARY MOTION — zaino/sacco a MOLLA smorzata (k=60, damp=8):
+// 4 float per player (kx,ky,kvx,kvy su an), guidata da -accel del corpo
+// (accel=(vx-vxPrev)/dt CLAMPATA ±60). Scrive an.rig.kox/koy (unità U) che
+// sclKitDraw applica allo zaino. Zero alloc: muta i campi dello slot an.
+function sclKitSpring(an,vx,vy,dt){
+  var r=an.rig;if(!r)return;
+  if(an.kx==null){an.kx=0;an.ky=0;an.kvx=0;an.kvy=0;an.kpvx=vx;an.kpvy=vy;}
+  var d=(dt>0.05?0.05:(dt<0.001?0.001:dt));
+  var ax=(vx-an.kpvx)/d,ay=(vy-an.kpvy)/d;
+  if(ax>60)ax=60;else if(ax<-60)ax=-60;
+  if(ay>60)ay=60;else if(ay<-60)ay=-60;
+  an.kpvx=vx;an.kpvy=vy;
+  an.kvx+=(-60*an.kx-8*an.kvx-ax*0.010)*d;   // -accel: lo zaino resta indietro
+  an.kvy+=(-60*an.ky-8*an.kvy+ay*0.010)*d;   // segno: y mondo su = schermo giù
+  an.kx+=an.kvx*d;an.ky+=an.kvy*d;
+  if(an.kx>0.5)an.kx=0.5;else if(an.kx<-0.5)an.kx=-0.5;
+  if(an.ky>0.5)an.ky=0.5;else if(an.ky<-0.5)an.ky=-0.5;
+  r.kox=an.kx;r.koy=an.ky;
+}
+// §7.2 v3 MANTLE 3 KEYPOSE (valori per SCL_RIGCH): accovacciato sul bordo →
+// spinta delle braccia → in piedi. Interpolate sulla fase pred.mant_t/MANTT.
+var SCL_MANT_KP=[
+  [0.36,0.26,0.06,0,0, -0.50,-1.30, 0.50,-1.30, 0.62,1.05, 0.10,0.72, -1.45,0],
+  [0.18,0.10,-0.08,0,0, -1.00,-0.30, 1.00,-0.30, 0.42,0.55, -0.12,0.40, -1.95,0],
+  [0.04,0.02,0,0,0, -2.45,-0.34, 2.45,-0.34, -0.10,0.16, 0.10,0.16, SCL_PEL_Y,0]
+];
 // riempie an.rig dallo stato (CLIMBER_SPEC §4). Nessuna alloc: muta un oggetto per pid.
 function sclPose(an,rr,fl,now,isMe,seat){
   var r=an.rig;
@@ -49082,8 +49367,10 @@ function sclPose(an,rr,fl,now,isMe,seat){
   var vy=(rr&&rr[8]!=null)?rr[8]:(an.vys||0);
   // rilevo l'ATTERRAGGIO: fronte di discesa airborne→terra ⇒ marca il momento.
   var _isAir=!!(fl&2);
-  if(an._wasAir&&!_isAir)an.landT=now;
+  if(an._wasAir&&!_isAir){an.landT=now;if((an.vys||0)<-12||vy<-12)an.landHard=1;}
   an._wasAir=_isAir;
+  if(!(fl&1024))an._wasMant=0;   // §7.2 v3: reset edge mantle/hang (fase keypose)
+  if(!(fl&512))an._wasHang=0;
   var onLad=false;
   if(SC.ladA&&SC.W){var _lc=(rr[2]|0)*SC.W+(rr[1]|0);onLad=(SC.ladA[_lc]===1)||(SC.chnA&&SC.chnA[_lc]===1);}
   if(fl&32){          // FINISHED — braccia al cielo (vittoria)
@@ -49092,15 +49379,48 @@ function sclPose(an,rr,fl,now,isMe,seat){
   }else if(fl&4){     // STUN — accasciato
     r.lean=Math.sin(now/220)*0.28;r.spineA=0.22;r.headTilt=0.5;r.breath=0;r.pdx=0;
     r.aLU=-2.4;r.aLF=-0.2;r.aRU=2.4;r.aRF=0.2;r.lLT=-0.1;r.lLS=0.5;r.lRT=0.1;r.lRS=0.5;
-  }else if(fl&1024){  // MANTLE — si issa oltre il bordo (braccia piegate che spingono, ginocchio su)
-    r.lean=0.30;r.spineA=0.20;r.headTilt=-0.05;r.breath=0;r.pdx=0;
-    r.aLU=-0.55;r.aLF=-1.15;r.aRU=0.55;r.aRF=-1.15;r.lLT=0.55;r.lLS=0.9;r.lRT=0.12;r.lRS=0.68;
-  }else if(fl&512){   // LEDGE-GRAB — appeso al bordo (braccia tese in alto, gambe penzoloni)
+  }else if(fl&1024){  // MANTLE — §7.2/§1.6 v3: NON più posa fissa, 3 KEYPOSE su fase
+    // fase = pred.mantT (esatta per me) o timer dall'edge del bit (rivali, MANTT s)
+    if(!an._wasMant){an._wasMant=1;an.mantT0=now;}
+    var _mk=(isMe&&SC.pred.mant)?((SC.MANTT-Math.max(0,SC.pred.mantT))/SC.MANTT)
+                                :Math.min(1,(now-(an.mantT0||now))/(SC.MANTT*1000));
+    var _mA,_mB,_mw;
+    if(_mk<0.5){_mw=_mk*2;_mA=SCL_MANT_KP[0];_mB=SCL_MANT_KP[1];}
+    else{_mw=(_mk-0.5)*2;_mA=SCL_MANT_KP[1];_mB=SCL_MANT_KP[2];}
+    for(var _mi=0;_mi<15;_mi++)r[SCL_RIGCH[_mi]]=_mA[_mi]+(_mB[_mi]-_mA[_mi])*_mw;
+  }else if(fl&512){   // LEDGE-GRAB — HANG VIVO (§7.2): gambe che CERCANO l'appiglio
+    if(!an._wasHang){an._wasHang=1;an.hangT0=now;}
+    var _hAmp=Math.min(1,(now-(an.hangT0||now))/1600);       // ampiezza ∝ tempo in hang
+    var _hPh=Math.sin(now/1000*7.5398223686);                // sin 1.2Hz
+    // raycast sclSolid sotto il piede: se c'è parete, il piede si PUNTELLA
+    var _hSup=false;
+    if(SC.wallA&&rr){
+      var _hfy=Math.floor(rr[2]-0.35);
+      _hSup=sclSolid(Math.floor(rr[1]-0.6),_hfy)||sclSolid(Math.floor(rr[1]+0.6),_hfy);
+    }
     r.lean=0;r.spineA=0.06;r.headTilt=0.12;r.breath=Math.sin(now/300)*0.02;r.pdx=0;
-    r.aLU=-0.16;r.aLF=-0.12;r.aRU=0.16;r.aRF=-0.12;r.lLT=-0.12;r.lLS=0.5;r.lRT=0.16;r.lRS=0.34;
+    r.aLU=-0.16;r.aLF=-0.12;r.aRU=0.16;r.aRF=-0.12;
+    if(_hSup){   // piede trovato: gamba puntellata, micro-assestamento
+      r.lLT=-0.30+_hPh*0.04;r.lLS=0.72;r.lRT=0.18;r.lRS=0.26+_hPh*0.03;
+    }else{       // pedala nel vuoto, sempre più ampio
+      r.lLT=-0.12+_hPh*0.24*_hAmp;r.lLS=0.5+Math.max(0,_hPh)*0.22*_hAmp;
+      r.lRT=0.16-_hPh*0.24*_hAmp;r.lRS=0.34+Math.max(0,-_hPh)*0.22*_hAmp;
+    }
   }else if(fl&64){    // HOOKED — teso lungo la corda
     r.lean=0;r.spineA=0;r.headTilt=-0.1;r.breath=0;r.pdx=0;
     r.aLU=-0.12;r.aLF=0.02;r.aRU=0.12;r.aRF=-0.02;r.lLT=-0.06;r.lLS=0.3;r.lRT=0.06;r.lRS=0.3;
+  }else if(fl&2048){  // §7.2 v3 WALL-SLIDE (bit 2048): schiena alla parete, mano che striscia
+    var _wsd=(vx>0)?1:(vx<0?-1:1);
+    if(SC.wallA&&rr){   // lato = colonna solida adiacente (fallback: segno vx)
+      var _wfx=Math.floor(rr[1]),_wfy2=Math.floor(rr[2]+0.9);
+      if(sclSolid(_wfx+1,_wfy2))_wsd=1;else if(sclSolid(_wfx-1,_wfy2))_wsd=-1;
+    }
+    var _wsj=Math.sin(now/60)*0.05;   // la mano vibra strisciando
+    r.lean=-_wsd*0.16;r.spineA=_wsd*0.10;r.headTilt=_wsd*0.14;r.breath=0;r.pdx=_wsd*0.10;
+    if(_wsd>0){r.aRU=0.92+_wsj;r.aRF=-0.30;r.aLU=-0.55;r.aLF=-0.45;}
+    else{r.aLU=-0.92-_wsj;r.aLF=-0.30;r.aRU=0.55;r.aRF=-0.45;}
+    r.lLT=_wsd>0?0.34:0.10;r.lLS=0.55;r.lRT=_wsd>0?0.10:-0.34;r.lRS=0.55;
+    r.sqx=0.97;r.sqy=1.03;
   }else if((fl&2)&&onLad){   // SCALATA su scala/catena — arti alternati, braccia in presa
     var rateL=Math.max(3,Math.min(11,Math.abs(vy)*1.4)),phL=now/1000*rateL*2,sL=Math.sin(phL);
     r.lean=0.06;r.spineA=0;r.headTilt=0;r.breath=0;r.pdx=0;
@@ -49109,18 +49429,19 @@ function sclPose(an,rr,fl,now,isMe,seat){
     r.lRT=0.14+sL*0.28;r.lRS=0.18+Math.max(0,-sL)*0.4;
     r.lLT=-0.14+sL*0.28;r.lLS=0.18+Math.max(0,sL)*0.4;
   }else if(fl&2){     // AIRBORNE (bit1 = salto/caduta): STACCO / APICE / CADUTA distinti
-    if(vy>1.5){          // stacco/salita — corpo STRETCH verticale, braccia in alto, gambe raccolte
+    if(vy>SC.APEXVY){    // stacco/salita — corpo STRETCH verticale, braccia in alto, gambe raccolte
       r.lean=0.05;r.spineA=0;r.headTilt=-0.12;r.breath=0;r.pdx=0;
       r.aLU=-0.6;r.aLF=-0.25;r.aRU=0.6;r.aRF=-0.25;r.lLT=0.5;r.lLS=0.95;r.lRT=-0.28;r.lRS=0.8;
       r.sqx=0.96;r.sqy=1.06;   // allunga (pivot bacino) — 19/07: ridotto, col rig 2.0 celle non deve bucare il soffitto visivo
-    }else if(vy<-1.5){   // caduta — flail, gambe divaricate, braccia larghe, ancora allungato
+    }else if(vy<-SC.APEXVY){   // caduta — flail, gambe divaricate, braccia larghe, ancora allungato
       var fj=Math.sin(now/70)*0.35;
       r.lean=-0.16;r.spineA=-0.1;r.headTilt=-0.4;r.breath=0;r.pdx=0;
       r.aLU=-0.8+fj;r.aLF=-0.2;r.aRU=0.8-fj;r.aRF=-0.2;r.lLT=-0.5;r.lLS=0.7;r.lRT=0.5;r.lRS=0.7;
       r.sqx=0.96;r.sqy=1.05;
-    }else{               // apice — sospeso un istante, braccia larghe
+    }else{               // §7.2 v3 APEX POSE dedicata (|vy|<APEX_VY, si sposa con l'apex-hang
+      // §1.2): stretch→NEUTRO (il reset sqy=null la riporta), braccia APERTE sospese
       r.lean=0;r.spineA=0;r.headTilt=-0.05;r.breath=0;r.pdx=0;
-      r.aLU=-1.1;r.aLF=-0.2;r.aRU=1.1;r.aRF=-0.2;r.lLT=0.14;r.lLS=0.45;r.lRT=-0.14;r.lRS=0.45;
+      r.aLU=-1.35;r.aLF=-0.12;r.aRU=1.35;r.aRF=-0.12;r.lLT=0.18;r.lLS=0.40;r.lRT=-0.18;r.lRS=0.40;
     }
   }else if(!(fl&2)&&vy>0.6){   // SALITA a terra (nastro/piattaforma che sale) — arti alternati
     var rateU=Math.max(3,Math.min(11,vy*1.4)),phU=now/1000*rateU*2,sU=Math.sin(phU);
@@ -49129,6 +49450,13 @@ function sclPose(an,rr,fl,now,isMe,seat){
     r.aLU=-0.30-sU*0.42;r.aLF=-0.35-Math.max(0,-sU)*0.3;
     r.lRT=0.14+sU*0.28;r.lRS=0.18+Math.max(0,-sU)*0.4;
     r.lLT=-0.14+sU*0.28;r.lLS=0.18+Math.max(0,sU)*0.4;
+  }else if((fl&4096)&&Math.abs(vx)>0.8){   // §7.2 v3 SKID (bit 4096): turn-around leggibile
+    // busto in CONTRO-LEAN 12° (0.21 rad) contro il moto, gamba guida puntata che frena
+    var _dS=vx<0?-1:1;
+    r.lean=-_dS*0.21;r.spineA=-_dS*0.06;r.headTilt=-_dS*0.10;r.breath=0;r.pdx=_dS*0.10;
+    r.shTw=_dS*0.18;
+    r.lLT=_dS>0?0.42:-0.16;r.lLS=0.10;r.lRT=_dS>0?-0.16:-0.42;r.lRS=0.55;
+    r.aLU=-2.2-_dS*0.5;r.aLF=-0.3;r.aRU=2.2-_dS*0.5;r.aRF=-0.3;
   }else if(Math.abs(vx)>1.5){
     // ── CAMMINATA/CORSA (rifatta 18/07) ───────────────────────────────────
     // Prima: fase del ciclo presa dall'OROLOGIO (now/1000*rate) e gambe poste
@@ -49191,12 +49519,16 @@ function sclPose(an,rr,fl,now,isMe,seat){
     r.aRU=2.62+_ws*0.05-Math.max(0,-_br)*0.05;r.aRF=-0.34-Math.max(0,-_br)*0.06;
     r.lLT=-0.10;r.lLS=0.16;r.lRT=0.10;r.lRS=0.16;
   }
-  // ATTERRAGGIO: schiacciata breve (squash) coi piedi PIANTATI a y=0 (pivot sqPy=0),
-  // subito dopo un volo. Ammortizza l'impatto senza scollare i piedi dal ripiano.
-  if(an.landT!=null&&(now-an.landT)<170&&!_isAir&&!(fl&(4|32|512|1024))){
-    var _lk=(now-an.landT)/170,_sq=Math.sin(_lk*3.141592653589793);
-    r.sqx=1+0.12*_sq;r.sqy=1-0.15*_sq;r.sqPy=0;
-  }
+  // ATTERRAGGIO 3 FASI (§7.2 v3, timeline 170→260ms) coi piedi PIANTATI a y=0
+  // (pivot sqPy=0): squash .85 (80ms) → overshoot 1.06 (60ms) → settle (120ms).
+  // an.landHard (bit 8192, §7.3) amplifica lo squash del 40%.
+  if(an.landT!=null&&(now-an.landT)<260&&!_isAir&&!(fl&(4|32|512|1024))){
+    var _lt=now-an.landT,_hm=an.landHard?1.4:1.0,_k3;
+    if(_lt<80){_k3=Math.sin(_lt/80*1.5707963268);r.sqy=1-0.15*_hm*_k3;r.sqx=1+0.12*_hm*_k3;}
+    else if(_lt<140){_k3=(_lt-80)/60;r.sqy=(1-0.15*_hm)+(1.06-(1-0.15*_hm))*_k3;r.sqx=(1+0.12*_hm)+(0.96-(1+0.12*_hm))*_k3;}
+    else{_k3=(_lt-140)/120;r.sqy=1.06-0.06*_k3;r.sqx=0.96+0.04*_k3;}
+    r.sqPy=0;
+  }else if(an.landT!=null&&now-an.landT>=260)an.landHard=0;
   if((fl&256)&&!(fl&2)&&!(fl&4)){   // MAGNESITE — mani che sfregano davanti al petto
     var rub=Math.sin(now/40)*0.18;
     r.aRU=0.55+rub;r.aRF=-1.5;r.aLU=-0.55-rub;r.aLF=-1.5;
@@ -49502,6 +49834,7 @@ function dpEdDraw(){
   edRr[7]=vx;edRr[8]=vy;
   var edFl=winp?32:(air?2:1);
   sclPose(edAn,edRr,edFl,now,true,ci);
+  sclRigBlend(edAn,999,0.016);   // §7.1 v3: smoothing opt-in — lo stage passa k=999 ⇒ pose ISTANTANEE (contratto dpEd invariato)
   // POLVERE d'atterraggio: sfrutta il fronte aria->terra gia' rilevato da sclPose
   if(edAn.landT&&now-edAn.landT<40&&DP_ED.clangCyc!==cyc){
     DP_ED.clangCyc=cyc;
@@ -49766,6 +50099,29 @@ function sclMiniCv(mw,mh){
     var mx0=((pm[1]|0)/SC.W)*mw,mx1=(((pm[2]|0)+1)/SC.W)*mw;
     c.fillRect(mx0,mh-(((pm[0]|0)+1)/SC.H)*mh-1,Math.max(2,mx1-mx0),1.8);
   }
+  // ── DEAD PEAK v3 §3: un PIXEL-MARKER per archetipo (map_info.arch, additivo:
+  //    assente = nessun marker) + tick verde per le skip-platform (§6.4) ──
+  var AR4=SC.arch||[];
+  for(i=0;i<AR4.length;i++){
+    var a4=AR4[i];if(!a4||a4.length<6)continue;
+    var aS4=a4[0]|0,aI4=a4[1],aT4=0;
+    if(aI4==='CHIMNEY'||aS4===2)aT4=1;
+    else if(aI4==='SPLIT'||aS4===3)aT4=2;
+    else if(aI4==='SPARSE'||aS4===4)aT4=3;
+    if(!aT4)continue;
+    var amx=((a4[2]+a4[4]+1)/2/SC.W)*mw,amy=mh-(((a4[3]+a4[5])/2+1)/SC.H)*mh;
+    c.fillStyle=aT4===1?'#f97316':(aT4===2?'#c084fc':'#22d3ee');
+    if(aT4===1)c.fillRect(amx-1.2,amy-4,2.4,8);              // camino: barretta verticale
+    else if(aT4===2)c.fillRect(amx-4,amy-1.2,8,2.4);         // ponte: barretta orizzontale
+    else{c.beginPath();c.arc(amx,amy,2.2,0,6.283);c.fill();} // updraft: pallino
+  }
+  var SK4=SC.scut||[];
+  c.fillStyle='#4ade80';
+  for(i=0;i<SK4.length;i++){
+    if(!SK4[i])continue;
+    var skmx=((SK4[i][0]+2)/SC.W)*mw,skmy=mh-((SK4[i][1]+1)/SC.H)*mh;
+    c.fillRect(skmx-2.5,skmy-1,5,2);
+  }
   c.fillStyle='#facc15';   // tick oro = Y_TOP
   c.fillRect(0,mh-(SC.YT/SC.H)*mh-1,mw,2.5);
   SC.mm={c:cv,w:mw,h:mh};
@@ -49886,22 +50242,177 @@ function sclDoJump(chalk){
   p.vy=SC.VJUMP*(chalk?1.15:1.0);   // MAGNESITE +15% impulso (§8)
   p.grounded=false;p.coyote=0;p.jbuf=0;p.ride=null;
 }
-// mirror di climb_rt.action('attack'): salto / mantle / drop-through / buffer.
+// §1.6 v3: avvio mantle PREDETTO — mirror ESATTO di climb_rt._start_mantle.
+// Chiamato SOLO da hang locale (sclLedgeScan = geometria statica, mai mplat).
+function sclStartMantle(){
+  var p=SC.pred;
+  p.hang=false;p.hangT=0;
+  p.msx=p.x;p.msy=p.y;
+  p.mtx=p.x+(p.hside==='R'?SC.MANTFWD:-SC.MANTFWD);
+  p.mty=(p.hcy+1.0)+1e-3;           // piedi sul top della cella del ledge
+  p.mant=1;p.mantT=SC.MANTT;
+}
+// §1.6 v3: aggancio del mantle predetto dal FLAG server (bit 1024) quando la
+// prediction non era attiva (hang server-driven). Ricostruisce sx/sy/tx/ty
+// dalla posa di hang: piedi a (cy+1)-0.05-PH → cy = round(y+PH+0.05)-1; il lato
+// è la colonna solida adiacente. Se la geometria STATICA non torna (hang su
+// piattaforma MOBILE) ritorna false → pred.ok=false come oggi (ECCEZIONE mplat).
+function sclMantFromSrv(r){
+  if(!r||!SC.wallA)return false;
+  var p=SC.pred,x=r[1],y=r[2];
+  var cyl=Math.round(y+SC.PH+0.05)-1,side=0;
+  var cxr=Math.round(x+SC.PR),cxl=Math.round(x-SC.PR)-1;
+  if(sclSolid(cxr,cyl)&&!sclSolid(cxr,cyl+1))side=1;
+  else if(sclSolid(cxl,cyl)&&!sclSolid(cxl,cyl+1))side=-1;
+  if(!side)return false;            // mplat / geometria non statica → server-driven
+  if(!p.ok){
+    p.ok=true;p.vx=0;p.vy=0;p.grounded=false;p.coyote=0;p.jbuf=0;p.drop=0;
+    p.noledge=0;p.ride=null;p.hang=false;p.wallside=0;p.wallCoy=0;p.wjLock=0;p.wjLast=0;p.skidT=0;
+  }
+  p.mant=1;p.mantT=SC.MANTT;p.msx=x;p.msy=y;
+  p.mtx=x+(side>0?SC.MANTFWD:-SC.MANTFWD);p.mty=(cyl+1.0)+1e-3;
+  return true;
+}
+// mirror di climb_rt.action('attack'): salto / mantle / wall-jump / drop / buffer.
 function sclApplyJump(my,chalk){
   var p=SC.pred;
-  if(p.hang)return;                 // ledge → mantle: server-driven (flag 1024)
+  if(p.mant)return;                 // mantle in corso: input ignorato (= server)
+  if(p.hang){sclStartMantle();return;}   // §1.6: ledge → mantle PREDETTO (= action attack in hang)
   if(p.grounded&&my<-SC.DROPMY){    // DROP-THROUGH one-way: giù + salto (§2.4)
     var hw=SC.PR,fy=Math.floor(p.y-0.05),cxa=Math.floor(p.x-hw+1e-9),cxb=Math.floor(p.x+hw-1e-9),cx;
     for(cx=cxa;cx<=cxb;cx++)if(sclOneway(cx,fy)&&!sclSolid(cx,fy)){p.drop=SC.DROPT;p.grounded=false;p.coyote=0;return;}
   }
+  // §1.5 v3 WALL-JUMP (prima del ramo coyote, come il server E3): durante lo
+  // slide o entro WALL_COYOTE dal distacco. Input verso la parete poi ignorato
+  // per WJ_LOCK_T → una parete singola non si scala (bordi torre non scalabili).
+  if(!p.grounded&&(p.wallside!==0||(p.wallCoy>0&&p.lastWs!==0))){
+    var sd=p.wallside!==0?p.wallside:p.lastWs;
+    // regola SAME-SIDE (mirror climb_rt ~2908, anti-exploit §1.5/§9): il secondo
+    // wall-jump dallo STESSO lato senza reset terra/ledge è NEGATO — la richiesta
+    // cade nel jump buffer sotto, come sul server (wj_last).
+    if(sd!==p.wjLast){
+      p.vy=SC.WJVY;p.vx=-sd*SC.WJVX;
+      p.wjSide=sd;p.wjLast=sd;p.wjLock=SC.WJLOCK;
+      p.wallside=0;p.wallCoy=0;p.coyote=0;p.jbuf=0;p.ride=null;
+      return;
+    }
+  }
   if(p.grounded||p.coyote>0||SC.ladA[(p.y|0)*SC.W+(p.x|0)]===1||SC.chnA[(p.y|0)*SC.W+(p.x|0)]===1)sclDoJump(chalk);
   else p.jbuf=SC.JBUF;              // buffer per l'atterraggio imminente
+}
+// ── §5.3 v3: GHOST VALIDATO — replica dei check ECONOMICI di climb_rt._wall_valid
+//    (versione E3: niente strip di corsia → 1 <= wx <= W-2). Route-seal e
+//    BFS-pocket restano SERVER-ONLY (rari) e coperti dai reason code (§5.2).
+//    Ritorna null se piazzabile, altrimenti il reason code atteso. Zero alloc. ──
+function sclWallCellBad(wx,wy,rp){
+  if(wx<1||wx>SC.W-2)return 'row';
+  if(wy<5||wy>83)return 'row';               // = WALL_ROW_MIN 5 / WALL_ROW_MAX 83 (mai base/vetta)
+  var bi=wy*SC.W+wx;
+  if(SC.wallA[bi]===1||SC.iwallA[bi]===1||SC.holeA[bi]===1||SC.sholeA[bi]===1||SC.snodoA[bi]===1)return 'occ';
+  if(SC.myWf)for(var wf=0;wf<SC.myWf.length;wf++)
+    if(SC.myWf[wf][0]===wx&&SC.myWf[wf][1]===wy)return 'cd';   // footprint-cd (campo additivo wf §8.2)
+  if(rp)for(var pi2=0;pi2<rp.length;pi2++){
+    var q2=rp[pi2];
+    if(!((q2[3]|0)&1))continue;
+    if(Math.abs(q2[1]-(wx+0.5))<0.65&&Math.abs(q2[2]-(wy+0.5))<0.65)return 'near';   // no telefrag
+  }
+  for(var nx2=-1;nx2<=1;nx2++)for(var ny2=-1;ny2<=1;ny2++){   // anti-catena 8-neigh
+    var ax3=wx+nx2,ay3=wy+ny2;
+    if(ax3>=0&&ax3<SC.W&&ay3>=0&&ay3<SC.H&&SC.iwallA[ay3*SC.W+ax3]===1)return 'chain';
+  }
+  return null;
+}
+function sclWallOk(cx,cy,ori,rp){   // ori 0=H / 1=V → 3 celle (mirror _wall_cells)
+  for(var k3=-1;k3<=1;k3++){
+    var rr3=sclWallCellBad(cx+(ori===0?k3:0),cy+(ori===1?k3:0),rp);
+    if(rr3)return rr3;
+  }
+  return null;
+}
+// CHECKPOINT (§5.3): check economici di _place_pin (bounds, muri, pin esistenti)
+function sclPinOk(cx,cy){
+  if(!(cx>0&&cx<SC.W-1&&cy>=0&&cy<SC.H))return false;
+  var bi4=cy*SC.W+cx;
+  if(SC.wallA[bi4]===1||SC.iwallA[bi4]===1)return false;
+  var PN4=SC.pinPrev;
+  if(PN4)for(var p4=0;p4<PN4.length;p4++)if(PN4[p4][1]===cx&&PN4[p4][2]===cy)return false;
+  return true;
+}
+// ── §5.3 v3: RAYCAST RAMPINO — STESSO algoritmo del server (_tick_hook: marcia
+//    a passi 0.25u, grip = "ultima cella libera prima del muro"; bersagli
+//    terreno = muri statici + i MIEI chiodi). → _sclHK=[gx,gy,found]. ──
+var _sclHK=[0,0,0];
+function sclHookRay(x0,y0,dx,dy){
+  var px=x0,py=y0,lx=x0,ly=y0,tr=0;
+  _sclHK[2]=0;
+  while(tr<SC.HOOKRNG-1e-9){
+    lx=px;ly=py;
+    px+=dx*0.25;py+=dy*0.25;tr+=0.25;
+    var out5=!(px>0.3&&px<SC.W-0.3&&py>0.3&&py<SC.H-0.3);
+    var ci5=(py|0)*SC.W+(px|0);
+    // NB: server _place_wall fonde le celle dei muri-item in self.walls →
+    // il rampino aggancia ANCHE i muri piazzati (mirror: wallA | iwallA).
+    if(out5||SC.wallA[ci5]===1||SC.iwallA[ci5]===1||SC.pinA[ci5]===1){
+      var li5=(ly|0)*SC.W+(lx|0);
+      if(lx>0.3&&lx<SC.W-0.3&&ly>0.3&&ly<SC.H-0.3&&SC.wallA[li5]!==1&&SC.iwallA[li5]!==1){
+        _sclHK[0]=lx|0;_sclHK[1]=ly|0;_sclHK[2]=1;
+      }
+      return _sclHK;
+    }
+  }
+  return _sclHK;   // MISS: niente in range → linea spenta (la spesa on-miss è leggibile)
+}
+// ── §5.3 v3: PREVIEW MASSO — simula la discesa 6s (BLDV mirror, coppia xcheck)
+//    e registra 12 punti (uno ogni 0.5s) in SC.aimRock (pool fisso, zero alloc).
+//    Deviazione = regola E3 deterministica: verso il bordo LIBERO più vicino
+//    della riga sotto (BLD_LAT 3.0 server-only, non coppia xcheck). ──
+function sclRockBlocked(cx,cy){
+  if(cx<0||cx>=SC.W||cy<0||cy>=SC.H)return true;
+  var bi6=cy*SC.W+cx;
+  return SC.wallA[bi6]===1||SC.iwallA[bi6]===1;
+}
+function sclRockSim(px,py){
+  var dt6=0.05,n6=0,i6;
+  for(i6=1;i6<=120;i6++){
+    var ny6=py-SC.BLDV*dt6;
+    if(!sclRockBlocked(px|0,ny6|0))py=ny6;
+    else{
+      var by6=ny6|0,k6,dir6=0;
+      for(k6=1;k6<SC.W;k6++){
+        var fl6=!sclRockBlocked((px|0)-k6,by6),fr6=!sclRockBlocked((px|0)+k6,by6);
+        if(fl6&&fr6){dir6=(px-(px|0)<0.5)?-1:1;break;}   // equidistante: lato del sub-cell (deterministico)
+        if(fl6){dir6=-1;break;}
+        if(fr6){dir6=1;break;}
+      }
+      if(dir6!==0){
+        var nx6=px+dir6*3.0*dt6;   // BLD_LAT 3.0
+        if(!sclRockBlocked(nx6|0,py|0))px=nx6;
+      }
+    }
+    if(py<1)break;
+    if(i6%10===0&&n6<12){SC.aimRock[n6*2]=px;SC.aimRock[n6*2+1]=py;n6++;}
+  }
+  SC.aimRockN=n6;
 }
 // mirror di climb_rt._physics (§2). Muta SC.pred in place. dt = passo (frame,
 // clampato); tS = tempo server lerpato (per il carry delle piattaforme mobili).
 function sclPhysics(dt,tS,mx,my,fury,aim,chalk){
   var p=SC.pred;
-  if(p.hang){p.vx=0;p.vy=0;return;} // appeso: congelato finché il server non guida (flag 512)
+  if(p.mant){                       // §1.6 v3: MANTLE PREDETTO — stessa interpolazione
+    p.mantT-=dt;                    // lineare di climb_rt._do_mantle su MANTT (0.26)
+    var mfr=(SC.MANTT-Math.max(0,p.mantT))/SC.MANTT;
+    if(mfr>1)mfr=1;if(mfr<0)mfr=0;
+    p.x=p.msx+(p.mtx-p.msx)*mfr;p.y=p.msy+(p.mty-p.msy)*mfr;p.vx=0;p.vy=0;
+    if(p.mantT<=0){p.mant=0;p.x=p.mtx;p.y=p.mty;p.grounded=true;p.coyote=SC.COYOTE;p.noledge=0.25;}
+    return;
+  }
+  if(p.hang){                       // appeso: mirror di climb_rt._do_hang (§1.6 —
+    p.vx=0;p.vy=0;p.grounded=false; // il mantle parte ANCHE in locale: niente freeze)
+    p.hangT+=dt;
+    if(my<-SC.DROPMY){p.hang=false;p.noledge=0.3;p.vy=-1.0;return;}   // pull DOWN: molla
+    if(my>SC.MANTMY||p.hangT>=SC.HANGMAX)sclStartMantle();
+    return;
+  }
   var x=p.x,y=p.y,vx=p.vx,vy=p.vy;
   if(p.ride!==null){                // rider carry: eredita il delta f(t) PRIMA dell'integrazione (§2.6)
     sclMplatAt(p.ride,tS);var rx1=_sclMpP[0],ry1=_sclMpP[1];
@@ -49915,16 +50426,24 @@ function sclPhysics(dt,tS,mx,my,fury,aim,chalk){
     var tgtC=mx*SC.VWALK*aim;
     vx=Math.max(-SC.VWALK,Math.min(SC.VWALK,tgtC));
   }else{
+    // §1.5 v3: WJ_LOCK — dopo un wall-jump l'input VERSO la parete è ignorato
+    if(p.wjLock>0){
+      p.wjLock=Math.max(0,p.wjLock-dt);
+      if(mx*p.wjSide>0)mx=0;
+    }
+    if(p.skidT>0)p.skidT=Math.max(0,p.skidT-dt);
     var onground=p.grounded,tgt=mx*SC.VWALK*fury*aim;
     if(Math.abs(mx)>0.01){
-      var A=onground?SC.AGROUND:SC.AAIR;
+      var A=onground?SC.AGROUND:SC.AAIR*(Math.abs(vy)<SC.APEXVY?SC.AAIRAPEX:1.0);   // §1.2 air-control all'apice
+      if(onground&&tgt*vx<0&&Math.abs(vx)>3.0){A=SC.FSKID;p.skidT=0.12;}            // §1.2 SKID turn-around
       if(vx<tgt)vx=Math.min(tgt,vx+A*dt);else if(vx>tgt)vx=Math.max(tgt,vx-A*dt);
     }else if(onground){
       if(vx>0)vx=Math.max(0,vx-SC.FGROUND*dt);else vx=Math.min(0,vx+SC.FGROUND*dt);
     }
     var cap=SC.VWALK*fury;
     vx=Math.max(-cap,Math.min(cap,vx));
-    var g=(vy>0&&my<=SC.JHOLD)?SC.G*SC.GCUT:SC.G;   // gravità + salto variabile (G_CUT)
+    // §1.2 v3 APEX-HANG (Celeste): salto corto → G_CUT; |vy|<APEX_VY → G*APEX_MUL
+    var g=(vy>0&&my<=SC.JHOLD)?SC.G*SC.GCUT:(Math.abs(vy)<SC.APEXVY?SC.G*SC.APEXMUL:SC.G);
     vy-=g*dt;
     if(vy<-SC.VTERM)vy=-SC.VTERM;
     var inUpd=false,udx=0,fi,f;    // UPDRAFT (§2.7): fans dy>0 annullano gravità e sollevano
@@ -49947,10 +50466,29 @@ function sclPhysics(dt,tS,mx,my,fury,aim,chalk){
     if(SC._m.land){vy=0;grounded=true;newride=SC._m.ride;}
     else if(SC._m.ceil)vy=0;
   }
+  // ── §1.5 v3 WALL-SLIDE (dopo il loop swept, come il server E3): airborne,
+  //    vy<0, stick spinto CONTRO una parete solida A CONTATTO (|mx·side|>0.3,
+  //    colonna solida per l'altezza PH) → caduta cappata a WALL_SLIDE_V;
+  //    al distacco parte WALL_COYOTE. Deterministico da geometria+input. ──
+  var ws0=p.wallside;p.wallside=0;
+  if(!grounded&&vy<0&&!climbing){
+    var wcx=0;
+    if(mx>0.3)wcx=Math.floor(x+SC.PR+0.03);
+    else if(mx<-0.3)wcx=Math.floor(x-SC.PR-0.03);
+    if(mx>0.3||mx<-0.3){
+      var wfy=Math.floor(y+1e-9),why=Math.floor(y+SC.PH-1e-9);
+      if(sclSolid(wcx,wfy)&&sclSolid(wcx,why)){
+        p.wallside=(mx>0)?1:-1;p.lastWs=p.wallside;p.wallCoy=SC.WCOY;
+        if(vy<-SC.WSLIDEV)vy=-SC.WSLIDEV;
+      }
+    }
+  }
+  if(!p.wallside&&ws0===0&&p.wallCoy>0)p.wallCoy=Math.max(0,p.wallCoy-dt);   // grazia dopo il distacco
   p.x=x;p.y=y;p.vx=vx;p.vy=vy;
   var wasg=p.grounded;
   if(grounded){
     p.grounded=true;p.ride=newride;p.coyote=SC.COYOTE;p.hang=false;
+    p.wallside=0;p.wallCoy=0;p.lastWs=0;p.wjLock=0;p.wjLast=0;   // a terra: stato parete azzerato (§1.5, wj_last srv:3775)
     if(p.jbuf>0)sclDoJump(chalk);  // salto bufferizzato scatta all'atterraggio
   }else{
     p.grounded=false;p.ride=null;
@@ -49960,6 +50498,8 @@ function sclPhysics(dt,tS,mx,my,fury,aim,chalk){
     if(lg){                        // LEDGE-GRAB automatico (§2.5): aggancio locale, poi server
       var cx=lg[0],cy=lg[1];
       p.hang=true;p.vx=0;p.vy=0;
+      p.hangT=0;p.hcx=cx;p.hcy=cy;p.hside=lg[2];   // §1.6: ledge memorizzato per il mantle predetto
+      p.wallside=0;p.wallCoy=0;p.wjLast=0;         // hang esclude wall-slide; SAME-SIDE reset (srv:3799)
       if(lg[2]==='R')p.x=cx-SC.PR-1e-3;else p.x=(cx+1.0)+SC.PR+1e-3;
       p.y=(cy+1.0)-0.05-SC.PH;
     }
@@ -49989,6 +50529,12 @@ function rtdBuildScalata(){
   SC.crRef=null;SC.trailT=0;SC.emberT=0;SC.rockT=0;SC.startAt=performance.now();
   // ── ITEMS: reset stato slot/mirror (mySeat ricavato dalla prima row §4.2) ──
   SC.mySeat=-1;SC.myItem=0;SC.myUses=0;SC.itemDown=0;SC.hudIt=-1;
+  // v3: reset input/aim/pred nuovi (§1.4/§1.5/§1.6/§5.1)
+  SC.jHold=false;SC.aimOn=0;SC.aimVx=0;SC.aimVy=0;SC.aimCancel=0;SC.aimT0=0;SC.aimSentT=0;SC.aimRingQ=-1;
+  if(!SC.aimRock)SC.aimRock=new Float32Array(24);   // 12 punti preview masso (pool fisso)
+  SC.aimRockN=0;SC.rejSig='';SC.myWf=null;
+  SC.pred.wallside=0;SC.pred.wallCoy=0;SC.pred.lastWs=0;SC.pred.wjLock=0;SC.pred.wjSide=0;SC.pred.wjLast=0;
+  SC.pred.skidT=0;SC.pred.hangT=0;SC.pred.mant=0;SC.pred.mantT=0;
   SC.myInv=[];SC.mySel=0;SC.hudInv='';SC.invNprev=null;   // §M2 reset inventario
   SC.pull.who=null;SC.pull.victim=null;SC.pull.t0=0;
   SC.wlPrev=null;SC.pinPrev=null;SC.prPrev=null;SC.bldSndT=0;SC.dustT=0;
@@ -50034,6 +50580,11 @@ function rtdBuildScalata(){
       for(i=0;i<WL.length;i++)SC.wallA[WL[i][1]*SC.W+WL[i][0]]=1;
     }
   }
+  // ── MIRROR climb_rt ~935-938 (fix C2 19/07): i BORDI TORRE x=0 / W-1 sono
+  //    SEMPRE solidi lato server (self.walls all'init) ma plats non li esporta
+  //    su tutte le righe: senza questo il wall-slide/wall-jump predetto sul
+  //    bordo non aggancia (wallside=0) e il rampino "vede" oltre la parete. ──
+  for(y2=0;y2<SC.H;y2++){SC.wallA[y2*SC.W]=1;SC.wallA[y2*SC.W+SC.W-1]=1;}
   // ── req.4 "mostra il prossimo salto" — ROUTE LOOKAHEAD ORIZZONTALE ─────────
   //    WORLD v4 "M" e' una SERPENTINA larga: W=36 colonne, una piattaforma per
   //    livello (12-14 celle) che scivola di lato ~10 colonne ogni 3 righe. Con
@@ -50069,6 +50620,18 @@ function rtdBuildScalata(){
   for(i=0;i<HO.length;i++)SC.sholeA[HO[i][1]*SC.W+HO[i][0]]=1;
   SC.snodi=RTD.map.snodi||[];
   for(i=0;i<SC.snodi.length;i++)SC.snodoA[SC.snodi[i][1]*SC.W+SC.snodi[i][0]]=1;
+  // ── DEAD PEAK v3: campi map_info NUOVI (TUTTI additivi — assenti = feature off) ──
+  SC.scut=RTD.map.scut||[];            // §6.1 skip-platform [[x,y,save],...]
+  SC.arch=RTD.map.arch||[];            // §3 archetipi [[sector,archId,x0,y0,x1,y1],...]
+  SC.brkA=new Uint8Array(SC.W*SC.H);   // §6.3 pareti friabili ancora CHIUSE
+  var BRK=RTD.map.brk||[];
+  for(i=0;i<BRK.length;i++){
+    var bkx=BRK[i][0]|0,bky=BRK[i][1]|0;
+    if(bkx>=0&&bkx<SC.W&&bky>=0&&bky<SC.H){
+      SC.brkA[bky*SC.W+bkx]=1;
+      SC.wallA[bky*SC.W+bkx]=1;   // mirror _solid: brk chiusa È solida (il feed 'brk' la apre)
+    }
+  }
   SC.laneFam={};
   var LN=RTD.map.lanes||[];
   for(i=0;i<LN.length;i++){
@@ -50107,8 +50670,29 @@ function rtdBuildScalata(){
       if(o.x<(_tr[1]|0)||o.x>(_tr[2]|0))continue;
       o.lb0=_tr[1]|0;o.lb1=_tr[2]|0;break;
     }
+    // ── §4.4 v3: bounds/telegraph ESPORTATI dall'engine (E2, campi ADDITIVI in
+    //    coda alla entry trap). FORMATO REALE (climb_rt.map_info ~4391): entry
+    //    FLAT a 10 elementi [tid,x,y,p1,p2,per,ph,lb0,lb1,tele] — lb0/lb1
+    //    scalari, tele a idx 9. Il fixture bridge2 (pre-E2) usava lb ANNIDATO
+    //    [lb0,lb1] a idx 7 + tele a idx 8: si accettano ENTRAMBI (compat).
+    //    lb SOSTITUISCE l'hack di derivazione del run qui sopra; tele = inizio
+    //    telegraph in secondi assoluti GIÀ scalato con la quota (TELE_SCALE
+    //    resta server-only, niente mirror — spec §4.4).
+    //    Server vecchio senza lb/tele → resta l'hack: degradazione pulita. ──
+    var eLb=0,eTele=null;
+    if(t.length>=10&&typeof t[7]==='number'){                  // FLAT (engine E2 reale)
+      o.lb0=t[7]|0;o.lb1=t[8]|0;eLb=1;
+      if(t[9]!=null&&+t[9]>0)eTele=+t[9];
+    }else if(t.length>7&&t[7]&&t[7].length>=2){                // ANNIDATO (fixture legacy)
+      o.lb0=t[7][0]|0;o.lb1=t[7][1]|0;eLb=1;
+      if(t.length>8&&t[8]!=null&&+t[8]>0)eTele=+t[8];
+    }
     var kf=SCL_KF[o.tid];
     if(kf&&o.per>0){o.k0=kf[0]*o.per;o.k1=kf[1]*o.per;o.tl=kf[2]*o.per;}
+    if(eTele!=null)o.tl=eTele;
+    // §4.5 v3: euristica LANDING (lb esportato STRETTO = overlap 3-5 celle,
+    // tipi F/S/L/W) → piastra-soglia bakeata sull'overlap (sclTileCv)
+    o.plate=(eLb===1&&(o.lb1-o.lb0)<=5&&'FSLW'.indexOf(o.tid)>=0);
     if(o.tid==='L'||o.tid==='S')o.len=Math.max(1,Math.min((o.p1|0),o.lb1-o.x+1));
     else if(o.tid==='C'){
       o.len=Math.max(1,o.p1|0);o.cells=[];
@@ -50199,6 +50783,53 @@ function sclTileCv(tc,trw){
     yy=(topRow-r)*CB;
     c.fillStyle='rgba(0,0,0,.20)';c.fillRect(0,yy+CB*0.30,cv.width,CB*0.10);
     c.fillStyle='rgba(255,255,255,.022)';c.fillRect(0,yy+CB*0.30,cv.width,1);
+  }
+  // ── DEAD PEAK v3 §3: LANDMARK ARCHETIPI (map_info.arch, ADDITIVO: assente =
+  //    zero landmark). Baked-once PRIMA delle piattaforme (che ci passano
+  //    sopra) e con luminanza SOTTO le piattaforme: identità di zona senza
+  //    regredire all'"accozzaglia" (decisione WORLD v4). tubo di scarico sul
+  //    CAMINO / insegna neon sul PONTE SPEZZATO / mulinello nuvole sull'updraft. ──
+  var ARC3=SC.arch||[];
+  for(i2=0;i2<ARC3.length;i2++){
+    var ae=ARC3[i2];if(!ae||ae.length<6)continue;
+    var aSec=ae[0]|0,aid=ae[1],ax0=ae[2]|0,ay0=ae[3]|0,ax1=ae[4]|0,ay1=ae[5]|0;
+    var atp=0;   // tipo: archId (stringa o num) con fallback sul settore (piano §3 fisso)
+    if(aid==='CHIMNEY'||aSec===2)atp=1;
+    else if(aid==='SPLIT'||aSec===3)atp=2;
+    else if(aid==='SPARSE'||aSec===4)atp=3;
+    if(!atp)continue;
+    if(ay1<gy0||ay0>topRow||ax1<gx0||ax0>gx0+cols-1)continue;
+    var lmx0=(ax0-gx0)*CB,lmx1=(ax1-gx0+1)*CB;
+    var lmyT=(topRow-ay1)*CB,lmyB=(topRow-ay0)*CB+CB;   // banda verticale [ay0..ay1]
+    if(atp===1){          // CAMINO: tubo di scarico verticale scuro + flange + colatura
+      var pcx=(lmx0+lmx1)/2;
+      c.fillStyle='rgba(16,26,22,.60)';c.fillRect(pcx-CB*0.22,lmyT,CB*0.44,lmyB-lmyT);
+      c.fillStyle='rgba(0,0,0,.35)';c.fillRect(pcx+CB*0.10,lmyT,CB*0.12,lmyB-lmyT);
+      c.fillStyle='rgba(120,150,135,.14)';c.fillRect(pcx-CB*0.22,lmyT,CB*0.08,lmyB-lmyT);
+      for(var pf3=lmyT+CB*0.8;pf3<lmyB;pf3+=CB*3){      // flange imbullonate
+        c.fillStyle='rgba(30,44,38,.65)';c.fillRect(pcx-CB*0.30,pf3,CB*0.60,CB*0.16);
+        c.fillStyle='rgba(0,0,0,.4)';c.fillRect(pcx-CB*0.30,pf3+CB*0.12,CB*0.60,3);
+      }
+      c.fillStyle='rgba(60,90,70,.22)';                  // colatura di scarico
+      c.fillRect(pcx-CB*0.06,lmyT,CB*0.12,Math.min(lmyB-lmyT,CB*2.2));
+    }else if(atp===2){    // PONTE SPEZZATO: insegna neon spenta/fioca (glow tenue)
+      var snx=(lmx0+lmx1)/2,sny=lmyT+CB*0.5;
+      c.fillStyle='rgba(20,14,34,.72)';c.fillRect(snx-CB*1.1,sny,CB*2.2,CB*0.9);
+      c.strokeStyle='rgba(192,132,252,.34)';c.lineWidth=2;
+      c.strokeRect(snx-CB*1.1,sny,CB*2.2,CB*0.9);
+      c.strokeStyle='rgba(192,132,252,.30)';c.lineWidth=2.5;   // "scritta" zig-zag fioca
+      c.beginPath();c.moveTo(snx-CB*0.8,sny+CB*0.6);c.lineTo(snx-CB*0.4,sny+CB*0.25);
+      c.lineTo(snx,sny+CB*0.6);c.lineTo(snx+CB*0.4,sny+CB*0.25);c.lineTo(snx+CB*0.8,sny+CB*0.6);c.stroke();
+      c.fillStyle='rgba(0,0,0,.4)';                      // staffe
+      c.fillRect(snx-CB*1.16,sny+CB*0.1,CB*0.08,CB*0.7);c.fillRect(snx+CB*1.08,sny+CB*0.1,CB*0.08,CB*0.7);
+    }else{                // PARETE APERTA: mulinello di nuvole attorno all'updraft
+      var swx=(lmx0+lmx1)/2,swy=(lmyT+lmyB)/2,swr=Math.max(CB*1.2,(lmx1-lmx0)*0.7);
+      c.strokeStyle='rgba(186,220,245,.09)';c.lineWidth=CB*0.16;
+      c.beginPath();c.ellipse(swx,swy,swr,swr*0.42,0.3,0.6,3.6);c.stroke();
+      c.strokeStyle='rgba(186,220,245,.07)';c.lineWidth=CB*0.12;
+      c.beginPath();c.ellipse(swx-CB*0.4,swy+CB*0.8,swr*0.7,swr*0.3,-0.2,3.4,6.0);c.stroke();
+      c.beginPath();c.ellipse(swx+CB*0.5,swy-CB*0.9,swr*0.55,swr*0.24,0.2,0.2,2.8);c.stroke();
+    }
   }
   // muri con luci/ombre baked (bordo chiaro alto, scuro basso) — i SEPARATORI
   // di via (col 8/16/24 e pareti 0/31) hanno stile dedicato: più scuri + rivetti
@@ -50341,6 +50972,52 @@ function sclTileCv(tc,trw){
         for(i2=0;i2<4;i2++)c.fillRect(xx+i2*CB*0.25,yy,CB*0.14,4);
         c.fillStyle='rgba(255,255,255,.06)';c.fillRect(xx,yy,CB,3);
       }
+      if(SC.brkA&&SC.brkA[ci2]){   // §6.4 v3: CREPE sulla parete FRIABILE (brk chiusa)
+        c.strokeStyle='rgba(0,0,0,.65)';c.lineWidth=2;   // masso/piccozza la demoliscono
+        c.beginPath();c.moveTo(xx+CB*0.22,yy+CB*0.10);c.lineTo(xx+CB*0.46,yy+CB*0.42);c.lineTo(xx+CB*0.34,yy+CB*0.78);c.stroke();
+        c.beginPath();c.moveTo(xx+CB*0.70,yy+CB*0.16);c.lineTo(xx+CB*0.56,yy+CB*0.50);c.lineTo(xx+CB*0.72,yy+CB*0.88);c.stroke();
+        c.beginPath();c.moveTo(xx+CB*0.46,yy+CB*0.42);c.lineTo(xx+CB*0.62,yy+CB*0.54);c.stroke();
+        c.strokeStyle='rgba(255,255,255,.10)';c.lineWidth=1;
+        c.beginPath();c.moveTo(xx+CB*0.24,yy+CB*0.12);c.lineTo(xx+CB*0.48,yy+CB*0.44);c.stroke();
+      }
+    }
+  }
+  // ── §6.4 v3: SKIP-PLATFORM (map_info.scut, additivo) — bordo tratteggiato
+  //    "ghost bridge" + icona rampino SBIADITA (emoji SOLO al bake). La
+  //    piattaforma vera è già in plats: qui solo il linguaggio "item-gated". ──
+  var SCT2=SC.scut||[];
+  for(i2=0;i2<SCT2.length;i2++){
+    var sk3=SCT2[i2];if(!sk3)continue;
+    var skx=sk3[0]|0,sky=sk3[1]|0;
+    if(sky<gy0||sky>topRow||skx+3<gx0||skx>gx0+cols-1)continue;
+    var sxx2=(skx-gx0)*CB,syy2=(topRow-sky)*CB;
+    c.save();
+    c.setLineDash(SCL_DSH);
+    c.strokeStyle='rgba(74,222,128,.55)';c.lineWidth=2.5;
+    c.strokeRect(sxx2-1,syy2-1,CB*4+2,CB*0.64);
+    c.setLineDash(SCL_DSH0);
+    c.globalAlpha=0.35;
+    c.font=Math.round(CB*0.46)+'px sans-serif';c.textAlign='center';c.textBaseline='middle';
+    c.fillText('🪝',sxx2+CB*2,syy2-CB*0.42);
+    c.restore();
+  }
+  // ── §4.5 v3: PIASTRE-SOGLIA dei LANDING (trap con lb esportato stretto):
+  //    strisce hazard sulla banda-superficie del run — il pericolo si legge
+  //    PRIMA di saltare. Bake-once, ancorate a yy (contratto ALLINEAMENTO). ──
+  var TP3=SC.traps||[];
+  for(i2=0;i2<TP3.length;i2++){
+    var tp3=TP3[i2];
+    if(!tp3||!tp3.plate)continue;
+    var pr3=(tp3.y|0)-1;             // riga del run sottostante: superficie = yy
+    if(pr3<gy0||pr3>topRow)continue;
+    if(tp3.lb1<gx0||tp3.lb0>gx0+cols-1)continue;
+    yy=(topRow-pr3)*CB;
+    var plh=Math.max(3,CB*0.10);
+    for(gx=Math.max(tp3.lb0,gx0);gx<=Math.min(tp3.lb1,gx0+cols-1);gx++){
+      xx=(gx-gx0)*CB;
+      c.fillStyle='rgba(200,36,36,.40)';c.fillRect(xx,yy,CB,plh);
+      c.fillStyle='rgba(0,0,0,.5)';     // tacche diagonali alternate (hazard)
+      c.fillRect(xx+CB*0.18,yy,CB*0.14,plh);c.fillRect(xx+CB*0.62,yy,CB*0.14,plh);
     }
   }
   // nastri (base baked; frecce animate per-frame) + ventole/CORRENTI (zona baked)
@@ -50375,13 +51052,34 @@ function sclTileCv(tc,trw){
       c.strokeRect(xx+1,yy+1,fz2[2]*CB-2,fz2[3]*CB-2);
     }
   }
-  // BASE CAMP: linea di partenza — VETTA: linea oro Y_TOP + porta del CAVEAU
+  // BASE CAMP — VETTA: linea oro Y_TOP + porta del CAVEAU.
+  // v3 §2 SPAWN PADS: con map_info.spads (campo ADDITIVO) la vecchia start-line
+  // unica sparisce: una PEDANA/chevron 1-cella per ogni piazzola, baked-once
+  // (contratto ALLINEAMENTO: cima a yy, luminanza sotto le piattaforme).
+  // Server vecchio senza spads → fallback: la start-line di sempre.
   if(gy0===0){
     yy=(topRow-1)*CB;   // riga y=1 (spawn 1.5)
-    for(cx=0;cx<cols;cx++){
-      gx=gx0+cx;if(gx<1||gx>SC.W-2)continue;
-      c.fillStyle=(gx&1)?'rgba(255,255,255,.5)':'rgba(255,255,255,.15)';
-      c.fillRect(cx*CB,yy+CB*0.82,CB,CB*0.14);
+    var SPD2=RTD.map&&RTD.map.spads;
+    if(SPD2&&SPD2.length){
+      for(var sp2=0;sp2<SPD2.length;sp2++){
+        var swx=SPD2[sp2][0];                    // x MONDO della piazzola (float)
+        if(swx<gx0-1||swx>gx0+cols+1)continue;   // culling con margine (clip canvas)
+        var sxp=(swx-gx0)*CB;                    // centro pedana in px tile
+        c.fillStyle='rgba(56,189,248,.30)';
+        c.fillRect(sxp-CB*0.38,yy+CB*0.80,CB*0.76,CB*0.16);
+        c.fillStyle='rgba(255,255,255,.35)';
+        c.fillRect(sxp-CB*0.38,yy+CB*0.80,CB*0.76,2);
+        c.strokeStyle='rgba(56,189,248,.55)';c.lineWidth=2;
+        c.beginPath();
+        c.moveTo(sxp-CB*0.18,yy+CB*0.74);c.lineTo(sxp,yy+CB*0.56);c.lineTo(sxp+CB*0.18,yy+CB*0.74);
+        c.stroke();
+      }
+    }else{
+      for(cx=0;cx<cols;cx++){
+        gx=gx0+cx;if(gx<1||gx>SC.W-2)continue;
+        c.fillStyle=(gx&1)?'rgba(255,255,255,.5)':'rgba(255,255,255,.15)';
+        c.fillRect(cx*CB,yy+CB*0.82,CB,CB*0.14);
+      }
     }
   }
   var ytRow=Math.round(SC.YT);
@@ -50617,6 +51315,20 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
     // ── ITEMS §4.2: seat = indice row in "p" (mai uid nei campi nuovi) ──
     var rpn=raw.p||[];
     if(SC.mySeat<0)for(var ms=0;ms<rpn.length;ms++)if(String(rpn[ms][0])===String(RTD.myId)){SC.mySeat=ms;break;}
+    // ── v3 §5.2/§8.2 (ADDITIVI, ||null → feature off con server vecchio):
+    //    wf = [[x,y,ttl_ds],...] celle in footprint-cd (per sclWallOk);
+    //    rej = [code,t] reason code per-viewer del rifiuto piazzamento → toast
+    //    SPECIFICO al posto del buzz muto (diff su code|t: un toast per evento).
+    SC.myWf=raw.wf||null;
+    var rj=raw.rej;
+    if(rj&&rj.length>=2){
+      var rjs=rj[0]+'|'+rj[1];
+      if(rjs!==SC.rejSig){
+        SC.rejSig=rjs;
+        rtdStamp(SCL_REJ[rj[0]]||'PIAZZAMENTO NEGATO','#f87171');
+        try{tg.HapticFeedback&&tg.HapticFeedback.notificationOccurred('error');}catch(_rj){}
+      }
+    }
     var WLn=raw.wl||[],PNn=raw.pin||[],PRn=raw.pr||[],ITn=raw.itm||[];
     // muri-item → mirror _blocked (pred §5) — cambiano di rado, costo O(4×3)
     SC.iwallA.fill(0);
@@ -50708,9 +51420,16 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
   var rawMe=null;
   for(var rmi=0;rmi<rp.length;rmi++)if(String(rp[rmi][0])===String(RTD.myId)){rawMe=rp[rmi];break;}
   if(meRow){
-    // OFF durante: morto (bit0=0), stun (4), hooked/flying (64), hang (512),
-    //   mantle (1024). Invuln (8) NON disabilita (il player controlla normale).
-    if(!(meFl&1)||(meFl&4)||(meFl&64)||(meFl&512)||(meFl&1024)){SC.pred.ok=false;SC.predVy=0;SC.pred.hang=false;}
+    // OFF durante: morto (bit0=0), stun (4), hooked/flying (64), hang (512).
+    // Invuln (8) NON disabilita (il player controlla normale).
+    // §1.6 v3: MANTLE (1024) NON spegne più la prediction — il client esegue la
+    // STESSA interpolazione del server (sclStartMantle/sclMantFromSrv), TRANNE
+    // hang su piattaforma MOBILE (sclMantFromSrv false → server-driven come oggi).
+    var mantSrv=false;
+    if(meFl&1024){
+      if(!(SC.pred.ok&&SC.pred.mant))mantSrv=!sclMantFromSrv(rawMe||meRow);
+    }else if(!SC.pred.ok)SC.pred.mant=0;
+    if(!(meFl&1)||(meFl&4)||(meFl&64)||(meFl&512)||mantSrv){SC.pred.ok=false;SC.predVy=0;SC.pred.hang=false;SC.pred.mant=0;}
     else{
       if(!SC.pred.ok){                 // (ri)aggancio dalla verità server (x,y,vx,vy)
         SC.pred.ok=true;
@@ -50718,11 +51437,14 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
         SC.pred.vx=rawMe?(rawMe[7]||0):0;SC.pred.vy=rawMe?(rawMe[8]||0):0;
         SC.pred.grounded=false;SC.pred.coyote=0;SC.pred.jbuf=0;SC.pred.drop=0;
         SC.pred.noledge=0;SC.pred.ride=null;SC.pred.hang=false;
+        SC.pred.wallside=0;SC.pred.wallCoy=0;SC.pred.lastWs=0;SC.pred.wjLock=0;SC.pred.wjLast=0;   // §1.5 reset (respawn srv:4145)
+        SC.pred.skidT=0;SC.pred.hangT=0;SC.pred.mant=0;                           // §1.2/§1.6 reset
       }
       var mx=0,my=0;
       if(RTD.joy.on){mx=RTD.joy.mx;my=-RTD.joy.my;}   // stick schermo → mondo (y invertita)
       var mm=Math.hypot(mx,my);
       if(mm>1){mx/=mm;my/=mm;}                         // = set_input normalize
+      my=sclSynMy(my);   // §1.4 v3: STESSO my sintetico del sender (bottone SALTO tenuto)
       var fury=(meFl&16)?SC.FURY:1.0;   // = FURY_MUL 1.25
       var aim=((meFl&128)||SC.itemDown)?SC.AIMSLOW:1.0;// = AIM_SLOW_MUL 0.6 (anche ottimistico alla pressione, ITEMS §5)
       var chalk=!!(meFl&256);           // MAGNESITE: +15% salto / grip
@@ -51303,6 +52025,26 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
         ctx.globalCompositeOperation='source-over';
       }
     }
+    // ── §4.5 v3 SEMAFORO FINESTRA-SAFE (client-only, zero protocollo): arco-
+    //    timer 12px sopra la trappola che si SVUOTA verso il prossimo istante
+    //    kill. VERDE = fuori dalla finestra kill E >0.25s al prossimo k0
+    //    (margine di reazione); giallo in avvicinamento; ROSSO = kill attiva o
+    //    imminente. 2 arc() per trappola visibile, dentro il culling: zero
+    //    alloc. Per le combo "sync" i due archi mostrano lo sfasamento p/2:
+    //    leggere il pattern DIVENTA il gameplay. ──
+    if(o.per>0&&o.k1>0){
+      var smKill=(u>=o.k0&&u<o.k1),smNx;
+      if(smKill)smNx=0;else if(u<o.k0)smNx=o.k0-u;else smNx=o.per-u+o.k0;
+      var smSafe=!smKill&&smNx>0.25;
+      var smFr=smKill?1:Math.min(1,smNx/o.per);
+      var smCx=(o.tid==='L'||o.tid==='S')?(o.x+o.len*0.5):(o.tid==='W'?(o.x0+1.5):(o.x+0.5));
+      var smX=ox+smCx*cell,smY=hh2+(camY-(o.y+1.6))*cell;
+      ctx.lineWidth=2*RTD.dpr;
+      ctx.strokeStyle='rgba(8,12,20,.65)';
+      ctx.beginPath();ctx.arc(smX,smY,6*RTD.dpr,0,6.283);ctx.stroke();
+      ctx.strokeStyle=smSafe?'#4ade80':((smKill||smNx<=0.25)?'#ef4444':'#facc15');
+      ctx.beginPath();ctx.arc(smX,smY,6*RTD.dpr,-1.5708,-1.5708+6.2832*smFr);ctx.stroke();
+    }
   }
   // ── ITEMS §8: SPOT oggetto — piedistallo + sprite bobbing + glow (stato in
   //    SC.spotItem dal diff snapshot; MAI nel tile-bake perché cambia; culling 2D) ──
@@ -51448,11 +52190,21 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
       TWS.play('dpkChalk',cMe?0.9:0.45);
       if(cMe)rtdStamp('PRESA PERFETTA!','#f8fafc');
     }
+    var pfl=an.pf;   // §7.3 v3: fl precedente per l'edge-detect dei bit evento
     an.pf=fl;
     if(!(fl&1))continue;   // morto: il gore copre
+    // NB §7.3: l'edge dei bit evento per i rivali FUORI viewport è già stato
+    // "consumato" qui sopra (an.pf=fl) senza spendere nulla: niente pose/fx/sfx.
     if(rr[2]<botW||rr[2]>topW||rr[1]<lftW||rr[1]>rgtW)continue;
     var ppx=ox+rr[1]*cell,ppy=hh2+(camY-rr[2])*cell,pr=SC.PR*cell*1.25;
     var isMe=pid===String(RTD.myId);
+    // §7.2 v3: bit di stato LOCALI istantanei dalla prediction (il server li
+    // conferma ~1 tick dopo; solo posa/fx, la fisica non cambia)
+    if(isMe&&SC.pred.ok){
+      if(SC.pred.wallside)fl|=2048;
+      if(SC.pred.skidT>0)fl|=4096;
+      if(SC.pred.mant)fl|=1024;
+    }
     // look dal PROFILES (start_payload, 0 byte nello snapshot — SKINS_SPEC §6.3):
     // cache per-pid in RTD._lookC, fallback bot/default. SOLO cosmetica.
     var plk=sclLookOf(pid);
@@ -51486,7 +52238,36 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
       an.vxs=nvx;an.vys=nvy;
     }
     an.px=rr[1];an.py=rr[2];an.pt=now;
+    // ═══ §7.3 v3 REAZIONI RIVALI sui bit EVENTO (edge-detect fl^pfl):
+    //     LAND 16384 → squash lieve + polvere; LAND_HARD 8192 → squash forte +
+    //     shake + thud forte; SKID 4096 → posa frenata + particelle. Per il
+    //     player LOCALE resta anche il canale pred (già istantaneo). ═══
+    var flE=fl^pfl;
+    if(((flE&16384)&&(fl&16384))||((flE&8192)&&(fl&8192))){
+      an.landT=now;
+      var thHrd=!!(fl&8192),thV=Math.max(0.25,1-Math.abs(rr[2]-SC.myY)/10);
+      if(thHrd){
+        an.landHard=1;
+        TWS.play('sclThud',(isMe?1:0.8)*thV);
+        if(isMe)sclShake('press',0.55);
+        else if(Math.abs(rr[2]-SC.myY)<5)sclShake('spike',0.35);
+      }else TWS.play('sclThud',(isMe?0.55:0.38)*thV);
+      sclDust(ppx,ppy+pr*0.25,thHrd?7:4,-1,thHrd?1.1:0.6,'rgba(203,213,225,.6)');
+      sclDust(ppx,ppy+pr*0.25,thHrd?7:4,1,thHrd?1.1:0.6,'rgba(203,213,225,.6)');
+    }
+    if((flE&4096)&&(fl&4096)&&now-(an.skT||0)>250){   // scrape throttled (pred+server non doppiano)
+      an.skT=now;
+      TWS.play('sclScrape',(isMe?0.7:0.4)*Math.max(0.25,1-Math.abs(rr[2]-SC.myY)/10));
+      sclDust(ppx,ppy+pr*0.6,4,(an.vxs||0)>0?-1:1,0.5,'rgba(203,213,225,.55)');
+    }
     sclPose(an,rr,fl,now,isMe,pi3);   // riempie an.rig dallo stato (§4)
+    sclRigBlend(an,sclRigK(fl,(rr[7]!=null?rr[7]:an.vxs)||0),dt);       // §7.1 blend exp per-canale
+    sclKitSpring(an,(rr[7]!=null?rr[7]:an.vxs)||0,(rr[8]!=null?rr[8]:an.vys)||0,dt);   // §7.2 zaino a molla
+    if((fl&2048)&&now-(an.wsT||0)>70){   // §7.2 wall-slide: polvere/scintille alla mano (throttled)
+      an.wsT=now;
+      var wsd3=(an.rig&&an.rig.pdx>0)?1:-1;
+      sclP(ppx+wsd3*pr*0.55,ppy-pr*1.2,-wsd3*20*RTD.dpr,(20+Math.random()*30)*RTD.dpr,260,'#cbd5e1',1.6*RTD.dpr,60*RTD.dpr,0,0.95);
+    }
     // ghost respawn (cosmetico): ricade sul punto per 0.9s (rannicchiato→idle)
     var gk2=an.gT?(now-an.gT)/900:1;
     if(gk2<1){
@@ -51513,15 +52294,16 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
     ctx.globalAlpha=1;
     ctx.save();
     ctx.translate(ppx,ppy);
-    // POLISH §1 MICRO-ANTICIPAZIONE (~2 frame, 34ms): PRIMA dello scatto il
-    // corpo si carica CONTRO la direzione — schiacciato e compresso. Poi parte
-    // la streak. Solo mia, solo cosmetica: il dash è già partito sul server.
-    var antK=(isMe&&SC.antT)?(now-SC.antT)/34:9;
+    // §7.2 v3 JUMP-SQUAT 50ms: RIPARATO il residuo dash (ruotava su
+    // SC.dashDx/dashDy MORTI con durata 34ms) — la carica è ora orientata
+    // sulla direzione di stacco VERA (mx,+1) normalizzata: sqy .90 / sqx 1.08.
+    var antK=(isMe&&SC.antT)?(now-SC.antT)/50:9;
     if(antK<1){
-      var aq=1-0.22*(1-antK*antK);
-      ctx.rotate(Math.atan2(-SC.dashDy,SC.dashDx));
-      ctx.scale(aq,2-aq);
-      ctx.rotate(-Math.atan2(-SC.dashDy,SC.dashDx));
+      var aq=1-antK*antK;                     // inviluppo carica (1→0)
+      var antA=Math.atan2(SC.antDx||0,1);     // (mx,+1) mondo → tilt asse schermo
+      ctx.rotate(antA);
+      ctx.scale(1+0.08*aq,1-0.10*aq);
+      ctx.rotate(-antA);
     }else if((fl&2)&&(an.vys||0)<-13){   // POLISH 19/07: caduta RAPIDA — scia verticale leggera + stretch
       // (il vecchio ramo era il residuo del DASH: squash orizzontale su OGNI
       // airborne — il dash non esiste piu' nei controlli DEAD PEAK)
@@ -51636,13 +52418,38 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
     ctx.beginPath();ctx.arc(ox+afx.x*cell,hh2+(camY-afx.y)*cell,SC.AXER*cell*(0.5+0.5*afk),0,6.283);ctx.stroke();
     ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';
   }
-  // ── MIRINO (ITEMS §8): mentre MIO flag 128 (o pressione locale) — preview per oggetto ──
+  // ── MIRINO v3 (§5.1/§5.3): drag-to-aim = OFFSET esatto in unità mondo (ghost
+  //    validato what-you-see-is-what-you-get); senza drag resta il flusso legacy
+  //    (direzione stick, celle dir·1.2/1.5 come il ramo server senza power). ──
   if(((meFl&128)||SC.itemDown)&&SC.myItem>0&&meRow&&!SC.meDead){
-    var rdx=RTD.joy.on?RTD.joy.mx:0,rdy=RTD.joy.on?-RTD.joy.my:0;
-    var rdm=Math.hypot(rdx,rdy);
-    if(rdm<0.1){rdx=0;rdy=1;}else{rdx/=rdm;rdy/=rdm;}   // fallback (0,+1) = _fire_dir
+    var drag=SC.aimOn&&(SC.aimVx!==0||SC.aimVy!==0);
+    var rdx,rdy,rox,roy;
+    if(drag){
+      rox=SC.aimVx;roy=SC.aimVy;                       // offset drag (già clampato a SCL_RANGE)
+      var rdmD=Math.hypot(rox,roy);rdx=rox/rdmD;rdy=roy/rdmD;
+    }else{
+      rdx=RTD.joy.on?RTD.joy.mx:0;rdy=RTD.joy.on?-RTD.joy.my:0;
+      var rdm=Math.hypot(rdx,rdy);
+      if(rdm<0.1){rdx=0;rdy=1;}else{rdx/=rdm;rdy/=rdm;}   // fallback (0,+1) = _fire_dir
+      rox=0;roy=0;
+    }
+    var aimGrey=SC.aimOn&&SC.aimCancel;                // §5.1(4): zona annulla → ghost GRIGIO
     var mpx0=ox+meRow[1]*cell,mpy0=hh2+(camY-meRow[2])*cell;
-    if(SC.myItem===1){   // RAMPINO: tratteggio 8.5u, ROSSO se interseca un player (hit-test cosmetico)
+    // anello timer AIM_MAX_T 3s + ✕ annulla sul bottone (DOM aggiornato SOLO su diff)
+    if(SC.aimOn){
+      var rg2=document.getElementById('arc-ring'),rgx=document.getElementById('arc-aimx');
+      var frac2=1-(now-SC.aimT0)/3000;if(frac2<0)frac2=0;   // AIM_MAX_T 3.0 (server ~318 invariato)
+      var q2=((frac2*50)|0)+(aimGrey?1000:0);
+      if(q2!==SC.aimRingQ){
+        SC.aimRingQ=q2;
+        if(rg2){
+          rg2.style.display='block';
+          rg2.style.background='conic-gradient('+(aimGrey?'#94a3b8':'#38bdf8')+' '+((q2%1000)*2)+'%, rgba(255,255,255,.10) 0)';
+        }
+        if(rgx)rgx.style.display=aimGrey?'flex':'none';
+      }
+    }
+    if(SC.myItem===1){   // RAMPINO: raycast grip esatto (§5.3) + hot-test player
       var hot=false;
       for(var ht=0;ht<rp.length;ht++){
         var hrw=rows[rp[ht][0]]||rp[ht],hfl=hrw[3]|0;
@@ -51652,49 +52459,79 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
         if(hpr<0||hpr>SC.HOOKRNG)continue;
         if(hvx*hvx+hvy*hvy-hpr*hpr<=0.3844){hot=true;break;}   // (HOOK_R 0.28 + r 0.34)²
       }
+      sclHookRay(meRow[1],meRow[2],rdx,rdy);
+      var hkOn=_sclHK[2]===1;
       ctx.setLineDash(SCL_DSH);
-      ctx.strokeStyle=hot?'#ef4444':'rgba(226,232,240,.8)';
+      ctx.strokeStyle=aimGrey?'rgba(148,163,184,.5)':(hot?'#ef4444':(hkOn?'rgba(226,232,240,.8)':'rgba(148,163,184,.28)'));
       ctx.lineWidth=Math.max(2,cell*0.06);
       ctx.beginPath();ctx.moveTo(mpx0,mpy0);
       ctx.lineTo(mpx0+rdx*SC.HOOKRNG*cell,mpy0-rdy*SC.HOOKRNG*cell);ctx.stroke();
       ctx.setLineDash(SCL_DSH0);
-      ctx.strokeStyle=hot?'#ef4444':'rgba(226,232,240,.9)';
-      ctx.beginPath();ctx.arc(mpx0+rdx*SC.HOOKRNG*cell,mpy0-rdy*SC.HOOKRNG*cell,cell*0.2,0,6.283);ctx.stroke();
-    }else if(SC.myItem===2){   // CHECKPOINT: cella bersaglio round(x+ax·1.2) (§3.2) + bandierina ghost
-      var ncx=Math.round(meRow[1]+rdx*1.2),ncy=Math.round(meRow[2]+rdy*1.2);
+      if(hkOn){   // marker GRIP pulsante sulla cella di aggancio ESATTA; VERDE su skip (§6.4)
+        var gskip=false,SCT=RTD.map.scut;
+        if(SCT)for(var sk2=0;sk2<SCT.length;sk2++)
+          if(_sclHK[1]===SCT[sk2][1]&&_sclHK[0]>=SCT[sk2][0]&&_sclHK[0]<=SCT[sk2][0]+3){gskip=true;break;}
+        var gpx=ox+(_sclHK[0]+0.5)*cell,gpy=hh2+(camY-(_sclHK[1]+0.5))*cell;
+        ctx.strokeStyle=aimGrey?'rgba(148,163,184,.7)':(gskip?'#4ade80':(hot?'#ef4444':'#e2e8f0'));
+        ctx.lineWidth=Math.max(2,cell*0.08);
+        ctx.globalAlpha=0.75+0.25*Math.sin(now/110);
+        ctx.beginPath();ctx.arc(gpx,gpy,cell*(0.30+0.06*Math.sin(now/110)),0,6.283);ctx.stroke();
+        ctx.strokeRect(ox+_sclHK[0]*cell+2,hh2+(camY-(_sclHK[1]+1))*cell+2,cell-4,cell-4);
+        ctx.globalAlpha=1;
+      }
+    }else if(SC.myItem===2){   // CHECKPOINT: cella ESATTA (drag: round(pos+offset), clamp PINRNG)
+      var ncx=drag?Math.round(meRow[1]+rox):Math.round(meRow[1]+rdx*1.2);
+      var ncy=drag?Math.round(meRow[2]+roy):Math.round(meRow[2]+rdy*1.2);
+      var pinok=sclPinOk(ncx,ncy);
+      var pcol=aimGrey?'rgba(148,163,184,.8)':(pinok?'#fbbf24':'#ef4444');
       ctx.globalAlpha=0.45+0.2*Math.sin(now/100);
-      ctx.strokeStyle='#fbbf24';ctx.lineWidth=2;
+      ctx.strokeStyle=pcol;ctx.lineWidth=2;
       ctx.strokeRect(ox+ncx*cell+2,hh2+(camY-(ncy+1))*cell+2,cell-4,cell-4);
       var gfx=ox+(ncx+0.5)*cell,gfy=hh2+(camY-(ncy+0.5))*cell;
       ctx.beginPath();ctx.moveTo(gfx,gfy+cell*0.28);ctx.lineTo(gfx,gfy-cell*0.34);ctx.stroke();
-      ctx.fillStyle='#fbbf24';
+      ctx.fillStyle=pcol;
       ctx.beginPath();ctx.moveTo(gfx,gfy-cell*0.34);ctx.lineTo(gfx+cell*0.28,gfy-cell*0.24);ctx.lineTo(gfx,gfy-cell*0.14);ctx.closePath();ctx.fill();
       ctx.globalAlpha=1;
-    }else if(SC.myItem===3){   // MURO: footprint ghost 3 celle H/V (|ax|≥|ay| → H, §3.3)
-      var mhor=Math.abs(rdx)>=Math.abs(rdy);
-      var mcx=Math.max(1,Math.min(SC.W-2,Math.round(meRow[1]+rdx*1.5)));
-      var mcy=Math.max(0,Math.min(SC.H-1,Math.round(meRow[2]+rdy*1.5)));
+    }else if(SC.myItem===3){   // MURO: ghost VALIDATO sclWallOk (§5.3) sulla cella ESATTA
+      var mhor=Math.abs(drag?rox:rdx)>=Math.abs(drag?roy:rdy);
+      var mcx=Math.max(1,Math.min(SC.W-2,Math.round(meRow[1]+(drag?rox:rdx*1.5))));
+      var mcy=Math.max(0,Math.min(SC.H-1,Math.round(meRow[2]+(drag?roy:rdy*1.5))));
+      var wrs=sclWallOk(mcx,mcy,mhor?0:1,rp);   // null = ok, altrimenti reason code
       ctx.globalAlpha=0.4+0.15*Math.sin(now/100);
-      ctx.fillStyle='#a8a29e';
+      ctx.fillStyle=aimGrey?'#94a3b8':(wrs?'#ef4444':'#4ade80');
       for(var mw2=-1;mw2<=1;mw2++){
         var mx3=mcx+(mhor?mw2:0),my3=mcy+(mhor?0:mw2);
         ctx.fillRect(ox+mx3*cell+1,hh2+(camY-(my3+1))*cell+1,cell-2,cell-2);
       }
       ctx.globalAlpha=1;
+      if(wrs&&!aimGrey){   // mini-icona del motivo sopra il ghost (§5.3)
+        ctx.font=Math.round(cell*0.5)+'px sans-serif';ctx.textAlign='center';
+        ctx.fillStyle='#fecaca';
+        ctx.fillText(wrs==='near'?'🧍':(wrs==='cd'?'⏳':(wrs==='chain'?'🧱':'⛔')),
+                     ox+(mcx+0.5)*cell,hh2+(camY-(mcy+1.4))*cell);
+      }
     }else if(SC.myItem===4){   // PICCOZZA: semicerchio r=1.7 nella dir di mira (§3.4)
-      ctx.globalAlpha=0.3+0.15*Math.sin(now/90);
-      ctx.fillStyle='#e2e8f0';
+      ctx.globalAlpha=(aimGrey?0.15:0.3)+0.15*Math.sin(now/90);
+      ctx.fillStyle=aimGrey?'#94a3b8':'#e2e8f0';
       var aang2=Math.atan2(-rdy,rdx);   // schermo (y invertita)
       ctx.beginPath();ctx.moveTo(mpx0,mpy0);
       ctx.arc(mpx0,mpy0,SC.AXER*cell,aang2-1.5708,aang2+1.5708);ctx.closePath();ctx.fill();
       ctx.globalAlpha=1;
-    }else if(SC.myItem===5){   // MASSO: punto di sgancio pos+aim·1.0 + freccia GIÙ (§3.5)
-      var bpx2=mpx0+rdx*1.0*cell,bpy2=mpy0-rdy*1.0*cell;
+    }else if(SC.myItem===5){   // MASSO: sgancio ESATTO (drag, clamp ROCKRNG) + 12 punti predetti (§5.3)
+      var bwx=drag?(meRow[1]+rox):(meRow[1]+rdx*1.0);
+      var bwy=drag?(meRow[2]+roy):(meRow[2]+rdy*1.0);
+      var bpx2=ox+bwx*cell,bpy2=hh2+(camY-bwy)*cell;
       ctx.globalAlpha=0.55;
-      ctx.strokeStyle='#f87171';ctx.lineWidth=2.5;
+      ctx.strokeStyle=aimGrey?'#94a3b8':'#f87171';ctx.lineWidth=2.5;
       ctx.beginPath();ctx.arc(bpx2,bpy2,cell*0.45,0,6.283);ctx.stroke();
-      ctx.beginPath();ctx.moveTo(bpx2,bpy2+cell*0.5);ctx.lineTo(bpx2,bpy2+cell*1.1);
-      ctx.moveTo(bpx2-cell*0.14,bpy2+cell*0.9);ctx.lineTo(bpx2,bpy2+cell*1.1);ctx.lineTo(bpx2+cell*0.14,bpy2+cell*0.9);ctx.stroke();
+      sclRockSim(bwx,bwy);   // traiettoria f(geometria) — pool fisso, zero alloc
+      ctx.fillStyle=aimGrey?'#94a3b8':'#fda4af';
+      for(var rk2=0;rk2<SC.aimRockN;rk2++){
+        ctx.globalAlpha=0.62-rk2*0.04;
+        ctx.beginPath();
+        ctx.arc(ox+SC.aimRock[rk2*2]*cell,hh2+(camY-SC.aimRock[rk2*2+1])*cell,Math.max(2,cell*0.09),0,6.283);
+        ctx.fill();
+      }
       ctx.globalAlpha=1;
     }
     // MAGNESITE (6): self-buff — nessuna mira, il rilascio la attiva e basta
@@ -51869,6 +52706,8 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
     }
   }
   sclLavaSnd(lvw>0.01,lavaVis?Math.max(0.1,Math.min(1,1-(SC.myY-lvw)/14)):0.08);
+  // §7.4 v3: loop wall-slide (solo il MIO stato — pred istantanea o bit 2048 server)
+  sclSlideSnd(!SC.meDead&&((SC.pred.ok&&SC.pred.wallside!==0)||!!(meFl&2048)));
   // ── MAPPA STRATEGICA 44px CSS (SCALATA_WIDE §3 — sostituisce la barra 10px):
   //    statico bakeato una volta (vie/snodi/Y_TOP) + dinamico per frame ≤30 draw ──
   var mtW=30*RTD.dpr,mtX=w-mtW-4*RTD.dpr,mtY=8*RTD.dpr,mtH=hh-16*RTD.dpr;   // 44→30px: meno campo rubato
