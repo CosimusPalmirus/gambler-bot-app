@@ -42565,6 +42565,9 @@ function rtdOnSnap(m){
   RTD.snaps.push(m);
   if(RTD.snaps.length>7)RTD.snaps.shift();
   RTD.lastRaw=m;
+  // STEP-BEACON DERBY (23/07): PRIMO snapshot processato (RTD.lastRaw non più null →
+  // il dispatch draw calcio è ora raggiungibile). Una-tantum per match.
+  if(RTD.game==='calcio'&&!BLG._bcSnap){BLG._bcSnap=1;try{blgBeaconStep('blgsnap1',{});}catch(_bcS0){}}
   (m.feed||[]).forEach(rtdFeedEvent);
   if(RTD.spec&&m.viewers!=null&&m.viewers!==RTD.viewers){   // TORNEO spettatore: contatore 👁 live
     RTD.viewers=m.viewers;
@@ -43113,7 +43116,7 @@ function rtdShowMatch(){
     ov='<div class="arc-ov-hint" id="arc-draghint">👆 trascina per mirare · rilascia per tirare</div>';
   }
   el.classList.add('arc-fit');   // OVERLAY-FIT per TUTTI gli RTD: canvas a schermo intero, controlli in overlay
-  el.classList[RTD.game==='calcio'?'add':'remove']('blg-fs');   // DERBY FULL-SCREEN (20/07): HUD in overlay compatto — SOLO calcio, rimossa per gli altri
+  el.classList[(RTD.game==='calcio'&&!blgReducedMode())?'add':'remove']('blg-fs');   // DERBY FULL-SCREEN (20/07): HUD in overlay compatto — SOLO calcio full-tier; in safe/lite si usa il layout HUD normale (niente overlay full-screen)
   el.innerHTML=''
     +'<div class="twr-hud" id="arc-hud"></div>'
     +'<div class="twr-status" id="arc-status"></div>'
@@ -43125,7 +43128,19 @@ function rtdShowMatch(){
     +'</div>'
     +below;
   if(inp==='paddle')pgBarMount();   // PRIMA di rtdCanvasInit: la fascia deve gia' occupare spazio
+  // STEP-BEACON DERBY (23/07): traccia il percorso di avvio calcio via il canale
+  // 'clog' ESISTENTE (nessun nuovo tipo di messaggio WS). Se il telefono si inchioda,
+  // l'ULTIMO beacon ricevuto dai log VPS individua esattamente il wedge. Una-tantum
+  // per match (i flag BLG._bc* sono azzerati in rtdBuildBolgia).
+  if(RTD.game==='calcio'&&!BLG._bcA){BLG._bcA=1;try{
+    var _cua=/Chrome\/(\d+)/.exec(navigator.userAgent||'');
+    blgBeaconStep('blgstart',{ver:(_cua?_cua[1]:'?'),red:blgReducedMode()?1:0});
+  }catch(_bcA0){}}
   rtdCanvasInit();
+  if(RTD.game==='calcio'&&!BLG._bcB){BLG._bcB=1;try{
+    var _bmb=RTD.cv?Math.round(RTD.cv.width*RTD.cv.height*4/1048576*10)/10:0;   // backing-store MB (RGBA=4B/px)
+    blgBeaconStep('blgcanvas',{cssW:RTD.cssW,cssH:RTD.cssH,dpr:Math.round((RTD.dpr||1)*100)/100,mb:_bmb});
+  }catch(_bcB0){}}
   // PONG: al primo rtdCanvasInit l'HUD e' ancora VUOTO (si riempie col primo
   // snapshot) → l'altezza sottratta e' sbagliata e la fascia dei comandi finiva
   // sotto il bordo dello schermo. Ri-misura appena l'HUD c'e' davvero.
@@ -43388,6 +43403,13 @@ function rtdCanvasInit(){
   var ratio=(RTD.map.h&&RTD.map.w&&!RTD.map.race)?Math.min(1.5,RTD.map.h/RTD.map.w):1.15;
   if(RTD.game==='sumo')ratio=1;
   if(RTD.game==='calcio')ratio=Math.min(1.5,(RTD.map.w||16)/(RTD.map.h||9));   // BOLGIA: campo VERTICALE (x-lungo ruotato di 90°)
+  // SAFE/LITE CALCIO (23/07): su tier 'safe' o in modalità lite NON forzare il
+  // full-screen. Il backing-store gigante ad alto dpr (≈17MB) uccide i compositor
+  // WebView vecchi ANCHE solo per il paint d'attesa (rf:1 poi morte). In questo
+  // caso il calcio cade nel MEDESIMO letterbox degli altri giochi + dpr cappato a
+  // 1.5 → backing-store ben sotto la soglia. Modern/full-tier: full-screen invariato.
+  var _blgRed=blgReducedMode();
+  if(_blgRed)RTD.dpr=Math.min(RTD.dpr,1.5);
   // the wrap is a flex child of .game-content: pin it (no shrink) and cap the
   // canvas to the space really left over, or the board bottom gets clipped
   wrap.style.flex='none';
@@ -43413,7 +43435,7 @@ function rtdCanvasInit(){
     // DERBY FULL-SCREEN (20/07): niente letterbox — il canvas riempie TUTTA l'area
     // utile (l'aspetto lo gestisce la camera follow in blgDrawCore; il bake centra
     // comunque il campo con le tribune ai lati). SOLO calcio, altri giochi invariati.
-    if(RTD.game==='calcio'){cssW=w;cssH=Math.round(maxH);}
+    if(RTD.game==='calcio'&&!_blgRed){cssW=w;cssH=Math.round(maxH);}
     else if(cssH>maxH){ cssH=Math.round(maxH); cssW=Math.round(cssH/ratio); if(cssW>w){cssW=w;cssH=Math.round(w*ratio);} }
     wrap.style.height=(fit?Math.round(maxH):cssH)+'px';   // fit: il wrap prende tutta l'altezza, il canvas resta centrato
   }else{
@@ -43970,6 +43992,10 @@ function rtdFrame(){
   else if(g==='backg')rtdDrawBackg(ctx,raw,lp,now,w,hh);
   else if(g==='scopa')rtdDrawScopa(ctx,raw,lp,now,w,hh);
   rtdScoreBar(ctx,raw,now,w,hh);
+  // STEP-BEACON DERBY (23/07): PRIMO paint calcio andato a buon fine (dispatch draw
+  // completato senza throw). Se questo beacon non arriva ma 'blgcanvas' sì, il wedge
+  // è nel renderer/compositor durante il primo paint. Una-tantum per match.
+  if(g==='calcio'&&!BLG._bc1f){BLG._bc1f=1;try{blgBeaconStep('blg1frame',{});}catch(_bc1f0){}}
   }catch(e){
     // DIAGNOSTICA (18/07): l'errore di render non deve restare INVISIBILE (canvas nero
     // su mobile). Mostralo a schermo così lo screenshot rivela la causa esatta.
@@ -47896,6 +47922,7 @@ function rtdBuildBolgia(){
   // contatori errore/lentezza, cache geometria). NON tocca BLG.tier: se il device
   // è sceso in safe resta safe finché il match è aperto (e gb_blgtier lo persiste).
   BLG._dfErr=0;BLG._errN=0;BLG._slowN=0;BLG._errBeac=0;BLG._safeBeac=0;BLG._geomW=0;BLG._geomH=0;
+  BLG._bcA=0;BLG._bcB=0;BLG._bc1f=0;BLG._bcSnap=0;   // STEP-BEACON (23/07): riarma i beacon di avvio per il nuovo match
   var _pl=document.getElementById('blg-pill');if(_pl&&_pl.parentNode)_pl.parentNode.removeChild(_pl);
   BLG.startAt=performance.now();   // per scartare snapshot stantii del match precedente
   if(!BLG.P){BLG.P=[];for(var i=0;i<96;i++)BLG.P.push({on:0,x:0,y:0,vx:0,vy:0,t0:0,dur:1,col:'#fff',r:2,g:0,add:0,drg:1});BLG.pi=0;}
@@ -47917,6 +47944,11 @@ function rtdBuildBolgia(){
 // fallback. Percorso sano: un try in più e basta.
 function blgBakeStatic(){
   if(BLG._bkRec){try{blgBakeFallback();}catch(_bf0){}return;}
+  // BUDGET BAKE (23/07): cronometra il bake ricco. Se sfora la soglia su QUESTO
+  // device (UA che è passata come 'full' ma è comunque lenta), scendi in safe
+  // PERMANENTE (blgTierDown persiste gb_blgtier) così il prossimo match usa il
+  // percorso primitives-only (blgGeomInit + blgDrawSafe, zero offscreen) e beacona.
+  var _bt0=(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now();
   try{blgBakeFull();}
   catch(e){
     try{console.error('blgBakeStatic fatal:',e);}catch(_c0){}
@@ -47926,6 +47958,13 @@ function blgBakeStatic(){
     BLG._bkRec=0;
     try{blgBakeFallback();}catch(_f0){}
   }
+  try{
+    var _btEl=((typeof performance!=='undefined'&&performance.now)?performance.now():Date.now())-_bt0;
+    if(_btEl>320&&BLG.tier!=='safe'){
+      blgBeaconStep('bakebudget',{ms:Math.round(_btEl)});
+      blgTierDown('bake:'+Math.round(_btEl)+'ms');   // → safe persistito → fallback primitives-only al prossimo match
+    }
+  }catch(_bd){}
 }
 // campo piatto d'emergenza: due tonalità di verde + righe bianche, API canvas
 // preistoriche soltanto. Imposta TUTTO lo stato che il draw si aspetta dal bake
@@ -48133,6 +48172,31 @@ function blgBeacon(kind,detail){
     }
   }catch(_b){}
 }
+// STEP-BEACON generico (23/07): stesso canale 'clog' ESISTENTE, tag 'at' distinto
+// (blgstart/blgcanvas/blg1frame/blgsnap1/bakebudget…) + contatori diag di base; i
+// campi extra (ver/cssW/cssH/dpr/mb/ms…) sono uniti dall'oggetto opzionale. NESSUN
+// nuovo tipo di messaggio WS: il server già logga tutti i 'clog' per uid.
+function blgBeaconStep(at,extra){
+  try{
+    if(RTD.ws&&RTD.ws.readyState===1){
+      var o={t:'clog',at:at,tier:BLG.tier||'full',lite:RTD.lite?1:0,
+        msgs:RTD._wsN||0,snaps:RTD._wsS||0,rf:RTD._rafN||0};
+      if(extra)for(var k in extra){if(Object.prototype.hasOwnProperty.call(extra,k))o[k]=extra[k];}
+      RTD.ws.send(JSON.stringify(o));
+    }
+  }catch(_bs){}
+}
+// modalità RIDOTTA calcio (23/07): full-screen + dpr pieno DISABILITATI quando il
+// device è fragile — lite attivo (RTD.lite o gb_lite persistito) OPPURE tier 'safe'
+// (blgTierSeed: UA vecchia/illeggibile o gb_blgtier persistito). Idempotente, mai
+// bloccante. Vale SOLO per calcio: gli altri giochi non la consultano.
+function blgReducedMode(){
+  if(RTD.game!=='calcio')return false;
+  if(RTD.lite)return true;
+  try{if(localStorage.getItem('gb_lite')==='1')return true;}catch(_lr){}
+  var t='safe';try{t=blgTierSeed();}catch(_lr2){t='safe';}
+  return t==='safe';
+}
 // seed del tier: override persistito ('gb_blgtier') se presente, altrimenti i
 // WebView Chromium datati (<110 — la STESSA soglia che già forza 'lite' a 43370,
 // ed è la classe di uid 130506650 che CRASHA sul bake ricco PRIMA di poter
@@ -48144,9 +48208,12 @@ function blgTierSeed(){
   if(BLG.tier!=null)return BLG.tier;
   var t=null;try{t=localStorage.getItem('gb_blgtier');}catch(_ts0){}
   if(t==='safe'||t==='full'){BLG.tier=t;return t;}
-  var old=false;
-  try{var m=/Chrome\/(\d+)/.exec(navigator.userAgent||'');if(m&&+m[1]<110)old=true;}catch(_ts1){}
-  BLG.tier=old?'safe':'full';
+  // FAIL-SAFE (23/07): UA assente/strippata/illeggibile (es. GrapheneOS/Vanadium che
+  // rimuove il token Chrome) ⇒ 'safe', NON 'full'. Solo un match ESPLICITO con major
+  // ≥110 promuove a 'full'; qualunque altro caso resta safe (procedurale, giocabile).
+  var tier='safe';
+  try{var m=/Chrome\/(\d+)/.exec(navigator.userAgent||'');if(m&&+m[1]>=110)tier='full';}catch(_ts1){tier='safe';}
+  BLG.tier=tier;
   return BLG.tier;
 }
 // scende di tier in modo PERMANENTE (persistito): il prossimo avvio su questo
