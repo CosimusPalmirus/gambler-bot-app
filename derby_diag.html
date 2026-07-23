@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>DERBY DIAG</title>
+<style>
+/* ES5-safe, no external deps. Big monospace, phone-readable, no devtools needed. */
+html,body{margin:0;padding:0;background:#05070a;color:#d7e0ea;font-family:ui-monospace,Menlo,Consolas,monospace;-webkit-text-size-adjust:100%;}
+#hd{position:sticky;top:0;background:#0a0f15;border-bottom:2px solid #1c2733;padding:10px 12px;z-index:10;}
+#hd h1{margin:0;font-size:18px;letter-spacing:1px;color:#8fd0ff;}
+#hd .sub{font-size:12px;color:#6d7a88;margin-top:2px;}
+#log{padding:10px 12px 40px;font-size:14px;line-height:1.45;word-break:break-word;}
+.row{margin:2px 0;}
+.dim{color:#7a8794;}
+.hd2{color:#ffd479;font-weight:bold;font-size:15px;margin:14px 0 4px;border-top:1px solid #17212c;padding-top:8px;}
+.pass{color:#39ee7a;font-weight:bold;font-size:17px;}
+.fail{color:#ff5252;font-weight:bold;font-size:17px;}
+.warn{color:#ffcf55;font-weight:bold;}
+.kv{color:#bfe9ff;}
+#verdict{margin:16px 12px;padding:14px;border-radius:10px;background:#0d141c;border:2px solid #26313d;font-size:19px;font-weight:bold;line-height:1.4;}
+#verdict.ok{border-color:#1e6b3a;color:#39ee7a;}
+#verdict.bad{border-color:#7a1f1f;color:#ff6b6b;}
+#cvwrap{position:fixed;left:-99999px;top:0;}
+canvas{display:block;}
+.tag{display:inline-block;min-width:52px;}
+</style>
+</head>
+<body>
+<div id="hd">
+  <h1>DERBY DIAG · calcio/bolgia</h1>
+  <div class="sub">TRANSPORT vs RENDERER — ~30s. Guardare il verdetto in fondo.</div>
+</div>
+<div id="log"></div>
+<div id="verdict">Avvio diagnosi…</div>
+<div id="cvwrap"><canvas id="stagecv"></canvas></div>
+
+<script>
+"use strict";
+/* ============================================================================
+   DERBY DIAG — standalone. Isola se il crash del derby (calcio) sul telefono
+   uid 130506650 e' TRASPORTO o RENDERER. ES5 puro: var/function, niente
+   optional chaining, niente arrow/template literal — parseabile su WebView
+   Chromium vecchi. Nessuna dipendenza esterna. Nessun percorso money/wallet.
+   Beacon finale sul canale 'clog' ESISTENTE (t:'clog', at:'diag').
+   ========================================================================== */
+
+var BACKEND_WS = 'wss://62-238-17-24.sslip.io/turfws';
+
+/* uid per keyare i log VPS: ?uid=, poi Telegram, poi il default noto. */
+function getUid(){
+  try{
+    var q=String(location.search||'');
+    var m=q.match(/[?&]uid=(\d+)/);
+    if(m)return m[1];
+  }catch(e0){}
+  try{
+    if(window.Telegram&&window.Telegram.WebApp&&window.Telegram.WebApp.initDataUnsafe
+       &&window.Telegram.WebApp.initDataUnsafe.user&&window.Telegram.WebApp.initDataUnsafe.user.id)
+      return String(window.Telegram.WebApp.initDataUnsafe.user.id);
+  }catch(e1){}
+  return '130506650';
+}
+var UID=getUid();
+
+/* ---- logging helpers (tutto a schermo: il telefono non ha devtools) ---- */
+var LOG=document.getElementById('log');
+function el(cls,html){var d=document.createElement('div');d.className='row '+(cls||'');d.innerHTML=html;LOG.appendChild(d);return d;}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function head(t){el('hd2',esc(t));}
+function line(t){el('dim',esc(t));}
+function kv(k,v){el('','<span class="dim">'+esc(k)+':</span> <span class="kv">'+esc(v)+'</span>');}
+function pass(t){el('pass','PASS · '+esc(t));}
+function fail(t){el('fail','FAIL · '+esc(t));}
+function warnl(t){el('warn','WARN · '+esc(t));}
+function now(){try{return performance.now();}catch(e){return Date.now();}}
+
+/* raccolta risultati per il beacon finale */
+var R={ua:'',cver:'',dpr:0,vp:'',s0:{},s1:{},s2:{},s3:{},s4:{},s5:{},verdict:''};
+
+/* ============================================================================
+   STAGE 0 — DEVICE
+   ========================================================================== */
+function stage0(done){
+  head('STAGE 0 — DEVICE');
+  var ua='';try{ua=String(navigator.userAgent||'');}catch(e){ua='?';}
+  R.ua=ua;
+  el('','<span class="dim">UA:</span> <span class="kv">'+esc(ua)+'</span>');
+
+  /* parse versione Chromium / WebView */
+  var cver='?';
+  try{
+    var mm=ua.match(/Chrom(?:e|ium)\/(\d+)(?:\.(\d+))?/);
+    if(mm){cver=mm[1]+(mm[2]?('.'+mm[2]):'');}
+  }catch(e2){}
+  R.cver=cver;
+  var isWV=/; wv\)/.test(ua)||/ Version\/[\d.]+ Chrome/.test(ua);
+  kv('Chromium/WebView ver', cver+(isWV?'  (Android WebView)':'  (browser)'));
+  var cmaj=parseInt(cver,10);
+  if(!isNaN(cmaj)){
+    if(cmaj<80)warnl('Chromium '+cmaj+' e\' VECCHIO (<80): candidato forte per limiti canvas/API.');
+    else line('Chromium '+cmaj+': relativamente recente.');
+  }
+
+  var dpr=1;try{dpr=window.devicePixelRatio||1;}catch(e3){}
+  R.dpr=dpr;
+  kv('devicePixelRatio', String(dpr));
+  var iw=0,ih=0,sw=0,sh=0;
+  try{iw=window.innerWidth;ih=window.innerHeight;}catch(e4){}
+  try{sw=screen.width;sh=screen.height;}catch(e5){}
+  R.vp=iw+'x'+ih+' @'+dpr;
+  kv('innerWidth x innerHeight', iw+' x '+ih);
+  kv('screen.width x height', sw+' x '+sh);
+
+  /* dimensione BACKING calcio = cssW*dpr x cssH*dpr — il cuore del sospetto */
+  var bw=Math.round(iw*dpr), bh=Math.round(ih*dpr);
+  R.s0.backing=bw+'x'+bh;
+  el('','<span class="dim">calcio backing store (cssW*dpr x cssH*dpr):</span> <span class="warn">'+bw+' x '+bh+' px</span>  = '+Math.round(bw*bh/1e6*4*2)+'MB per i 2 canvas (st+skC)');
+
+  /* localStorage: gb_lite / gb_blgtier / gb_lasterr = memoria dei fallback gia' scattati */
+  var lite='(assente)',tier='(assente)',lerr='(assente)';
+  try{var v=localStorage.getItem('gb_lite');if(v!=null)lite=v;}catch(e6){}
+  try{var v2=localStorage.getItem('gb_blgtier');if(v2!=null)tier=v2;}catch(e7){}
+  try{var v3=localStorage.getItem('gb_lasterr');if(v3!=null)lerr=v3;}catch(e8){}
+  kv('localStorage gb_lite', lite);
+  kv('localStorage gb_blgtier', tier);
+  el('','<span class="dim">localStorage gb_lasterr:</span> <span class="'+(lerr==='(assente)'?'kv':'fail')+'">'+esc(lerr)+'</span>');
+  R.s0.lite=lite;R.s0.tier=tier;R.s0.lasterr=lerr;
+  if(lerr!=='(assente)')warnl('gb_lasterr NON vuoto: c\'e\' gia\' un errore render registrato sul telefono (vedi sopra).');
+  if(lite==='1')warnl('gb_lite=1: il telefono ha GIA\' attivato la modalita\' LITE (un rAF-stall/bake-fail e\' gia\' successo).');
+
+  next(done);
+}
+
+/* ============================================================================
+   STAGE 1 — TRANSPORT (WS + handshake + snapshot best-effort)
+   ========================================================================== */
+function stage1(done){
+  head('STAGE 1 — TRANSPORT (WebSocket verso il backend derby)');
+  if(typeof WebSocket==='undefined'){
+    fail('WebSocket NON esiste in questo WebView — trasporto impossibile.');
+    R.s1.ok=false;R.s1.reason='no-WebSocket';
+    return next(done);
+  }
+  kv('endpoint', BACKEND_WS);
+  kv('uid (per log VPS)', UID);
+
+  var t0=now();
+  var connected=false, helloOk=false;
+  var msgs=0, snaps=0, firstSnapMs=-1, firstMsgMs=-1;
+  var ws;
+  var finished=false;
+  var connLine=el('dim','apertura WS…');
+
+  try{ws=new WebSocket(BACKEND_WS);}
+  catch(e){fail('new WebSocket ha lanciato: '+(e&&e.message||e));R.s1.ok=false;R.s1.reason='throw';return next(done);}
+
+  BEACON_WS=ws; /* riusato per il beacon finale */
+
+  ws.onopen=function(){
+    connected=true;
+    var dt=Math.round(now()-t0);
+    connLine.innerHTML='<span class="pass">WS connected in '+dt+' ms</span>';
+    R.s1.connectMs=dt;
+    line('handshake applicativo: invio hello…');
+    try{
+      var initData='';
+      try{initData=(window.Telegram&&window.Telegram.WebApp&&window.Telegram.WebApp.initData)||'';}catch(ei){}
+      ws.send(JSON.stringify({t:'hello',user_id:String(UID),init_data:initData,profile:{}}));
+    }catch(es){}
+    /* keepalive: tiene VIVA la socket fino al beacon finale (~30s dopo) */
+    try{if(window._diagKA)clearInterval(window._diagKA);}catch(ek){}
+    window._diagKA=setInterval(function(){try{if(ws.readyState===1)ws.send('{"t":"ping"}');}catch(e){}},10000);
+  };
+  ws.onmessage=function(ev){
+    msgs++;
+    if(firstMsgMs<0)firstMsgMs=Math.round(now()-t0);
+    var m;try{m=JSON.parse(ev.data);}catch(ep){return;}
+    if(m.t==='hello_ok'){
+      helloOk=true;
+      el('','<span class="pass">hello_ok in '+firstMsgMs+' ms</span> <span class="dim">(server accetta, round-trip a doppio senso OK)</span>');
+      /* prova a trovare un match calcio live da guardare (best-effort) */
+      try{ws.send(JSON.stringify({t:'watch_list'}));}catch(ew){}
+    } else if(m.t==='watch_list'){
+      var rooms=m.rooms||[];
+      kv('watch_list rooms', String(rooms.length));
+      if(rooms.length){
+        var rid=rooms[0].rid;
+        line('tento watch della room '+rid+' per contare gli snapshot…');
+        try{ws.send(JSON.stringify({t:'watch',rid:rid}));}catch(ew2){}
+      }
+    } else if(m.t==='s'){
+      snaps++;
+      if(firstSnapMs<0){firstSnapMs=Math.round(now()-t0);el('','<span class="pass">primo snapshot (\'s\') in '+firstSnapMs+' ms</span>');}
+    }
+  };
+  ws.onerror=function(){ try{if(window._diagKA)clearInterval(window._diagKA);}catch(e){} if(!connected){connLine.innerHTML='<span class="fail">WS error prima della connessione</span>';} };
+  ws.onclose=function(ev){
+    try{if(window._diagKA)clearInterval(window._diagKA);}catch(e){}
+    if(finished)return;
+    if(!connected){
+      finish('close prima di open (code '+(ev&&ev.code)+')');
+    }
+  };
+
+  /* contatore live per ~6s poi verdetto stage */
+  var liveLine=el('dim','msgs: 0 · snapshots: 0');
+  var tick=setInterval(function(){
+    liveLine.innerHTML='<span class="dim">msgs:</span> <span class="kv">'+msgs+'</span> · <span class="dim">snapshots:</span> <span class="kv">'+snaps+'</span>';
+  },250);
+
+  var to=setTimeout(function(){finish('timeout finestra 6s');},6200);
+
+  function finish(reason){
+    if(finished)return;finished=true;
+    clearInterval(tick);clearTimeout(to);
+    liveLine.innerHTML='<span class="dim">msgs:</span> <span class="kv">'+msgs+'</span> · <span class="dim">snapshots:</span> <span class="kv">'+snaps+'</span>';
+    R.s1.connected=connected;R.s1.helloOk=helloOk;R.s1.msgs=msgs;R.s1.snaps=snaps;
+    R.s1.firstSnapMs=firstSnapMs;R.s1.reason=reason;
+    if(snaps>0){pass('TRASPORTO SANO — snapshot calcio ricevuti ('+snaps+'). La rete/WS non e\' la causa.');R.s1.ok=true;R.s1.grade='snapshots';}
+    else if(helloOk){pass('TRASPORTO SANO — WS+handshake OK (nessun match calcio live da guardare ora, ma i messaggi arrivano a doppio senso).');R.s1.ok=true;R.s1.grade='handshake';}
+    else if(connected){warnl('WS connessa ma nessun hello_ok. Trasporto TCP/WS raggiunge il server; auth/handshake non completato (initData assente aprendo da URL). Il livello di rete e\' comunque provato.');R.s1.ok=true;R.s1.grade='connect-only';}
+    else {fail('WS non connessa ('+reason+') — su QUESTA rete il trasporto fallisce.');R.s1.ok=false;R.s1.grade='no-connect';}
+    /* non chiudo ws: lo riuso per il beacon finale */
+    next(done);
+  }
+}
+var BEACON_WS=null;
+
+/* ============================================================================
+   STAGE 2 — CANVAS SIZE LIMITS (probe centrale)
+   Crea canvas a dimensioni crescenti, riempie e rilegge 1px al centro + angolo.
+   Un no-op silenzioso (readback sbagliato/zero) a/sotto la size calcio conferma
+   l'ipotesi backing-store sovradimensionato.
+   ========================================================================== */
+function makeSizeList(){
+  var iw=0,ih=0,dpr=1;
+  try{iw=window.innerWidth;ih=window.innerHeight;dpr=window.devicePixelRatio||1;}catch(e){}
+  var cw=Math.round(iw*dpr),ch=Math.round(ih*dpr);
+  var L=[];
+  L.push({w:cw,h:ch,tag:'calcio backing (cssW*dpr x cssH*dpr)'});
+  L.push({w:2048,h:2048,tag:'2048'});
+  L.push({w:4096,h:4096,tag:'4096'});
+  L.push({w:8192,h:8192,tag:'8192'});
+  return L;
+}
+function testCanvasSize(w,h){
+  /* ritorna {ok, why, cw, ch}. ok=true se il backing store dipinge davvero. */
+  var res={ok:false,why:'',cw:0,ch:0};
+  var cv=null,ctx=null;
+  try{
+    cv=document.createElement('canvas');
+    cv.width=w;cv.height=h;
+    res.cw=cv.width;res.ch=cv.height;
+    if(cv.width!==w||cv.height!==h){res.why='clamped a '+cv.width+'x'+cv.height;}
+    ctx=cv.getContext('2d');
+    if(!ctx){res.why='getContext null';return res;}
+    /* colore noto opaco */
+    ctx.fillStyle='rgb(11,181,91)';
+    ctx.fillRect(0,0,cv.width,cv.height);
+    /* leggi al centro e all'angolo lontano: se il backing e' finto/blank uno dei due e' 0 */
+    var midx=Math.floor(cv.width/2),midy=Math.floor(cv.height/2);
+    var d1=ctx.getImageData(midx,midy,1,1).data;
+    var fx=Math.max(0,cv.width-2),fy=Math.max(0,cv.height-2);
+    var d2=ctx.getImageData(fx,fy,1,1).data;
+    var okMid=(Math.abs(d1[0]-11)<24&&Math.abs(d1[1]-181)<24&&Math.abs(d1[2]-91)<24&&d1[3]>200);
+    var okFar=(Math.abs(d2[0]-11)<24&&Math.abs(d2[1]-181)<24&&Math.abs(d2[2]-91)<24&&d2[3]>200);
+    res.mid=d1[0]+','+d1[1]+','+d1[2]+','+d1[3];
+    res.far=d2[0]+','+d2[1]+','+d2[2]+','+d2[3];
+    if(okMid&&okFar){res.ok=true;}
+    else if(okMid&&!okFar){res.why='centro OK ma ANGOLO vuoto ('+res.far+') → backing troncato';}
+    else {res.why='readback errato (mid '+res.mid+')';}
+  }catch(e){res.why='exception: '+(e&&e.message||e);}
+  finally{ try{if(cv){cv.width=0;cv.height=0;}}catch(ef){} }
+  return res;
+}
+function stage2(done){
+  head('STAGE 2 — CANVAS SIZE LIMITS (probe centrale)');
+  var list=makeSizeList();
+  var largest=0,largestTag='',calcioOk=null;
+  var i=0;
+  function step(){
+    if(i>=list.length){
+      R.s2.largest=largest;R.s2.calcioOk=calcioOk;
+      if(calcioOk===false){fail('Il canvas alla dimensione REALE del calcio non regge — questa E\' la causa del render bloccato.');}
+      else line('Piu\' grande size che rilegge corretta: '+largest+'px ('+largestTag+').');
+      next(done);
+      return;
+    }
+    var it=list[i];i++;
+    /* logga il tentativo PRIMA di allocare: se crasha qui, l'ultima riga lo dice */
+    var ln=el('dim','provo '+it.tag+' ('+it.w+'x'+it.h+')…');
+    /* lascia dipingere la riga, poi alloca (blocca il main thread) */
+    setTimeout(function(){
+      var r=testCanvasSize(it.w,it.h);
+      var side=Math.max(it.w,it.h);
+      if(r.ok){
+        ln.innerHTML='<span class="pass">'+esc(it.tag)+' ('+it.w+'x'+it.h+') OK</span> <span class="dim">mid='+r.mid+' far='+r.far+'</span>';
+        if(side>largest){largest=side;largestTag=it.tag;}
+        if(it.tag.indexOf('calcio')===0)calcioOk=true;
+      }else{
+        ln.innerHTML='<span class="fail">'+esc(it.tag)+' ('+it.w+'x'+it.h+') FALLISCE</span> <span class="dim">'+esc(r.why)+' [cw='+r.cw+' ch='+r.ch+']</span>';
+        if(it.tag.indexOf('calcio')===0)calcioOk=false;
+      }
+      step();
+    },30);
+  }
+  step();
+}
+
+/* ============================================================================
+   STAGE 3 — DOUBLE FULL-VIEWPORT BAKE (riproduce calcio esatto: blgBakeFull)
+   Due canvas offscreen a cssW*dpr x cssH*dpr (st + skC), gradient lin/rad +
+   ~2500 grain fillRects in st, poi drawImage entrambi sul canvas visibile e
+   verifica readback. Bake lungo => blocco main-thread (msgs:2/s:0). Readback
+   fallito => caso "congelato con dati" che blitta il nulla.
+   ========================================================================== */
+function stage3(done){
+  head('STAGE 3 — DOUBLE BAKE full-viewport (riproduce blgBakeFull)');
+  var iw=0,ih=0,dpr=1;
+  try{iw=window.innerWidth;ih=window.innerHeight;dpr=window.devicePixelRatio||1;}catch(e){}
+  var w=Math.round(iw*dpr),hh=Math.round(ih*dpr);
+  kv('bake target', w+' x '+hh+' px  (x2 canvas: st + skC)');
+  var ln=el('dim','baking… (puo\' bloccare il thread qualche secondo)');
+  setTimeout(function(){
+    var t0=now();
+    var out=doBake(w,hh);
+    var dt=Math.round(now()-t0);
+    R.s3.bakeMs=dt;R.s3.bakeOk=out.bakeOk;R.s3.blitOk=out.blitOk;R.s3.why=out.why;
+    var slow=dt>1200;
+    var msg='bake '+dt+' ms';
+    if(!out.bakeOk){ln.innerHTML='<span class="fail">BAKE FALLITO ('+msg+') — '+esc(out.why)+'</span>';}
+    else if(!out.blitOk){ln.innerHTML='<span class="fail">BAKE ok ma BLIT VUOTO ('+msg+') — riproduce il "congelato con dati": readback '+esc(out.readback)+'</span>';}
+    else{ln.innerHTML='<span class="'+(slow?'warn':'pass')+'">BAKE+BLIT OK · '+msg+(slow?'  (LENTO: blocca il main-thread → msgs:2/s:0)':'')+'</span> <span class="dim">readback '+esc(out.readback)+'</span>';}
+    if(slow&&out.bakeOk)warnl('Bake >1200ms: su WebView vecchio questo blocca il thread e i primi snapshot ('+dt+'ms).');
+    next(done);
+  },40);
+}
+function doBake(w,hh){
+  var res={bakeOk:false,blitOk:false,why:'',readback:''};
+  var st=null,skC=null;
+  try{
+    /* ---- st: campo bakeato, identico a blgBakeFull (gradient + 2500 grain + ellipse + font + clip) ---- */
+    st=document.createElement('canvas');st.width=Math.max(2,w);st.height=Math.max(2,hh);
+    var c=st.getContext('2d');
+    if(!c){res.why='st getContext null';return res;}
+    var H=9,Wm=16;
+    var S=Math.min(w/H,hh/(Wm+1.3));
+    var offX=(w-H*S)/2,offY=(hh-Wm*S)/2;
+    var fx0=offX,fy0=offY,fw=H*S,fh=Wm*S;
+    var sd=w*127.3+hh*7.1+1;
+    function rnd(){sd=(sd*9301+49297)%233280;return sd/233280;}
+    /* notte fuori campo (linear gradient) */
+    var g0=c.createLinearGradient(0,0,0,hh);
+    g0.addColorStop(0,'#050b08');g0.addColorStop(0.5,'#08130c');g0.addColorStop(1,'#050b08');
+    c.fillStyle=g0;c.fillRect(0,0,w,hh);
+    /* erba a strisce */
+    var b2;for(b2=0;b2<8;b2++){c.fillStyle=(b2%2)?'#185a28':'#1f6b31';c.fillRect(fx0,fy0+fh*b2/8,fw,fh/8+1);}
+    /* grana 2500 puntini (il carico pesante del bake) */
+    var gI;for(gI=0;gI<2500;gI++){c.fillStyle=rnd()<0.5?'rgba(0,0,0,.10)':'rgba(255,255,255,.05)';c.fillRect(fx0+rnd()*fw,fy0+rnd()*fh,1.5,1.5);}
+    /* chiazze usura: ellipse */
+    c.fillStyle='rgba(120,96,40,.10)';
+    c.beginPath();c.ellipse(fx0+fw/2,fy0+fh/2,S*1.8,S*1.4,0,0,6.283);c.fill();
+    /* hotspot riflettori: radial gradient */
+    var hps=[[fx0+fw*0.22,fy0+fh*0.2],[fx0+fw*0.78,fy0+fh*0.8]];
+    var hI;for(hI=0;hI<2;hI++){
+      var rg=c.createRadialGradient(hps[hI][0],hps[hI][1],2,hps[hI][0],hps[hI][1],S*2.6);
+      rg.addColorStop(0,'rgba(255,255,230,.10)');rg.addColorStop(1,'rgba(255,255,230,0)');
+      c.fillStyle=rg;c.beginPath();c.arc(hps[hI][0],hps[hI][1],S*2.6,0,6.283);c.fill();
+    }
+    /* linee bianche + cerchio */
+    c.strokeStyle='rgba(255,255,255,.85)';c.lineWidth=Math.max(1.5,0.06*S);
+    c.strokeRect(fx0,fy0,fw,fh);
+    c.beginPath();c.arc(fx0+fw/2,fy0+fh/2,2.0*S,0,6.283);c.stroke();
+    /* logo D: font text */
+    c.save();c.globalAlpha=0.10;c.fillStyle='#04140a';
+    c.font='bold '+Math.round(2.6*S)+'px sans-serif';c.textAlign='center';c.textBaseline='middle';
+    c.fillText('D',fx0+fw/2,fy0+fh/2);c.restore();
+    /* rete porta: clip + crosshatch */
+    var gwPx=2.6*S,dep=0.5*S,nx0=fx0+fw/2-gwPx/2,ny0=fy0-dep;
+    c.save();c.beginPath();c.rect(nx0,ny0,gwPx,dep);c.clip();
+    c.strokeStyle='rgba(230,240,255,.35)';c.lineWidth=1;
+    var nn;for(nn=-dep;nn<gwPx+dep;nn+=3){c.beginPath();c.moveTo(nx0+nn,ny0);c.lineTo(nx0+nn+dep,ny0+dep);c.stroke();}
+    c.restore();
+    /* vignetta: radial gradient full-canvas */
+    var vg=c.createRadialGradient(w/2,hh/2,Math.min(w,hh)*0.45,w/2,hh/2,Math.max(w,hh)*0.75);
+    vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.38)');
+    c.fillStyle=vg;c.fillRect(0,0,w,hh);
+    res.bakeOk=true;
+
+    /* ---- skC: secondo canvas full-res (layer scivolate) + destination-out ---- */
+    skC=document.createElement('canvas');skC.width=w;skC.height=hh;
+    var sk=skC.getContext('2d');
+    sk.fillStyle='rgba(255,255,255,.25)';sk.fillRect(fx0,fy0,fw*0.3,fh*0.3);
+    sk.globalCompositeOperation='destination-out';
+    sk.fillStyle='rgba(0,0,0,0.5)';sk.fillRect(fx0,fy0,fw*0.1,fh*0.1);
+    sk.globalCompositeOperation='source-over';
+
+    /* ---- blit entrambi sul canvas visibile e verifica readback ---- */
+    var vis=document.getElementById('stagecv');
+    vis.width=w;vis.height=hh;
+    var vx=vis.getContext('2d');
+    vx.drawImage(st,0,0,w,hh);
+    vx.drawImage(skC,0,0);
+    var mx=Math.floor(w/2),my=Math.floor(hh*0.5);
+    var px=vx.getImageData(mx,my,1,1).data;
+    res.readback=px[0]+','+px[1]+','+px[2]+','+px[3];
+    /* il campo al centro deve essere verde-ish opaco */
+    if(px[3]>200&&(px[1]>px[0])&&px[1]>30){res.blitOk=true;}
+    else{res.why='blit non ha depositato pixel attesi';}
+  }catch(e){res.why=(e&&e.message||e)+'';}
+  finally{ try{if(st){st.width=0;st.height=0;}if(skC){skC.width=0;skC.height=0;}}catch(ef){} }
+  return res;
+}
+
+/* ============================================================================
+   STAGE 4 — API PROBES (conferma on-device le API che il calcio usa)
+   Draw + readback di ogni primitiva. Attese tutte PASS (gld/scl le provano),
+   ma chiude la domanda per QUESTO WebView.
+   ========================================================================== */
+function stage4(done){
+  head('STAGE 4 — API PROBES (le primitive canvas del calcio)');
+  var cv=document.createElement('canvas');cv.width=64;cv.height=64;
+  var g=cv.getContext('2d');
+  function readNonBlank(){
+    /* scandisce TUTTO il canvas: un glyph (es. la 'D') e' vuoto al centro,
+       quindi il sample a un solo punto darebbe un falso FAIL. */
+    try{
+      var d=g.getImageData(0,0,64,64).data,i,painted=0;
+      for(i=0;i<d.length;i+=4){ if(d[i+3]>0&&(d[i]+d[i+1]+d[i+2])>0){painted++; if(painted>3)return true;} }
+      return false;
+    }catch(e){return false;}
+  }
+  function clr(){try{g.setTransform(1,0,0,1,0,0);g.globalCompositeOperation='source-over';g.globalAlpha=1;g.clearRect(0,0,64,64);}catch(e){}}
+  var fails=[];
+  function probe(name,fn){
+    var ok=false,why='';
+    try{clr();fn();ok=readNonBlank();if(!ok)why='readback vuoto';}
+    catch(e){ok=false;why=(e&&e.message||e)+'';}
+    if(ok)el('','<span class="pass tag">PASS</span> '+esc(name));
+    else{el('','<span class="fail tag">FAIL</span> '+esc(name)+' <span class="dim">'+esc(why)+'</span>');fails.push(name);}
+  }
+  probe('ctx.ellipse',function(){g.fillStyle='#0bb55b';g.beginPath();g.ellipse(32,32,20,14,0,0,6.283);g.fill();});
+  probe('createRadialGradient',function(){var r=g.createRadialGradient(32,32,2,32,32,30);r.addColorStop(0,'#fff');r.addColorStop(1,'#000');g.fillStyle=r;g.fillRect(0,0,64,64);});
+  probe('createLinearGradient',function(){var r=g.createLinearGradient(0,0,64,64);r.addColorStop(0,'#0bb55b');r.addColorStop(1,'#123');g.fillStyle=r;g.fillRect(0,0,64,64);});
+  probe('arc',function(){g.fillStyle='#0bb55b';g.beginPath();g.arc(32,32,20,0,6.283);g.fill();});
+  probe('clip',function(){g.save();g.beginPath();g.rect(8,8,48,48);g.clip();g.fillStyle='#0bb55b';g.fillRect(0,0,64,64);g.restore();});
+  probe("globalCompositeOperation 'lighter'",function(){g.fillStyle='#0b3';g.fillRect(0,0,64,64);g.globalCompositeOperation='lighter';g.fillStyle='#033';g.fillRect(0,0,64,64);});
+  probe("globalCompositeOperation 'destination-out'",function(){g.fillStyle='#0bb55b';g.fillRect(0,0,64,64);g.globalCompositeOperation='destination-out';g.fillStyle='rgba(0,0,0,.5)';g.fillRect(0,0,20,20);g.globalCompositeOperation='source-over';});
+  probe('ctx.font text (fillText)',function(){g.fillStyle='#0bb55b';g.font='bold 40px sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText('D',32,32);});
+  /* roundRect: solo presenza (il calcio la evita ma la sondiamo) */
+  var hasRR=(typeof g.roundRect==='function');
+  R.s4.roundRect=hasRR;
+  el('','<span class="'+(hasRR?'pass':'warn')+' tag">'+(hasRR?'PRES':'ASSN')+'</span> CanvasRenderingContext2D.roundRect '+(hasRR?'presente':'ASSENTE (ok: calcio non la usa; sarebbe fatale se qualche path la chiamasse)'));
+
+  R.s4.fails=fails;
+  if(fails.length===0)pass('Tutte le API canvas del calcio funzionano su questo WebView.');
+  else fail('API rotte su questo WebView: '+fails.join(', '));
+  next(done);
+}
+
+/* ============================================================================
+   STAGE 5 — rAF LIVENESS UNDER LOAD
+   rAF 5s: ogni frame blit camera-scaled dello st sovradimensionato + drawImage
+   skC (come blgDrawCore). In parallelo setInterval(50ms). Se rAF si ferma mentre
+   l'interval continua → drop del compositor (main-thread vivo, sorgente frame
+   morta) = caso msgs:5420/s:5373.
+   ========================================================================== */
+function stage5(done){
+  head('STAGE 5 — rAF LIVENESS UNDER LOAD (5s)');
+  var iw=0,ih=0,dpr=1;
+  try{iw=window.innerWidth;ih=window.innerHeight;dpr=window.devicePixelRatio||1;}catch(e){}
+  var w=Math.round(iw*dpr),hh=Math.round(ih*dpr);
+  /* prepara uno st sovradimensionato (come il campo calcio) da ri-blittare ogni frame */
+  var st=document.createElement('canvas');st.width=Math.max(2,w);st.height=Math.max(2,hh);
+  var sc=st.getContext('2d');
+  try{
+    var g0=sc.createLinearGradient(0,0,0,hh);g0.addColorStop(0,'#123');g0.addColorStop(1,'#061');sc.fillStyle=g0;sc.fillRect(0,0,w,hh);
+    sc.fillStyle='#0bb55b';sc.fillRect(w*0.1,hh*0.1,w*0.8,hh*0.8);
+  }catch(eg){}
+  var skC=document.createElement('canvas');skC.width=Math.max(2,w);skC.height=Math.max(2,hh);
+  var skx=skC.getContext('2d');try{skx.fillStyle='rgba(255,255,255,.15)';skx.fillRect(0,0,w*0.3,hh*0.3);}catch(es){}
+  var vis=document.getElementById('stagecv');vis.width=w;vis.height=hh;
+  var vx=vis.getContext('2d');
+
+  var rafN=0,tickN=0,camZ=1;
+  var t0=now(),lastRaf=t0,maxGap=0;
+  var ln=el('dim','rAF: 0 · interval: 0');
+  var running=true;
+
+  var iv=setInterval(function(){
+    tickN++;
+    if(running)ln.innerHTML='<span class="dim">rAF frames:</span> <span class="kv">'+rafN+'</span> · <span class="dim">interval ticks:</span> <span class="kv">'+tickN+'</span> · <span class="dim">maxGap:</span> <span class="'+(maxGap>250?'fail':'kv')+'">'+Math.round(maxGap)+'ms</span>';
+  },50);
+
+  function frame(){
+    if(!running)return;
+    var tn=now();
+    var gap=tn-lastRaf;if(gap>maxGap&&rafN>0)maxGap=gap;lastRaf=tn;
+    rafN++;
+    try{
+      vx.setTransform(1,0,0,1,0,0);
+      vx.clearRect(0,0,w,hh);
+      /* camera come blgDrawCore: translate/scale/translate, poi blit full + skC */
+      camZ=1+0.25*(1+Math.sin(tn/500));
+      vx.translate(w/2,hh/2);vx.scale(camZ,camZ);vx.translate(-w/2,-hh/2);
+      vx.drawImage(st,0,0,w,hh);
+      vx.setTransform(1,0,0,1,0,0);
+      vx.drawImage(skC,0,0);
+    }catch(ef){}
+    if(tn-t0<5000){ (window.requestAnimationFrame||window.webkitRequestAnimationFrame)(frame); }
+    else finishStage();
+  }
+
+  function finishStage(){
+    if(!running)return;running=false;
+    clearInterval(iv);
+    try{st.width=0;st.height=0;skC.width=0;skC.height=0;}catch(ec){}
+    R.s5.rafN=rafN;R.s5.tickN=tickN;R.s5.maxGap=Math.round(maxGap);
+    var fps=Math.round(rafN/5);
+    ln.innerHTML='<span class="dim">rAF frames:</span> <span class="kv">'+rafN+'</span> (~'+fps+'fps) · <span class="dim">interval ticks:</span> <span class="kv">'+tickN+'</span> · <span class="dim">maxGap:</span> <span class="'+(maxGap>250?'fail':'kv')+'">'+Math.round(maxGap)+'ms</span>';
+    /* diagnosi: interval tick attesi ~100 in 5s. Se ticks continuano ma rAF si ferma → compositor drop */
+    if(rafN<5){fail('rAF praticamente MORTO ('+rafN+' frame in 5s) mentre l\'interval ha fatto '+tickN+' tick → sorgente frame morta, main-thread vivo (msgs alti / schermo fermo).');R.s5.grade='raf-dead';}
+    else if(maxGap>1000&&tickN>rafN*1.5){warnl('rAF a scatti (maxGap '+Math.round(maxGap)+'ms) mentre l\'interval regge → drop del compositor sotto carico blit.');R.s5.grade='raf-stall';}
+    else if(fps<20){warnl('rAF vivo ma LENTO (~'+fps+'fps) sotto il blit calcio: al limite, rischio stall.');R.s5.grade='raf-slow';}
+    else{pass('rAF VIVO sotto carico (~'+fps+'fps, maxGap '+Math.round(maxGap)+'ms). Il loop di render regge il blit calcio.');R.s5.grade='raf-ok';}
+    next(done);
+  }
+
+  (window.requestAnimationFrame||window.webkitRequestAnimationFrame||function(f){setTimeout(f,16);})(frame);
+}
+
+/* ============================================================================
+   VERDETTO + BEACON
+   ========================================================================== */
+function verdict(){
+  head('VERDETTO');
+  var transportOk = R.s1.ok;
+  var stage='', bad=false, txt='';
+
+  if(!transportOk){
+    bad=true;
+    txt='TRASPORTO FALLISCE su questa rete (Stage 1) — non e\' il renderer. '+((R.s1.reason)||'');
+    stage='stage1';
+  } else if(R.s2.calcioOk===false){
+    bad=true;
+    txt='TRANSPORT OK — RENDERER MUORE a Stage 2: il canvas alla dimensione REALE del calcio non regge il readback. Backing-store sovradimensionato = causa diretta.';
+    stage='stage2';
+  } else if(R.s2.largest>0 && R.s2.largest<Math.max(1,Math.round((window.innerWidth||1)*(window.devicePixelRatio||1)))*0){
+    /* placeholder non usato */
+  } else if(R.s3 && R.s3.bakeOk===false){
+    bad=true;
+    txt='TRANSPORT OK — RENDERER MUORE a Stage 3: il DOUBLE BAKE full-viewport fallisce ('+(R.s3.why||'')+'). Il campo non si costruisce.';
+    stage='stage3';
+  } else if(R.s3 && R.s3.blitOk===false){
+    bad=true;
+    txt='TRANSPORT OK — RENDERER MUORE a Stage 3: il bake riesce ma il BLIT deposita il nulla (readback '+(R.s3.readback||'')+'). Riproduce lo "schermo fermo con dati".';
+    stage='stage3-blit';
+  } else if(R.s4 && R.s4.fails && R.s4.fails.length){
+    bad=true;
+    txt='TRANSPORT OK — RENDERER MUORE a Stage 4: API canvas rotte su questo WebView ('+R.s4.fails.join(', ')+').';
+    stage='stage4';
+  } else if(R.s5 && (R.s5.grade==='raf-dead'||R.s5.grade==='raf-stall')){
+    bad=true;
+    txt='TRANSPORT OK — RENDERER MUORE a Stage 5: il rAF '+(R.s5.grade==='raf-dead'?'MUORE':'va a scatti')+' sotto il blit calcio (rAF '+R.s5.rafN+' vs interval '+R.s5.tickN+', maxGap '+R.s5.maxGap+'ms). Stall del compositor.';
+    stage='stage5';
+  } else if(R.s3 && R.s3.bakeMs>1200){
+    bad=false;
+    txt='TRANSPORT OK · RENDERER SOSPETTO: tutto passa MA il bake del campo e\' LENTO ('+R.s3.bakeMs+'ms) → blocca i primi snapshot su WebView vecchio. Attiva la modalita\' LITE.';
+    stage='stage3-slow';
+  } else {
+    bad=false;
+    txt='TRANSPORT OK · RENDERER PASSA tutte le probe su questo device. Il crash calcio NON si riproduce qui: sospetta uno stato/roster specifico del match (gate/early-return con dati reali) piu\' che una limite hardware.';
+    stage='all-pass';
+  }
+
+  R.verdict=stage;
+  var vd=document.getElementById('verdict');
+  vd.className=bad?'bad':'ok';
+  vd.innerHTML=(bad?'✗ ':'✓ ')+esc(txt);
+
+  /* riepilogo compatto a schermo */
+  el('','<span class="dim">device:</span> <span class="kv">Chromium '+esc(R.cver)+' · dpr '+R.dpr+' · '+esc(R.vp)+'</span>');
+  el('','<span class="dim">transport:</span> <span class="kv">'+(R.s1.grade||'?')+' (msgs '+(R.s1.msgs||0)+', snaps '+(R.s1.snaps||0)+')</span>');
+  el('','<span class="dim">canvas max:</span> <span class="kv">'+(R.s2.largest||0)+'px · calcio-size '+(R.s2.calcioOk===false?'FAIL':'ok')+'</span>');
+  el('','<span class="dim">bake:</span> <span class="kv">'+(R.s3.bakeMs||0)+'ms · bake '+(R.s3.bakeOk?'ok':'FAIL')+' · blit '+(R.s3.blitOk?'ok':'FAIL')+'</span>');
+  el('','<span class="dim">api fails:</span> <span class="kv">'+((R.s4.fails&&R.s4.fails.length)?R.s4.fails.join(','):'nessuno')+'</span>');
+  el('','<span class="dim">rAF:</span> <span class="kv">'+(R.s5.rafN||0)+' vs '+(R.s5.tickN||0)+' tick · '+(R.s5.grade||'?')+'</span>');
+
+  beacon(stage);
+}
+
+/* beacon sul canale 'clog' ESISTENTE (nessun nuovo tipo WS), keyed at:'diag' */
+function beacon(stage){
+  try{
+    var payload={
+      t:'clog',at:'diag',uid:UID,
+      ver:R.cver,dpr:R.dpr,vp:R.vp,
+      s0lite:R.s0.lite,s0tier:R.s0.tier,s0err:(R.s0.lasterr||'').slice(0,80),
+      s1:R.s1.grade,s1msgs:R.s1.msgs,s1snaps:R.s1.snaps,
+      s2max:R.s2.largest,s2calcio:R.s2.calcioOk,
+      s3ms:R.s3.bakeMs,s3bake:R.s3.bakeOk,s3blit:R.s3.blitOk,
+      s4:(R.s4.fails||[]).join(','),
+      s5raf:R.s5.rafN,s5tick:R.s5.tickN,s5gap:R.s5.maxGap,s5:R.s5.grade,
+      verdict:stage
+    };
+    var s=JSON.stringify(payload);
+    if(BEACON_WS&&BEACON_WS.readyState===1){BEACON_WS.send(s);el('dim','beacon inviato al VPS (clog/diag, keyed uid '+UID+').');return;}
+    /* se il ws stage1 e' gia' chiuso, riapri solo per il beacon */
+    var b=new WebSocket(BACKEND_WS);
+    b.onopen=function(){
+      try{
+        var initData='';try{initData=(window.Telegram&&window.Telegram.WebApp&&window.Telegram.WebApp.initData)||'';}catch(ei){}
+        b.send(JSON.stringify({t:'hello',user_id:String(UID),init_data:initData,profile:{}}));
+        setTimeout(function(){try{b.send(s);el('dim','beacon inviato al VPS (clog/diag).');}catch(e){}},400);
+      }catch(e){}
+    };
+    b.onerror=function(){el('warn','beacon non inviato (ws non disponibile) — leggere comunque il verdetto a schermo.');};
+  }catch(e){el('warn','beacon fallito: '+(e&&e.message||e));}
+}
+
+/* ============================================================================
+   RUNNER — stadi in sequenza, con pausa per far ridisegnare la pagina
+   ========================================================================== */
+var STEPS=[stage0,stage1,stage2,stage3,stage4,stage5];
+var _si=0;
+function next(done){ if(done)done(); }
+function runNext(){
+  if(_si>=STEPS.length){verdict();return;}
+  var fn=STEPS[_si++];
+  setTimeout(function(){
+    try{fn(runNext);}
+    catch(e){fail('stage exception: '+(e&&e.message||e));setTimeout(runNext,50);}
+  },120);
+}
+window.onerror=function(msg,src,ln,col,err){
+  try{el('fail','window.onerror: '+esc(String(msg))+' @'+ln+':'+col);}catch(e){}
+  return false;
+};
+/* via */
+runNext();
+</script>
+</body>
+</html>
