@@ -41803,13 +41803,19 @@ function rtdConnect(){
   RTD.ws=ws;
   ws.onopen=function(){
     RTD.wsOk=true;wsNetBanner('arc',0);
+    // (24/07) socket NUOVA: l'uplink riparte da zero — _lastPong ricaricato (8s di
+    // grazia, niente reconnect-storm) e _lastPingT azzerato così rtdUplinkCheck
+    // manda subito un ping e verifica in fretta se la socket nuova parla davvero.
+    RTD._lastPong=performance.now();RTD._lastPingT=0;
     // KEEPALIVE NAT (19/07): il telefono salta WiFi<->dati e le mappature NAT
     // scadono nei minuti passati in menu; un ping applicativo ogni 20s tiene
     // vivo il percorso e fa emergere subito i socket zombie (il TCP in errore
     // chiude la ws → scatta la riconnessione normale).
+    // (24/07) il ping porta ora un ts e segna _lastPingT: la risposta {t:'pong'}
+    // aggiorna _lastPong → rtdUplinkCheck può distinguere uplink vivo da half-open.
     if(RTD.kaT){clearInterval(RTD.kaT);}
     RTD.kaT=setInterval(function(){
-      try{if(RTD.ws&&RTD.ws.readyState===1)RTD.ws.send('{"t":"ping"}');}catch(e){}
+      try{if(RTD.ws&&RTD.ws.readyState===1){RTD._lastPingT=performance.now();RTD.ws.send(JSON.stringify({t:'ping',ts:Date.now()}));}}catch(e){}
     },20000);
     setTimeout(function(){if(RTD.ws===ws&&RTD.wsOk)RTD.retries=0;},10000);   // retries azzerati SOLO dopo 10s stabili
     var initData='';
@@ -41846,6 +41852,10 @@ function rtdConnect(){
 function rtdSend(o){if(RTD.wsOk){try{RTD.ws.send(JSON.stringify(o));}catch(e){}}}
 function rtdOnMsg(m){
   var t=m.t;
+  // UPLINK HALF-OPEN (24/07 derby): il server risponde {t:'pong'} ai nostri
+  // {t:'ping'}. Il pong è l'UNICA prova che l'uplink client→server è vivo (gli
+  // snapshot in arrivo provano solo il downlink). rtdUplinkCheck usa _lastPong.
+  if(t==='pong'){RTD._lastPong=performance.now();return;}
   if(t==='hello_ok'){
     if(m.rate)RTD.rate=m.rate;
     if(RTD.pendingTicket){rtdSend({t:'join_ticket',ticket:RTD.pendingTicket.t,game:RTD.pendingTicket.g});RTD.game=RTD.pendingTicket.g;RTD.pendingTicket=null;rtdShowSearch();return;}
@@ -41917,6 +41927,19 @@ function rtdOnMsg(m){
     RTD.potEur=m.pot_eur||0;if(m.rate)RTD.rate=m.rate;
     RTD.snaps=[];RTD.over=null;RTD.lastRaw=null;RTD.pgSeat=null;RTD.anim={};RTD.fxq=[];RTD.skids=[];RTD.stampQ=[];
     RTD.feedRows=[];RTD.shake=0;RTD.cam.ok=false;RTD._sc={};RTD._lf=0;RTD._lookC={};RTD._wsRk=0;
+    // UPLINK WATCHDOG (24/07): finestre ping/pong azzerate a ogni 'start'
+    // (_lastPong = "adesso" → 8s di grazia prima di poter anche solo sospettare
+    // un half-open). Il BUDGET _upRk invece NON si azzera se questo 'start' è il
+    // RE-INVIO che il server fa quando ri-binda la room sulla socket nuova
+    // (turfwar_rt_server ~2026-2028) subito dopo un reconnect deciso dal
+    // watchdog: azzerarlo lì renderebbe il cap inefficace (ogni reconnect
+    // rigenererebbe il budget → riconnessioni a ciclo). Solo uno 'start' di un
+    // match DAVVERO nuovo (nessun nostro reconnect negli ultimi 15s) lo ricarica.
+    var _upRebind=!!(RTD._upReconnT&&(performance.now()-RTD._upReconnT<15000));
+    RTD._upReconnT=0;
+    if(!_upRebind)RTD._upRk=0;
+    RTD._lastPong=performance.now();RTD._lastPingT=0;
+    RTD._bcSnapDone=0;RTD._bcFrameIn=0;
     var ttl=document.getElementById('arc-title');
     if(ttl){ttl.textContent=rtdMeta().title;ttl.style.color=rtdMeta().color;}
     rtdShowMatch();
@@ -42738,6 +42761,55 @@ function rtdStallCheck(){
     RTD.ws=null;RTD.wsOk=false;rtdConnect();
   }
 }
+// ── UPLINK HALF-OPEN WATCHDOG (24/07, fix DERBY "bound=assente") ────
+// rtdStallCheck copre il DOWNLINK morto (nessun messaggio in arrivo). Questo
+// copre il caso OPPOSTO e invisibile: la ws va HALF-OPEN durante il match —
+// il downlink resta vivo (gli snapshot continuano ad arrivare, il rendering
+// gira) ma l'UPLINK client→server è morto: ogni ws.send finisce nel vuoto.
+// Il browser risponde ai PING di PROTOCOLLO a livello di rete, quindi il
+// server non se ne accorge finché non scade il suo ping-timeout (~39s) e a
+// quel punto droppa il peer → room.socks[uid] muore → "bound=assente" e il
+// calcio resta piantato. Sintomo diagnosticabile SOLO così: i {t:'pong'} di
+// risposta ai nostri {t:'ping'} smettono di tornare MENTRE gli snapshot
+// arrivano ancora.
+//
+// Perché setInterval PLAIN e non rAF: tutto il punto è che il JS può essere
+// vivo mentre il rAF è fermo (e viceversa) — l'interval sopravvive a entrambi.
+//
+// Rimedio: reconnect forzato. Il server, sull'hello della socket nuova,
+// ri-binda la room in corso (turfwar_rt_server ~2017-2028) e riconsegna lo
+// start SENZA re-redeem del ticket → nessun buy-in ripagato, soldi salvi.
+//
+// ANTI-FALSO-POSITIVO (non può scattare in partita sana):
+//  · pretende il downlink VIVO (<5s dall'ultimo msg): se non arriva nulla è
+//    l'altro problema e se ne occupa rtdStallCheck, non questo.
+//  · pretende il pong MUTO da >8s: in rete sana il pong torna in <1s e noi
+//    pinghiamo ogni 4s, quindi _lastPong non invecchia mai oltre ~5s.
+//  · _lastPong è ricaricato a 'start' e a ogni onopen → mai "vecchio" per
+//    default (e se fosse falsy non si scatta affatto).
+// ANTI-STORM: budget _upRk max 3 per match (azzerato allo 'start', come _wsRk)
+// e _lastPong ricaricato allo scatto → la finestra utile riparte da 8s.
+function rtdUplinkCheck(){
+  if(RTD.spec)return;                       // spettatore: nessun uplink critico
+  if(RTD.ui!=='match'||!RTD.wsOk)return;
+  var now=performance.now();
+  // ping applicativo dedicato al match: ~4s (il keepalive generale resta a 20s)
+  if(!RTD._lastPingT||now-RTD._lastPingT>4000){
+    RTD._lastPingT=now;
+    try{if(RTD.ws&&RTD.ws.readyState===1)RTD.ws.send(JSON.stringify({t:'ping',ts:Date.now()}));}catch(e){}
+  }
+  var downAlive=!!(RTD._wsT&&(now-RTD._wsT<5000));      // stiamo ancora ricevendo
+  var pongSilent=!!(RTD._lastPong&&(now-RTD._lastPong>8000));
+  if(downAlive&&pongSilent&&(RTD._upRk||0)<3){
+    RTD._upRk=(RTD._upRk||0)+1;
+    RTD._lastPong=now;                      // niente reconnect a raffica
+    RTD._upReconnT=now;                     // lo 'start' che segue è un REBIND
+    try{if(RTD.ws&&RTD.ws.readyState===1)RTD.ws.send(JSON.stringify({t:'clog',at:'uplinkdead',g:RTD.game,rk:RTD._upRk,rf:RTD._rafN||0}));}catch(_uk){}
+    var _o=RTD.ws;
+    if(_o){try{RTD.closedByUs=true;_o.onclose=null;_o.onerror=null;_o.onmessage=null;_o.close();}catch(e){}}
+    RTD.ws=null;RTD.wsOk=false;rtdConnect();  // rtdConnect rimette closedByUs=false
+  }
+}
 // ── rAF-STALL WATCH (19/07) ────────────────────────────────────────
 // Su WebView vecchi (Vanadium/GrapheneOS, Pixel 7 Pro) il compositor GPU può
 // smettere di consegnare i callback requestAnimationFrame (texture/canvas
@@ -42899,6 +42971,9 @@ function rtdOnSnap(m){
     if(sn)sn.textContent='SPETTATORE 👁 '+m.viewers;
   }
   rtdHud(m);
+  // STEP-BEACON (24/07): rtdOnSnap è ARRIVATO IN FONDO (nessuna eccezione a metà
+  // handler). One-shot per match: a 20Hz un beacon per snapshot sarebbe un flood.
+  if(!RTD._bcSnapDone){RTD._bcSnapDone=1;try{blgBeaconStep('snapdone',{rf:RTD._rafN||0});}catch(_bsd){}}
 }
 function rtdLerp(){
   var t=performance.now()-85,s=RTD.snaps;
@@ -43851,12 +43926,25 @@ function rtdStartRaf(){
   rtdStopRaf();
   // rAF-STALL (19/07): baseline heartbeat per rtdRafWatch — mai stale dal match prima.
   RTD._rafT=performance.now();
+  // UPLINK HALF-OPEN WATCHDOG (24/07): interval PLAIN (2s), indipendente dal rAF
+  // — deve sopravvivere proprio al caso "rAF fermo / uplink morto". Teardown in
+  // rtdStopRaf (uscita match, back, go() fuori da 'arc'): mai due istanze.
+  if(RTD.upT){clearInterval(RTD.upT);RTD.upT=null;}
+  RTD.upT=setInterval(function(){try{rtdUplinkCheck();}catch(_u){}},2000);
   var loop=function(){
     if(CUR!=='arc'||RTD.ui!=='match'){RTD.raf=null;return;}
     // rAF-STALL (19/07): heartbeat + contatore tick (diag 'rf:'). Se il fallback
     // timer era attivo e il rAF è risorto, il PRIMO tick vero lo spegne qui
     // (guardia anti-doppia-esecuzione). Solo assegnamenti: zero allocazioni.
     RTD._rafT=performance.now();RTD._rafN=(RTD._rafN||0)+1;
+    // DIAG DECISIVA (24/07): heartbeat su DUE trasporti ogni ~15 frame. L'HTTP
+    // (fetch keepalive) non passa dalla ws: se i [BLGHB] continuano ad arrivare
+    // nei log del backend MENTRE i beacon ws 'blghb' si fermano, è la prova che
+    // il JS è VIVO e l'UPLINK ws è MORTO (half-open) — non un loop né il render.
+    if((RTD._rafN%15)===0){
+      try{fetch(BACKEND+'/blghb?u='+(S.userId||'')+'&rf='+RTD._rafN+'&t='+Date.now(),{keepalive:true}).catch(function(){});}catch(_hb){}
+      try{blgBeaconStep('blghb',{rf:RTD._rafN});}catch(_hb2){}
+    }
     if(RTD.fbTmr){clearInterval(RTD.fbTmr);RTD.fbTmr=null;}
     // HARDENING (18/07): se rtdFrame lancia FUORI dal suo try interno (loop fx/stamp),
     // senza questo catch il rAF non veniva più rischedulato → disegno MORTO per sempre
@@ -43901,7 +43989,7 @@ function rtdStartRaf(){
   };
   RTD.raf=requestAnimationFrame(loop);
 }
-function rtdStopRaf(){if(RTD.raf){cancelAnimationFrame(RTD.raf);RTD.raf=null;}if(RTD.fbTmr){clearInterval(RTD.fbTmr);RTD.fbTmr=null;}RTD._rw=0;if(RTD.overTmr){clearTimeout(RTD.overTmr);RTD.overTmr=null;}TWS.engine(false);if(typeof rcSndKill==='function')rcSndKill();if(typeof blgSndKill==='function')blgSndKill();if(typeof sclSndKill==='function')sclSndKill();}
+function rtdStopRaf(){if(RTD.raf){cancelAnimationFrame(RTD.raf);RTD.raf=null;}if(RTD.fbTmr){clearInterval(RTD.fbTmr);RTD.fbTmr=null;}if(RTD.upT){clearInterval(RTD.upT);RTD.upT=null;}RTD._rw=0;if(RTD.overTmr){clearTimeout(RTD.overTmr);RTD.overTmr=null;}TWS.engine(false);if(typeof rcSndKill==='function')rcSndKill();if(typeof blgSndKill==='function')blgSndKill();if(typeof sclSndKill==='function')sclSndKill();}
 // fondo statico per-renderer su canvas offscreen (keyed su w,hh) → i gradienti
 // del fondo si creano una volta sola, i frame fanno solo drawImage (stesso
 // pattern di RTD._snBg dello snake).
@@ -44360,6 +44448,10 @@ function rtdFrame(){
     }catch(_){}
     return;
   }
+  // STEP-BEACON (24/07): superato il guard "nessuno snapshot" → il frame di GIOCO
+  // vero è stato ENTRATO almeno una volta (RTD.lastRaw c'è, il dispatch di render
+  // è raggiungibile). One-shot per match, come snapdone.
+  if(!RTD._bcFrameIn){RTD._bcFrameIn=1;try{blgBeaconStep('framein',{rf:RTD._rafN||0});}catch(_bfi){}}
   var now=performance.now();
   var dt=Math.min(0.05,(now-(RTD._lf||now))/1000);RTD._lf=now;
   var w=RTD.cv.width,hh=RTD.cv.height;
