@@ -41939,7 +41939,7 @@ function rtdOnMsg(m){
     RTD._upReconnT=0;
     if(!_upRebind)RTD._upRk=0;
     RTD._lastPong=performance.now();RTD._lastPingT=0;
-    RTD._bcSnapDone=0;RTD._bcFrameIn=0;
+    RTD._bcSnapDone=0;RTD._bcFrameIn=0;RTD._bcRafStop=0;
     var ttl=document.getElementById('arc-title');
     if(ttl){ttl.textContent=rtdMeta().title;ttl.style.color=rtdMeta().color;}
     rtdShowMatch();
@@ -43932,7 +43932,13 @@ function rtdStartRaf(){
   if(RTD.upT){clearInterval(RTD.upT);RTD.upT=null;}
   RTD.upT=setInterval(function(){try{rtdUplinkCheck();}catch(_u){}},2000);
   var loop=function(){
-    if(CUR!=='arc'||RTD.ui!=='match'){RTD.raf=null;return;}
+    if(CUR!=='arc'||RTD.ui!=='match'){
+      // DIAG DECISIVA (24/07): il loop rAF muore QUI e non si rischedula più (schermo
+      // congelato su "IN ATTESA DATI"). Beacon ONE-SHOT coi valori ESATTI: dice quale
+      // delle due condizioni si è rotta (CUR navigato via? ui resettato?) e con che stato.
+      if(!RTD._bcRafStop){RTD._bcRafStop=1;try{blgBeaconStep('rafstop',{cur:(typeof CUR!=='undefined'?String(CUR):'?'),ui:String(RTD.ui||''),g:String(RTD.game||''),tour:RTD.tour?1:0,spec:RTD.spec?1:0,over:RTD.over?1:0,map:RTD.map?1:0,raw:RTD.lastRaw?1:0,rf:RTD._rafN||0});}catch(_brs){}}
+      RTD.raf=null;return;
+    }
     // rAF-STALL (19/07): heartbeat + contatore tick (diag 'rf:'). Se il fallback
     // timer era attivo e il rAF è risorto, il PRIMO tick vero lo spegne qui
     // (guardia anti-doppia-esecuzione). Solo assegnamenti: zero allocazioni.
