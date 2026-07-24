@@ -48488,7 +48488,7 @@ function blgBakeFull(){
     c.fillStyle='rgba(10,20,14,.75)';c.fillRect(nx0,ny0,gwPx,dep);
     c.save();c.beginPath();c.rect(nx0,ny0,gwPx,dep);c.clip();
     c.strokeStyle='rgba(230,240,255,.35)';c.lineWidth=1;
-    for(var nn=-dep;nn<gwPx+dep;nn+=3){   // rete crosshatch 3px
+    for(var nn=-dep,_ncap=0;nn<gwPx+dep&&_ncap<2000;nn+=3,_ncap++){   // rete crosshatch 3px (cap iter anti-hang su gw patologico)
       c.beginPath();c.moveTo(nx0+nn,ny0);c.lineTo(nx0+nn+dep,ny0+dep);c.stroke();
       c.beginPath();c.moveTo(nx0+nn,ny0+dep);c.lineTo(nx0+nn+dep,ny0);c.stroke();
     }
@@ -48605,12 +48605,15 @@ function blgTierSeed(){
   if(BLG.tier!=null)return BLG.tier;
   var t=null;try{t=localStorage.getItem('gb_blgtier');}catch(_ts0){}
   if(t==='safe'||t==='full'){BLG.tier=t;return t;}
-  // FAIL-SAFE (23/07): UA assente/strippata/illeggibile (es. GrapheneOS/Vanadium che
-  // rimuove il token Chrome) ⇒ 'safe', NON 'full'. Solo un match ESPLICITO con major
-  // ≥110 promuove a 'full'; qualunque altro caso resta safe (procedurale, giocabile).
-  var tier='safe';
-  try{var m=/Chrome\/(\d+)/.exec(navigator.userAgent||'');if(m&&+m[1]>=110)tier='full';}catch(_ts1){tier='safe';}
-  BLG.tier=tier;
+  // SAFE-FIRST (24/07): un device NON PROVATO parte SEMPRE 'safe' (renderer procedurale
+  // hang-proof, senza bake/gradienti/compositi offscreen). Il tier 'full' (renderer ricco)
+  // si ottiene SOLO se PERSISTITO ('gb_blgtier'='full') via opt-in esplicito HD.
+  // Motivo: un frame 'full' sincrono NON è time-boxabile a metà, quindi il downgrade
+  // post-return non può salvare un frame che blocca il thread ~40s. La UA moderna NON
+  // basta a promuovere: Chromium 151 passava tutti i probe piccoli ma impallava
+  // sull'AGGREGATO reale del calcio (bake campo + sprite per-giocatore + compositi).
+  // L'unica policy hang-proof è safe-first: chi vuole il full lo attiva a mano.
+  BLG.tier='safe';
   return BLG.tier;
 }
 // scende di tier in modo PERMANENTE (persistito): il prossimo avvio su questo
