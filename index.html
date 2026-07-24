@@ -43930,7 +43930,13 @@ function rtdStartRaf(){
   // — deve sopravvivere proprio al caso "rAF fermo / uplink morto". Teardown in
   // rtdStopRaf (uscita match, back, go() fuori da 'arc'): mai due istanze.
   if(RTD.upT){clearInterval(RTD.upT);RTD.upT=null;}
-  RTD.upT=setInterval(function(){try{rtdUplinkCheck();}catch(_u){}},2000);
+  // FIX rAF-STALL IRRECUPERABILE (24/07): rtdRafWatch contiene GIÀ la cura (fallback
+  // setInterval 50ms che chiama rtdFrame quando il rAF è morto) ma veniva chiamato SOLO
+  // da rtdPump (parte solo se tocchi i controlli) e da rtdFrame (morto quando il rAF
+  // muore) ⇒ la cura era IRRAGGIUNGIBILE e lo schermo restava congelato per sempre.
+  // Qui lo guidiamo dall'interval PLAIN (indipendente da rAF e dall'input): il rAF muore
+  // → entro ~4-6s il watchdog se ne accorge e accende il fallback → il gioco RIPARTE.
+  RTD.upT=setInterval(function(){try{rtdUplinkCheck();}catch(_u){}try{rtdRafWatch();}catch(_r){}},2000);
   var loop=function(){
     if(CUR!=='arc'||RTD.ui!=='match'){
       // DIAG DECISIVA (24/07): il loop rAF muore QUI e non si rischedula più (schermo
