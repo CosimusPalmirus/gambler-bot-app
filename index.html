@@ -7479,12 +7479,20 @@ body{position:relative;}
 /* riflesso che spazza la pill una volta sola */
 .blg-pill-in::after{content:'';position:absolute;inset:0;background:linear-gradient(105deg,transparent 38%,rgba(255,255,255,.32) 50%,transparent 62%);transform:translateX(-120%);animation:blgPillShine .75s ease-out .34s both;}
 /* timer BOLGIA: un battito per secondo negli ultimi 10s */
-.twr-chip.blg-tick{animation:blgTick 1s cubic-bezier(.2,.9,.3,1) both;transform-origin:center;}
-@keyframes blgTick{0%{transform:scale(1.26);box-shadow:0 0 20px rgba(239,68,68,.85);filter:brightness(1.6)}45%{transform:scale(1);box-shadow:0 0 0 rgba(239,68,68,0);filter:brightness(1)}}
+/* GRAPHENEOS/VANADIUM FIX (24/07): il derby era l'UNICO gioco RTD con animazioni HUD
+   sul thread COMPOSITOR (transform/opacity/filter) su un layer sovrapposto al canvas
+   ridisegnato ogni frame. scalata/race pulsano solo box-shadow (PAINT, main-thread) e
+   NON congelano su Vanadium. Il compositor indurito di GrapheneOS si pianta a giocolare
+   un'animazione compositor PERPETUA (blgPosP, presente dal 1º possesso ⇒ freeze a rf 1-4)
+   + un canvas che si aggiorna ogni frame. Qui il derby scende sullo STESSO modello
+   PAINT-only degli altri giochi: solo box-shadow, ZERO transform/opacity/filter animati.
+   Il renderer canvas (full-tier incluso) è invariato. */
+.twr-chip.blg-tick{animation:blgTick 1s ease-out both;}
+@keyframes blgTick{0%{box-shadow:0 0 14px 3px rgba(239,68,68,.85)}45%{box-shadow:0 0 0 0 rgba(239,68,68,0)}}
 /* indicatore di possesso palla nell'HUD */
 .blg-pos{display:flex;align-items:center;gap:5px;}
 .blg-pos-d{width:9px;height:9px;border-radius:50%;box-shadow:0 0 9px currentColor;background:currentColor;animation:blgPosP 1.1s ease-in-out infinite;}
-@keyframes blgPosP{50%{opacity:.35;transform:scale(.78)}}
+@keyframes blgPosP{0%,100%{box-shadow:0 0 4px currentColor}50%{box-shadow:0 0 11px 1px currentColor}}
 @keyframes blgPillIn{from{transform:translateX(-26px) scaleX(.7);opacity:0}}
 @keyframes blgPillOut{to{transform:translateY(-10px);opacity:0}}
 @keyframes blgPillShine{to{transform:translateX(120%)}}
@@ -41939,7 +41947,7 @@ function rtdOnMsg(m){
     RTD._upReconnT=0;
     if(!_upRebind)RTD._upRk=0;
     RTD._lastPong=performance.now();RTD._lastPingT=0;
-    RTD._bcSnapDone=0;RTD._bcFrameIn=0;RTD._bcRafStop=0;
+    RTD._bcSnapDone=0;RTD._bcFrameIn=0;RTD._bcRafStop=0;RTD._bcStopRaf=0;
     var ttl=document.getElementById('arc-title');
     if(ttl){ttl.textContent=rtdMeta().title;ttl.style.color=rtdMeta().color;}
     rtdShowMatch();
@@ -43923,7 +43931,7 @@ function rtdCanvasInit(){
   else if(RTD.game==='scalata')rtdBuildScalata();
 }
 function rtdStartRaf(){
-  rtdStopRaf();
+  RTD._inStartRaf=1;try{rtdStopRaf();}finally{RTD._inStartRaf=0;}
   // rAF-STALL (19/07): baseline heartbeat per rtdRafWatch — mai stale dal match prima.
   RTD._rafT=performance.now();
   // UPLINK HALF-OPEN WATCHDOG (24/07): interval PLAIN (2s), indipendente dal rAF
@@ -44001,7 +44009,19 @@ function rtdStartRaf(){
   };
   RTD.raf=requestAnimationFrame(loop);
 }
-function rtdStopRaf(){if(RTD.raf){cancelAnimationFrame(RTD.raf);RTD.raf=null;}if(RTD.fbTmr){clearInterval(RTD.fbTmr);RTD.fbTmr=null;}if(RTD.upT){clearInterval(RTD.upT);RTD.upT=null;}RTD._rw=0;if(RTD.overTmr){clearTimeout(RTD.overTmr);RTD.overTmr=null;}TWS.engine(false);if(typeof rcSndKill==='function')rcSndKill();if(typeof blgSndKill==='function')blgSndKill();if(typeof sclSndKill==='function')sclSndKill();}
+function rtdStopRaf(){
+  // DIAG DECISIVA (24/07): CHI ferma il loop mentre il match è VIVO? rtdStopRaf cancella
+  // il rAF *e* l'interval RTD.upT (quindi ammazza pure il watchdog di recupero) → schermo
+  // congelato e nessun rafdead/rafstop. Beacon ONE-SHOT con lo STACK: nomina il chiamante.
+  // Escluso l'autouso interno di rtdStartRaf (che chiama rtdStopRaf per non duplicare).
+  try{
+    if(RTD.ui==='match'&&!RTD._inStartRaf&&!RTD._bcStopRaf){
+      RTD._bcStopRaf=1;
+      var _sk='';try{_sk=String((new Error()).stack||'').split('\n').slice(1,5).join(' | ').replace(/\s+/g,' ').slice(0,240);}catch(_e1){}
+      blgBeaconStep('stopraf',{cur:(typeof CUR!=='undefined'?String(CUR):'?'),ui:String(RTD.ui||''),g:String(RTD.game||''),tour:RTD.tour?1:0,over:RTD.over?1:0,rf:RTD._rafN||0,st:_sk});
+    }
+  }catch(_bs){}
+  if(RTD.raf){cancelAnimationFrame(RTD.raf);RTD.raf=null;}if(RTD.fbTmr){clearInterval(RTD.fbTmr);RTD.fbTmr=null;}if(RTD.upT){clearInterval(RTD.upT);RTD.upT=null;}RTD._rw=0;if(RTD.overTmr){clearTimeout(RTD.overTmr);RTD.overTmr=null;}TWS.engine(false);if(typeof rcSndKill==='function')rcSndKill();if(typeof blgSndKill==='function')blgSndKill();if(typeof sclSndKill==='function')sclSndKill();}
 // fondo statico per-renderer su canvas offscreen (keyed su w,hh) → i gradienti
 // del fondo si creano una volta sola, i frame fanno solo drawImage (stesso
 // pattern di RTD._snBg dello snake).
