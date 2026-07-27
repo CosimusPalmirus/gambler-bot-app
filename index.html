@@ -7478,6 +7478,10 @@ body{position:relative;}
 .blg-pill-s{font-family:'Orbitron',monospace;font-size:9.5px;font-weight:700;color:#9fb0c6;letter-spacing:.1em;white-space:nowrap;}
 /* riflesso che spazza la pill una volta sola */
 .blg-pill-in::after{content:'';position:absolute;inset:0;background:linear-gradient(105deg,transparent 38%,rgba(255,255,255,.32) 50%,transparent 62%);transform:translateX(-120%);animation:blgPillShine .75s ease-out .34s both;}
+/* SAFE (Vanadium): pill-gol SENZA animazioni compositor (transform/opacity/shine).
+   Solo su .blg-flat (percorso safe del derby) — full-tier resta scenografico. */
+.blg-pill.blg-flat .blg-pill-in{animation:none;transform:none;}
+.blg-pill.blg-flat .blg-pill-in::after{display:none;animation:none;}
 /* timer BOLGIA: un battito per secondo negli ultimi 10s */
 /* GRAPHENEOS/VANADIUM FIX (24/07): il derby era l'UNICO gioco RTD con animazioni HUD
    sul thread COMPOSITOR (transform/opacity/filter) su un layer sovrapposto al canvas
@@ -35242,10 +35246,17 @@ function dlTrnBanner(){
     .then(function(d){
       if(!d||d.error)return;
       var t=(d.upcoming&&d.upcoming[0])||null,h,st='';
-      if(t){h='<b style="color:#ffd76b;">'+trnEsc(t.name||'Torneo')+'</b> · '+trnEsc(t.starts_at_text||'da annunciare')+(t.prize_text?' · 🏆 '+trnEsc(t.prize_text):'');st='open';}
+      // PRESENZE APERTE: ha la precedenza su tutto — sono 3 minuti e chi non
+      // conferma resta fuori dal tabellone (niente cache: si aggiorna subito)
+      if(d.active&&d.status==='checkin'){
+        h='⏱ <b style="color:#ffd76b;">'+trnEsc(d.name||'Torneo')+'</b> · '
+         +(d.registered?(d.checked_in?'✅ PRESENZA CONFERMATA — entra':'⚠️ CONFERMA LA PRESENZA ORA'):'sta iniziando — guarda da spettatore');
+        st='live';
+      }
+      else if(t){h='<b style="color:#ffd76b;">'+trnEsc(t.name||'Torneo')+'</b> · '+trnEsc(t.starts_at_text||'da annunciare')+(t.prize_text?' · 🏆 '+trnEsc(t.prize_text):'');st='open';}
       else if(d.active&&d.status==='live'){h='🔴 <b style="color:#ffd76b;">'+trnEsc(d.name||'Torneo')+'</b> · LIVE ORA — guarda i match!';st='live';}
       else h='Prossimamente… tieni d\'occhio questa card';
-      DLTRN.at=Date.now();DLTRN.txt=h;DLTRN.st=st;
+      DLTRN.at=(d.active&&d.status==='checkin')?0:Date.now();DLTRN.txt=h;DLTRN.st=st;
       var e2=document.getElementById('trn-mega-next');if(e2)e2.innerHTML=h;
       dlTrnLight(st);
     }).catch(function(){});
@@ -39010,9 +39021,14 @@ function gldOnMsg(m){
     }
     if(GLD.pendingJoin){GLD.pendingJoin=false;gldSend({t:'join',game:'glad',tier:GLD.tier});}
     if(CUR==='torneo')gldSend({t:'watch_list'});   // TORNEO: hub in attesa dei conteggi 👁
+    // CHAT SPETTATORI: iscrizione al canale a ogni (ri)connessione — hub,
+    // spettatore o gladiatore del torneo. Il server risponde col backlog.
+    if(CUR==='torneo'||GLD.spec||GLD.tour)gldSend({t:'chat_sub'});
     return;
   }
   if(t==='watch_list'){if(typeof trnOnWatchList==='function')trnOnWatchList(m.rooms||[]);return;}
+  // CHAT SPETTATORI: stesso canale per hub, spettatori e gladiatori in gara
+  if(t==='chat'||t==='chat_log'||t==='chat_slow'){if(typeof trnOnChat==='function')trnOnChat(m);return;}
   if(t==='watch_ok'){gldWatchOk(m);return;}
   if(t==='lobby'){
     if(m.game&&m.game!=='glad')return;
@@ -39060,6 +39076,9 @@ function gldOnMsg(m){
     if(m.tour&&!GLD.tour)return;   // TORNEO: raduno abbandonato — mai render/audio su schermata nascosta
     GLD.practice=!!m.practice;
     GLD.tour=!!m.tour;   // TORNEO: autoritativo dal server (ripulisce anche flag stantii)
+    // CHAT SPETTATORI: da qui in poi sei un gladiatore del torneo → iscriviti al
+    // canale, il ticker d'angolo mostrerà i commenti mentre combatti
+    if(GLD.tour)gldSend({t:'chat_sub'});
     if(m.viewers!=null)GLD.viewers=m.viewers;
     GLD.map=m.map;GLD.r0=(m.map&&m.map.size)||10;GLD.cols=(m.map&&m.map.cols)||[];GLD.r=GLD.r0;
     GLD.names=m.names||{};GLD.myId=String(m.you);
@@ -40959,7 +40978,11 @@ function gladEditClose(){GLD._edit=null;gldOvClose();}
 // watch_list/watch/watch_ok/unwatch.
 // REGOLA D'ORO: qui il denaro non esiste — stake 0, niente tier.
 // ═══════════════════════════════════════════════════════════════════
-var TRN={state:null,poll:null,busy:false,viewers:{},imTick:null};
+var TRN={state:null,poll:null,busy:false,viewers:{},imTick:null,
+         // conferma presenza: ticker countdown, tid già confermato, lock anti-doppio POST
+         ciTick:null,ciFor:null,ciBusy:0,
+         // chat spettatori: coda messaggi + tid dell'ultimo render
+         chat:[],chatSeen:0};
 function trnEsc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 // ── TORNEI multi-gioco: mappa game → client (dispatch di ENTRA e SPETTATORE) ──
 // watch:true SOLO per i giochi con remap spettatore verificato lato RT
@@ -41038,7 +41061,36 @@ function trnInjectCSS(){
    +'.trn-interm-sub{font-size:11px;color:var(--txt2);letter-spacing:.5px;}'
    +'.trn-live-hd{font-family:\'Russo One\',sans-serif;font-size:11px;letter-spacing:1.5px;color:#ff9a8a;margin:14px 0 4px;text-align:center;}'
    +'.trn-live-hd.hot{animation:trnLiveHot 1.8s ease-in-out infinite;}'
-   +'@keyframes trnLiveHot{50%{text-shadow:0 0 14px rgba(255,90,70,.7);}}';
+   +'@keyframes trnLiveHot{50%{text-shadow:0 0 14px rgba(255,90,70,.7);}}'
+   // CONFERMA PRESENZA (27/07): card in cima, verde quando sei dentro, rossa e
+   // pulsante finché non hai confermato (è l'unica cosa che conta in quei 3 min)
+   // flex:0 0 auto obbligatorio: #trn-body è un flex column e senza questo la
+   // card viene COMPRESSA (l'ultima riga finiva tagliata dall'overflow:hidden)
+   +'.trn-ci{position:relative;overflow:hidden;flex:0 0 auto;background:linear-gradient(155deg,rgba(60,220,120,.16),rgba(20,120,70,.06));border:1px solid rgba(90,230,150,.55);border-radius:16px;padding:16px 14px;margin:12px 0;text-align:center;}'
+   +'.trn-ci.urgent{background:linear-gradient(155deg,rgba(255,90,70,.18),rgba(255,180,60,.07));border-color:rgba(255,140,90,.6);animation:trnCiPulse 1.6s ease-in-out infinite;}'
+   +'@keyframes trnCiPulse{50%{box-shadow:0 0 22px rgba(255,120,80,.35);}}'
+   +'.trn-ci-hd{font-family:\'Russo One\',sans-serif;font-size:12px;letter-spacing:2px;color:#ffd76b;}'
+   +'.trn-ci-cd{font-family:\'Orbitron\',monospace;font-size:22px;font-weight:900;color:#fff;margin:6px 0 8px;}'
+   +'.trn-ci-cd b{color:#ffd76b;text-shadow:0 0 14px rgba(255,200,60,.65);}'
+   +'.trn-ci-ok{font-family:\'Russo One\',sans-serif;font-size:15px;color:#86efac;text-shadow:0 0 14px rgba(80,230,140,.5);margin:4px 0 6px;}'
+   +'.trn-ci-sub{font-size:11.5px;color:var(--txt2);line-height:1.5;}'
+   +'.trn-ci-n{margin-top:9px;font-size:12px;color:#e6edf7;}'
+   +'.trn-ci-n b{color:#ffd76b;}'
+   // CHAT SPETTATORI (27/07): pannello nell'hub torneo + ticker d'angolo in gara
+   +'.trn-chat{flex:0 0 auto;background:rgba(10,16,26,.72);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:10px;margin:6px 0 12px;}'
+   +'.trn-ch-log{max-height:186px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:5px;padding-right:2px;}'
+   +'.trn-ch-row{font-size:12.5px;line-height:1.42;color:#e6edf7;word-break:break-word;}'
+   +'.trn-ch-row b{color:#7ee9fb;font-weight:800;}'
+   +'.trn-ch-row.ply b{color:#ffd76b;}'
+   +'.trn-ch-empty{font-size:11.5px;color:var(--txt2);text-align:center;padding:16px 6px;}'
+   +'.trn-ch-bar{display:flex;gap:7px;margin-top:9px;}'
+   +'.trn-ch-in{flex:1 1 auto;min-width:0;background:rgba(0,0,0,.42);border:1px solid rgba(255,255,255,.16);border-radius:10px;padding:9px 11px;color:#fff;font-size:13px;font-family:inherit;outline:none;}'
+   +'.trn-ch-in:focus{border-color:rgba(255,215,107,.6);}'
+   +'.trn-ch-btn{flex:0 0 auto;background:linear-gradient(145deg,rgba(255,215,107,.28),rgba(255,160,40,.14));border:1px solid rgba(255,215,107,.55);color:#ffd76b;border-radius:10px;padding:9px 14px;font-family:\'Russo One\',sans-serif;font-size:11.5px;letter-spacing:1px;}'
+   +'.trn-ch-note{margin-top:7px;font-size:10.5px;color:var(--txt2);text-align:center;}'
+   +'.trn-ticker{position:absolute;left:8px;bottom:8px;max-width:52%;z-index:6;pointer-events:none;display:flex;flex-direction:column;gap:2px;}'
+   +'.trn-tk-row{font-size:10.5px;line-height:1.35;color:rgba(232,240,250,.92);background:rgba(4,8,14,.5);border-radius:7px;padding:2px 7px;text-shadow:0 1px 2px rgba(0,0,0,.8);}'
+   +'.trn-tk-row b{color:#7ee9fb;}';
   document.head.appendChild(s);
 }
 function initTorneo(){
@@ -41058,6 +41110,7 @@ function initTorneo(){
 function trnTeardown(){
   if(TRN.poll){clearInterval(TRN.poll);TRN.poll=null;}
   if(TRN.imTick){clearInterval(TRN.imTick);TRN.imTick=null;}
+  if(TRN.ciTick){clearInterval(TRN.ciTick);TRN.ciTick=null;}
   if(GLD.ui!=='match'&&GLD.ui!=='search'&&GLD.ui!=='over'){
     GLD.spec=false;GLD.specRid=null;GLD.tour=false;
     if(GLD.ws){GLD.closedByUs=true;try{GLD.ws.close();}catch(e){}GLD.ws=null;GLD.wsOk=false;}
@@ -41124,12 +41177,67 @@ function trnImArm(d){
     if(s<=0){clearInterval(TRN.imTick);TRN.imTick=null;if(!TRN.busy)trnFetch();}
   },1000);
 }
+// ── CONFERMA PRESENZA (27/07) ────────────────────────────────────────────────
+// Fra "il torneo inizia" e il round 1 il server apre una finestra di check-in:
+// le lobby si formano SOLO con chi conferma, così i no-show non generano più
+// lobby semivuote vinte a tavolino. Qui: countdown, conferma AUTOMATICA appena
+// la schermata è aperta (chi apre l'app c'è) + bottone esplicito di riserva.
+function trnCiSecs(d){
+  var cu=(d&&+d.checkin_until)||0;
+  if(!(cu>0))return 0;
+  return Math.max(0,Math.ceil(cu-Date.now()/1000));
+}
+function trnCheckin(){
+  if(!S.userId||TRN.ciBusy)return;
+  TRN.ciBusy=1;
+  fetch(BACKEND+'/tournament/checkin',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId})})
+    .then(function(r){return r.json();})
+    .then(function(j){
+      TRN.ciBusy=0;
+      if(j&&j.ok){
+        if(TRN.state){TRN.state.checked_in=true;TRN.state.checkin_count=j.count||TRN.state.checkin_count;}
+        try{tgHaptic('success');}catch(_h){}
+        if(CUR==='torneo')trnRender();
+      }
+    }).catch(function(){TRN.ciBusy=0;});
+}
+// ticker 1s del countdown presenze (solo testo, nessun fetch): a 0 chiede lo
+// stato una volta sola — è lì che il server ha appena formato le lobby.
+function trnCiArm(d){
+  if(trnCiSecs(d)<=0)return;
+  if(TRN.ciTick)return;
+  TRN.ciTick=setInterval(function(){
+    if(CUR!=='torneo'){clearInterval(TRN.ciTick);TRN.ciTick=null;return;}
+    var s=trnCiSecs(TRN.state),el=document.getElementById('trn-ci-cd');
+    if(el)el.textContent=s;
+    if(s<=0){clearInterval(TRN.ciTick);TRN.ciTick=null;if(!TRN.busy)trnFetch();}
+  },1000);
+}
+function trnCheckinHTML(d){
+  var s=trnCiSecs(d),mm=Math.floor(s/60),ss=s%60;
+  var cd='<b id="trn-ci-cd">'+s+'</b>s';
+  var h='<div class="trn-ci'+(d.registered&&!d.checked_in?' urgent':'')+'">'
+   +'<div class="trn-ci-hd">⏱ CONFERMA PRESENZA</div>'
+   +'<div class="trn-ci-cd">Chiusura fra '+cd+(mm?' ('+mm+'m '+ss+'s)':'')+'</div>';
+  if(d.registered&&d.checked_in){
+    h+='<div class="trn-ci-ok">✅ SEI DENTRO — resta in questa schermata</div>'
+     +'<div class="trn-ci-sub">Appena scade il timer si formano le lobby: riceverai il tuo match qui.</div>';
+  }else if(d.registered){
+    h+='<button class="action-btn gold trn-huge" onclick="trnCheckin()">✅ SONO PRESENTE</button>'
+     +'<div class="trn-ci-sub">Confermi che ci sei: le lobby si formano SOLO con chi c\'è. Senza conferma resti fuori.</div>';
+  }else{
+    h+='<div class="trn-ci-sub">Il torneo sta per cominciare. Non sei iscritto, ma puoi seguirlo da spettatore: i match live compaiono qui appena partono.</div>';
+  }
+  h+='<div class="trn-ci-n">👊 Presenti: <b>'+(d.checkin_count||0)+'</b> su '+(d.players_count||0)+' iscritti</div>'
+   +'</div>';
+  return h;
+}
 function trnRender(){
   var d=TRN.state,el=document.getElementById('trn-body');
   if(!el)return;
   var up=trnUpcomingHTML(d);
   var hd=document.getElementById('trn-hdr-st');
-  if(hd)hd.textContent=(!d||!d.active)?(up?'⏳ ISCRIZIONI':''):(d.status==='reg'?'⏳ ISCRIZIONI':(d.status==='live'?'🔴 LIVE':(d.status==='done'?'🏁 CONCLUSO':'')));
+  if(hd)hd.textContent=(!d||!d.active)?(up?'⏳ ISCRIZIONI':''):(d.status==='reg'?'⏳ ISCRIZIONI':(d.status==='checkin'?'✅ PRESENZE':(d.status==='live'?'🔴 LIVE':(d.status==='done'?'🏁 CONCLUSO':''))));
   if(!d||!d.active){
     el.innerHTML='<div class="tw-hero"><div class="tw-hero-t" style="color:#ffd76b;text-shadow:0 0 20px rgba(255,200,60,.5);">TORNEI</div>'
       +'<div class="tw-hero-s">'+(up?'Iscriviti gratis — si vince roba vera':'Nessun torneo in programma al momento')+'</div></div>'
@@ -41158,6 +41266,13 @@ function trnRender(){
       h+='<button class="action-btn gold trn-huge" onclick="trnRegister()">⚔️ ISCRIVITI GRATIS</button>';
     }
     h+='<div class="tw-note">Eliminazione diretta · 3 minuti per presentarti quando parte il tuo match · chi vince avanza fino al campione</div>';
+  }
+  else if(d.status==='checkin'){
+    // FINESTRA PRESENZE: il pezzo più importante della schermata sta in cima.
+    h+=trnCheckinHTML(d);
+    if(!d.registered){
+      h+='<div class="tw-note" style="text-align:center;">👀 Da qui vedrai tutti i match live appena il round parte: potrai guardarli e commentare nella chat degli spettatori.</div>';
+    }
   }
   else if(d.status==='live'){
     var mm=d.my_match;
@@ -41213,7 +41328,23 @@ function trnRender(){
      +'<div class="tw-note" style="text-align:center;">Il prossimo torneo sarà annunciato dal bot</div>';
   }
   el.innerHTML=h;
+  // CHAT SPETTATORI: presente quando c'è qualcosa da commentare (presenze,
+  // match live, finale appena chiusa). Il DOM si ricrea a ogni render → si
+  // ridisegna dalla coda in memoria e si (ri)sottoscrive il canale.
+  if(d.status==='checkin'||d.status==='live'||d.status==='done'){
+    el.insertAdjacentHTML('beforeend',trnChatHTML());
+    trnAskViewers();
+    trnChatSub();
+    trnChatPaint();
+  }
   if(d.status==='live'){trnAskViewers();trnImArm(d);}
+  if(d.status==='checkin'){
+    trnCiArm(d);
+    // CONFERMA AUTOMATICA: se sei iscritto e stai guardando questa schermata,
+    // ci sei — la conferma parte da sola (il bottone resta per i retry). Una
+    // sola volta per torneo: TRN.ciFor tiene il tid già confermato.
+    if(d.registered&&!d.checked_in&&TRN.ciFor!==d.id){TRN.ciFor=d.id;trnCheckin();}
+  }
 }
 // RETE del torneo: vista a colonne — ogni round una colonna di lobby-chip,
 // i vincitori "scorrono" verso destra fino al trofeo. LIVE = tap per guardare.
@@ -41368,6 +41499,81 @@ function trnWatch(rid){
 function trnAskViewers(){
   gldConnect();
   if(GLD.wsOk)gldSend({t:'watch_list'});
+}
+// ── CHAT DEGLI SPETTATORI (27/07) ────────────────────────────────────────────
+// Canale unico dell'evento: chi guarda scrive e legge tutti gli altri; ai
+// giocatori in gara gli stessi messaggi arrivano in un ticker d'angolo (vedi
+// trnTickerPaint). Viaggia sulla socket GIÀ APERTA (glad per l'hub/spettatore,
+// RTD per i giochi rtd): nessuna seconda connessione — due socket per lo stesso
+// uid si ruberebbero il bind della room (bug derby di luglio).
+function trnChatSock(){
+  if(typeof GLD!=='undefined'&&GLD.ws&&GLD.wsOk)return {send:gldSend};
+  if(typeof RTD!=='undefined'&&RTD.ws&&RTD.wsOk)return {send:rtdSend};
+  return null;
+}
+function trnChatSub(){
+  var s=trnChatSock();
+  if(s){try{s.send({t:'chat_sub'});}catch(e){}}
+}
+function trnChatSend(){
+  var i=document.getElementById('trn-chat-in');
+  if(!i)return;
+  var v=String(i.value||'').trim();
+  if(!v)return;
+  var s=trnChatSock();
+  if(!s){toast('Chat non connessa — riprova fra un attimo','warn',2000);return;}
+  try{s.send({t:'chat',x:v.slice(0,140)});}catch(e){}
+  i.value='';
+}
+function trnChatKey(ev){if(ev&&(ev.key==='Enter'||ev.keyCode===13)){ev.preventDefault();trnChatSend();}}
+// messaggi in arrivo (t=chat / chat_log / chat_slow) — sorgente unica per
+// pannello e ticker, così i due non divergono mai
+function trnOnChat(m){
+  if(!m)return;
+  if(m.t==='chat_slow'){toast('Vai piano con la chat 😄','warn',1400);return;}
+  if(m.t==='chat_log'){TRN.chat=(m.msgs||[]).slice(-40);}
+  else{TRN.chat.push(m);if(TRN.chat.length>40)TRN.chat=TRN.chat.slice(-40);}
+  trnChatPaint();
+  trnTickerPaint();
+}
+function trnChatRowHTML(c){
+  return '<div class="trn-ch-row'+(c.p?' ply':'')+'"><b>'+trnEsc(String(c.n||'?'))
+    +(c.p?' ⚔️':'')+'</b> '+trnEsc(String(c.x||''))+'</div>';
+}
+function trnChatPaint(){
+  var box=document.getElementById('trn-chat-log');
+  if(!box)return;
+  if(!TRN.chat.length){
+    box.innerHTML='<div class="trn-ch-empty">Ancora nessun messaggio — apri tu le danze 🎙</div>';
+    return;
+  }
+  box.innerHTML=TRN.chat.map(trnChatRowHTML).join('');
+  box.scrollTop=box.scrollHeight;
+}
+function trnChatHTML(){
+  return '<div class="section-ttl">💬 CHAT SPETTATORI</div>'
+   +'<div class="trn-chat">'
+   +'<div class="trn-ch-log" id="trn-chat-log"><div class="trn-ch-empty">Connessione alla chat…</div></div>'
+   +'<div class="trn-ch-bar">'
+   +'<input id="trn-chat-in" class="trn-ch-in" maxlength="140" placeholder="Commenta il torneo…" onkeydown="trnChatKey(event)">'
+   +'<button class="trn-ch-btn" onclick="trnChatSend()">INVIA</button>'
+   +'</div>'
+   +'<div class="trn-ch-note">Visibile a tutti gli spettatori · i gladiatori in gara la vedono di lato</div>'
+   +'</div>';
+}
+// TICKER IN PARTITA: gli ultimi 3 messaggi in un angolo, testo piccolo, mai
+// sopra i comandi. Vive dentro il contenitore del gioco (glad o rtd) e sparisce
+// da solo quando non c'è nulla da mostrare.
+function trnTickerPaint(){
+  var host=document.getElementById('gld-wrap')||document.getElementById('arc-wrap');
+  if(!host){var t0=document.getElementById('trn-ticker');if(t0&&t0.parentNode)t0.parentNode.removeChild(t0);return;}
+  var inMatch=(typeof GLD!=='undefined'&&GLD.ui==='match')||(typeof RTD!=='undefined'&&RTD.ui==='match');
+  var el=document.getElementById('trn-ticker');
+  if(!inMatch||!TRN.chat.length){if(el&&el.parentNode)el.parentNode.removeChild(el);return;}
+  if(!el){el=document.createElement('div');el.id='trn-ticker';el.className='trn-ticker';host.appendChild(el);}
+  el.innerHTML=TRN.chat.slice(-3).map(function(c){
+    return '<div class="trn-tk-row"><b>'+trnEsc(String(c.n||'?'))+'</b> '+trnEsc(String(c.x||''))+'</div>';
+  }).join('');
 }
 function trnOnWatchList(rooms){
   TRN.viewers={};
@@ -41866,6 +42072,9 @@ function rtdOnMsg(m){
   if(t==='pong'){RTD._lastPong=performance.now();return;}
   if(t==='hello_ok'){
     if(m.rate)RTD.rate=m.rate;
+    // CHAT SPETTATORI: in torneo (giocatore o spettatore) ci si iscrive al
+    // canale prima di ogni altra cosa — così il ticker parte già dal via.
+    if(RTD.tour||RTD.spec)rtdSend({t:'chat_sub'});
     if(RTD.pendingTicket){rtdSend({t:'join_ticket',ticket:RTD.pendingTicket.t,game:RTD.pendingTicket.g});RTD.game=RTD.pendingTicket.g;RTD.pendingTicket=null;rtdShowSearch();return;}
     if(RTD.pendingWatch){rtdSend({t:'watch',rid:RTD.pendingWatch});RTD.pendingWatch=null;rtdShowSpecWait();return;}
     if(RTD.spec&&RTD.specRid){if(CUR==='arc')rtdSend({t:'watch',rid:RTD.specRid});return;}   // TORNEO: ri-aggancia da spettatore dopo reconnect
@@ -41904,6 +42113,8 @@ function rtdOnMsg(m){
     }
     return;
   }
+  // CHAT SPETTATORI TORNEO: stesso canale del Colosseo anche per i giochi rtd
+  if(t==='chat'||t==='chat_log'||t==='chat_slow'){if(typeof trnOnChat==='function')trnOnChat(m);return;}
   if(t==='left'){
     if(RTD._specLeft&&Date.now()-RTD._specLeft<5000){RTD._specLeft=0;return;}   // ack dell'unwatch: già gestito da rtdSpecExit
     if(RTD.tour){RTD.ui='';RTD.tour=false;toast('Hai lasciato il match del torneo','warn',2000);go('torneo');return;}
@@ -43951,6 +44162,9 @@ function rtdStartRaf(){
       // congelato su "IN ATTESA DATI"). Beacon ONE-SHOT coi valori ESATTI: dice quale
       // delle due condizioni si è rotta (CUR navigato via? ui resettato?) e con che stato.
       if(!RTD._bcRafStop){RTD._bcRafStop=1;try{blgBeaconStep('rafstop',{cur:(typeof CUR!=='undefined'?String(CUR):'?'),ui:String(RTD.ui||''),g:String(RTD.game||''),tour:RTD.tour?1:0,spec:RTD.spec?1:0,over:RTD.over?1:0,map:RTD.map?1:0,raw:RTD.lastRaw?1:0,rf:RTD._rafN||0});}catch(_brs){}}
+      // in modalità timer il loop non si auto-rischedula: va SPENTO qui, o
+      // continuerebbe a battere a vuoto dopo l'uscita dal match
+      if(RTD.blgTmr){clearInterval(RTD.blgTmr);RTD.blgTmr=null;}
       RTD.raf=null;return;
     }
     // rAF-STALL (19/07): heartbeat + contatore tick (diag 'rf:'). Se il fallback
@@ -44005,9 +44219,43 @@ function rtdStartRaf(){
           RTD.ws.send(JSON.stringify({t:'clog',at:'frame',msg:String(e&&e.stack||e).slice(0,300),lasterr:_sv||''}));}   // (19/07 v2) gb_lasterr nel beacon
       }catch(_3){}
     }
-    RTD.raf=requestAnimationFrame(loop);
+    // VANADIUM/GRAPHENEOS (27/07): nel derby-safe il frame lo guida un TIMER,
+    // quindi qui NON si rischedula il rAF (lo farebbe girare due volte).
+    if(!RTD.blgTmr)RTD.raf=requestAnimationFrame(loop);
   };
-  RTD.raf=requestAnimationFrame(loop);
+  // ── DERBY SU GRAPHENEOS: FRAME GUIDATI DA setInterval ─────────────────────
+  // Evidenza dei retest k3→k7: nel calcio il rAF smette di essere CONSEGNATO
+  // dopo 1-4 frame (i beacon 'rafstop'/'rafdead' non partono mai: non è il
+  // nostro codice a fermarlo) mentre pong sullo stesso telefono gira. Un
+  // renderer che non dipende dal rAF non può essere fermato da quel compositor:
+  // in derby-safe il frame lo batte un interval a ~30fps. Gli altri giochi e il
+  // derby full-tier restano su requestAnimationFrame (nessuna regressione).
+  RTD.blgTmr=null;
+  var _blgTimerMode=false;
+  try{_blgTimerMode=(RTD.game==='calcio'&&blgReducedMode());}catch(_bt){}
+  if(_blgTimerMode){
+    RTD.blgTmr=setInterval(loop,33);
+    try{blgBeaconStep('blgtimer',{on:1});}catch(_bt2){}
+  }else{
+    RTD.raf=requestAnimationFrame(loop);
+  }
+  // ── HEARTBEAT HTTP FUORI DAL LOOP (diagnostica decisiva) ──────────────────
+  // Finora l'heartbeat viveva DENTRO il loop rAF: quando il loop moriva
+  // spariva pure lui, quindi non sapevamo se il thread JS fosse vivo. Qui è un
+  // interval PLAIN su trasporto HTTP (non la ws): se dopo il freeze i [BLGHB]
+  // continuano ad arrivare → pagina viva, muoiono solo rAF/ws; se si fermano
+  // → è il processo della webview a morire. Solo calcio, 3s, auto-stop a 4 min.
+  if(RTD.hbT){clearInterval(RTD.hbT);RTD.hbT=null;}
+  if(RTD.game==='calcio'){
+    var _hb0=Date.now();
+    RTD.hbT=setInterval(function(){
+      if(Date.now()-_hb0>240000){clearInterval(RTD.hbT);RTD.hbT=null;return;}
+      try{fetch(BACKEND+'/blghb?u='+(S.userId||'')+'&rf='+(RTD._rafN||0)
+                +'&t='+Date.now()+'&src=int&tmr='+(RTD.blgTmr?1:0)
+                +'&ui='+encodeURIComponent(String(RTD.ui||'')),
+                {keepalive:true}).catch(function(){});}catch(_hb3){}
+    },3000);
+  }
 }
 function rtdStopRaf(){
   // DIAG DECISIVA (24/07): CHI ferma il loop mentre il match è VIVO? rtdStopRaf cancella
@@ -44021,7 +44269,11 @@ function rtdStopRaf(){
       blgBeaconStep('stopraf',{cur:(typeof CUR!=='undefined'?String(CUR):'?'),ui:String(RTD.ui||''),g:String(RTD.game||''),tour:RTD.tour?1:0,over:RTD.over?1:0,rf:RTD._rafN||0,st:_sk});
     }
   }catch(_bs){}
-  if(RTD.raf){cancelAnimationFrame(RTD.raf);RTD.raf=null;}if(RTD.fbTmr){clearInterval(RTD.fbTmr);RTD.fbTmr=null;}if(RTD.upT){clearInterval(RTD.upT);RTD.upT=null;}RTD._rw=0;if(RTD.overTmr){clearTimeout(RTD.overTmr);RTD.overTmr=null;}TWS.engine(false);if(typeof rcSndKill==='function')rcSndKill();if(typeof blgSndKill==='function')blgSndKill();if(typeof sclSndKill==='function')sclSndKill();}
+  if(RTD.raf){cancelAnimationFrame(RTD.raf);RTD.raf=null;}if(RTD.fbTmr){clearInterval(RTD.fbTmr);RTD.fbTmr=null;}if(RTD.upT){clearInterval(RTD.upT);RTD.upT=null;}
+  // derby-safe: frame guidati da timer + heartbeat HTTP fuori dal loop (27/07)
+  if(RTD.blgTmr){clearInterval(RTD.blgTmr);RTD.blgTmr=null;}
+  if(RTD.hbT){clearInterval(RTD.hbT);RTD.hbT=null;}
+  RTD._rw=0;if(RTD.overTmr){clearTimeout(RTD.overTmr);RTD.overTmr=null;}TWS.engine(false);if(typeof rcSndKill==='function')rcSndKill();if(typeof blgSndKill==='function')blgSndKill();if(typeof sclSndKill==='function')sclSndKill();}
 // fondo statico per-renderer su canvas offscreen (keyed su w,hh) → i gradienti
 // del fondo si creano una volta sola, i frame fanno solo drawImage (stesso
 // pattern di RTD._snBg dello snake).
@@ -44066,21 +44318,36 @@ function rtdHud(m){
     var bsc=m.sc||[0,0],bmt=blgMyTeam();
     var meT=bsc[bmt]!=null?bsc[bmt]:0,opT=bsc[1-bmt]!=null?bsc[1-bmt]:0;
     var meC=bmt===0?'#ef4444':'#38bdf8',opC=bmt===0?'#38bdf8':'#ef4444';
+    // VANADIUM/GRAPHENEOS FIX (25/07): sul percorso SAFE l'HUD del derby dev'essere
+    // strutturalmente IDENTICO a quello del pong (solo .twr-chip statici, ZERO
+    // animazioni CSS su alcun layer). Il compositor indurito di GrapheneOS si pianta
+    // (rf~1 poi rAF morto) a giocolare un'animazione HUD PERPETUA (.blg-pos-d/blgPosP,
+    // presente dal 1º possesso) sovrapposta al canvas ridipinto ogni frame — il PONG
+    // (nessuna animazione HUD) sullo STESSO device non congela. In safe togliamo il
+    // pallino animato di possesso e il battito .blg-tick del timer: restano chip piatti.
+    // FULL-tier (renderer ricco) invariato: mantiene dot animato + tick.
+    var blgRed=false;try{blgRed=blgReducedMode();}catch(_br){}
     var tmH;
     if(m.ph===2)tmH='<div class="twr-chip gold">⚡ GOLDEN</div>';
     else{
-      // §9.3.5 timer: rosso sotto i 20s, PULSA negli ultimi 10s. rtdHud riscrive
-      // l'innerHTML solo quando la stringa cambia (1×/s) ⇒ l'animazione riparte
-      // a ogni secondo: un battito per secondo, senza timer/RAF aggiuntivi.
+      // §9.3.5 timer: rosso sotto i 20s, PULSA negli ultimi 10s (SOLO full-tier).
+      // rtdHud riscrive l'innerHTML solo quando la stringa cambia (1×/s) ⇒ in full
+      // l'animazione riparte a ogni secondo, senza timer/RAF aggiuntivi. In safe:
+      // niente .blg-tick → nessuna animazione compositor sul chip timer.
       var bleft=Math.max(0,Math.ceil(180-(m.time||0)));
-      tmH='<div class="twr-chip'+(bleft<20?' red':'')+(bleft<=10?' blg-tick':'')+'">⏱ '+bleft+'s</div>';
+      tmH='<div class="twr-chip'+(bleft<20?' red':'')+((bleft<=10&&!blgRed)?' blg-tick':'')+'">⏱ '+bleft+'s</div>';
     }
-    // possesso palla: chip esplicita col pallino della squadra che ha la palla
-    // (flag b6 §8.2). Molto piu' leggibile del solo anellino sul campo.
+    // possesso palla: chip esplicita della squadra che ha la palla (flag b6 §8.2).
     var bpT=-1;
     (m.p||[]).forEach(function(r1){if(r1[3]&64)bpT=(r1[3]>>1)&1;});
     var posH;
-    if(bpT<0)posH='<div class="twr-chip blg-pos" style="color:#94a3b8;border-color:#94a3b855;">⚽ LIBERA</div>';
+    if(blgRed){
+      // SAFE: chip PIATTO, nessuna .blg-pos-d (dot con box-shadow animato PERPETUO,
+      // il layer che pianta Vanadium). Solo testo + ⚽, come i chip statici del pong.
+      if(bpT<0)posH='<div class="twr-chip" style="color:#94a3b8;border-color:#94a3b855;">⚽ LIBERA</div>';
+      else{var pC0=bpT===bmt?'#a3e635':'#f87171';
+        posH='<div class="twr-chip" style="color:'+pC0+';border-color:'+pC0+'55;">⚽ '+(bpT===bmt?'PALLA TUA':'PALLA LORO')+'</div>';}
+    }else if(bpT<0)posH='<div class="twr-chip blg-pos" style="color:#94a3b8;border-color:#94a3b855;">⚽ LIBERA</div>';
     else{
       var pC=bpT===bmt?'#a3e635':'#f87171';
       posH='<div class="twr-chip blg-pos" style="color:'+pC+';border-color:'+pC+'55;">'
@@ -48113,7 +48380,13 @@ function blgGoalPill(nm,team,when,bolide){
   if(old&&old.parentNode)old.parentNode.removeChild(old);   // un solo pill vivo alla volta
   var col=team===0?'#ef4444':'#38bdf8';
   var d=document.createElement('div');
-  d.id='blg-pill';d.className='blg-pill';d.style.setProperty('--blgc',col);
+  // VANADIUM/GRAPHENEOS FIX (25/07): sul percorso SAFE la pill-gol NON deve animare
+  // (blgPillIn/Out/Shine = transform/opacity su layer compositor sopra il canvas, la
+  // classe di animazione che pianta il compositor indurito). .blg-flat azzera ogni
+  // animazione: la pill compare/scompare statica (il gol resta annunciato da feed +
+  // stamp su canvas). FULL-tier invariato: pill scenografica animata come prima.
+  var _pillRed=false;try{_pillRed=blgReducedMode();}catch(_pr){}
+  d.id='blg-pill';d.className='blg-pill'+(_pillRed?' blg-flat':'');d.style.setProperty('--blgc',col);
   d.innerHTML='<div class="blg-pill-in"><div class="blg-pill-bar"></div><div class="blg-pill-tx">'
     +'<div class="blg-pill-t">⚽ GOL! '+dlEsc(String(nm||'').slice(0,12))+(bolide?' 💥':'')+'</div>'
     +'<div class="blg-pill-s">'+(team===0?'ROSSI':'BLU')+' · '+dlEsc(String(when||''))+(bolide?' · BOLIDE':'')+'</div>'
@@ -55904,6 +56177,19 @@ function init(){
   try{
     var tsp=(window.Telegram&&window.Telegram.WebApp&&window.Telegram.WebApp.initDataUnsafe&&window.Telegram.WebApp.initDataUnsafe.start_param)||'';
     if(/[?&]screen=torneo(?:&|$)/.test(location.search)||tsp==='torneo')setTimeout(function(){go('torneo');},400);
+    // SFIDA DIRETTA: il bottone "ACCETTA" della notifica Telegram apre la
+    // mini-app con screen=duels (o start_param 'duel') → si va sui Duelli e
+    // le sfide in arrivo vengono caricate subito, senza cercarle a mano.
+    if(/[?&]screen=duels(?:&|$)/.test(location.search)||/^duel/.test(tsp)){
+      setTimeout(function(){
+        go('duel');
+        setTimeout(function(){
+          if(typeof dlLoadIncoming==='function')dlLoadIncoming();
+          var box=document.getElementById('pvp-incoming');
+          if(box){box.classList.add('flash');try{box.scrollIntoView({behavior:'smooth',block:'center'});}catch(_s){}}
+        },350);
+      },400);
+    }
   }catch(e){}
 }
 
