@@ -7453,6 +7453,17 @@ body{position:relative;}
 .twr-hud.scl-hudbar .scl-hud-lane{flex:0 1 auto;}        /* nome via: si accorcia per primo se serve spazio */
 .twr-hud.scl-hudbar .scl-hud-bal{flex:0 0 auto;}         /* saldo: MAI compresso, ancorato a destra (margin-left:auto) */
 .twr-hud.scl-hudbar .scl-hud-it.empty{opacity:.34;color:#8ea0b5!important;border-color:rgba(90,105,125,.4)!important;}
+/* ── B1 DERBY (28/07): stessa blindatura di Dead Peak. La barra del calcio aveva
+   SEI chip (≈497px richiesti contro 344 disponibili su un telefono da 360) → andava
+   a capo e passava da 33 a 66px DOPO il primo snapshot, cioè dopo che rtdCanvasInit
+   aveva già misurato lo spazio. Ora: riga SINGOLA di altezza FISSA, presente nel
+   markup fin dal primo layout (rtdShowMatch) ⇒ la misura del wrap è giusta subito
+   e il campo non si sposta più di un pixel a partita iniziata. ── */
+.twr-hud.blg-hudbar{flex-wrap:nowrap;gap:5px;overflow:hidden;height:33px;margin-bottom:5px;}
+.twr-hud.blg-hudbar .twr-chip{flex:0 0 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;padding:5px 9px;line-height:1;align-self:center;}
+.twr-hud.blg-hudbar .twr-chip:last-child{flex:0 1 auto;}   /* saldo/TORNEO: il primo a cedere se lo schermo è strettissimo */
+@media(max-width:360px){.twr-hud.blg-hudbar{gap:3px;}
+  .twr-hud.blg-hudbar .twr-chip{font-size:11px;padding:4px 7px;}}
 /* STREET RACE HUD (M2): chip giro/posizione più leggibili in gara */
 .rc-hud-lap{font-size:14px;padding:7px 12px;flex-shrink:0;}
 .rc-hud-pos{font-size:14px;padding:7px 12px;flex-shrink:0;text-shadow:0 0 8px currentColor;}
@@ -7522,7 +7533,10 @@ body{position:relative;}
    disponibile e stick GRANDE sovrapposto in basso (stesse dimensioni/feel del
    move-stick Colosseo: 190px, knob 78, overlay sull'arena, niente barra sotto). */
 .game-content.arc-fit{overflow:hidden;padding:8px;gap:6px;justify-content:flex-start;}
-.arc-fit .twr-hud{flex:0 0 auto;}
+/* B1 (28/07): la barra HUD RISERVA la sua riga fin da vuota. rtdCanvasInit misura
+   lo spazio libero PRIMA che arrivi il primo snapshot: senza questa riserva l'altezza
+   letta era gonfiata di ~33px e il canvas nasceva più alto del wrap. */
+.arc-fit .twr-hud{flex:0 0 auto;min-height:33px;}
 .arc-fit #arc-wrap{flex:1 1 auto;min-height:0;}
 .arc-fit #arc-cv{display:block;margin:0 auto;}
 .arc-fit .arc-ov-move{position:absolute;left:9px;bottom:9px;z-index:6;opacity:.9;}   /* come .gld-ov-move: in basso a sinistra, mai sopra la propria racchetta al centro */
@@ -7825,6 +7839,7 @@ body{position:relative;}
    dell'oggetto dalla custom property --ic messa dalla card. ── */
 .dpt-hd{font-size:15px;font-weight:900;letter-spacing:.8px;color:#facc15;text-shadow:0 0 18px rgba(250,204,21,.35);margin-bottom:12px;}
 .dpt-tabs{display:flex;gap:8px;margin-bottom:12px;}
+.dpt-dual{margin-left:7px;padding:2px 7px;border-radius:8px;font-size:9px;font-weight:800;letter-spacing:.6px;color:#fecaca;background:rgba(248,113,113,.16);border:1px solid rgba(248,113,113,.45);vertical-align:middle;}
 .dpt-tab{flex:1;padding:9px 4px;border-radius:11px;font-size:11px;font-weight:800;letter-spacing:.4px;color:#94a3b8;background:rgba(148,163,184,.10);border:1px solid rgba(148,163,184,.25);}
 .dpt-tab.sel{color:#1a1206;background:linear-gradient(135deg,#fde68a,#facc15);border-color:rgba(250,204,21,.85);}
 .dpt-hr{display:flex;gap:10px;text-align:left;padding:9px 10px;margin-bottom:7px;border-radius:12px;background:rgba(148,163,184,.07);border:1px solid rgba(148,163,184,.16);}
@@ -10428,6 +10443,8 @@ body{position:relative;}
        in quella forma nel file — quelle vere erano già tradotte, verificato
        una per una. ── */
     "🏆 TORNEI": "🏆 TOURNAMENTS",
+    "Campo, calciatori e luci in alta definizione. Su alcuni telefoni la partita si blocca: se succede, riapri e torna da sola a STANDARD.":"Pitch, players and lights in high definition. On some phones the match freezes: if it does, reopen and it goes back to STANDARD on its own.",
+    "Grafica riportata a STANDARD: il telefono non reggeva":"Graphics back to STANDARD: the phone could not keep up",
     "Attacco": "Attack",
     "Schivata": "Dodge",
     "Speciale": "Special",
@@ -12111,6 +12128,20 @@ body{position:relative;}
     "🥅 Le porte si allargano!":"🥅 The goals are widening!",
     "PALO!":"POST!",
     "GOL!":"GOAL!",
+    /* carica sprecata: la palla era fuori da KICK_R (evento 'nokick', B3) */
+    "TROPPO LONTANO!":"TOO FAR!",
+    "🚫 Carica sprecata: la palla era fuori portata":"🚫 Charge wasted: the ball was out of reach",
+    /* barra HUD del match a riga singola (B1) */
+    "⚽ TUA":"⚽ YOURS",
+    "⚽ LORO":"⚽ THEIRS",
+    "⚽ LIBERA":"⚽ LOOSE",
+    /* interruttore GRAFICA HD in lobby (B1) */
+    "🖥 GRAFICA HD: SPENTA":"🖥 HD GRAPHICS: OFF",
+    "🖥 GRAFICA HD: ACCESA":"🖥 HD GRAPHICS: ON",
+    "Campo, calciatori e luci in alta definizione. Su alcuni telefoni la partita puo' bloccarsi: se succede, riapri l'app e torna da sola a STANDARD.":"Pitch, players and lighting in high definition. If the match stutters, switch it back off with the same button.",
+    "Grafica HD attiva":"HD graphics on",
+    "Grafica STANDARD attiva":"STANDARD graphics on",
+    "Questo telefono resta su STANDARD":"This phone stays on STANDARD",
     "Calcio top-down a squadre · passaggi, bolidi, cross e scivolate · il team vincente si divide il piatto":"Top-down team football · passes, rockets, crosses and slide tackles · winning team splits the pot",
     "SCENDI IN CAMPO":"TAKE THE PITCH",
     "Squadre 2v2·3v3·4v4 · parte con 4/6/8 · rimborso se il conteggio resta dispari":"Teams 2v2·3v3·4v4 · starts with 4/6/8 · refund if the count stays odd",
@@ -12257,6 +12288,7 @@ body{position:relative;}
     "🗼 DEAD PEAK — COME SI GIOCA":"🗼 DEAD PEAK — HOW TO PLAY",
     "📜 LE REGOLE":"📜 THE RULES",
     "🎒 I 12 OGGETTI":"🎒 THE 12 ITEMS",
+    "anche ARMA":"also a WEAPON",
     "✖ CHIUDI":"✖ CLOSE",
     "I numeri di questa scheda arrivano dal motore di gioco: sono quelli veri.":"The numbers on this page come straight from the game engine: they are the real ones.",
     "PRIMO IN CIMA, PIGLIA TUTTO":"FIRST TO THE TOP TAKES ALL",
@@ -12275,8 +12307,8 @@ body{position:relative;}
     "Stick contro la parete e verso l'alto: sali finché hai fiato. La barra sopra la testa è il fiato che ti resta, a zero la presa cede e scivoli. Si ricarica appena tocchi terra, una scala o una catena. Le pareti lisce non si scalano.":"Stick into the wall and upwards: you climb as long as your breath lasts. The bar above your head is the breath you have left, at zero your grip gives way and you slide. It refills as soon as you touch ground, a ladder or a chain. Smooth walls cannot be climbed.",
     "SALTO MURO-A-MURO":"WALL-TO-WALL JUMP",
     "Toccare un muro arma il salto anche senza tenere lo stick contro, e resta armato per un istante dopo che ti sei staccato. Rimbalzando fra due pareti opposte si sale un camino intero, mentre sullo stesso muro il secondo salto è più corto.":"Touching a wall arms the jump even without holding the stick into it, and it stays armed for an instant after you leave it. Bouncing between two opposite walls takes you up a whole chimney, while on the same wall the second jump is shorter.",
-    "LA CATENA: CORDA E ARMA":"THE CHAIN: ROPE AND WEAPON",
-    "Se prende il terreno srotola una corda da scalare o da attraversare, anche orizzontale e in diagonale. Se prende un rivale lo incatena: ragdoll e stun. Se incatenano te, pigia SALTO o SCHIVATA: ogni pressione accorcia lo stun.":"If it catches the terrain it unrolls a rope to climb or to cross, horizontal and diagonal ones included. If it catches a rival it chains him: ragdoll and stun. If they chain you, mash JUMP or DODGE: every press shortens the stun.",
+    "SE TI INCATENANO, PIGIA":"IF THEY CHAIN YOU, MASH",
+    "Un rivale può prenderti con la catena: vieni sbalzato e resti bloccato. Pigia SALTO o SCHIVATA senza fermarti — ogni pressione accorcia l'attesa. Vale anche se la catena non la raccogli mai: è l'unica cosa da sapere per difenderti. Come si USA sta nella scheda dell'oggetto.":"A rival can catch you with the chain: you get thrown and pinned. Mash JUMP or DODGE without stopping — every press shortens the wait. This matters even if you never pick a chain up: it is the one thing you need to defend yourself. How to USE it is on the item card.",
     "LO SPINTONE NON HA UN TASTO":"THE SHOVE HAS NO BUTTON",
     "Corri addosso a un rivale a tutta velocità e lo sbalzi via: succede da solo, al contatto. Quando vedi il punto esclamativo sopra la testa di qualcuno, o lo eviti o lo anticipi.":"Sprint into a rival at full speed and you send him flying: it happens by itself, on contact. When you see the exclamation mark above someone's head, either dodge it or beat him to it.",
     "GLI OGGETTI":"THE ITEMS",
@@ -44366,6 +44398,30 @@ function rtdFeedEvent(e){
       TWS.play('clank',0.9);RTD.shake=Math.min(12,RTD.shake+8);
       RTD._sc.blgFlash={t0:performance.now(),dur:300,a:0.3,col:'#ffffff'};
       rtdFeed('😱 PALO!');rtdStamp('PALO!','#facc15');blgCrowd(0.35,'blgOoh',0.8);
+      // B3 §4: 6 schegge bianche dal punto d'impatto (pool blgP già esistente,
+      // 96 slot fissi, rng SOLO allo spawn). BLG.bpx/bpy = ultima posizione
+      // schermo della palla, scritta dal renderer. Nessun compositing.
+      try{
+        if(g==='calcio'&&BLG.bpx){
+          for(var _pi=0;_pi<6;_pi++){
+            var _pa=Math.random()*6.283,_ps=90+Math.random()*160;
+            blgP(BLG.bpx,BLG.bpy,Math.cos(_pa)*_ps,Math.sin(_pa)*_ps-60,
+                 260+Math.random()*220,(_pi%2)?'#ffffff':'#facc15',
+                 (1.4+Math.random())*RTD.dpr,480,0,0.97);
+          }
+        }
+      }catch(_pl){}
+      break;
+    // B3 §5.2 — CARICA SPRECATA (evento 'nokick' nuovo di football_rt): al
+    // rilascio la palla era fuori da KICK_R. Prima non succedeva NIENTE: avevi
+    // rinunciato al 45% della tua velocità e non sapevi perché non fosse
+    // partito il tiro. Solo per CHI ha caricato (il feed non è di tutti).
+    case 'nokick':
+      if(g!=='calcio'||String(e.who)!==String(me))break;
+      rtdStamp('TROPPO LONTANO!','#f87171');
+      TWS.play('lose',0.35);
+      rtdFeed('🚫 Carica sprecata: la palla era fuori portata');
+      try{tg.HapticFeedback&&tg.HapticFeedback.notificationOccurred('warning');}catch(_nk){}
       break;
     case 'save':
       rtdFeed('🧤 PARATA di '+rtdName(e.who)+'!');blgCrowd(0.4,'blgOoh',0.9);
@@ -44390,7 +44446,10 @@ function rtdFeedEvent(e){
         break;
       }
       rtdFeed('🏁 Finita! '+(e.winner===0?'ROSSI':'BLU')+' vince '+(e.sc?e.sc[0]:'')+'-'+(e.sc?e.sc[1]:''));
-      if(g==='calcio')TWS.play('blgWhEnd',0.9);   // fischio FINALE (tre colpi) — SOLO calcio: 'end' lo emettono anche race/arcade/classic/minigames
+      if(g==='calcio'){
+        TWS.play('blgWhEnd',0.9);   // fischio FINALE (tre colpi) — SOLO calcio: 'end' lo emettono anche race/arcade/classic/minigames
+        RTD._sc.blgEnd={t0:performance.now(),dur:600};   // B3 §4: il campo si spegne (1 fillRect, letto da blgDrawSafe)
+      }
       blgCrowd(1,'blgRoar',1);
       break;
     case 'pipget':
@@ -44487,6 +44546,12 @@ function rtdShowLobby(keepOv){
       +'<div class="tw-hero-s">'+g.sub+'</div></div>';
     if(RTD.game==='calcio'){   // editor calciatore + skin (SKINS_SPEC §A)
       h+='<button class="action-btn" style="width:100%;margin:10px 0 2px;background:linear-gradient(135deg,#14261b,#0d1a12);border:1px solid rgba(74,222,128,.5);color:#86efac;" onclick="derbyEditor()">🎨 IL TUO CALCIATORE — personalizza</button>';
+      // INTERRUTTORE GRAFICA HD (28/07): il derby parte SEMPRE in tier 'safe'
+      // (blgTierSeed, safe-first) e finora NON esisteva alcun modo di chiedere il
+      // renderer ricco. Questo è l'unico punto che scrive 'full', sta FUORI dal
+      // match (nessun rischio di cambiare tier a partita viva) e si spegne con lo
+      // stesso identico tocco con cui si accende. Vedi derbyHdToggle().
+      h+=derbyHdBtn();
       derbyLookSync();
     }
     if(RTD.game==='scalata'){   // editor scalatore + skin (SKINS_SPEC §B)
@@ -44631,6 +44696,9 @@ function rtdDpadMount(){
 }
 function rtdShowMatch(){
   RTD.ui='match';rtdOvClose();
+  // 28/07: canarino HD armato PRIMA di entrare in partita — se questo match si
+  // pianta e l'utente riapre l'app, il derby torna a STANDARD da solo.
+  if(RTD.game==='calcio'){try{blgHdCanarySet();}catch(_cs0){}}
   RTD._bg={};RTD._suBg=null;RTD._spr={};   // sfondi cache per-match (il golf rigenera gli ostacoli)
   RTD._gfKey=null;RTD._gfRaw=null;RTD._gball={};RTD._gholeN=null;RTD._gring=null;RTD._glast=0;if(RTD._gpool)RTD._gpool.forEach(function(q){q.a=false;});   // reset stato render golf (chiave campo inclusa — GOLF desync)
   var el=document.getElementById('arc-body');if(!el)return;
@@ -44745,7 +44813,10 @@ function rtdShowMatch(){
   el.classList.add('arc-fit');   // OVERLAY-FIT per TUTTI gli RTD: canvas a schermo intero, controlli in overlay
   el.classList[(RTD.game==='calcio'&&!blgReducedMode())?'add':'remove']('blg-fs');   // DERBY FULL-SCREEN (20/07): HUD in overlay compatto — SOLO calcio full-tier; in safe/lite si usa il layout HUD normale (niente overlay full-screen)
   el.innerHTML=''
-    +'<div class="twr-hud" id="arc-hud"></div>'
+    // B1 (28/07): la classe della barra a riga SINGOLA dev'essere già QUI, non
+    // aggiunta da rtdHud al primo snapshot: rtdCanvasInit misura lo spazio libero
+    // poche righe sotto e deve vedere l'altezza DEFINITIVA della barra.
+    +'<div class="twr-hud'+(RTD.game==='calcio'?' blg-hudbar':'')+'" id="arc-hud"></div>'
     +'<div class="twr-status" id="arc-status"></div>'
     +'<div class="twr-wrap" id="arc-wrap">'
     +'<canvas id="arc-cv"></canvas>'
@@ -45037,17 +45108,35 @@ function rtdCanvasInit(){
   // 1.5 → backing-store ben sotto la soglia. Modern/full-tier: full-screen invariato.
   var _blgRed=blgReducedMode();
   if(_blgRed)RTD.dpr=Math.min(RTD.dpr,1.5);
-  // the wrap is a flex child of .game-content: pin it (no shrink) and cap the
-  // canvas to the space really left over, or the board bottom gets clipped
-  wrap.style.flex='none';
   // OVERLAY-FIT condiviso (pattern Colosseo/pong esteso a TUTTI): il canvas riempie
   // l'altezza realmente disponibile mantenendo il PROPRIO ratio (letter-box, mai
   // stretch né overflow), centrato nel wrap. I giochi con build custom (race/derby/
   // scalata/alley) leggono RTD.cssW/cssH aggiornati subito sotto → camera/render ok.
   var fit=(document.getElementById('arc-body')||{}).classList;
   fit=fit&&fit.contains&&fit.contains('arc-fit');
+  // ── B1 · FIT ELASTICO (28/07) — "il derby sborsa sotto" ────────────────────
+  // PRIMA: il wrap veniva PINNATO (flex:none) e lo spazio residuo calcolato a
+  // mano sommando l'altezza dei fratelli. Ma rtdCanvasInit gira DENTRO
+  // rtdShowMatch, quando #arc-hud è ancora VUOTO (offsetHeight 0): quel valore
+  // sbagliato finiva congelato in uno style inline e, al primo snapshot, l'HUD
+  // si riempiva, cresceva (nel derby SEI chip → va a capo, 66px invece di 33) e
+  // spingeva il wrap FUORI dallo schermo. Misurato: wrap 67px sotto il bordo,
+  // bottone PASSA 54px, stick 56px — e .arc-fit ha overflow:hidden, quindi
+  // nemmeno scrollabile. Il ramo full-tier (.blg-fs, HUD in overlay assoluto)
+  // non ne soffriva: il tier rotto era esattamente quello che vedono tutti.
+  // ORA (solo in modalità fit) si fa come gldCanvasInit — l'unico gioco che non
+  // è mai uscito dallo schermo: il wrap resta un flex child ELASTICO (regola già
+  // presente: .arc-fit #arc-wrap{flex:1 1 auto;min-height:0}) e l'altezza utile
+  // si LEGGE dal layout invece di calcolarla. Se l'HUD cresce, il wrap si
+  // restringe DA SOLO: niente ri-misura, niente timer, niente rAF, nessuna
+  // seconda rtdBuildBolgia. Fuori dal fit resta il vecchio pin + aritmetica.
   var body=document.getElementById('arc-body'),maxH=0;
-  if(body){
+  if(fit){
+    wrap.style.flex='';wrap.style.height='';   // azzera pin/altezza di una init precedente, o si rilegge il valore vecchio
+    maxH=wrap.clientHeight|0;
+    if(maxH<180)maxH=0;                        // layout non ancora pronto → fallback aritmetico qui sotto
+  }else wrap.style.flex='none';
+  if(!maxH&&body){
     var used=0;
     // (20/07 DERBY) i figli in overlay assoluto (HUD .blg-fs) NON occupano flusso:
     // sottrarli falsava maxH. Per gli altri giochi position è static → invariato.
@@ -45064,10 +45153,11 @@ function rtdCanvasInit(){
     // comunque il campo con le tribune ai lati). SOLO calcio, altri giochi invariati.
     if(RTD.game==='calcio'&&!_blgRed){cssW=w;cssH=Math.round(maxH);}
     else if(cssH>maxH){ cssH=Math.round(maxH); cssW=Math.round(cssH/ratio); if(cssW>w){cssW=w;cssH=Math.round(w*ratio);} }
-    wrap.style.height=(fit?Math.round(maxH):cssH)+'px';   // fit: il wrap prende tutta l'altezza, il canvas resta centrato
+    if(!fit)wrap.style.height=cssH+'px';
   }else{
-    wrap.style.height=cssH+'px';
+    if(!fit)wrap.style.height=cssH+'px';
   }
+  // in fit NON si scrive MAI un'altezza inline sul wrap: la decide il flex (vedi B1 sopra)
   RTD.cssW=cssW;RTD.cssH=cssH;
   cv.style.width=cssW+'px';cv.style.height=cssH+'px';
   cv.width=Math.round(cssW*RTD.dpr);cv.height=Math.round(cssH*RTD.dpr);
@@ -45280,20 +45370,28 @@ function rtdHud(m){
     if(blgRed){
       // SAFE: chip PIATTO, nessuna .blg-pos-d (dot con box-shadow animato PERPETUO,
       // il layer che pianta Vanadium). Solo testo + ⚽, come i chip statici del pong.
+      // B1 (28/07): etichette CORTE — la barra deve stare su UNA riga (vedi
+      // .twr-hud.blg-hudbar). Il colore dice già di chi è la palla.
       if(bpT<0)posH='<div class="twr-chip" style="color:#94a3b8;border-color:#94a3b855;">⚽ LIBERA</div>';
       else{var pC0=bpT===bmt?'#a3e635':'#f87171';
-        posH='<div class="twr-chip" style="color:'+pC0+';border-color:'+pC0+'55;">⚽ '+(bpT===bmt?'PALLA TUA':'PALLA LORO')+'</div>';}
+        posH='<div class="twr-chip" style="color:'+pC0+';border-color:'+pC0+'55;">'+(bpT===bmt?'⚽ TUA':'⚽ LORO')+'</div>';}
     }else if(bpT<0)posH='<div class="twr-chip blg-pos" style="color:#94a3b8;border-color:#94a3b855;">⚽ LIBERA</div>';
     else{
       var pC=bpT===bmt?'#a3e635':'#f87171';
       posH='<div class="twr-chip blg-pos" style="color:'+pC+';border-color:'+pC+'55;">'
         +'<span class="blg-pos-d"></span>'+(bpT===bmt?'PALLA TUA':'PALLA LORO')+'</div>';
     }
-    h='<div class="twr-chip" style="color:'+meC+';border-color:'+meC+'55;">'+(bmt===0?'🔴 ROSSI':'🔵 BLU')+' '+meT+'</div>'
-     +'<div class="twr-chip" style="color:#a3e635;">VS</div>'
-     +'<div class="twr-chip" style="color:'+opC+';border-color:'+opC+'55;">'+(bmt===0?'🔵 BLU':'🔴 ROSSI')+' '+opT+'</div>'
+    // B1 (28/07): PUNTEGGIO IN UN CHIP SOLO (prima erano tre: "🔴 ROSSI 0" + "VS" +
+    // "🔵 BLU 0" = da soli metà barra, e a 360px la riga andava a capo spingendo il
+    // campo fuori dallo schermo). La tua squadra resta la PRIMA, col suo colore.
+    // Nessuna parola dentro: solo emoji e numeri ⇒ niente da tradurre, e i numeri
+    // non finiscono mai concatenati dentro una frase del dizionario.
+    h='<div class="twr-chip"><span style="color:'+meC+';">'+(bmt===0?'🔴':'🔵')+' '+meT+'</span>'
+     +'<span style="color:#64748b;"> – </span>'
+     +'<span style="color:'+opC+';">'+opT+' '+(bmt===0?'🔵':'🔴')+'</span></div>'
      +tmH+posH
      +'<div class="twr-chip '+(RTD.practice?'':'gold')+'" style="margin-left:auto;">'+(RTD.tour?'🏆 TORNEO':(RTD.practice?'🤖 PRATICA':'€'+fmt(RTD.potEur,2)))+'</div>';
+    if(!hud.classList.contains('blg-hudbar'))hud.classList.add('blg-hudbar');   // riga singola fissa (self-healing per hud ricreato) — B1
     // label contestuale del bottone SPECIALE su diff (§2.1): CROSS con palla · SCIVOLA senza · SCAMBIA nei freeze
     var bmr=null;(m.p||[]).forEach(function(r0){if(String(r0[0])===String(RTD.myId))bmr=r0;});
     var bmode=(m.ph===1)?2:((bmr&&(bmr[3]&64))?1:0);
@@ -45719,7 +45817,11 @@ function rtdFrame(){
   // STEP-BEACON DERBY (23/07): PRIMO paint calcio andato a buon fine (dispatch draw
   // completato senza throw). Se questo beacon non arriva ma 'blgcanvas' sì, il wedge
   // è nel renderer/compositor durante il primo paint. Una-tantum per match.
-  if(g==='calcio'&&!BLG._bc1f){BLG._bc1f=1;try{blgBeaconStep('blg1frame',{});}catch(_bc1f0){}}
+  if(g==='calcio'&&!BLG._bc1f){BLG._bc1f=1;try{blgBeaconStep('blg1frame',{});}catch(_bc1f0){}
+    // canarino vivo: siamo ARRIVATI a disegnare un frame popolato, cioè il
+    // punto esatto in cui il derby storicamente si piantava. Da qui in poi un
+    // riavvio non deve più declassare da solo.
+    try{blgHdCanaryClear();}catch(_bc1f1){}}
   }catch(e){
     // DIAGNOSTICA (18/07): l'errore di render non deve restare INVISIBILE (canvas nero
     // su mobile). Mostralo a schermo così lo screenshot rivela la causa esatta.
@@ -49087,6 +49189,44 @@ var BLG={team:-1,pt:{x:0,y:0},pred:{ok:false,x:0,y:0,vx:0,vy:0},
   goalT:0,goalTm:0,goalWho:null,   // esultanza scorer: t0, team, chi
   swT:0,swV:0,                 // swell casuale dei cori (rng SOLO al refresh)
   divT:0};                     // throttle zolle d'erba durante la scivolata
+// ═══ MIRROR DELLE COSTANTI DI football_rt.py (B3 §5.1⑤) ══════════════════════
+// Erano LETTERALI sparsi dentro blgDrawCore (wxi*9.0, 1-1.6*dt): con la
+// prediction portata anche nel tier SAFE i mirror sarebbero diventati DUE.
+// Qui stanno in un posto solo, usati da entrambi i percorsi. Se cambiano
+// nell'engine vanno cambiati QUI, o la predizione va in deriva.
+//   ACC 13.45 · P_FR 2.3 · CHG_MULT 0.55 · REC_MULT 0.4 · DIVE_REC 0.5
+var BLG_ACC=13.45,BLG_PFR=2.3,BLG_CHGMUL=0.55,BLG_RECMUL=0.4;
+// PREDIZIONE LOCALE DELLA PROPRIA RIGA (mirror esatto di _move_players).
+// Prima viveva solo in blgDrawCore, cioè nel tier che NON vede nessuno: in safe
+// la catena input→pixel (pump 33 + RTT/2 + tick 50 + RTT/2 + timer 33 ms) era
+// scoperta per 100-160 ms. È aritmetica pura: zero primitive, zero allocazioni.
+// Ritorna BLG.pred (oggetto riusato) o null se il movimento è server-driven.
+function blgPredStep(sx0,sy0,mfl,ph,dt){
+  var pd=BLG.pred;
+  if((mfl&16)||(mfl&32)||ph===1){pd.ok=false;return null;}   // scivolata/stun/freeze
+  if(!pd.ok){pd.ok=true;pd.x=sx0;pd.y=sy0;pd.vx=0;pd.vy=0;}
+  var mult=(mfl&8)?BLG_CHGMUL:((mfl&128)?BLG_RECMUL:1);
+  var wxi=0,wyi=0;
+  if(RTD.joy.on){   // = blgToWorld(joy) inline, zero alloc nel loop
+    if(BLG.team===1){wxi=RTD.joy.my;wyi=-RTD.joy.mx;}else{wxi=-RTD.joy.my;wyi=RTD.joy.mx;}
+  }
+  // uno stick sporco (NaN/Infinity da un touch anomalo) propagherebbe NaN nella
+  // posizione e il proprio giocatore SPARIREBBE dal campo (arc con NaN è un
+  // no-op silenzioso). Il server sanifica già i suoi input: qui facciamo lo stesso.
+  if(!isFinite(wxi)||!isFinite(wyi)){wxi=0;wyi=0;}
+  pd.vx+=wxi*BLG_ACC*mult*dt;pd.vy+=wyi*BLG_ACC*mult*dt;
+  var frk=Math.max(0,1-BLG_PFR*dt);pd.vx*=frk;pd.vy*=frk;
+  pd.x+=pd.vx*dt;pd.y+=pd.vy*dt;
+  pd.x=Math.max(0.45,Math.min((BLG.W||16)-0.45,pd.x));
+  pd.y=Math.max(0.45,Math.min((BLG.H||9)-0.45,pd.y));
+  var ddx=sx0-pd.x,ddy=sy0-pd.y;
+  if(Math.sqrt(ddx*ddx+ddy*ddy)>1.8){pd.x=sx0;pd.y=sy0;pd.vx=0;pd.vy=0;}
+  else{pd.x+=ddx*0.16;pd.y+=ddy*0.16;}   // riconciliazione morbida
+  // rete di sicurezza: qualunque NaN residuo torna alla posizione del server,
+  // che è sempre valida. Mai disegnare la propria riga a coordinate non finite.
+  if(!isFinite(pd.x)||!isFinite(pd.y)){pd.x=sx0;pd.y=sy0;pd.vx=0;pd.vy=0;}
+  return pd;
+}
 // palette barra carica: lerp giallo #fde047 → arancio #f97316 → rosso #ef4444, bakeata una volta
 var BLG_CHG_COLS=(function(){var out=[],i,k,u,r,g2,b3;
   for(i=0;i<16;i++){k=i/15;
@@ -49208,7 +49348,7 @@ function blgPass(){
   if(RTD.game!=='calcio'||RTD.ui!=='match')return;
   var d=blgToWorld(RTD.joy.mx,RTD.joy.my);   // §2.1 punto (2): MAI il joy raw
   rtdSend({t:'act',a:'attack',ax:d[0],ay:d[1]});
-  blgKick(false,0.5);   // passaggio: pitch variabile + duck
+  blgLocKick();blgKick(false,0.5);   // passaggio: pitch variabile + duck
   try{tg.HapticFeedback&&tg.HapticFeedback.impactOccurred('medium');}catch(e){}
 }
 function blgShieldDown(btn){
@@ -49222,13 +49362,13 @@ function blgShieldUp(btn){
   if(!BLG.holdShield)return;
   BLG.holdShield=false;if(btn&&btn.classList)btn.classList.remove('on');
   rtdSend({t:'act',a:'unshield'});
-  blgKick(true,Math.min(1,0.25+0.75*(BLG.myChg||0)/255));   // pitch dalla potenza (byte chg §2.3) + jitter
+  blgLocKick();blgKick(true,Math.min(1,0.25+0.75*(BLG.myChg||0)/255));   // pitch dalla potenza (byte chg §2.3) + jitter
   try{tg.HapticFeedback&&tg.HapticFeedback.impactOccurred('medium');}catch(e){}
 }
 function blgSpecial(){
   if(RTD.game!=='calcio'||RTD.ui!=='match')return;
   rtdSend({t:'act',a:'special'});
-  TWS.play('whoosh',0.5);
+  blgLocKick();TWS.play('whoosh',0.5);
   try{tg.HapticFeedback&&tg.HapticFeedback.impactOccurred('light');}catch(e){}   // feedback press (20/07)
 }
 
@@ -49299,6 +49439,12 @@ function blgDuckF(now){
 }
 // sfx BOLGIA passati dal duck (il boato/cori NON passano di qui: sono "il resto" che viene abbassato)
 function blgSfx(n,v){TWS.play(n,(v==null?1:v)*blgDuckF(performance.now()));}
+// B3: istante dell'ULTIMO calcio suonato in locale (bottoni PASSA/TIRA/CROSS).
+// Il renderer safe riconosce i calci dallo SNAPSHOT (salto di |v| della palla):
+// senza questo marcatore il proprio calcio si sentirebbe DUE volte — una al
+// tocco e una ~RTT dopo, quando il server lo conferma. L'hit-stop del bolide
+// resta comunque (è visivo, non audio).
+function blgLocKick(){BLG.locKickT=performance.now();}
 // calcio con pitch variabile: p=0..1 (potenza). BLG_PITCH e' un transiente
 // settato/azzerato sincrono attorno a TWS.play — stesso pattern di TWS.pan
 // (le ricette ARC_SOUNDS creano i nodi subito, quindi il globale e' safe).
@@ -49652,6 +49798,14 @@ function rtdBuildBolgia(){
   // contatori errore/lentezza, cache geometria). NON tocca BLG.tier: se il device
   // è sceso in safe resta safe finché il match è aperto (e gb_blgtier lo persiste).
   BLG._dfErr=0;BLG._errN=0;BLG._slowN=0;BLG._errBeac=0;BLG._safeBeac=0;BLG._geomW=0;BLG._geomH=0;
+  // SAFE V2 (28/07): stato per-frame del renderer procedurale — scia della palla
+  // (ring-buffer), clock del dt locale, cronometro/beacon del budget. Senza questo
+  // reset il match successivo eredita la scia e il dt del precedente.
+  BLG.sfTx=null;BLG.sfTy=null;BLG.sfTi=0;BLG.sfTt=0;BLG.sfT=0;BLG.sfMax=0;BLG._sfBeac=0;
+  // FEEL B3 (28/07): punto d'impatto della palla (particelle del palo) e
+  // desaturazione del fischio finale. Senza questo reset il match successivo
+  // parte con lo schermo spento e i pali che scintillano dove non c'è nulla.
+  BLG.bpx=0;BLG.bpy=0;BLG.locKickT=0;RTD._sc.blgEnd=null;
   BLG._bcA=0;BLG._bcB=0;BLG._bc1f=0;BLG._bcSnap=0;   // STEP-BEACON (23/07): riarma i beacon di avvio per il nuovo match
   var _pl=document.getElementById('blg-pill');if(_pl&&_pl.parentNode)_pl.parentNode.removeChild(_pl);
   BLG.startAt=performance.now();   // per scartare snapshot stantii del match precedente
@@ -49922,6 +50076,18 @@ function blgBeaconStep(at,extra){
 // bloccante. Vale SOLO per calcio: gli altri giochi non la consultano.
 function blgReducedMode(){
   if(RTD.game!=='calcio')return false;
+  // 28/07 — L'OPT-IN HD ESPLICITO VINCE QUI DENTRO, non cancellando gb_lite.
+  // Prima l'interruttore HD faceva removeItem('gb_lite') per bypassare l'OR
+  // qui sotto: ma gb_lite NON è un flag del derby — è il marcatore di
+  // FRAGILITÀ DEL DEVICE che rtdRafWatch scrive quando il rAF MUORE, e da cui
+  // dipendono il dpr e i tagli di lavoro di TUTTI i giochi RTD (pong, race,
+  // snake, biliardo, Dead Peak). Cancellarlo lasciava quei giochi senza
+  // protezione su un telefono che aveva già dimostrato di non farcela — e
+  // Dead Peak ha un torneo armato. Questa funzione riguarda SOLO il calcio
+  // (vedi la riga sopra), quindi qui l'opt-in può avere la precedenza senza
+  // toccare niente di globale.
+  var _hd=null;try{_hd=localStorage.getItem('gb_blgtier');}catch(_lr0){}
+  if(_hd==='full')return false;
   if(RTD.lite)return true;
   try{if(localStorage.getItem('gb_lite')==='1')return true;}catch(_lr){}
   var t='safe';try{t=blgTierSeed();}catch(_lr2){t='safe';}
@@ -49955,7 +50121,103 @@ function blgTierDown(reason){
   if(BLG.tier==='safe')return;
   BLG.tier='safe';
   try{localStorage.setItem('gb_blgtier','safe');}catch(_p){}
+  try{localStorage.removeItem('gb_hdtry');}catch(_p2){}
   blgBeacon('tierdown',reason);
+  derbyHdPaint();   // se il declassamento avviene a lobby aperta, l'interruttore lo dice
+  // il giocatore deve sapere PERCHÉ la grafica è cambiata sotto le mani
+  try{if(typeof toast==='function')toast('Grafica riportata a STANDARD: il telefono non reggeva','warn',2600);}catch(_p3){}
+}
+// ── CANARINO HD (28/07) — l'unica rete che copre il caso storico ─────────────
+// blgTierDown salva da un frame LENTO o da un'eccezione: legge il cronometro
+// DOPO il return. Ma il bug che ha tenuto fermo il derby per settimane era un
+// frame che NON RITORNAVA — thread occupato ~40s, e in JS non c'è modo di
+// interromperlo a metà: quel codice non viene mai raggiunto. Quindi:
+// prima di entrare in HD si pianta un canarino; quando la partita comincia a
+// girare davvero lo si toglie. Se all'avvio successivo il canarino è ANCORA
+// lì, vuol dire che la volta scorsa non siamo mai arrivati a togliere il
+// canarino — cioè ci siamo piantati — e si torna a STANDARD da soli. Chi
+// chiude un'app bloccata e la riapre se la ritrova giocabile, senza sapere
+// nulla di tier e senza dover trovare un interruttore in lobby.
+function blgHdCanaryCheck(){
+  var stuck=null;
+  try{stuck=localStorage.getItem('gb_hdtry');}catch(_c0){}
+  if(!stuck)return false;
+  try{
+    localStorage.removeItem('gb_hdtry');
+    localStorage.setItem('gb_blgtier','safe');
+  }catch(_c1){}
+  BLG.tier=null;
+  try{blgBeaconStep('hdstuck',{});}catch(_c2){}
+  try{if(typeof toast==='function')toast('Grafica riportata a STANDARD: l\'ultima partita in HD si è bloccata','warn',3200);}catch(_c3){}
+  return true;
+}
+function blgHdCanarySet(){
+  try{if(localStorage.getItem('gb_blgtier')==='full')localStorage.setItem('gb_hdtry','1');}catch(_c4){}
+}
+function blgHdCanaryClear(){
+  try{localStorage.removeItem('gb_hdtry');}catch(_c5){}
+}
+// ── INTERRUTTORE GRAFICA HD (28/07) ──────────────────────────────────────────
+// Il derby è SAFE-FIRST: blgTierSeed ritorna 'safe' per qualunque device che non
+// abbia un override persistito, e l'unica scrittura di 'gb_blgtier' esistente
+// (blgTierDown) scrive solo 'safe'. Risultato: il renderer ricco non lo vedeva
+// NESSUNO. Questo è l'opt-in esplicito previsto dal commento di blgTierSeed.
+// Perché funzioni davvero deve muovere TUTTE le leve di blgReducedMode, che è un
+// OR di tre condizioni: gb_blgtier, gb_lite persistito e RTD.lite. Scrivere solo
+// 'full' non basterebbe: l'utente accenderebbe l'HD senza vedere alcuna differenza.
+// E BLG.tier è MEMOIZZATO in blgTierSeed → va azzerato, o resta il valore vecchio.
+// Reversibile: lo stesso tocco rimuove la chiave e si torna al default (safe).
+function derbyHdOn(){
+  // Lo stato del bottone è SOLO la scelta dell'utente. Prima leggeva anche
+  // gb_lite e RTD.lite, ma aveva senso solo finché il toggle CANCELLAVA
+  // gb_lite: da quando non lo tocca più (è la protezione globale del device),
+  // quel controllo diceva "HD spento" con la chiave a 'full' — quindi il
+  // bottone mostrava sempre SPENTA e ogni tocco riscriveva 'full' invece di
+  // spegnere. La precedenza dell'opt-in sul lite ora sta in blgReducedMode.
+  try{return localStorage.getItem('gb_blgtier')==='full';}catch(_h0){return false;}
+}
+function derbyHdBtn(){
+  // il controllo del canarino sta QUI: la lobby e' il primo posto sicuro
+  // dopo un blocco (l'utente riapre l'app e passa di qui), e cosi' il
+  // bottone si disegna gia' con lo stato corretto.
+  try{blgHdCanaryCheck();}catch(_hc0){}
+  var on=derbyHdOn();
+  return '<button class="action-btn" id="blg-hd-btn" onclick="derbyHdToggle()" '
+    +'style="width:100%;margin:8px 0 2px;padding:9px 12px;line-height:1.35;background:linear-gradient(135deg,#1a1a2e,#101020);'
+    +'border:1px solid '+(on?'rgba(250,204,21,.6)':'rgba(148,163,184,.4)')+';color:'+(on?'#fde68a':'#cbd5e1')+';">'
+    +'<span id="blg-hd-l">'+(on?'🖥 GRAFICA HD: ACCESA':'🖥 GRAFICA HD: SPENTA')+'</span>'
+    +'<span style="display:block;font-weight:400;font-size:10.5px;letter-spacing:0;opacity:.78;margin-top:3px;">'
+    +'Campo, calciatori e luci in alta definizione. Su alcuni telefoni la partita si blocca: se succede, riapri e torna da sola a STANDARD.'
+    +'</span></button>';
+}
+function derbyHdPaint(){
+  var l=document.getElementById('blg-hd-l');if(!l)return;
+  var on=derbyHdOn();
+  l.textContent=on?'🖥 GRAFICA HD: ACCESA':'🖥 GRAFICA HD: SPENTA';
+  var b=document.getElementById('blg-hd-btn');
+  if(b){b.style.borderColor=on?'rgba(250,204,21,.6)':'rgba(148,163,184,.4)';b.style.color=on?'#fde68a':'#cbd5e1';}
+}
+function derbyHdToggle(){
+  var on=derbyHdOn();
+  try{
+    if(on){
+      localStorage.removeItem('gb_blgtier');   // togliere la chiave = ritorno al default safe-first
+    }else{
+      localStorage.setItem('gb_blgtier','full');
+      // 28/07: NON si tocca più gb_lite (è la protezione GLOBALE del device,
+      // non un flag del derby). La precedenza dell'opt-in è dentro
+      // blgReducedMode, che riguarda solo il calcio.
+    }
+  }catch(_hd){}
+  BLG.tier=null;                               // memoizzato: senza reset il cambio non ha effetto
+  try{blgBeaconStep('hdopt',{hd:on?0:1});}catch(_hb){}
+  derbyHdPaint();
+  try{
+    var _um=/Chrome\/(\d+)/.exec(navigator.userAgent||'');
+    if(on)toast('Grafica STANDARD attiva','info');
+    else if(_um&&+_um[1]<110)toast('Questo telefono resta su STANDARD','info');   // UA datata: rtdCanvasInit riscrive gb_lite a ogni match
+    else toast('Grafica HD attiva','success');
+  }catch(_ht){}
 }
 // banner ERR SEMPRE visibile: riga rossa in alto col messaggio + contatori vivi
 // (msgs/s/rf/tier/lite). Il calcio non deve MAI più mostrare un frame congelato
@@ -49973,46 +50235,382 @@ function blgSafeErr(ctx,raw,w,hh,e){
     ctx.fillText('msgs:'+(RTD._wsN||0)+' s:'+(RTD._wsS||0)+' rf:'+(RTD._rafN||0)+' tier:'+(BLG.tier||'?')+' lite:'+(RTD.lite?1:0),6,39);
   }catch(_){}
 }
-// renderer procedurale low-fi: campo verde a bande, righe bianche, cerchio di
-// centro, aree, porte, giocatori (quadrati colorati, pip bianco = tu), palla
-// (quadrato bianco). Disegna DIRETTAMENTE su cv, tutto il campo visibile (niente
-// camera, niente offscreen, niente interpolazione): robustezza > estetica.
+// ── PALETTE SAFE V2 (28/07, DERBY_REVAMP_V2 §3.2/§3.3) ───────────────
+// Il prato si SCURISCE, non si schiarisce: schiarire una banda su due rende
+// visibili le strisce ma cancella le entità (misurato: il rosso scende a
+// 1.06:1 contro l'erba). Scurendo, le strisce salgono a 1.89:1 di delta E il
+// rosso guadagna contrasto (1.74 → 1.94). Il blu passa da '#3b82f6' (usato
+// SOLO qui) a '#38bdf8' come HUD/sprite/radar/editor: fra le due squadre il
+// contrasto di luminanza sale da 1.02:1 (stessa macchia per un daltonismo
+// rosso-verde) a 1.76:1. Il giallo è RISERVATO a "sei tu": non lo usano né le
+// squadre né la palla. I colori squadra restano quelli di DERBY_REVAMP_SPEC
+// §V1: lo stacco dall'erba lo dà l'ANELLO scuro di contorno (4.90:1), non una
+// tinta diversa.
+var BLG_SF={bg:'#080d12',stand:'#101720',rail:'#1c2734',seatA:'#26323f',seatB:'#334458',
+  gr0:'#0f3419',gr1:'#1c6330',line:'rgba(255,255,255,.82)',net:'rgba(226,232,240,.30)',
+  ring:'#08170e',t0:'#ef4444',t1:'#38bdf8',ball:'#f8fafc',me:'#fde047',gk:'#fbbf24'};
+// renderer procedurale del tier SAFE — è QUESTO che vedono i giocatori.
+// Vocabolario (Football Manager 2D / Sensible Soccer): disco + anello + numero
+// + ombra + scia, cioè esattamente le primitive consentite. Ogni entità ha un
+// canale visivo ESCLUSIVO: prima la palla era un quadrato bianco e "sei tu" un
+// quadrato bianco dentro il proprio disco — stessa forma, stesso colore.
+// Vincoli invariati: solo fillRect/strokeRect/arc/ellipse/moveTo-lineTo/
+// fillText + globalAlpha. ZERO canvas offscreen, ZERO drawImage, ZERO
+// globalCompositeOperation, ZERO ctx.filter, ZERO shadowBlur, ZERO rAF.
 function blgDrawSafe(ctx,raw,lp,now,w,hh){
+  var _sf0=(typeof performance!=='undefined'&&performance.now)?performance.now():0;
   if(!BLG.S||BLG._geomW!==w||BLG._geomH!==hh){blgGeomInit();BLG._geomW=w;BLG._geomH=hh;}
   try{blgMyTeam();}catch(_mt){}
   var S=BLG.S||20,offX=BLG.offX||0,offY=BLG.offY||0,W=BLG.W||16,H=BLG.H||9;
-  var fx0=offX,fy0=offY,fw=H*S,fh=W*S;
+  var fx0=offX,fy0=offY,fw=H*S,fh=W*S,fx1=fx0+fw,fy1=fy0+fh,cx=fx0+fw/2;
+  var mt=(BLG.team===1)?1:0;                       // la MIA porta è SEMPRE in basso (blgW2S)
+  var myCol=mt===0?BLG_SF.t0:BLG_SF.t1,opCol=mt===0?BLG_SF.t1:BLG_SF.t0;
+  // GOLDEN GOAL: la larghezza VERA della porta arriva in raw.gw (l'engine la
+  // allarga di 0.4u ogni 20s). blgGeomInit legge solo RTD.map.gw (valore
+  // iniziale) ed è richiamata al solo resize ⇒ in safe si tirava a un bersaglio
+  // che non era dov'era disegnato. Il core lo fa già (rebake su raw.gw).
+  var gw=(raw&&raw.gw!=null&&raw.gw>0)?raw.gw:(BLG.gw||2.6);BLG.gw=gw;
+  var dt=Math.min(0.05,(now-(BLG.sfT||now))/1000);BLG.sfT=now;
+  // ── HIT-STOP / SLOW-MO (B3 §4): BLG.vo è un OFFSET sul clock virtuale del
+  //    lerp — congela il RENDER, mai la simulazione, e non tocca il compositor.
+  //    Costo: ZERO pixel. Girava solo in blgDrawCore, quindi in safe il tiro
+  //    pieno e il gol non avevano alcun peso. Ha senso solo DOPO che il safe
+  //    interpola davvero (B2): senza lp non c'è niente da rallentare.
+  if(now<BLG.hsT)BLG.vo=Math.min(440,BLG.vo+dt*1000);
+  else if(now<BLG.slowT)BLG.vo=Math.min(380,BLG.vo+dt*650);
+  else if(BLG.vo>0)BLG.vo=Math.max(0,BLG.vo-dt*900);
+  try{lp=blgLerp(now)||lp;}catch(_vo){}
   ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=1;
-  ctx.fillStyle='#07120b';ctx.fillRect(0,0,w,hh);
-  for(var b=0;b<8;b++){ctx.fillStyle=(b%2)?'#185a28':'#1f6b31';ctx.fillRect(fx0,fy0+fh*b/8,fw,fh/8+1);}
-  ctx.strokeStyle='rgba(255,255,255,.85)';ctx.lineWidth=Math.max(1.5,0.06*S);
-  ctx.strokeRect(fx0,fy0,fw,fh);
-  ctx.beginPath();ctx.moveTo(fx0,fy0+fh/2);ctx.lineTo(fx0+fw,fy0+fh/2);ctx.stroke();
-  ctx.beginPath();ctx.arc(fx0+fw/2,fy0+fh/2,2.0*S,0,6.283);ctx.stroke();
-  ctx.fillStyle='rgba(255,255,255,.85)';
-  ctx.beginPath();ctx.arc(fx0+fw/2,fy0+fh/2,0.09*S,0,6.283);ctx.fill();
-  var ad=(RTD.map&&RTD.map.ad)||2.4,aw=(RTD.map&&RTD.map.aw)||5.0;
-  var awPx=aw*S,adPx=ad*S;
-  ctx.strokeRect(fx0+fw/2-awPx/2,fy0,awPx,adPx);
-  ctx.strokeRect(fx0+fw/2-awPx/2,fy0+fh-adPx,awPx,adPx);
-  var gwPx=(BLG.gw||2.6)*S,dep=0.5*S;
-  ctx.strokeStyle='#f8fafc';ctx.lineWidth=Math.max(2,0.08*S);
-  ctx.strokeRect(fx0+fw/2-gwPx/2,fy0-dep,gwPx,dep);
-  ctx.strokeRect(fx0+fw/2-gwPx/2,fy0+fh,gwPx,dep);
-  var rp=(raw&&raw.p)||[];
-  var pr=Math.max(3,0.42*S);
-  for(var i=0;i<rp.length;i++){
-    var rr=rp[i];if(!rr)continue;
-    var fl=rr[3]|0,tm=(fl>>1)&1;
-    var q=blgW2S(rr[1],rr[2]);
-    ctx.fillStyle=tm===0?'#ef4444':'#3b82f6';
-    ctx.fillRect(q.x-pr,q.y-pr,pr*2,pr*2);
-    if(String(rr[0])===String(RTD.myId)){ctx.fillStyle='#ffffff';ctx.fillRect(q.x-pr*0.34,q.y-pr*0.34,pr*0.68,pr*0.68);}
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  // SHAKE: rtdFrame lo applica con un translate che il setTransform qui sopra
+  // (rete di sicurezza dopo un throw) cancellava ⇒ in safe non è mai esistito.
+  // Riapplicato DOPO il reset: è una traslazione, non un compositing.
+  if(RTD.shake>0.3)ctx.translate((Math.random()-0.5)*RTD.shake,(Math.random()-0.5)*RTD.shake);
+  // ── STADIO: fondo + tribune nelle bande morte laterali (oggi nero vuoto) ──
+  ctx.fillStyle=BLG_SF.bg;ctx.fillRect(-24,-24,w+48,hh+48);
+  // energia folla: già alzata dagli eventi (blgCrowd), qui RIENTRA a riposo con
+  // la stessa curva del core — senza questo decadimento la tribuna resterebbe
+  // in delirio per sempre dopo il primo gol. (B3: fuori dal guard delle bande
+  // laterali, perché ora pilota anche il volume dei cori — vedi audio in coda.)
+  var cw=BLG.crowd;if(cw)cw.e=0.22+((cw.e||0.22)-0.22)*Math.exp(-dt*0.35);
+  var ce=(cw&&cw.e)||0.25;
+  if(offX>8){
+    ctx.fillStyle=BLG_SF.stand;
+    ctx.fillRect(0,0,fx0-2,hh);ctx.fillRect(fx1+2,0,w-fx1-2,hh);
+    var sPit=hh/14,sW=offX*0.20,sH=sPit*0.30,sAmp=sPit*0.18*(0.35+ce);
+    for(var si=0;si<14;si++){
+      var syC=sPit*(si+0.5),jt=((si*37)%11)/11;
+      var bob=Math.sin(now/(430-ce*180)+si*0.8)*sAmp;   // funzione di 'now', mai del conteggio frame
+      ctx.fillStyle=(si&1)?BLG_SF.seatA:BLG_SF.seatB;
+      ctx.fillRect(offX*0.12,syC+bob-sH/2,sW,sH);
+      ctx.fillRect(offX*0.44+jt*offX*0.05,syC-bob*0.7-sH/2,sW,sH);
+      ctx.fillRect(offX*0.74,syC+bob*0.5-sH/2,sW,sH);
+      ctx.fillRect(w-offX*0.12-sW,syC-bob-sH/2,sW,sH);
+      ctx.fillRect(w-offX*0.44-sW-jt*offX*0.05,syC+bob*0.7-sH/2,sW,sH);
+      ctx.fillRect(w-offX*0.74-sW,syC-bob*0.5-sH/2,sW,sH);
+    }
+    ctx.fillStyle=BLG_SF.rail;ctx.fillRect(fx0-2,0,2,hh);ctx.fillRect(fx1,0,2,hh);
   }
-  if(raw&&raw.ball){
-    var qb=blgW2S(raw.ball[0],raw.ball[1]),br=Math.max(2,0.32*S);
-    ctx.fillStyle='#0b0f14';ctx.fillRect(qb.x-br-1,qb.y-br-1,br*2+2,br*2+2);
-    ctx.fillStyle='#f8fafc';ctx.fillRect(qb.x-br,qb.y-br,br*2,br*2);
+  // ── PRATO: 16 bande (erano 8, delta 1.27:1 = invisibili) ──
+  var nb=16,bh=fh/nb;
+  for(var b=0;b<nb;b++){ctx.fillStyle=(b&1)?BLG_SF.gr0:BLG_SF.gr1;ctx.fillRect(fx0,fy0+bh*b,fw,bh+1);}
+  var ad=(RTD.map&&RTD.map.ad)||2.4,aw=(RTD.map&&RTD.map.aw)||5.0;
+  var awPx=aw*S,adPx=ad*S,axL=cx-awPx/2;
+  ctx.fillStyle='rgba(0,0,0,.14)';                 // "terra consumata" nelle aree: scala + dove sei
+  ctx.fillRect(axL,fy0,awPx,adPx);ctx.fillRect(axL,fy1-adPx,awPx,adPx);
+  // ── SEGNATURA ──
+  ctx.strokeStyle=BLG_SF.line;ctx.lineWidth=Math.max(1.5,0.055*S);
+  ctx.strokeRect(fx0,fy0,fw,fh);
+  ctx.beginPath();ctx.moveTo(fx0,fy0+fh/2);ctx.lineTo(fx1,fy0+fh/2);ctx.stroke();
+  ctx.beginPath();ctx.arc(cx,fy0+fh/2,2.0*S,0,6.283);ctx.stroke();
+  ctx.strokeRect(axL,fy0,awPx,adPx);ctx.strokeRect(axL,fy1-adPx,awPx,adPx);
+  ctx.fillStyle=BLG_SF.line;
+  ctx.beginPath();ctx.arc(cx,fy0+fh/2,0.10*S,0,6.283);ctx.fill();
+  ctx.beginPath();ctx.arc(cx,fy0+1.5*S,0.09*S,0,6.283);ctx.fill();
+  ctx.beginPath();ctx.arc(cx,fy1-1.5*S,0.09*S,0,6.283);ctx.fill();
+  // ── PORTE: bocca scura + rete accennata + pali + LINEA DI PORTA A COLORI.
+  //    La tua è in basso nel colore della TUA squadra, quella avversaria in
+  //    alto nel suo: prima erano due rettangoli bianchi identici e la direzione
+  //    d'attacco — che il client conosce — non era mai detta sul campo. ──
+  var gwPx=gw*S,dep=Math.max(6,0.55*S),gx0=cx-gwPx/2,pw2=Math.max(2,0.10*S);
+  for(var gi=0;gi<2;gi++){
+    var gTop=(gi===0),gy=gTop?fy0-dep:fy1,gcol=gTop?opCol:myCol,nx;
+    ctx.fillStyle='rgba(6,12,9,.72)';ctx.fillRect(gx0,gy,gwPx,dep);
+    ctx.strokeStyle=BLG_SF.net;ctx.lineWidth=1;
+    ctx.beginPath();
+    for(nx=1;nx<6;nx++){var nxx=gx0+gwPx*nx/6;ctx.moveTo(nxx,gy);ctx.lineTo(nxx,gy+dep);}
+    ctx.moveTo(gx0,gy+dep*0.5);ctx.lineTo(gx0+gwPx,gy+dep*0.5);
+    ctx.stroke();
+    ctx.fillStyle='#f8fafc';
+    ctx.fillRect(gx0-pw2,gy,pw2,dep);ctx.fillRect(gx0+gwPx,gy,pw2,dep);
+    ctx.globalAlpha=0.9;ctx.fillStyle=gcol;
+    ctx.fillRect(gx0-pw2,gTop?fy0-pw2:fy1,gwPx+pw2*2,pw2);
+    ctx.globalAlpha=1;
+  }
+  // ── GIOCATORI ─────────────────────────────────────────────────────
+  // INTERPOLAZIONE (costo: ZERO primitive): blgDrawSafe riceveva lp e disegnava
+  // raw, cioè 20 posizioni discrete al secondo dentro un loop a 30 fps (cadenza
+  // 20-in-30: frame ripetuti e frame saltati). Qui lp viene letto davvero, con
+  // una scansione per id: nessuna allocazione, nessuna primitiva in più.
+  var rp=(raw&&raw.p)||[];
+  var LA=(lp&&lp.a&&lp.b&&lp.a!==lp.b)?lp.a.p:null,LB=(lp&&lp.b)?lp.b.p:null,lk=(lp&&lp.k)||0;
+  var pr=Math.max(4,0.40*S),meId=RTD.myId;
+  var numF='bold '+Math.round(Math.max(8,0.40*S))+'px Orbitron,monospace';
+  // ordine di disegno: IO per ULTIMO (il mio disco e il mio cuneo non devono
+  // finire sotto un avversario nella mischia). Riordino senza allocare.
+  var nP=rp.length,mi=-1,ki;
+  for(ki=0;ki<nP;ki++){if(rp[ki]&&rp[ki][0]==RTD.myId){mi=ki;break;}}
+  if(mi<0)BLG.pred.ok=false;   // spettatore o riga assente: niente predizione
+  for(var k2=0;k2<nP;k2++){
+    var i=(mi<0)?k2:((k2===nP-1)?mi:(k2<mi?k2:k2+1));
+    var rr=rp[i];if(!rr)continue;
+    var fl=rr[3]|0,tm=(fl>>1)&1,gk=!!(fl&4),chg=(rr[4]|0)/255;
+    var wx=rr[1],wy=rr[2],pa=null,pb=null,z2;
+    if(LA&&LB){
+      for(z2=0;z2<LB.length;z2++){if(LB[z2][0]==rr[0]){pb=LB[z2];break;}}
+      if(pb){
+        for(z2=0;z2<LA.length;z2++){if(LA[z2][0]==rr[0]){pa=LA[z2];break;}}
+        if(pa){wx=pa[1]+(pb[1]-pa[1])*lk;wy=pa[2]+(pb[2]-pa[2])*lk;}else{wx=pb[1];wy=pb[2];}
+      }
+    }
+    // PREDIZIONE LOCALE (B3 §5.3b): SOLO la mia riga, mai quelle altrui. Il lerp
+    // ha un buffer di 85 ms e sopra ci sono pump+tick+RTT: in safe il proprio
+    // giocatore rispondeva con 100-160 ms scoperti. Costo: ZERO primitive.
+    // ANCORA = rr[1],rr[2], cioè lo snapshot PIÙ RECENTE (raw), non la coppia
+    // interpolata: il buffer di 85 ms serve a smussare gli ALTRI, il mio
+    // giocatore lo pago due volte se ci ancoro anche la predizione. Misurato:
+    // ancorando al lerp l'errore medio non scende, ancorando a raw sì.
+    if(rr[0]==meId){
+      var pdS=blgPredStep(rr[1],rr[2],fl,raw?raw.ph:0,dt);
+      if(pdS){wx=pdS.x;wy=pdS.y;}
+    }
+    var q=blgW2S(wx,wy),px=q.x,py=q.y;             // BLG.pt è CONDIVISO: leggere SUBITO
+    var an=BLG.anim[rr[0]];
+    if(!an)an=BLG.anim[rr[0]]={lx:wx,ly:wy,fx:(tm===0?1:-1),fy:0,pf:0,posT:0};
+    var dxw=wx-(an.lx||0),dyw=wy-(an.ly||0),dl=Math.sqrt(dxw*dxw+dyw*dyw);
+    if(dl>0.015){an.fx=dxw/dl;an.fy=dyw/dl;}       // facing dal delta, hold se fermo
+    an.lx=wx;an.ly=wy;
+    var sfx,sfy;if(mt===1){sfx=-an.fy;sfy=an.fx;}else{sfx=an.fy;sfy=-an.fx;}
+    var jmp=(BLG.goalWho&&BLG.goalWho==rr[0]&&now-BLG.goalT<1400)
+      ?Math.abs(Math.sin((now-BLG.goalT)/1400*9.42))*pr*0.9:0;   // esultanza: un salto, senza sprite
+    // ombra: l'unica cosa che stacca il token dal prato senza toccare i colori
+    // squadra, e che costruisce il piano-terra (prima erano adesivi sul verde)
+    ctx.globalAlpha=jmp?0.20:0.34;ctx.fillStyle='#000';
+    ctx.beginPath();
+    if(ctx.ellipse)ctx.ellipse(px,py+pr*0.55,pr*0.95,pr*0.40,0,0,6.283);
+    else ctx.arc(px,py+pr*0.62,pr*0.60,0,6.283);
+    ctx.fill();ctx.globalAlpha=1;
+    py-=jmp;
+    if(fl&16){                                     // scivolata (b4): due zolle dietro
+      ctx.fillStyle='rgba(232,244,232,.5)';
+      ctx.fillRect(px-sfx*pr*1.45-pr*0.34,py-sfy*pr*1.45-pr*0.34,pr*0.68,pr*0.68);
+      ctx.fillRect(px-sfx*pr*2.35-pr*0.24,py-sfy*pr*2.35-pr*0.24,pr*0.48,pr*0.48);
+    }
+    ctx.fillStyle=tm===0?BLG_SF.t0:BLG_SF.t1;
+    if(fl&256){                                    // tuffo del portiere (b8): il corpo si ALLUNGA
+      ctx.beginPath();ctx.arc(px+sfx*pr*0.78,py+sfy*pr*0.78,pr*0.70,0,6.283);ctx.fill();
+      ctx.beginPath();ctx.arc(px-sfx*pr*0.52,py-sfy*pr*0.52,pr*0.60,0,6.283);ctx.fill();
+    }
+    if(fl&32)ctx.globalAlpha=0.7;                  // stordito (b5)
+    ctx.strokeStyle=BLG_SF.ring;ctx.lineWidth=Math.max(1.5,0.10*S);
+    ctx.beginPath();ctx.arc(px,py,pr,0,6.283);ctx.fill();ctx.stroke();
+    if(gk){                                        // portiere (b2): anello interno ambra
+      ctx.strokeStyle=BLG_SF.gk;ctx.lineWidth=Math.max(1.2,0.055*S);
+      ctx.beginPath();ctx.arc(px,py,pr*0.56,0,6.283);ctx.stroke();
+    }
+    ctx.globalAlpha=1;
+    // numero di maglia: due passate (nero +1,+1 poi bianco) = outline senza
+    // filtri. È l'unica cosa che trasforma "un rosso" in "il 7" — e finalmente
+    // l'editor cosmetico ha un effetto visibile in partita (lk.nm).
+    var lkP=null;try{lkP=blgLookOf(rr[0]);}catch(_lk){}
+    var nmv=(lkP&&lkP.nm)|0;
+    if(!nmv){var hsh=0,sid=''+rr[0];for(var hi=0;hi<sid.length;hi++)hsh=(hsh*31+sid.charCodeAt(hi))>>>0;nmv=1+hsh%30;}
+    ctx.font=numF;
+    ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillText(nmv,px+1,py+1);
+    ctx.fillStyle='#ffffff';ctx.fillText(nmv,px,py);
+    if(fl&64){                                     // possesso (b6): anello bianco pulsante
+      // B3 §4 PASSAGGIO: quando il possesso CAMBIA, l'anello si CONTRAE su chi
+      // riceve in 180 ms. È la conferma visiva che il passaggio è arrivato —
+      // stessa primitiva di prima, raggio funzione di 'now'.
+      if(!(an.pf&64))an.posT=now;
+      var pk2=(an.posT&&now-an.posT<180)?(1-(now-an.posT)/180):0;
+      ctx.globalAlpha=0.6+0.35*Math.sin(now/220);ctx.strokeStyle='#ffffff';
+      ctx.lineWidth=Math.max(2,0.085*S);
+      ctx.beginPath();ctx.arc(px,py,pr*(1.36+0.62*pk2),0,6.283);ctx.stroke();ctx.globalAlpha=1;
+    }
+    an.pf=fl;
+    if(fl&8){                                      // carica (b3 + byte ch): ARCO che cresce
+      // la barra di carica senza rubare un pixel di HUD — e visibile ANCHE sugli
+      // avversari: sapere che stanno per tirarti addosso è informazione tattica
+      // che il server manda già.
+      ctx.strokeStyle=BLG_CHG_COLS[Math.min(15,Math.floor(chg*15))];
+      ctx.lineWidth=Math.max(2,0.11*S);
+      ctx.beginPath();ctx.arc(px,py,pr*1.52,-1.5708,-1.5708+6.283*Math.min(1,chg),false);ctx.stroke();
+    }
+    if(fl&32){                                     // stordito: puntino orbitante
+      ctx.fillStyle=BLG_SF.me;
+      ctx.beginPath();ctx.arc(px+Math.cos(now/150)*pr*1.2,py-pr*1.35+Math.sin(now/150)*pr*0.3,Math.max(1.5,0.055*S),0,6.283);ctx.fill();
+    }
+    if(rr[0]==meId){                               // SEI TU: anello + cuneo GIALLI (colore riservato)
+      ctx.globalAlpha=0.62+0.32*Math.sin(now/300);ctx.strokeStyle=BLG_SF.me;
+      ctx.lineWidth=Math.max(1.8,0.085*S);
+      ctx.beginPath();ctx.arc(px,py,pr*1.14,0,6.283);ctx.stroke();ctx.globalAlpha=1;
+      var cwx=px+sfx*pr*1.48,cwy=py+sfy*pr*1.48,cs=pr*0.46;
+      ctx.fillStyle=BLG_SF.me;ctx.beginPath();
+      ctx.moveTo(cwx+sfx*cs,cwy+sfy*cs);
+      ctx.lineTo(cwx-sfx*cs*0.55-sfy*cs*0.8,cwy-sfy*cs*0.55+sfx*cs*0.8);
+      ctx.lineTo(cwx-sfx*cs*0.55+sfy*cs*0.8,cwy-sfy*cs*0.55-sfx*cs*0.8);
+      ctx.closePath();ctx.fill();
+      BLG.myChg=rr[4]|0;BLG.myFl=fl;
+    }
+  }
+  // ── PALLA: quattro canali esclusivi (tonda, scia, ombra, QUOTA) ──
+  var rb=raw&&raw.ball;
+  if(rb){
+    var bA=(lp&&lp.a&&lp.b&&lp.a!==lp.b)?lp.a.ball:null,bB=(lp&&lp.b)?lp.b.ball:null;
+    var bx=rb[0],by=rb[1],bz=rb[4]||0;
+    if(bA&&bB){bx=bA[0]+(bB[0]-bA[0])*lk;by=bA[1]+(bB[1]-bA[1])*lk;bz=(bA[4]||0)+((bB[4]||0)-(bA[4]||0))*lk;}
+    var spd=Math.sqrt((rb[2]||0)*(rb[2]||0)+(rb[3]||0)*(rb[3]||0));
+    // ── CALCIO REMOTO + HIT-STOP SUL TIRO (B3 §4) ─────────────────────────
+    // Il salto di |v| della palla fra due snapshot È un calcio: in safe non
+    // arrivava alcun suono dei calci altrui e il bolide non aveva peso. Stesso
+    // criterio del core: potenza ricavata invertendo la formula del server
+    // (v = SHOT_MIN 6.5 + SHOT_RANGE 8.5*pw) e hit-stop sopra v 13.3 ⇔ pw 0.8.
+    if(raw!==BLG.lastRawRef){
+      var dvj=spd-(BLG.prevBv||0);
+      if(dvj>4.5){
+        // il suono NO se il calcio è MIO e l'ho già sentito al tocco (blgLocKick):
+        // altrimenti lo stesso calcio si sente due volte a ~RTT di distanza.
+        if(performance.now()-(BLG.locKickT||-9999)>280){
+          try{blgKick(spd>10.5,Math.max(0,Math.min(1,(spd-6.5)/8.5)));}catch(_bk2){}
+        }
+        if(spd>13.3){BLG.hsT=now+50;RTD.shake=Math.min(12,RTD.shake+5);}
+      }
+      BLG.prevBv=spd;BLG.lastRawRef=raw;
+    }
+    var qb=blgW2S(bx,by),bpx=qb.x,bpy=qb.y;
+    BLG.bpx=bpx;BLG.bpy=bpy;                       // punto d'impatto per il PALO (rtdFeedEvent)
+    var br=Math.max(2.5,0.30*S),zk=Math.min(1,bz);
+    if(!BLG.sfTx){BLG.sfTx=[];BLG.sfTy=[];for(z2=0;z2<6;z2++){BLG.sfTx.push(bpx);BLG.sfTy.push(bpy);}BLG.sfTi=0;}
+    if(now-(BLG.sfTt||0)>28){BLG.sfTt=now;BLG.sfTi=(BLG.sfTi+1)%6;BLG.sfTx[BLG.sfTi]=bpx;BLG.sfTy[BLG.sfTi]=bpy;}
+    if(spd>3.2){                                   // scia: ring-buffer locale di 6 posizioni
+      ctx.fillStyle=BLG_SF.ball;
+      var hot=Math.min(1,(spd-3.2)/5);
+      for(z2=1;z2<=5;z2++){
+        var ti=(BLG.sfTi-z2+12)%6,fk2=1-z2/6;
+        ctx.globalAlpha=0.28*fk2*hot;
+        ctx.beginPath();ctx.arc(BLG.sfTx[ti],BLG.sfTy[ti],br*(0.35+0.5*fk2),0,6.283);ctx.fill();
+      }
+      ctx.globalAlpha=1;
+    }
+    // QUOTA: lo stacco palla-ombra è l'unico modo in cui un top-down comunica
+    // l'altezza. ball[4] arrivava già nel pacchetto e finiva nel cestino: un
+    // cross (1.22s sopra Z_PLAY, ingiocabile) era disegnato identico a un rasoterra.
+    ctx.globalAlpha=0.32-0.12*zk;ctx.fillStyle='#000';
+    ctx.beginPath();
+    if(ctx.ellipse)ctx.ellipse(bpx,bpy+br*0.32,br*(1-0.25*zk),br*(0.55-0.15*zk),0,0,6.283);
+    else ctx.arc(bpx,bpy+br*0.32,br*(0.65-0.18*zk),0,6.283);
+    ctx.fill();ctx.globalAlpha=1;
+    ctx.fillStyle=BLG_SF.ball;ctx.strokeStyle='#0b0f14';ctx.lineWidth=Math.max(1.2,0.05*S);
+    ctx.beginPath();ctx.arc(bpx,bpy-zk*S*0.6,br*(1+0.15*zk),0,6.283);ctx.fill();ctx.stroke();
+  }
+  // ── PARTICELLE: lo STESSO pool del core (96 slot fissi, rng solo allo spawn),
+  //    ma senza il flag additivo (globalCompositeOperation='lighter' è vietato
+  //    qui): coriandoli del gol, zolle della scivolata, polvere del tuffo. ──
+  if(BLG.P){
+    for(z2=0;z2<96;z2++){
+      var pp=BLG.P[z2];if(!pp.on)continue;
+      var kk=(now-pp.t0)/pp.dur;
+      if(kk>=1){pp.on=0;continue;}
+      pp.vy+=pp.g*dt;pp.vx*=pp.drg;pp.vy*=pp.drg;
+      pp.x+=pp.vx*dt;pp.y+=pp.vy*dt;
+      ctx.globalAlpha=1-kk;ctx.fillStyle=pp.col;
+      ctx.fillRect(pp.x-pp.r,pp.y-pp.r,pp.r*2,pp.r*2);
+    }
+    ctx.globalAlpha=1;
+  }
+  // countdown del calcio d'inizio (fz): due passate, niente shadowBlur
+  if(raw&&raw.ph===1&&raw.fz>0){
+    ctx.font='bold '+Math.round(0.9*S)+'px Russo One, sans-serif';
+    ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillText(raw.fz.toFixed(1),cx+2,fy0+fh/2-1.6*S+2);
+    ctx.fillStyle='#ffffff';ctx.fillText(raw.fz.toFixed(1),cx,fy0+fh/2-1.6*S);
+  }
+  // golden goal (ph=2): cornice dorata pulsante — in safe non c'era NIENTE che
+  // dicesse che si sta giocando la morte improvvisa
+  if(raw&&raw.ph===2){
+    ctx.globalAlpha=0.45+0.30*Math.sin(now/300);ctx.strokeStyle='#ffd700';
+    ctx.lineWidth=Math.max(2,0.09*S);ctx.strokeRect(fx0,fy0,fw,fh);ctx.globalAlpha=1;
+  }
+  // ── GOL: blgGoalEv arma già flash/glow/coriandoli/hit-stop, ma erano letti
+  //    SOLO da blgDrawCore ⇒ in safe il gol era muto proprio dove guarda
+  //    l'occhio. Il bagliore additivo non è portabile: si rende con 4 fillRect
+  //    di cornice. Il flash è un fill a schermo pieno in source-over, UNA volta
+  //    per gol (la scritta GOL! resta quella della coda rtdStampQ condivisa). ──
+  var gg=RTD._sc.blgGlow;
+  if(gg){
+    var gkk=(now-gg.t0)/gg.dur;
+    if(gkk<1){
+      ctx.globalAlpha=Math.min(0.55,gg.a*(1-gkk)*1.7);ctx.fillStyle=gg.col;
+      var gt=Math.max(6,0.85*S);
+      ctx.fillRect(0,0,w,gt);ctx.fillRect(0,hh-gt,w,gt);
+      ctx.fillRect(0,gt,gt,hh-gt*2);ctx.fillRect(w-gt,gt,gt,hh-gt*2);
+      ctx.globalAlpha=1;
+    }else RTD._sc.blgGlow=null;
+  }
+  var ff=RTD._sc.blgFlash;
+  if(ff){
+    var fkk=(now-ff.t0)/ff.dur;
+    if(fkk<1){ctx.globalAlpha=ff.a*(1-fkk);ctx.fillStyle=ff.col;ctx.fillRect(0,0,w,hh);ctx.globalAlpha=1;}
+    else RTD._sc.blgFlash=null;
+  }
+  // ── FISCHIO FINALE (B3 §4): il campo si spegne. UN fillRect scuro con alpha
+  //    che sale a 0.35 in 600 ms e poi tiene per ~2 s — il match è finito e si
+  //    deve VEDERE sul campo, non solo nel feed. Un solo fill a schermo pieno,
+  //    e solo durante l'evento (regola di budget).
+  var ge=RTD._sc.blgEnd;
+  if(ge){
+    var ek=(now-ge.t0)/ge.dur;
+    if(ek<4){ctx.globalAlpha=0.35*Math.min(1,ek);ctx.fillStyle='#060a0e';ctx.fillRect(0,0,w,hh);ctx.globalAlpha=1;}
+    else RTD._sc.blgEnd=null;
+  }
+  // ── PUNTEGGIO SUL CAMPO: rtdScoreBar fa return per il calcio, quindi
+  //    punteggio e timer vivono solo nella HUD DOM molto sopra il pallone.
+  //    Qui costano 1 fillRect + 4 fillText e l'occhio non lascia l'azione.
+  //    SOLO numeri: nessuna frase nuova da tradurre, nessun numero concatenato
+  //    dentro una stringa del dizionario. ──
+  var sc=(raw&&raw.sc)||null;
+  if(sc&&offY>9){
+    var sfH=Math.min(offY-3,0.62*S),sfY=offY*0.5,sfX=Math.max(6,offX*0.30);
+    ctx.globalAlpha=0.5;ctx.fillStyle='#04100a';
+    ctx.fillRect(sfX-sfH*0.35,sfY-sfH*0.62,sfH*2.5,sfH*1.24);ctx.globalAlpha=1;
+    ctx.textAlign='left';ctx.font='bold '+Math.round(sfH*0.86)+'px Orbitron,monospace';
+    ctx.fillStyle=myCol;ctx.fillText(sc[mt]|0,sfX,sfY);
+    ctx.fillStyle='#64748b';ctx.fillText('–',sfX+sfH*0.78,sfY);
+    ctx.fillStyle=opCol;ctx.fillText(sc[1-mt]|0,sfX+sfH*1.45,sfY);
+    if(raw.time!=null){
+      ctx.textAlign='right';ctx.font='bold '+Math.round(sfH*0.66)+'px Orbitron,monospace';
+      ctx.fillStyle=(raw.ph===2)?'#ffd700':'rgba(226,232,240,.8)';
+      ctx.fillText(Math.max(0,Math.ceil(180-(raw.time||0)))+'"',w-sfX,sfY);
+    }
+  }
+  ctx.textAlign='left';ctx.textBaseline='alphabetic';   // stato condiviso: ripristino
+  // ── AUDIO (B3 §5.3d): blgBed (i cori che respirano, volume ∝ energia folla) e
+  //    blgChargeSnd (l'oscillatore che sale di pitch mentre carichi) erano
+  //    chiamati SOLO in fondo a blgDrawCore ⇒ in safe il derby era muto tranne
+  //    gli sfx a evento. Costo: ZERO pixel. Entrambi sono pilotati con
+  //    setTargetAtTime (mai TWS.tone nel loop) e vengono spenti da rtdStopRaf.
+  try{
+    blgChargeSnd(!!(BLG.myFl&8)&&(!raw||raw.ph!==1),(BLG.myChg||0)/255);
+    blgBed(true,ce);
+  }catch(_au){}
+  // CRONOMETRO DEL RAMO SAFE: il guard dei 120ms di rtdDrawBolgia esiste solo
+  // sul ramo full — qui nessuno misurava. Beacon UNA volta per match sul canale
+  // 'clog' ESISTENTE (nessun nuovo tipo di messaggio WS).
+  if(_sf0){
+    var sfEl=performance.now()-_sf0;
+    if(sfEl>(BLG.sfMax||0))BLG.sfMax=sfEl;
+    if(sfEl>45&&!BLG._sfBeac){BLG._sfBeac=1;
+      try{blgBeaconStep('safeframe',{ms:Math.round(sfEl),np:rp.length});}catch(_sb){}}
   }
 }
 
@@ -50150,31 +50748,17 @@ function blgDrawCore(ctx,raw,lp,now,w,hh,dt){
     }
   }
   var rows=rtdLerpRow(lpb,'p');
-  // ── prediction §8.3 — mirror ESATTO server (// = football_rt ACC 9.0 / P_FR 1.6) ──
-  var meRow=rows[RTD.myId];
-  var pd=BLG.pred;
+  // ── prediction §8.3 — mirror ESATTO server, ora CONDIVISO col tier safe
+  //    (blgPredStep: BLG_ACC / BLG_PFR / BLG_CHGMUL / BLG_RECMUL) ──
+  var meRow=rows[RTD.myId],meRaw=null,_rq=raw.p||[],_ri;
+  for(_ri=0;_ri<_rq.length;_ri++){if(_rq[_ri][0]==RTD.myId){meRaw=_rq[_ri];break;}}
   if(meRow){
-    var mfl=meRow[3]|0;
-    if((mfl&16)||(mfl&32)||raw.ph===1){pd.ok=false;}   // scivolata/stun/freeze: movimento server-driven
-    else{
-      var sx0=meRow[1],sy0=meRow[2];
-      if(!pd.ok){pd.ok=true;pd.x=sx0;pd.y=sy0;pd.vx=0;pd.vy=0;}
-      var mult=(mfl&8)?0.55:((mfl&128)?0.4:1);   // = football_rt CHG_MULT 0.55 / REC_MULT 0.4
-      var wxi=0,wyi=0;
-      if(RTD.joy.on){   // = blgToWorld(joy) inline, zero alloc nel RAF
-        if(BLG.team===1){wxi=RTD.joy.my;wyi=-RTD.joy.mx;}else{wxi=-RTD.joy.my;wyi=RTD.joy.mx;}
-      }
-      pd.vx+=wxi*9.0*mult*dt;pd.vy+=wyi*9.0*mult*dt;   // = football_rt ACC 9.0
-      var frk=Math.max(0,1-1.6*dt);pd.vx*=frk;pd.vy*=frk;   // = football_rt P_FR 1.6
-      pd.x+=pd.vx*dt;pd.y+=pd.vy*dt;
-      pd.x=Math.max(0.45,Math.min(BLG.W-0.45,pd.x));
-      pd.y=Math.max(0.45,Math.min(BLG.H-0.45,pd.y));
-      var ddx=sx0-pd.x,ddy=sy0-pd.y;
-      if(Math.hypot(ddx,ddy)>1.8){pd.x=sx0;pd.y=sy0;pd.vx=0;pd.vy=0;}
-      else{pd.x+=ddx*0.16;pd.y+=ddy*0.16;}   // riconciliazione morbida
-      meRow[1]=pd.x;meRow[2]=pd.y;   // sovrascrive SOLO la mia riga (copia di rtdLerpRow: safe)
-    }
-  }else pd.ok=false;
+    // ANCORA = snapshot PIÙ RECENTE (raw), non la coppia interpolata: il buffer
+    // di 85 ms del lerp serve a smussare gli ALTRI. Misurato in safe: errore
+    // medio della propria riga 33 px -> 22 px, reazione allo stick 263 -> 131 ms.
+    var pdc=blgPredStep(meRaw?meRaw[1]:meRow[1],meRaw?meRaw[2]:meRow[2],meRow[3]|0,raw.ph,dt);
+    if(pdc){meRow[1]=pdc.x;meRow[2]=pdc.y;}   // sovrascrive SOLO la mia riga (copia di rtdLerpRow: safe)
+  }else BLG.pred.ok=false;
   // ── giocatori ──
   var rp=raw.p||[];
   for(var i=0;i<rp.length;i++){
@@ -51351,8 +51935,13 @@ function sclTutItem(row,ix){
   var nm=it?(it.ico+' '+it.nm):((row[ix.em]||'')+' '+(row[ix.nm]||''));
   var rng=Number(row[ix.rng])||0,ocd=Number(row[ix.ocd])||0,cd=Number(row[ix.cd])||0,ttl=Number(row[ix.ttl])||0;
   var ry=row[ix.ry]||[];
+  // 27/07: la CATENA sta fra gli oggetti per SALIRE, ma da V7 è anche un'arma.
+  // Chi la cerca fra i mezzi per fermare gli altri non la trovava: il
+  // contrassegno dice che fa due mestieri, senza doverla mettere in due
+  // famiglie (una scheda doppia confonde più di quanto aiuti).
+  var dual=(id===7)?'<span class="dpt-dual">anche ARMA</span>':'';
   var h='<div class="dpt-it" style="--ic:'+col+';">'
-    +'<div class="dpt-ith"><b>'+sclEsc(nm)+'</b></div>'
+    +'<div class="dpt-ith"><b>'+sclEsc(nm)+'</b>'+dual+'</div>'
     +'<div class="dpt-mid">'+sclTutPrev(row[ix.ge]|0,id)+'<div class="dpt-st">'
     +sclTutChip('USI',sclNfmt(row[ix.us]))
     +(rng>0?sclTutChip('PORTATA (celle)',sclNfmt(rng)):'')
@@ -51395,7 +51984,7 @@ function sclTutRules(){
    +sclHelpRow('🪚','SEGHE E PENDOLI','La sega gira attorno al suo mozzo e taglia solo dentro l\'anello della lama: al centro e fuori sei salvo. Il pendolo ha il perno più in alto e oscilla: passa quando l\'asta è dall\'altra parte.','')
    +sclHelpRow('🧗','ARRAMPICATA CON IL FIATO','Stick contro la parete e verso l\'alto: sali finché hai fiato. La barra sopra la testa è il fiato che ti resta, a zero la presa cede e scivoli. Si ricarica appena tocchi terra, una scala o una catena. Le pareti lisce non si scalano.',SC.WCLIMBV.toFixed(1)+' u/s · '+stam+'s')
    +sclHelpRow('🧱','SALTO MURO-A-MURO','Toccare un muro arma il salto anche senza tenere lo stick contro, e resta armato per un istante dopo che ti sei staccato. Rimbalzando fra due pareti opposte si sale un camino intero, mentre sullo stesso muro il secondo salto è più corto.',SC.WCOY.toFixed(2)+'s')
-   +sclHelpRow('⛓️','LA CATENA: CORDA E ARMA','Se prende il terreno srotola una corda da scalare o da attraversare, anche orizzontale e in diagonale. Se prende un rivale lo incatena: ragdoll e stun. Se incatenano te, pigia SALTO o SCHIVATA: ogni pressione accorcia lo stun.',SC.CHSTUN.toFixed(1)+'s → '+SC.CHSTUNMIN.toFixed(1)+'s')
+   +sclHelpRow('⛓️','SE TI INCATENANO, PIGIA','Un rivale può prenderti con la catena: vieni sbalzato e resti bloccato. Pigia SALTO o SCHIVATA senza fermarti — ogni pressione accorcia l\'attesa. Vale anche se la catena non la raccogli mai: è l\'unica cosa da sapere per difenderti. Come si USA sta nella scheda dell\'oggetto.',SC.CHSTUN.toFixed(1)+'s → '+SC.CHSTUNMIN.toFixed(1)+'s')
    +sclHelpRow('💨','LO SPINTONE NON HA UN TASTO','Corri addosso a un rivale a tutta velocità e lo sbalzi via: succede da solo, al contatto. Quando vedi il punto esclamativo sopra la testa di qualcuno, o lo eviti o lo anticipi.','')
    +sclHelpRow('🎒','GLI OGGETTI','Li raccogli dai punti luminosi sulla torre: hai tre caselle, tocchi una casella per scegliere, tieni premuto OGGETTO per mirare e rilasci per usare. La scheda completa è nella linguetta qui sopra.','');
 }
