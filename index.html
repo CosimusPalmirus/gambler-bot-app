@@ -38340,9 +38340,62 @@ function wsNetBanner(scr,mode){
     sc.appendChild(b);
   }
   if(mode===1){b.style.background='rgba(250,204,21,.16)';b.style.border='1px solid rgba(250,204,21,.5)';b.style.color='#facc15';b.textContent='📡 CONNESSIONE PERSA — RICONNESSIONE…';}
-  else if(mode===3){b.style.background='rgba(192,132,252,.16)';b.style.border='1px solid rgba(192,132,252,.5)';b.style.color='#c084fc';b.textContent='⚠️ SESSIONE APERTA ALTROVE — CHIUDI L\'ALTRA SCHEDA';}
-  else{b.style.background='rgba(239,68,68,.16)';b.style.border='1px solid rgba(239,68,68,.5)';b.style.color='#f87171';b.textContent='❌ CONNESSIONE PERSA — TORNA INDIETRO E RIPROVA';}
+  else if(mode===3){b.style.background='rgba(192,132,252,.16)';b.style.border='1px solid rgba(192,132,252,.5)';b.style.color='#c084fc';b.textContent='⚠️ SESSIONE APERTA ALTROVE — TOCCA PER RIPRENDERE QUI';}
+  else{b.style.background='rgba(239,68,68,.16)';b.style.border='1px solid rgba(239,68,68,.5)';b.style.color='#f87171';b.textContent='❌ CONNESSIONE PERSA — TOCCA PER RIPROVARE';}
+  // 28/07: i due stati SENZA VIA D'USCITA (sessione spodestata, budget retry
+  // esaurito) diventano un bottone. Prima erano scritte morte sopra una tela
+  // nera: l'unico rimedio era chiudere e riaprire la mini app - durante un
+  // torneo significa perdere il match.
+  var vivo=(mode===2||mode===3);
+  b.style.pointerEvents=vivo?'auto':'none';
+  b.style.cursor=vivo?'pointer':'default';
+  b.onclick=vivo?function(){wsResume();}:null;
 }
+// -- RIPRESA DELLA CONNESSIONE (28/07) ---------------------------------------
+// Perche' esiste: nel torneo del 25/07 un giocatore e' rimasto a SCHERMO NERO
+// per tutta la semifinale. Nel log del server la firma e'
+//     [DELIV rt63/glad] NIENTE socket per <uid>: bound=assente conns=assente
+// ripetuta per tutto il match: la room simulava il suo gladiatore mentre lui
+// non aveva piu' nessuna socket su cui ricevere gli snapshot. Senza snapshot la
+// tela resta nera (col solo "IN ATTESA DATI" in alto a sinistra).
+// Due buchi rendevano DEFINITIVO un problema che doveva essere transitorio:
+//   1. il tetto dei retry (10) non si azzera mai per partita - solo dopo 10s
+//      consecutivi di connessione stabile. Un torneo dura mezz'ora e fra un
+//      round e l'altro il telefono si blocca: esaurito il budget non si
+//      riconnette piu', e gia' dal sesto tentativo si aspettano ~20s.
+//   2. la chiusura 4001 ("sessione aperta altrove") spegne i retry per sempre
+//      su QUELLA pagina. Se la pagina spodestata e' quella che l'utente sta
+//      guardando, resta nera e non torna piu' da sola.
+// Rimedio: il ritorno in primo piano vale un tentativo immediato (e' IL caso
+// mobile), il budget riparte a ogni match, e i due stati morti si toccano.
+function wsResume(){
+  try{
+    var inTorneo=(CUR==='torneo');
+    if((CUR==='glad'||inTorneo)&&typeof GLD!=='undefined'&&typeof gldConnect==='function'
+       &&!(GLD.ws&&(GLD.ws.readyState===0||GLD.ws.readyState===1))){
+      GLD.retries=0;GLD.closedByUs=false;wsNetBanner('glad',0);gldConnect();
+    }
+    if((CUR==='arc'||inTorneo)&&typeof RTD!=='undefined'&&typeof rtdConnect==='function'
+       &&!(RTD.ws&&(RTD.ws.readyState===0||RTD.ws.readyState===1))){
+      RTD.retries=0;RTD.closedByUs=false;wsNetBanner('arc',0);rtdConnect();
+    }
+    if(CUR==='turf'&&typeof TWR!=='undefined'&&typeof twrConnect==='function'
+       &&!(TWR.ws&&(TWR.ws.readyState===0||TWR.ws.readyState===1))){
+      TWR.retries=0;TWR.closedByUs=false;wsNetBanner('turf',0);twrConnect();
+    }
+    if(CUR==='tank'&&typeof TKD!=='undefined'&&typeof tkConnect==='function'
+       &&!(TKD.ws&&(TKD.ws.readyState===0||TKD.ws.readyState===1))){
+      TKD.retries=0;TKD.closedByUs=false;wsNetBanner('tank',0);tkConnect();
+    }
+  }catch(e){}
+}
+try{
+  document.addEventListener('visibilitychange',function(){
+    if(document.visibilityState==='visible')wsResume();
+  });
+  // rete tornata (cambio wifi/dati): stesso trattamento del primo piano
+  window.addEventListener('online',function(){wsResume();});
+}catch(e){}
 function tkConnect(){
   if(TKD.ws&&(TKD.ws.readyState===0||TKD.ws.readyState===1))return;
   TKD.closedByUs=false;
@@ -39492,6 +39545,7 @@ function gldOnMsg(m){
   }
   if(t==='start'){
     if(m.game!=='glad')return;
+    GLD.retries=0;                 // 28/07: ogni match riparte col budget pieno di riconnessioni
     if(m.tour&&!GLD.tour)return;   // TORNEO: raduno abbandonato — mai render/audio su schermata nascosta
     GLD.practice=!!m.practice;
     GLD.tour=!!m.tour;   // TORNEO: autoritativo dal server (ripulisce anche flag stantii)
@@ -41628,6 +41682,9 @@ function trnInjectCSS(){
    +'.trn-ch-row{font-size:12.5px;line-height:1.42;color:#e6edf7;word-break:break-word;}'
    +'.trn-ch-row b{color:#7ee9fb;font-weight:800;}'
    +'.trn-ch-row.ply b{color:#ffd76b;}'
+   // ponte dai gruppi Telegram: colore proprio, cosi' una riga che viene
+   // da fuori non si confonde con chi guarda il torneo dall'app
+   +'.trn-ch-row.tg b{color:#8fd0ff;}'
    +'.trn-ch-empty{font-size:11.5px;color:var(--txt2);text-align:center;padding:16px 6px;}'
    +'.trn-ch-bar{display:flex;gap:7px;margin-top:9px;}'
    +'.trn-ch-in{flex:1 1 auto;min-width:0;background:rgba(0,0,0,.42);border:1px solid rgba(255,255,255,.16);border-radius:10px;padding:9px 11px;color:#fff;font-size:13px;font-family:inherit;outline:none;}'
@@ -42457,8 +42514,12 @@ function trnOnChat(m){
   trnChatPaint();
   trnTickerPaint();
 }
+// c.g=1 -> arriva da un GRUPPO TELEGRAM (ponte lato bot): si marca, se no
+// sembrerebbe uno spettatore collegato all'app e nessuno capirebbe con chi
+// sta parlando.
 function trnChatRowHTML(c){
-  return '<div class="trn-ch-row'+(c.p?' ply':'')+'"><b>'+trnEsc(String(c.n||'?'))
+  return '<div class="trn-ch-row'+(c.p?' ply':'')+(c.g?' tg':'')+'"><b>'
+    +(c.g?'✈️ ':'')+trnEsc(String(c.n||'?'))
     +(c.p?' ⚔️':'')+'</b> '+trnEsc(String(c.x||''))+'</div>';
 }
 function trnChatPaint(){
@@ -42481,7 +42542,7 @@ function trnChatHTML(){
    +'<input id="trn-chat-in" class="trn-ch-in" maxlength="140" placeholder="'+((window.GB_LANG==='en')?'Comment the tournament…':'Commenta il torneo…')+'" onkeydown="trnChatKey(event)">'
    +'<button class="trn-ch-btn" onclick="trnChatSend()">INVIA</button>'
    +'</div>'
-   +'<div class="trn-ch-note">Visibile a tutti gli spettatori · i gladiatori in gara la vedono di lato</div>'
+   +'<div class="trn-ch-note">Visibile a tutti gli spettatori · i gladiatori in gara la vedono di lato · ✈️ = scritto dai gruppi Telegram</div>'
    +'</div>';
 }
 // TICKER IN PARTITA: gli ultimi 3 messaggi in un angolo, testo piccolo, mai
@@ -42495,7 +42556,7 @@ function trnTickerPaint(){
   if(!inMatch||!TRN.chat.length){if(el&&el.parentNode)el.parentNode.removeChild(el);return;}
   if(!el){el=document.createElement('div');el.id='trn-ticker';el.className='trn-ticker';host.appendChild(el);}
   el.innerHTML=TRN.chat.slice(-3).map(function(c){
-    return '<div class="trn-tk-row"><b>'+trnEsc(String(c.n||'?'))+'</b> '+trnEsc(String(c.x||''))+'</div>';
+    return '<div class="trn-tk-row"><b>'+(c.g?'✈️ ':'')+trnEsc(String(c.n||'?'))+'</b> '+trnEsc(String(c.x||''))+'</div>';
   }).join('');
 }
 function trnOnWatchList(rooms){
@@ -42986,7 +43047,7 @@ function rtdConnect(){
     if(RTD.retries<10){
       RTD.retries++;
       if(act)wsNetBanner('arc',1);
-      setTimeout(function(){if(CUR==='arc')rtdConnect();},1200*Math.pow(1.6,Math.min(RTD.retries,6))+Math.random()*400);
+      setTimeout(function(){if(CUR==='arc'||CUR==='torneo')rtdConnect();},1200*Math.pow(1.6,Math.min(RTD.retries,6))+Math.random()*400);
     }else if(act)wsNetBanner('arc',2);
   };
   ws.onerror=function(){if(RTD.ui==='match'||RTD.ui==='search')wsNetBanner('arc',1);};
@@ -43066,6 +43127,7 @@ function rtdOnMsg(m){
   }
   if(t==='start'){
     if(!(m.game in RTD_G))return;
+    RTD.retries=0;                 // 28/07: ogni match riparte col budget pieno di riconnessioni
     if(m.tour&&!RTD.tour)return;   // TORNEO: raduno abbandonato — mai render/audio su schermata nascosta
     RTD.tour=!!m.tour;             // TORNEO: autoritativo dal server (ripulisce anche flag stantii)
     RTD.practice=!!m.practice;
