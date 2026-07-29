@@ -40704,9 +40704,23 @@ function gldFrame(){
       // faceva giustamente andare dove avevi puntato. Ora il disegno
       // rispetta lo STESSO blocco del canale di rete: per tutta la durata
       // del colpo, e per tutta la carica del pilum, si guarda dove si mira.
-      var _hold=GLD._aimHold&&performance.now()<GLD._aimHold;
-      if(isMe&&(GLD.aim.on||_hold))targ=Math.atan2(GLD.aim.ay,GLD.aim.ax);
-      else if(isMe&&GLD.joy.on)targ=Math.atan2(GLD.joy.my,GLD.joy.mx);
+      // 30/07 — DURANTE IL COLPO NON SI PREDICE. Il riquadro diagnostico ha
+      // mostrato SRV 252 = MIR 252 (server giusto) ma DIS 109 = PIE 107
+      // (disegno sui piedi) con H0: il blocco a TIMER era gia' scaduto mentre
+      // il colpo era ancora in preparazione, e la predizione locale riportava
+      // la spada verso la direzione di marcia. Ora, finche' il colpo e' in
+      // corso, si disegna la direzione AUTOREVOLE del server (rb[4]) — quella
+      // che lo screenshot dimostra corretta. La predizione locale resta fuori
+      // dal colpo, dove serve a non aspettare il round-trip.
+      var _st=rb[5];
+      var _busy=(_st===GLD_ST.ATK_WIND||_st===GLD_ST.ATK_ACT||_st===GLD_ST.ATK_REC
+        ||_st===GLD_ST.SPEC_WIND||_st===GLD_ST.SPEC_ACT);
+      // PILUM: durante la carica lo stato del GIOCATORE resta IDLE (e' il pilum
+      // ad avere il suo), quindi il caso si riconosce dallo stato del pilum.
+      if(!_busy){var _plm=raw&&raw.pl;
+        if(_plm&&(_plm[0]|0)===4&&String(_plm[5])===String(GLD.myId))_busy=true;}
+      if(isMe&&!_busy&&GLD.aim.on)targ=Math.atan2(GLD.aim.ay,GLD.aim.ax);
+      else if(isMe&&!_busy&&GLD.joy.on)targ=Math.atan2(GLD.joy.my,GLD.joy.mx);
       if(!an){an={fa:targ};GLD.anim[rb[0]]=an;}
       var stpF=gldAngD(targ,an.fa)*Math.min(1,dt*(isMe?20:12));
       if(isMe){ // B6: replica client i cap di rotazione dei wind-up (telegrafi onesti, no mismatch)
