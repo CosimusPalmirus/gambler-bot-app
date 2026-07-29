@@ -39797,7 +39797,16 @@ function gldPump(){
   if(GLD.ui!=='match'||GLD.spec)return;   // TORNEO: spettatori senza input
   if(GLD.joy.on){gldSend({t:'in',mx:GLD.joy.mx,my:GLD.joy.my});GLD.sentZero=false;}
   else if(!GLD.sentZero){gldSend({t:'in',mx:0,my:0});GLD.sentZero=true;}
-  if(GLD.aim.on){gldSend({t:'aim',ax:GLD.aim.ax,ay:GLD.aim.ay,on:1});GLD.sentAimZero=false;}
+  // 29/07 — MIRA BLOCCATA DURANTE IL COLPO. Camminando, il ramo "mira =
+  // piedi" qui sotto riscriveva la direzione ogni 50ms: il fendente lanciato
+  // con la levetta tornava verso dove stavi andando. Finche' il colpo e' in
+  // volo la direzione scelta resta. Col PILUM la carica dura 1s e il server
+  // insegue la mira per tutto il tempo, quindi il blocco si prolunga da solo
+  // finche' il windup e' MIO (pl[0]==4, holder==io).
+  var _pl=GLD.lastRaw&&GLD.lastRaw.pl;
+  if(_pl&&(_pl[0]|0)===4&&String(_pl[5])===String(GLD.myId))GLD._aimHold=performance.now()+200;
+  if(GLD._aimHold&&performance.now()<GLD._aimHold){gldSend({t:'aim',ax:GLD.aim.ax,ay:GLD.aim.ay,on:1});GLD.sentAimZero=false;}
+  else if(GLD.aim.on){gldSend({t:'aim',ax:GLD.aim.ax,ay:GLD.aim.ay,on:1});GLD.sentAimZero=false;}
   else if(GLD.joy.on){gldSend({t:'aim',ax:GLD.joy.mx,ay:GLD.joy.my,on:1});GLD.sentAimZero=false;}
   else if(!GLD.sentAimZero){gldSend({t:'aim',on:0});GLD.sentAimZero=true;}
 }
@@ -40071,11 +40080,14 @@ function gldShowMatch(){
   twrStickInit('gld-aimjoy','gld-aimknob',
     function(x,y){var mag=Math.hypot(x,y);if(mag<0.25){GLD.aim.on=false;return;}GLD.aim.on=true;GLD.aim.ax=x;GLD.aim.ay=y;},
     function(){
-      if(!GLD.aim.on)return;            // sfiorata appena: nessun colpo
+      // TAP (toccata senza spinta): colpo dritto davanti, come il tasto ATT.
+      if(!GLD.aim.on){gldAct('atk');return;}
       // l'ULTIMA direzione deve partire PRIMA del colpo: gldPump gira ogni
       // 50ms e arriverebbe tardi, menando verso dove si guardava un attimo fa
       gldSend({t:'aim',ax:GLD.aim.ax,ay:GLD.aim.ay,on:1});
       GLD.aim.on=false;
+      // e per la durata del colpo i piedi non riscrivono la direzione
+      GLD._aimHold=performance.now()+300;
       gldAct('atk');
     });
   gldTapBtn('gld-b-atk',function(){gldAct('atk');},'pick');
