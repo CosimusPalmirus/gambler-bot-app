@@ -40698,7 +40698,14 @@ function gldFrame(){
       if(isMe&&GLD.pred.ok&&(rb[7]&1)){wx=GLD.pred.x;wy=GLD.pred.y;}
       var an=GLD.anim[rb[0]];
       var targ=gldByteAng(rb[4]);
-      if(isMe&&GLD.aim.on)targ=Math.atan2(GLD.aim.ay,GLD.aim.ax);
+      // 29/07: la predizione locale della MIA direzione seguiva i piedi non
+      // appena la levetta di mira veniva rilasciata — e il colpo si vedeva
+      // partire verso dove si cammina, mentre il server (con _aimHold) lo
+      // faceva giustamente andare dove avevi puntato. Ora il disegno
+      // rispetta lo STESSO blocco del canale di rete: per tutta la durata
+      // del colpo, e per tutta la carica del pilum, si guarda dove si mira.
+      var _hold=GLD._aimHold&&performance.now()<GLD._aimHold;
+      if(isMe&&(GLD.aim.on||_hold))targ=Math.atan2(GLD.aim.ay,GLD.aim.ax);
       else if(isMe&&GLD.joy.on)targ=Math.atan2(GLD.joy.my,GLD.joy.mx);
       if(!an){an={fa:targ};GLD.anim[rb[0]]=an;}
       var stpF=gldAngD(targ,an.fa)*Math.min(1,dt*(isMe?20:12));
