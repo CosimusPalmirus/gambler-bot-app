@@ -40740,6 +40740,24 @@ function gldFrame(){
       var hasPilum=((rb[8]||0)&1);
       var sc=gldW2S(wx,wy);
       gldDrawFighter(ctx,sc[0],sc[1],zs*0.46,an.fa,rb[5],(rb[6]||0)/255,rb[7],rb[3],gladLookOf(rb[0]),isMe,now,GLD.names[rb[0]],hasPilum,ko);
+      // DIAGNOSTICA ANGOLI (29/07) — SOLO in ALLENATI. Serve a capire
+      // QUALE angolo diverge quando il colpo si vede partire storto:
+      // il server, la mira, o il disegno. In match vero non compare.
+      if(isMe&&GLD.practice){
+        var _dg=function(a){var d=Math.round(a*57.2958)%360;return (d<0?d+360:d)+'°';};
+        var _mir=(GLD.aim.ax||GLD.aim.ay)?Math.atan2(GLD.aim.ay,GLD.aim.ax):null;
+        var _pie=GLD.joy.on?Math.atan2(GLD.joy.my,GLD.joy.mx):null;
+        ctx.save();ctx.setTransform(1,0,0,1,0,0);
+        ctx.font='bold 11px ui-monospace,Menlo,Consolas,monospace';
+        ctx.textAlign='left';ctx.textBaseline='top';
+        var _tx='SRV '+_dg(gldByteAng(rb[4]))+'  MIR '+(_mir===null?'--':_dg(_mir))
+          +'  DIS '+_dg(an.fa)+'  PIE '+(_pie===null?'--':_dg(_pie))
+          +'   st'+rb[5]+' H'+((GLD._aimHold&&performance.now()<GLD._aimHold)?1:0);
+        ctx.fillStyle='rgba(0,0,0,.66)';
+        ctx.fillRect(6,6,ctx.measureText(_tx).width+12,18);
+        ctx.fillStyle='#7ee9fb';ctx.fillText(_tx,12,9);
+        ctx.restore();
+      }
     });
   }
   // pilum (server-authoritative state read defensively from raw.pl)
