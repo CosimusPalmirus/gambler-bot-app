@@ -39805,6 +39805,24 @@ function gldPump(){
   // finche' il windup e' MIO (pl[0]==4, holder==io).
   var _pl=GLD.lastRaw&&GLD.lastRaw.pl;
   if(_pl&&(_pl[0]|0)===4&&String(_pl[5])===String(GLD.myId))GLD._aimHold=performance.now()+200;
+  // 30/07 (2) — LATCH DEL COLPO, A OSSERVAZIONE. Nasce al rilascio della levetta
+  // di mira e muore quando il colpo E' STATO VISTO partire ED E' finito. Si
+  // giudica su GLD.you.st (snapshot piu' fresco, senza gli 85ms d'interpolazione
+  // del disegno) piu' il windup del pilum, che lascia st=IDLE sul giocatore
+  // (gladiator_rt.py:293-304). I due tetti sono SOLO sicurezze: 450ms se il
+  // colpo non si vede mai (rifiutato per cooldown/stun/morte), 1200ms se gli
+  // snapshot si fermano. Finche' il latch vive la RETE manda la mira: una sola
+  // regola per disegno e server, cosi' non possono divergere su dove va il colpo.
+  var _lk=GLD._aimLk;
+  if(_lk){
+    var _yst=GLD.you?GLD.you.st:null;
+    var _atk=(_yst===GLD_ST.ATK_WIND||_yst===GLD_ST.ATK_ACT||_yst===GLD_ST.SPEC_WIND||_yst===GLD_ST.SPEC_ACT
+      ||!!(_pl&&(_pl[0]|0)===4&&String(_pl[5])===String(GLD.myId)));
+    if(_atk)_lk.seen=1;
+    var _lkA=performance.now()-_lk.t;
+    if((_lk.seen&&!_atk)||_lkA>(_lk.seen?1200:450))GLD._aimLk=null;
+    else GLD._aimHold=performance.now()+120;
+  }
   if(GLD._aimHold&&performance.now()<GLD._aimHold){gldSend({t:'aim',ax:GLD.aim.ax,ay:GLD.aim.ay,on:1});GLD.sentAimZero=false;}
   else if(GLD.aim.on){gldSend({t:'aim',ax:GLD.aim.ax,ay:GLD.aim.ay,on:1});GLD.sentAimZero=false;}
   else if(GLD.joy.on){gldSend({t:'aim',ax:GLD.joy.mx,ay:GLD.joy.my,on:1});GLD.sentAimZero=false;}
@@ -40086,8 +40104,15 @@ function gldShowMatch(){
       // 50ms e arriverebbe tardi, menando verso dove si guardava un attimo fa
       gldSend({t:'aim',ax:GLD.aim.ax,ay:GLD.aim.ay,on:1});
       GLD.aim.on=false;
-      // e per la durata del colpo i piedi non riscrivono la direzione
+      // e per la durata del colpo i piedi non riscrivono la direzione:
+      // _aimHold (timer) serve al canale di RETE, il LATCH serve al DISEGNO.
+      // 30/07 (2) — un timer da solo NON puo' funzionare: il colpo diventa
+      // VISIBILE solo dopo RTT + tick server 50ms + 85ms d'interpolazione
+      // (150-300ms), e in quel buco il disegno tornava sui piedi a 14 rad/s.
+      // Il latch muore a OSSERVAZIONE (colpo visto partire E concluso), non a
+      // scadenza: vedi gldPump.
       GLD._aimHold=performance.now()+300;
+      GLD._aimLk={t:performance.now(),seen:0};
       gldAct('atk');
     });
   gldTapBtn('gld-b-atk',function(){gldAct('atk');},'pick');
@@ -40720,7 +40745,18 @@ function gldFrame(){
       if(!_busy){var _plm=raw&&raw.pl;
         if(_plm&&(_plm[0]|0)===4&&String(_plm[5])===String(GLD.myId))_busy=true;}
       if(isMe&&!_busy&&GLD.aim.on)targ=Math.atan2(GLD.aim.ay,GLD.aim.ax);
-      else if(isMe&&!_busy&&GLD.joy.on)targ=Math.atan2(GLD.joy.my,GLD.joy.mx);
+      // 30/07 (2) — QUI ERA IL DIFETTO. Nei 150-300ms fra il RILASCIO della
+      // levetta (GLD.aim.on=false immediato, riga 40167) e la comparsa di
+      // ATK_WIND nella riga DISEGNATA (rb[5] arriva dopo RTT + tick 50ms +
+      // 85ms d'interpolazione) _busy e' ancora false: questo ramo riportava il
+      // corpo sulla direzione di MARCIA al cap IDLE di 14 rad/s (802 gradi/s,
+      // 13.4 per frame). Quando il wind-up diventava visibile, il suo cap
+      // onesto di 4 rad/s x 0.20s = 46 gradi non bastava piu' a recuperare i
+      // ~180 gradi persi (lettura 30/07: DIS 357, PIE 336, SRV=MIR 153) e il
+      // colpo si vedeva partire a meta' strada. Ora, con il colpo lanciato
+      // (GLD._aimLk), il disegno NON predice i piedi: segue rb[4], la direzione
+      // AUTOREVOLE del server, che in quella finestra e' GIA' la mira.
+      else if(isMe&&!_busy&&!GLD._aimLk&&GLD.joy.on)targ=Math.atan2(GLD.joy.my,GLD.joy.mx);
       if(!an){an={fa:targ};GLD.anim[rb[0]]=an;}
       var stpF=gldAngD(targ,an.fa)*Math.min(1,dt*(isMe?20:12));
       if(isMe){ // B6: replica client i cap di rotazione dei wind-up (telegrafi onesti, no mismatch)
@@ -40766,7 +40802,12 @@ function gldFrame(){
         ctx.textAlign='left';ctx.textBaseline='top';
         var _tx='SRV '+_dg(gldByteAng(rb[4]))+'  MIR '+(_mir===null?'--':_dg(_mir))
           +'  DIS '+_dg(an.fa)+'  PIE '+(_pie===null?'--':_dg(_pie))
-          +'   st'+rb[5]+' H'+((GLD._aimHold&&performance.now()<GLD._aimHold)?1:0);
+          +'   st'+rb[5]+' H'+((GLD._aimHold&&performance.now()<GLD._aimHold)?1:0)
+          +' L'+(GLD._aimLk?(GLD._aimLk.seen?2:1):0)   // L1 colpo lanciato non ancora visto, L2 visto, L0 niente
+          // la VERSIONE caricata: se la mini app non viene chiusa del tutto,
+          // Telegram tiene vivo il JS della prima apertura e si finisce a
+          // provare codice vecchio. Cosi' ogni foto dice da se' quale build e'.
+          +'  '+((location.search.match(/[?&]v=([^&]+)/)||[0,'?'])[1]);
         ctx.fillStyle='rgba(0,0,0,.66)';
         ctx.fillRect(6,6,ctx.measureText(_tx).width+12,18);
         ctx.fillStyle='#7ee9fb';ctx.fillText(_tx,12,9);
