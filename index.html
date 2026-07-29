@@ -40063,9 +40063,21 @@ function gldShowMatch(){
       var k=t/m; GLD.joy.on=true;GLD.joy.mx=x*k;GLD.joy.my=y*k;
     },
     function(){GLD.joy.on=false;GLD.joy.mx=0;GLD.joy.my=0;},76);   // move-stick Colosseo grande (190px) + overlay sull'arena
+  // 29/07: la levetta con la spada GIRAVA e basta. Ha un'arma disegnata sul
+  // pomello, quindi la si spinge verso il nemico aspettandosi il colpo — che
+  // non arrivava mai (gladiator_rt.set_aim: "right stick = facing only, no
+  // auto-attack"). Ora il gesto e' UNO SOLO: spingi per girarti, RILASCI e
+  // parte il fendente. Il tasto ATT resta per chi lo usa gia'.
   twrStickInit('gld-aimjoy','gld-aimknob',
     function(x,y){var mag=Math.hypot(x,y);if(mag<0.25){GLD.aim.on=false;return;}GLD.aim.on=true;GLD.aim.ax=x;GLD.aim.ay=y;},
-    function(){GLD.aim.on=false;});
+    function(){
+      if(!GLD.aim.on)return;            // sfiorata appena: nessun colpo
+      // l'ULTIMA direzione deve partire PRIMA del colpo: gldPump gira ogni
+      // 50ms e arriverebbe tardi, menando verso dove si guardava un attimo fa
+      gldSend({t:'aim',ax:GLD.aim.ax,ay:GLD.aim.ay,on:1});
+      GLD.aim.on=false;
+      gldAct('atk');
+    });
   gldTapBtn('gld-b-atk',function(){gldAct('atk');},'pick');
   gldTapBtn('gld-b-spec',function(){gldAct('special');},'enter');
   gldTapBtn('gld-b-dodge',function(){gldAct('dodge');},'enter');
