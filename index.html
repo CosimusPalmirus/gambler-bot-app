@@ -43287,7 +43287,7 @@ function rtdOnMsg(m){
   // UPLINK HALF-OPEN (24/07 derby): il server risponde {t:'pong'} ai nostri
   // {t:'ping'}. Il pong è l'UNICA prova che l'uplink client→server è vivo (gli
   // snapshot in arrivo provano solo il downlink). rtdUplinkCheck usa _lastPong.
-  if(t==='pong'){RTD._lastPong=performance.now();return;}
+  if(t==='pong'){var _pn=performance.now();if(RTD._lastPingT){var _rt=_pn-RTD._lastPingT;if(_rt>0&&_rt<2000)RTD._rtt=RTD._rtt?(RTD._rtt*0.7+_rt*0.3):_rt;}RTD._lastPong=_pn;return;}
   if(t==='hello_ok'){
     if(m.rate)RTD.rate=m.rate;
     // CHAT SPETTATORI: in torneo (giocatore o spettatore) ci si iscrive al
@@ -44074,6 +44074,19 @@ function pgMySeat(){
 //   · tap su un punto   = la racchetta ci va (il bersaglio resta dopo il rilascio);
 //   · a bersaglio raggiunto mx=0 → nessun jitter, e la prediction client resta
 //     coerente perche' legge lo STESSO RTD.joy.mx che viene spedito al server.
+// anticipo del comando della barra: l'ordine di grandezza del ritardo
+// misurato sul telefono che ha segnalato il difetto (beacon pgdiag).
+function pgLead(){
+  // 0.085 e' il buffer di interpolazione (il ritardo con cui si vede il
+  // mondo), rtt/2 la tratta di andata del comando. Limitato: sotto 0.09 non
+  // serve, sopra 0.30 il comando mollerebbe cosi' presto da sembrare pigro.
+  var r=(RTD._rtt||0)/1000, v=0.085+r/2;
+  // TETTO 0.17: con un anticipo piu' lungo il termine di frenata diventa piu'
+  // grande dell'errore stesso e il comando sbatte avanti e indietro — misurato:
+  // a 220ms di ritardo, tetto 0.30 dava 15 inversioni di direzione, tetto 0.17
+  // ne da' 0. Oltre un certo ritardo non si insegue piu': si frena e basta.
+  return v<0.09?0.09:(v>0.17?0.17:v);
+}
 function pgCurX(){
   var pr=RTD._sc&&RTD._sc.pgPred;
   if(pr&&pr.x!=null)return pr.x;
@@ -44122,8 +44135,23 @@ function pgBarAxis(curX){
     if(String(_braw.p[_bi][0])===String(RTD.myId)){_bpw=_braw.p[_bi][3]||_bpw;break;}
   var _btx=Math.max(_bpw/2,Math.min(_bMW-_bpw/2,B.tx));
   var d=_btx-(curX==null?pgCurX():curX);
-  if(Math.abs(d)<0.03){RTD.joy.on=false;RTD.joy.mx=0;RTD.joy.my=0;return 0;}  // arrivata
-  var mx=Math.max(-1,Math.min(1,d*3.4));
+  // ── SMORZAMENTO (30/07) ────────────────────────────────────────────────
+  // Solo proporzionale, con il giro di rete in mezzo, questo comando andava
+  // in CACCIA: misurato al banco col motore vero, a 120ms di ritardo la
+  // racchetta vagava da sola di 3.9 unita' a dito alzato, a 220ms di 5.0 con
+  // 4 inversioni di direzione. Si toglie dall'errore lo spazio che la
+  // racchetta fara' comunque per inerzia: il comando molla PRIMA di arrivare
+  // invece di frenare dopo essere passato oltre.
+  var _bpr=RTD._sc&&RTD._sc.pgPred,_bv=(_bpr&&_bpr.vx)||0;
+  var _de=d-_bv*pgLead();
+  // ISTERESI: per fermarsi basta 0.045, per RIPARTIRE serve 0.13. Senza,
+  // ogni correzione del server (che arriva vecchia di un giro di rete) fa
+  // ripartire il comando per un frame — ed e' esattamente lo scatto.
+  var _sc0=RTD._sc||(RTD._sc={});
+  var _soglia=_sc0.pgArr?0.13:0.045;
+  if(Math.abs(_de)<_soglia){_sc0.pgArr=1;RTD.joy.on=false;RTD.joy.mx=0;RTD.joy.my=0;return 0;}
+  _sc0.pgArr=0;
+  var mx=Math.max(-1,Math.min(1,_de*3.4));
   RTD.joy.on=true;RTD.joy.mx=mx;RTD.joy.my=0;
   return mx;
 }
