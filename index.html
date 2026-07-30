@@ -46898,8 +46898,6 @@ var PG_MODCOL={W:'#4ade80',C:'#4ade80',D:'#4ade80',                 // aiutano T
 function rtdDrawPong(ctx,raw,lp,now,w,hh){
   var MW=RTD.map.w,MH=RTD.map.h;
   var sx=w/MW,sy=hh/MH;
-  /* [F1] orologio SERVER + Hermite: se non si puo' fare meglio, pgLerp torna null e resta il lp di sempre. */
-  var plp=pgLerp(now)||lp;
   ctx.drawImage(rtdBg('pg',w,hh,function(bc){
     bc.fillStyle='#05070e';bc.fillRect(0,0,w,hh);
     bc.strokeStyle='rgba(250,204,21,.08)';bc.lineWidth=1;
@@ -46937,7 +46935,7 @@ function rtdDrawPong(ctx,raw,lp,now,w,hh){
   }
   // p row: [id, x, seat, pw, cannon, shield, pwkind]. Opponent paddle is
   // interpolated between ticks (smooth); my paddle keeps client prediction.
-  var LPp=rtdLerpRow(plp,'p'),pgMyX=null;
+  var LPp=rtdLerpRow(lp,'p'),pgMyX=null;
   (raw.p||[]).forEach(function(r){
     var isMe=r[0]===RTD.myId;
     var col=isMe?'#38bdf8':'#f87171';
@@ -46990,21 +46988,21 @@ function rtdDrawPong(ctx,raw,lp,now,w,hh){
     }
   });
   // ── balls (multiball capable) — interpolated index-wise between snapshots ──
-  /* [F4] posizioni delle palle dal nuovo interpolatore. Le palle restano
-     disegnate PER ULTIME: nessun effetto puo' coprirle. Scie e ventaglio
-     d'impatto NON entrano in questo lotto (sono il lotto 3). */
-  var pb=RTD._sc.pgB||(RTD._sc.pgB=[]);
-  pgBalls(plp,raw,sx,sy,MW,MH,flipP,pb);
-  var nh=RTD.lite?1:3,rr=0.22*sx,bi,i;
-  for(bi=0;bi<pb.length;bi+=6){
-    var bx=pb[bi],by=pb[bi+1],curved=pb[bi+5];
-    for(i=1;i<=nh;i++){
+  var ballsB=(lp&&lp.b&&lp.b.balls)||raw.balls||[];
+  var ballsA=(lp&&lp.a&&lp.a.balls)||ballsB;
+  var kk=lp?lp.k:0, sameN=(ballsA.length===ballsB.length);
+  for(var bi=0;bi<ballsB.length;bi++){
+    var bB=ballsB[bi], bA=sameN?ballsA[bi]:bB;
+    var bx=(bA[0]+(bB[0]-bA[0])*kk)*sx;
+    var by=FYp(bA[1]+(bB[1]-bA[1])*kk);
+    var curved=bB[4];
+    for(var i=1;i<=3;i++){
       ctx.fillStyle=(curved?'rgba(196,181,253,':'rgba(250,204,21,')+(0.16/i)+')';
-      ctx.beginPath();ctx.arc(bx,by,rr+i*2,0,6.283);ctx.fill();
+      ctx.beginPath();ctx.arc(bx,by,0.22*sx+i*2,0,6.283);ctx.fill();
     }
     ctx.shadowColor=curved?'#c4b5fd':'#facc15';ctx.shadowBlur=14;
     ctx.fillStyle=curved?'#efe9ff':'#fff8d6';
-    ctx.beginPath();ctx.arc(bx,by,rr,0,6.283);ctx.fill();
+    ctx.beginPath();ctx.arc(bx,by,0.22*sx,0,6.283);ctx.fill();
     ctx.shadowBlur=0;
   }
   // ── active-modifier HUD: icon + label + timer, per player, view-oriented ──
@@ -47051,15 +47049,9 @@ function rtdDrawPong(ctx,raw,lp,now,w,hh){
   // ── COUNTDOWN server-authoritative (raw.freeze): la palla e' PARCHEGGIATA dal
   //    server (vx=vy=0) finche' non finisce — qui lo si mostra, grande e chiaro. ──
   var fz=raw.freeze||0;
-  /* [F5] il countdown sullo STESSO orologio della palla: leggendo raw.freeze
-     (= presente) mentre la palla e' disegnata 85ms nel passato, "VIA!" scattava
-     85ms PRIMA che la palla partisse davvero. */
-  if(plp&&plp.a&&plp.b&&plp.a.freeze!=null&&plp.b.freeze!=null){
-    fz=plp.a.freeze+(plp.b.freeze-plp.a.freeze)*plp.k;
-    if(fz<0)fz=0;
-  }else if(fz>0)fz=Math.max(0,fz-(now-(raw.rx||now))/1000);
+  if(fz>0)fz=Math.max(0,fz-(now-(raw.rx||now))/1000);   // smooth tra due snapshot (20Hz)
   var sc=RTD._sc;
-  if(fz>0)sc.pgFz=1;
+  if((raw.freeze||0)>0)sc.pgFz=1;
   else if(sc.pgFz){sc.pgFz=0;sc.pgGo=now;TWS.play('pick',0.7);}
   var goAge=sc.pgGo?(now-sc.pgGo):9e9;
   if(fz>0||goAge<650){
