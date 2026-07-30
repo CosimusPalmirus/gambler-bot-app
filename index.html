@@ -44082,10 +44082,46 @@ function pgCurX(){
     if(String(raw.p[i][0])===String(RTD.myId))return raw.p[i][1];
   return ((RTD.map&&RTD.map.w)||7)/2;
 }
+// ── SONDA PONG (30/07) — solo diagnosi, nessun effetto sul gioco ──────────
+// Segnalazione: le racchette si muovono da sole e a scatti, la palla no.
+// In laboratorio non si riproduce, quindi si misura sul campo.
+var _pgDgN=0,_pgDgT=0,_pgDgF=0;
+function pgDiagFrame(){_pgDgF++;}
+function pgDiag(now){
+  if(RTD.game!=='pong'||RTD.ui!=='match'||RTD.spec)return;
+  if(_pgDgN>=25)return;                       // cap per partita
+  if(now-_pgDgT<2000)return;
+  var dt=now-_pgDgT;_pgDgT=now;
+  var f=_pgDgF;_pgDgF=0;
+  if(_pgDgN===0){_pgDgN++;return;}            // il primo intervallo non e' pieno
+  _pgDgN++;
+  var raw=RTD.lastRaw||{},srx=null,i,pr=RTD._sc&&RTD._sc.pgPred;
+  if(raw.p)for(i=0;i<raw.p.length;i++)if(String(raw.p[i][0])===String(RTD.myId))srx=raw.p[i][1];
+  var sn=RTD.snaps||[],gap=sn.length?Math.round(now-(sn[sn.length-1].rx||now)):-1;
+  // stesso schema dei beacon del derby: inline sul WS gia' aperto, mai un fetch
+  try{if(RTD.ws&&RTD.ws.readyState===1)RTD.ws.send(JSON.stringify({t:'clog',at:'pgdiag',
+    fps:Math.round(f*1000/dt),gap:gap,
+    mx:+((RTD.joy&&RTD.joy.mx)||0).toFixed(2),
+    tx:(RTD.pgBar&&RTD.pgBar.tx!=null)?+RTD.pgBar.tx.toFixed(2):null,
+    prx:(pr&&pr.x!=null)?+pr.x.toFixed(2):null,
+    srx:(srx!=null)?+srx.toFixed(2):null,
+    dito:(RTD.pgBar&&RTD.pgBar.on)?1:0}));}catch(_pd){}
+}
 function pgBarAxis(curX){
   var B=RTD.pgBar;
   if(!B||B.tx==null||RTD.spec){RTD.joy.on=false;RTD.joy.mx=0;RTD.joy.my=0;return 0;}
-  var d=B.tx-(curX==null?pgCurX():curX);
+  // ── BERSAGLIO RAGGIUNGIBILE (30/07) ─────────────────────────────────────
+  // La barra copre 0..MW, la racchetta no: il motore la clampa a
+  // [pw/2, MW-pw/2]. Col bersaglio fuori portata |d| non scendeva MAI sotto
+  // la soglia di arrivo, quindi l'asse restava saturo all'infinito e il pump
+  // continuava a spedire input a dito alzato: racchetta incollata al muro che
+  // scatta a ogni correzione del server. La larghezza si legge dallo snapshot
+  // (r[3]), cosi' il clamp segue anche LARGA e STRETTO.
+  var _bMW=(RTD.map&&RTD.map.w)||7,_bpw=1.7,_braw=RTD.lastRaw,_bi;
+  if(_braw&&_braw.p)for(_bi=0;_bi<_braw.p.length;_bi++)
+    if(String(_braw.p[_bi][0])===String(RTD.myId)){_bpw=_braw.p[_bi][3]||_bpw;break;}
+  var _btx=Math.max(_bpw/2,Math.min(_bMW-_bpw/2,B.tx));
+  var d=_btx-(curX==null?pgCurX():curX);
   if(Math.abs(d)<0.03){RTD.joy.on=false;RTD.joy.mx=0;RTD.joy.my=0;return 0;}  // arrivata
   var mx=Math.max(-1,Math.min(1,d*3.4));
   RTD.joy.on=true;RTD.joy.mx=mx;RTD.joy.my=0;
@@ -45689,7 +45725,7 @@ function rtdStartRaf(){
   // muore) ⇒ la cura era IRRAGGIUNGIBILE e lo schermo restava congelato per sempre.
   // Qui lo guidiamo dall'interval PLAIN (indipendente da rAF e dall'input): il rAF muore
   // → entro ~4-6s il watchdog se ne accorge e accende il fallback → il gioco RIPARTE.
-  RTD.upT=setInterval(function(){try{rtdUplinkCheck();}catch(_u){}try{rtdRafWatch();}catch(_r){}},2000);
+  RTD.upT=setInterval(function(){try{try{pgDiag(performance.now());}catch(_pg0){} rtdUplinkCheck();}catch(_u){}try{rtdRafWatch();}catch(_r){}},2000);
   var loop=function(){
     if(CUR!=='arc'||RTD.ui!=='match'){
       // DIAG DECISIVA (24/07): il loop rAF muore QUI e non si rischedula più (schermo
@@ -46898,6 +46934,7 @@ var PG_MODCOL={W:'#4ade80',C:'#4ade80',D:'#4ade80',                 // aiutano T
 function rtdDrawPong(ctx,raw,lp,now,w,hh){
   var MW=RTD.map.w,MH=RTD.map.h;
   var sx=w/MW,sy=hh/MH;
+  pgDiagFrame();   // SONDA: conta i frame davvero disegnati
   ctx.drawImage(rtdBg('pg',w,hh,function(bc){
     bc.fillStyle='#05070e';bc.fillRect(0,0,w,hh);
     bc.strokeStyle='rgba(250,204,21,.08)';bc.lineWidth=1;
