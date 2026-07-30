@@ -39565,7 +39565,8 @@ function gldConnect(){
   };
   ws.onerror=function(){if(GLD.ui==='match'||GLD.ui==='search')wsNetBanner('glad',1);};
 }
-function gldSend(o){if(GLD.wsOk){try{GLD.ws.send(JSON.stringify(o));}catch(e){}}}
+function gldSend(o){if(o&&(o.t==='in'||o.t==='aim'))_gdInv++;
+  if(GLD.wsOk){try{GLD.ws.send(JSON.stringify(o));}catch(e){}}}
 function gldOnMsg(m){
   var t=m.t;
   if(t==='hello_ok'){
@@ -39880,6 +39881,7 @@ function gldFlushBuf(){
   if(ready){ if(!b.re){b.re=1;} else { gldSend({t:'act',a:b.a}); GLD._buf=null; } }
 }
 function gldPump(){
+  
   if(GLD.ui!=='match'||GLD.spec)return;   // TORNEO: spettatori senza input
   if(GLD.joy.on){gldSend({t:'in',mx:GLD.joy.mx,my:GLD.joy.my});GLD.sentZero=false;}
   else if(!GLD.sentZero){gldSend({t:'in',mx:0,my:0});GLD.sentZero=true;}
@@ -40654,7 +40656,8 @@ function gldSpeedMult(st){
     default:return 1.0;
   }
 }
-function gldFrame(){
+function gldFrame(){gldDiagFrame();
+  
   var ctx=GLD.ctx;if(!ctx||!GLD.lastRaw||!GLD.st)return;
   var now=performance.now();
   var dt=Math.min(0.05,(now-(GLD._lf||now))/1000);GLD._lf=now;
@@ -43281,7 +43284,8 @@ function rtdConnect(){
   };
   ws.onerror=function(){if(RTD.ui==='match'||RTD.ui==='search')wsNetBanner('arc',1);};
 }
-function rtdSend(o){if(RTD.wsOk){try{RTD.ws.send(JSON.stringify(o));}catch(e){}}}
+function rtdSend(o){if(o&&o.t==='in')_ndInv++;   // SONDA: quanti comandi partono davvero
+  if(RTD.wsOk){try{RTD.ws.send(JSON.stringify(o));}catch(e){}}}
 function rtdOnMsg(m){
   var t=m.t;
   // UPLINK HALF-OPEN (24/07 derby): il server risponde {t:'pong'} ai nostri
@@ -44100,25 +44104,38 @@ function pgCurX(){
 // In laboratorio non si riproduce, quindi si misura sul campo.
 var _pgDgN=0,_pgDgT=0,_pgDgF=0;
 function pgDiagFrame(){_pgDgF++;}
-function pgDiag(now){
-  if(RTD.game!=='pong'||RTD.ui!=='match'||RTD.spec)return;
-  if(_pgDgN>=25)return;                       // cap per partita
-  if(now-_pgDgT<2000)return;
+var _ndInv=0,_gdInv2=0;
+function netDiag(now){
+  // vale per QUALUNQUE gioco, non solo il pong: il percorso del comando e'
+  // lo stesso, e il ritardo va misurato dove nasce.
+  if(RTD.ui!=='match'||RTD.spec)return;
+  if(_pgDgN>=15)return;                       // cap per partita
+  if(now-_pgDgT<3000)return;
   var dt=now-_pgDgT;_pgDgT=now;
   var f=_pgDgF;_pgDgF=0;
+  var nv=_ndInv;_ndInv=0;
   if(_pgDgN===0){_pgDgN++;return;}            // il primo intervallo non e' pieno
   _pgDgN++;
-  var raw=RTD.lastRaw||{},srx=null,i,pr=RTD._sc&&RTD._sc.pgPred;
-  if(raw.p)for(i=0;i<raw.p.length;i++)if(String(raw.p[i][0])===String(RTD.myId))srx=raw.p[i][1];
   var sn=RTD.snaps||[],gap=sn.length?Math.round(now-(sn[sn.length-1].rx||now)):-1;
-  // stesso schema dei beacon del derby: inline sul WS gia' aperto, mai un fetch
-  try{if(RTD.ws&&RTD.ws.readyState===1)RTD.ws.send(JSON.stringify({t:'clog',at:'pgdiag',
-    fps:Math.round(f*1000/dt),gap:gap,
-    mx:+((RTD.joy&&RTD.joy.mx)||0).toFixed(2),
-    tx:(RTD.pgBar&&RTD.pgBar.tx!=null)?+RTD.pgBar.tx.toFixed(2):null,
-    prx:(pr&&pr.x!=null)?+pr.x.toFixed(2):null,
-    srx:(srx!=null)?+srx.toFixed(2):null,
-    dito:(RTD.pgBar&&RTD.pgBar.on)?1:0}));}catch(_pd){}
+  var buf=-1;try{if(RTD.ws)buf=RTD.ws.bufferedAmount|0;}catch(_b){}
+  try{if(RTD.ws&&RTD.ws.readyState===1)RTD.ws.send(JSON.stringify({t:'clog',at:'netdiag',
+    g:RTD.game,fps:Math.round(f*1000/dt),gap:gap,
+    rtt:Math.round(RTD._rtt||0),buf:buf,inv:nv}));}catch(_nd){}
+}
+// il Colosseo ha una socket sua: stessa misura, stesso canale.
+var _gdN=0,_gdT=0,_gdF=0,_gdInv=0;
+function gldDiagFrame(){_gdF++;}
+function gldDiag(now){
+  if(!GLD||!GLD.ws||GLD.ui!=='match'||GLD.spec)return;
+  if(_gdN>=15)return;
+  if(now-_gdT<3000)return;
+  var dt=now-_gdT;_gdT=now;var f=_gdF;_gdF=0;var nv=_gdInv;_gdInv=0;
+  if(_gdN===0){_gdN++;return;}
+  _gdN++;
+  var buf=-1;try{buf=GLD.ws.bufferedAmount|0;}catch(_b2){}
+  try{if(GLD.ws.readyState===1)GLD.ws.send(JSON.stringify({t:'clog',at:'netdiag',
+    g:'glad',fps:Math.round(f*1000/dt),gap:-1,
+    rtt:Math.round(GLD._rtt||RTD._rtt||0),buf:buf,inv:nv}));}catch(_nd2){}
 }
 function pgBarAxis(curX){
   var B=RTD.pgBar;
@@ -44677,13 +44694,31 @@ function rtdFeedEvent(e){
       if(g==='calcio'){blgGoalEv(e);break;}
       TWS.play('horn');RTD.shake=Math.min(12,RTD.shake+8);
       rtdStamp(e.who===me?'GOAL!':'SUBITO!',e.who===me?'#39ff14':'#f87171');
+      if(g==='pong'){
+        var _pgC=(1-pgSeatOf(e.who))===pgMySeat();    // la linea caduta e' quella in basso?
+        RTD._sc.pgEnd={t0:performance.now()+pgDly(),mine:_pgC,col:_pgC?'#f87171':'#39ff14'};
+      }
+      if(g==='pong')pgSfx('goal',1,{mine:e.who===me});
       break;
     case 'hit':if(g==='backg'){
       try{var _lr=RTD.lastRaw;if(_lr&&_lr.last&&_lr.last.dst>=0&&RTD.cv){var _hw=RTD.cv.width,_hh2=RTD.cv.height,_hp2=bgPtXY(_lr.last.dst,0,_lr.seat||0,bgGeom(_hw,_hh2),_hw,_hh2,1);TWS.pan=Math.max(-0.6,Math.min(0.6,(_hp2.x/_hw)*2-1));}}catch(_hp3){}   // B2 §4: pan dalla posizione della mossa
       TWS.play('dhit',0.9);TWS.pan=0;RTD.shake=Math.min(9,RTD.shake+5);var _hb=RTD._bg||(RTD._bg={});_hb.hitFx=performance.now();
       if(e.who!==me){rtdStamp(bgL('COLPITO!'),'#f87171');try{tg.HapticFeedback&&tg.HapticFeedback.impactOccurred('heavy');}catch(_hv2){}}   // B2 §5.1+§5.4: hit SUBÌTO
-    }else if(g==='race'){var _hv=e.who===me?1:rcDvol(e.who);rcSfx('crunch',0.8*_hv);rcSfx('rcClang',0.8*_hv);RTD.shake=Math.min(8,RTD.shake+3);rcSparks(e.who,8);rcSkidBlot(e.who);}else{TWS.play('puckhit',0.8);}break;
-    case 'cushion':TWS.play('bounce2',0.5);break;
+    }else if(g==='race'){var _hv=e.who===me?1:rcDvol(e.who);rcSfx('crunch',0.8*_hv);rcSfx('rcClang',0.8*_hv);RTD.shake=Math.min(8,RTD.shake+3);rcSparks(e.who,8);rcSkidBlot(e.who);}else if(g==='pong'){
+      pgSfx('hit',1,{who:e.who});
+      RTD._sc.pgHit={id:e.who,t0:performance.now()+pgDly(),py:null,sy:0,x:0,ux:0,uy:0,got:0};
+    }else{TWS.play('puckhit',0.8);}break;
+    case 'cushion':if(g==='pong')pgSfx('wall',1);else TWS.play('bounce2',0.5);break;
+    case 'shield':
+      if(g==='pong'){
+        TWS.play('gold',0.85);
+        var _pgB=(pgSeatOf(e.who)===pgMySeat());
+        RTD.stampQ.push({txt:(RTD.spec?'PARATO!':(e.who===me?'PARATO!':'PARA LUI')),
+                         t0:performance.now()+pgDly(),dur:900,col:'#7dd3fc'});
+        RTD._sc.pgEnd={t0:performance.now()+pgDly(),mine:_pgB,col:'#7dd3fc'};
+      }
+      if(g==='pong')pgSfx('save',1);
+      break;
     case 'clack':TWS.play('clack',Math.min(1,(e.v||1)/4));break;
     case 'pot':TWS.play('pock');if(e.n===0)TWS.play('lose',0.4);break;
     case 'respot':
@@ -44990,7 +45025,10 @@ function rtdFeedEvent(e){
       blgCrowd(1,'blgRoar',1);
       break;
     case 'pipget':
-      var pn={W:'PADDLE LARGO',S:'LUI RIMPICCIOLITO',G:'PALLA FANTASMA',C:'CANNONE PRONTO'}[e.c]||e.c;
+      var pn={W:'PADDLE LARGO',S:'LUI RIMPICCIOLITO',G:'PALLA FANTASMA',C:'CANNONE PRONTO',
+        D:'SCUDO ATTIVO',M:'MULTIPALLA',V:'PALLA CURVA',F:'PALLA VELOCE',
+        P:'PALLA DIVISA'}[e.c]||e.c;
+    if(g==='pong')pgSfx('pip',1);
       rtdFeed((e.who===me?'💊 ':'⚠️ Lui: ')+pn);
       TWS.play('lvl',0.5);
       break;
@@ -45753,7 +45791,7 @@ function rtdStartRaf(){
   // muore) ⇒ la cura era IRRAGGIUNGIBILE e lo schermo restava congelato per sempre.
   // Qui lo guidiamo dall'interval PLAIN (indipendente da rAF e dall'input): il rAF muore
   // → entro ~4-6s il watchdog se ne accorge e accende il fallback → il gioco RIPARTE.
-  RTD.upT=setInterval(function(){try{try{pgDiag(performance.now());}catch(_pg0){} rtdUplinkCheck();}catch(_u){}try{rtdRafWatch();}catch(_r){}},2000);
+  RTD.upT=setInterval(function(){try{rtdUplinkCheck();}catch(_u){}try{rtdRafWatch();}catch(_r){}},2000);
   var loop=function(){
     if(CUR!=='arc'||RTD.ui!=='match'){
       // DIAG DECISIVA (24/07): il loop rAF muore QUI e non si rischedula più (schermo
@@ -46959,10 +46997,440 @@ var PG_MODICO={W:'↔️',S:'🔻',G:'👻',C:'💥',D:'🛡️',M:'➕',V:'🌀
 var PG_MODCOL={W:'#4ade80',C:'#4ade80',D:'#4ade80',                 // aiutano TE
                S:'#f87171',G:'#f87171',                              // colpiscono LUI
                M:'#c084fc',V:'#c084fc',F:'#c084fc',P:'#c084fc'};     // cambiano la palla
+/* ═══ PONG — EFFETTI (copia verbatim di _ponglab/pgfx_es5.js) ═══ */
+var PG_TV0=5.2;
+
+// ── EFFETTO 2 — SCIA della palla, lunghezza ∝ velocita' ──────────────────────
+// Disegnata PRIMA delle palle: nessuna palla puo' essere coperta da una scia
+// (nemmeno dalla scia di un'altra palla, perche' e' una passata separata).
+function pgFxTrail(ctx,pb,sx,lite){
+  // CUNEO ADATTIVO. Due cose, in una passata sola:
+  //
+  // 1. NON e' a segmenti. I 3 tratti (la scia fino al 30/07) restavano una
+  //    SCALETTA anche col lineCap round: sono rettangoli di larghezza diversa in
+  //    fila. Il banco vv_scia_shot.mjs campiona la luminanza lungo l'asse della
+  //    scia sul canvas VERO e misura il salto massimo fra due campioni adiacenti:
+  //    20.0 per i tratti, 1.5 per questo cuneo (7 varianti sullo STESSO
+  //    fotogramma, gioco fermato e performance.now() congelato).
+  //
+  // 2. E' ADATTIVA ALLA VELOCITA' su quattro grandezze, non solo la lunghezza:
+  //    lunghezza, larghezza, luminanza della testa e punto di spegnimento. Il
+  //    riferimento e' r = spd/PG_TV0, cioe' 1.0 alla velocita' di battuta;
+  //    RALLY_ACC porta a ~1.8 dopo un minuto (arcade_rt.py 347-351) e il
+  //    modificatore VELOCE oltre. Cosi' la palla lenta ha un accenno e la palla
+  //    lanciata una lama lunga: la velocita' diventa LEGGIBILE, che e' lo scopo.
+  //
+  //    La dissolvenza `g` sostituisce la soglia secca `if(spd<3.0)continue`:
+  //    a spd 2.99 non c'era scia e a 3.01 c'era la scia PIENA, cioe' un lampo a
+  //    ogni palla che rallenta sotto soglia. Ora entra ed esce gradualmente.
+  //
+  // Costo appaiato con 4 palle: 0.0525 ms contro 0.0385 dei tratti, su
+  // rasterizzatore software desktop. NON e' una misura su telefono.
+  // 'lighter' e' la stessa famiglia di composizione che la scalata usa 20 volte
+  // per frame sugli stessi telefoni (GrapheneOS compresi) senza incastrarli.
+  // `lite` non cambia il disegno: la variante col ramo lite senza gradiente
+  // (V7_FINALE in vv_scia_var.mjs) ha misurato 0.048 contro 0.051 = rumore, e
+  // non vale un secondo percorso di codice da mantenere.
+  var bi;
+  ctx.save();
+  ctx.globalCompositeOperation='lighter';
+  for(bi=0;bi<pb.length;bi+=6){
+    var r=pb[bi+4]/PG_TV0;                        // 1.0 = velocita' di battuta
+    if(r<0.56)continue;                           // palla parcheggiata o quasi ferma
+    var g=Math.min(1,(r-0.56)/0.44);              // dissolvenza 0->1 fino a r=1: niente lampo
+    var rc=Math.min(3.4,r);                       // oltre 3.4 la scia non cresce piu'
+    var tl=(0.18+0.34*rc)*sx;                     // 2.4 raggi a r=1, 6.1 a r=3.4
+    var hx=pb[bi],hy=pb[bi+1],ux=-pb[bi+2],uy=-pb[bi+3];
+    var qx=hx+ux*tl,qy=hy+uy*tl;
+    // mezza larghezza 0.17*sx a r=1: MENO del raggio della palla (0.22*sx), cosi'
+    // il cuneo esce da sotto la palla e non la fa sembrare piu' grossa. Cresce
+    // poco (fino a 0.196) perche' a crescere deve essere la LUNGHEZZA: e' quella
+    // che si legge come velocita'.
+    var hw=(0.145+0.025*Math.min(2,r))*sx,px=-uy*hw,py=ux*hw;
+    // colore del CORE della palla (#fff8d6 / #efe9ff), non del suo alone: il
+    // giallo saturo 250,204,21 su fondo quasi nero da' un verde-oliva che legge
+    // come SPORCO, non come luce. Conta la luminanza, non la saturazione.
+    var col=pb[bi+5]?'214,205,255':'255,238,160';
+    var a0=(0.55*g*Math.min(1.25,0.72+0.28*r)).toFixed(3);   // testa
+    var a1=(0.17*g*Math.min(1.35,0.80+0.20*r)).toFixed(3);   // corpo
+    var gr=ctx.createLinearGradient(hx,hy,qx,qy);
+    gr.addColorStop(0,'rgba('+col+','+a0+')');
+    // il punto in cui la scia si spegne si allontana con la velocita': a palla
+    // lanciata la coda resta viva piu' a lungo invece di svanire subito.
+    gr.addColorStop(Math.min(0.42,0.30+0.10*(rc-1)),'rgba('+col+','+a1+')');
+    gr.addColorStop(1,'rgba('+col+',0)');
+    ctx.fillStyle=gr;
+    ctx.beginPath();
+    ctx.moveTo(hx+px,hy+py);
+    ctx.lineTo(qx,qy);
+    ctx.lineTo(hx-px,hy-py);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();   // il cuneo e' un fill: nessun lineCap da rimettere a 'butt'
+}
+
+// ── EFFETTO 1b — VENTAGLIO di scintille nella direzione DI USCITA ────────────
+// Parte dal punto di contatto sulla linea della racchetta e dice, prima che la
+// palla si sia mossa, DOVE sta andando. Sotto le palle, mai sopra.
+// RTD._sc.pgHit = {id,t0,py,sy,x,ux,uy,got} — t0 e' GIA' ritardato di pgDly().
+function pgFxHit(ctx,pb,now,sx){
+  var h=RTD._sc.pgHit;
+  if(!h)return;
+  var u=(now-h.t0)/170;
+  if(u<0)return;                                  // effetto programmato, non ancora visibile
+  if(u>=1){RTD._sc.pgHit=null;return;}
+  if(RTD.lite||h.py==null)return;                 // device fragile: resta solo il flash della racchetta
+  if(!h.got){
+    var bd=1e9,bi;                                // primo frame visibile: si prende il contatto DISEGNATO
+    for(bi=0;bi<pb.length;bi+=6){
+      if(pb[bi+4]<0.5)continue;                   // palla PARCHEGGIATA dal server: nessun contatto plausibile
+      if(pb[bi+3]*h.sy<0)continue;                // solo una palla che si ALLONTANA da questa racchetta
+      var d=pb[bi+1]-h.py;if(d<0)d=-d;
+      if(d<bd){bd=d;h.x=pb[bi];h.ux=pb[bi+2];h.uy=pb[bi+3];}
+    }
+    if(bd>1e8)return;                             // nessuna palla plausibile: niente ventaglio
+    h.got=1;
+  }
+  var a=Math.atan2(h.uy,h.ux),q,qa,q1,q0=0.30*sx;
+  ctx.strokeStyle='rgba(255,255,255,'+(0.55*(1-u)).toFixed(3)+')';
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  for(q=-2;q<=2;q++){
+    qa=a+q*0.22;
+    q1=q0+(0.85*sx)*u*(1-0.12*(q<0?-q:q));
+    ctx.moveTo(h.x+Math.cos(qa)*q0,h.py+Math.sin(qa)*q0);
+    ctx.lineTo(h.x+Math.cos(qa)*q1,h.py+Math.sin(qa)*q1);
+  }
+  ctx.stroke();
+}
+
+// ── EFFETTI 3+4 — LINEA DI FONDO che si accende (goal / scudo) ───────────────
+// mine = la linea caduta e' quella in BASSO nella vista (calcolata per SEAT,
+// non per id: funziona anche da spettatore). Ultimo layer, sopra il countdown.
+function pgFxEnd(ctx,now,w,hh){
+  var e=RTD._sc.pgEnd;
+  if(!e)return;
+  var u=(now-e.t0)/380;
+  if(u<0)return;
+  if(u>=1){RTD._sc.pgEnd=null;return;}
+  var bh=hh*0.045;
+  ctx.globalAlpha=0.55*(1-u);
+  ctx.fillStyle=e.col;
+  ctx.fillRect(0,e.mine?(hh-bh):0,w,bh);
+  ctx.globalAlpha=1;
+}
+
+// ── seat di un giocatore dal suo id, dallo snapshot corrente ─────────────────
+function pgSeatOf(id){
+  var p=(RTD.lastRaw&&RTD.lastRaw.p)||[],i;
+  for(i=0;i<p.length;i++)if(String(p[i][0])===String(id))return p[i][2]===1?1:0;
+  return 0;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FRAMMENTI INLINE — non sono funzioni: sono i pezzi che vanno DENTRO
+// rtdDrawPong / rtdFeedEvent / rtdFrame. Qui stanno in una funzione fittizia solo
+// per poterli passare a node --check. Le variabili del contesto sono dichiarate
+// finte in cima.
+//
+// ⚠ NIENTE NUMERI DI RIGA. index.html viene modificato da altri lavori in
+// parallelo: qualunque numero di riga scade nel giro di minuti (il piano diceva
+// "sostituisce le righe 46536-46553" e a quelle righe oggi c'e' la coda di
+// rtdFrame). Ogni frammento porta quindi una ANCORA: una STRINGA che in
+// index.html compare UNA E UNA SOLA VOLTA, verificata da
+// _ponglab/vv_ancore.mjs (che legge index.html in SOLA LETTURA e falisce se
+// un'ancora non c'e' piu' o non e' piu' unica). Le ancore sono elencate anche
+// nell'intestazione di quel file, cosi' il trapianto si fa col cerca-e-sostituisci
+// e non col conta-righe.
+// ══════════════════════════════════════════════════════════════════════════════
+
+/* ═══ PONG — SUONI (copia verbatim di _pongsfx/pgsfx_es5.js).
+   Usa SOLO TWS.tone/TWS.noise: nessun AudioContext nuovo, nessun nodo
+   persistente, e col volume spento ogni chiamata e un no-op. ═══ */
+/* ══════════════════════════════════════════════════════════════════════════
+   NEON PONG — SFX.  ES5.  Implementazione di PONG_SFX.md (§2, §4, §5, §7, §9).
+
+   REGOLE RISPETTATE (vincoli del lavoro):
+   · Nessun AudioContext nuovo: usa SOLO TWS.tone / TWS.noise, quindi TWS.on
+     (mute), TWS.ctx (null o sospeso), TWS.pan e il master TWS.mg sono onorati
+     senza una riga in piu'.  A ctx null/sospeso ogni chiamata e' un no-op.
+   · Nessun nodo persistente, nessun setInterval, nessun rAF, nessun canvas,
+     nessun WebSocket, nessun ConvolverNode, nessun campione: tutto sintetizzato.
+   · TWS.mg (master condiviso con gli altri 6 giochi) NON viene toccato.
+   · Scritture: SOLO le chiavi RTD._sc.pgx* (scratch per-match, muore da se')
+     e il transiente TWS.pan col protocollo set -> play -> reset gia' in uso.
+   · RTD.lite / gb_lite: SOLA LETTURA (pgLite).
+   · ARC_SOUNDS non viene toccato: namespace e dispatcher propri, early-out
+     v<=0.03 incluso (il ramo ARC_SOUNDS non l'ha).
+
+   ES5: niente let/const/arrow/template/spread/class/for-of/Object.assign/
+   Array.from/includes/padStart/Math.hypot/parametri di default/** .
+   ══════════════════════════════════════════════════════════════════════════ */
+
+var PG_LAG  = 0.080;   // s — compensa l'orologio di render (rtdLerp: now-85ms)
+var PG_SPD0 = 5.2;     // BALL_V0
+var PG_SPD1 = 30.6;    // MAX_BALL_V * RALLY_ACC_MAX  (NON 17)
+// pentatonica minore di LA: nessun semitono -> qualunque sovrapposizione consuona
+var PG_NOTE = [220, 261.63, 293.66, 329.63, 392, 440,
+               523.25, 587.33, 659.25, 783.99, 880];
+var PGX = {at: 0};     // offset transiente, stesso protocollo di TWS.pan
+
+var PG_COST = {hit:2, hitcan:3, wall:1, goal:4, save:4, pip:2, mod:3, tick:2, go:3};
+var PG_GAP  = {hit:50, hitcan:120, wall:45, goal:350, save:350,
+               pip:300, mod:200, tick:300, go:500};
+var PG_PRIO = {goal:0, save:0, hitcan:1, mod:1, go:1, tick:1, hit:2, pip:3, wall:3};
+var PG_CLSCAP = {hit:2, wall:2};
+
+/* Scaletta di degrado su dispositivo debole (§7).  Con RTD.lite attivo:
+   2 = L1 (via tutti gli strati di rumore) + L2 (budget 6->4, gap muro 45->90)
+   3 = anche L3: pip muto
+   4 = anche L4: wall muto del tutto
+   Default 2 = esattamente il comportamento del blocco di codice di §9.
+   Sono LEVE (solo sottrazione, mai aggiunta), non un nuovo flag utente.      */
+var PG_LITE_LV = 2;
+
+function pgLite(){ try{ return !!(RTD && RTD.lite); }catch(e){ return false; } }
+function pgT(o){ o.at=(o.at||0)+PGX.at; TWS.tone(o); }
+function pgN(o){ if(pgLite())return; o.at=(o.at||0)+PGX.at; TWS.noise(o); }   // L1
+function pgHap(k){ try{ tg.HapticFeedback && tg.HapticFeedback.impactOccurred(k); }catch(e){} }
+
+/* ── LIMITATORE (progettato prima dei suoni — §4) ────────────────────────── */
+function pgAllow(name){
+  var sc; try{ sc=RTD._sc; }catch(e){ return false; }
+  if(!sc) return false;
+  if(!sc.pgxQ){ sc.pgxQ=[]; sc.pgxL={}; sc.pgxH=0; sc.pgxB=[]; }
+  var now=performance.now(), lite=pgLite()?1:0, i;
+  var prio=PG_PRIO[name]; if(prio==null) prio=3;
+  var gap=PG_GAP[name]||0; if(name==='wall'&&lite) gap=90;
+  // 0. scaletta lite (§7): sottrazioni, in ordine di sacrificio
+  if(lite){
+    if(PG_LITE_LV>=4 && name==='wall') return false;
+    if(PG_LITE_LV>=3 && name==='pip')  return false;
+  }
+  // 1. de-dup per nome: finestra minima fra due suoni IDENTICI
+  if(sc.pgxL[name]!=null && now-sc.pgxL[name]<gap) return false;
+  // 2. finestra SCORREVOLE 140ms (non a blocchi come rcSfx)
+  var q=sc.pgxQ;
+  while(q.length && now-q[0].t>140) q.shift();
+  // 3. guardia raffica: stallo di rete che scarica piu' snapshot in un ms
+  var bb=sc.pgxB;
+  while(bb.length && now-bb[0]>60) bb.shift();
+  bb.push(now);
+  if(bb.length>10 && prio>0){ sc.pgxH=now+250; return false; }
+  if(prio>0){
+    // 4. hold: un suono strutturale si prende 180ms di silenzio dopo di se'
+    if(now<sc.pgxH) return false;
+    // 5. tetto per classe
+    var cap=PG_CLSCAP[name];
+    if(cap){ var n=0;
+      for(i=0;i<q.length;i++) if(q[i].n===name) n++;
+      if(n>=cap) return false;
+    }
+    // 6. tetto globale di costo nella finestra
+    var tot=0;
+    for(i=0;i<q.length;i++) tot+=q[i].c;
+    if(tot+(PG_COST[name]||1) > (lite?4:6)) return false;
+  }else{
+    sc.pgxH=now+180;
+  }
+  q.push({t:now, n:name, c:PG_COST[name]||1});
+  sc.pgxL[name]=now;
+  // 7. de-correlazione di fase: gli eventi dello STESSO snapshot partono con lo
+  //    stesso ctx.currentTime e si sommano in fase (+6dB per raddoppio).
+  sc.pgxI=(now-(sc.pgxT||0)>30)?0:((sc.pgxI||0)+1);
+  sc.pgxT=now;
+  return true;
+}
+
+/* ── DISPATCHER ─────────────────────────────────────────────────────────────
+   Ritorna true SOLO se il suono e' stato realmente programmato: chi chiama usa
+   il valore per non far vibrare il telefono su un suono che il limitatore ha
+   tagliato (§8.9: "tutti passano già dal gap del limitatore").              */
+function pgSfx(name, vol, opt){
+  if(!TWS.on || !TWS.ctx) return false;           // ctx sospeso/assente: no-op
+  var v=(vol==null)?1:vol;
+  if(v<=0.03) return false;                       // early-out (ARC_SOUNDS non l'ha)
+  if(!Object.prototype.hasOwnProperty.call(PG_REC,name)) return false;
+  if(!pgAllow(name)) return false;
+  opt=opt||{};
+  var sc=RTD._sc;
+  var lag=(opt.lag==null)?PG_LAG:opt.lag;
+  var jit=Math.min(0.012,(sc.pgxI||0)*0.004)+Math.random()*0.003;
+  PGX.at=lag+jit;
+  TWS.pan=opt.pan||0;
+  try{ PG_REC[name](v,opt); }catch(e){}
+  TWS.pan=0; PGX.at=0;
+  return true;
+}
+
+/* ── LETTURE DALLO SNAPSHOT DI CHI ASCOLTA (T3 di §5) ───────────────────── */
+function pgNote(who){        // nota = velocita' della palla piu' vicina a quella racchetta
+  var raw=null, sc=null, i, r, b;
+  try{ raw=RTD.lastRaw; sc=RTD._sc; }catch(e){ return 3; }
+  if(!raw || !raw.balls || !raw.balls.length)
+    return (sc && sc.pgxN!=null) ? sc.pgxN : 3;
+  var py=5.5;
+  if(raw.p) for(i=0;i<raw.p.length;i++){
+    r=raw.p[i];
+    if(String(r[0])===String(who)) py=(r[2]===0)?10.4:0.6;   // seat0 basso, seat1 alto
+  }
+  var best=0, bd=1e9, d;
+  for(i=0;i<raw.balls.length;i++){
+    d=Math.abs(raw.balls[i][1]-py);
+    if(d<bd){ bd=d; best=i; }
+  }
+  b=raw.balls[best];
+  var s=Math.sqrt(b[2]*b[2]+b[3]*b[3]);            // no Math.hypot (ES2015)
+  var k=(s-PG_SPD0)/(PG_SPD1-PG_SPD0);
+  if(k<0)k=0; if(k>1)k=1;
+  var n=Math.round(k*7);
+  if(sc) sc.pgxN=n;
+  return n;
+}
+function pgPadPan(who){      // pan dalla x della racchetta (sempre disegnata)
+  var raw, i, r, p;
+  try{ raw=RTD.lastRaw; }catch(e){ return 0; }
+  if(!raw || !raw.p) return 0;
+  for(i=0;i<raw.p.length;i++){
+    r=raw.p[i];
+    if(String(r[0])===String(who)){
+      p=(r[1]/7)*2-1; if(p<-1)p=-1; if(p>1)p=1;    // W=7
+      return p*0.45;
+    }
+  }
+  return 0;
+}
+function pgPipPan(){
+  var raw, p;
+  try{ raw=RTD.lastRaw; }catch(e){ return 0; }
+  if(!raw || !raw.pip) return 0;
+  p=(raw.pip[0]/7)*2-1; if(p<-1)p=-1; if(p>1)p=1;
+  return p*0.45;
+}
+function pgBlind(){          // sono IO l'accecato dal ghost? (mods[me] contiene 'G')
+  var raw, m, i;
+  try{ raw=RTD.lastRaw; }catch(e){ return false; }
+  if(!raw || !raw.mods) return false;
+  m=raw.mods[RTD.myId];
+  if(!m) return false;
+  for(i=0;i<m.length;i++) if(m[i][0]==='G') return true;
+  return false;
+}
+function pgCls(c){           // le 3 classi SONO i 3 colori di PG_MODCOL
+  if(c==='W'||c==='C'||c==='D') return 0;   // verde: aiutano te
+  if(c==='S'||c==='G') return 1;            // rosso: colpiscono lui
+  return 2;                                 // viola: cambiano la palla
+}
+
+/* ── LE RICETTE ─────────────────────────────────────────────────────────── */
+var PG_REC = {
+  hit: function(v,o){
+    var f=PG_NOTE[o.note||0], mine=!!o.mine;
+    pgT({f:f*3, f2:f*1.5, type:'square',   d:0.028, g:0.14*v, lp:mine?4200:1900});
+    pgT({f:f,   f2:f*0.75, type:'triangle', d:0.085, g:0.34*v, a:0.004, lp:mine?5200:1600});
+    if(mine) pgN({d:0.022, g:0.09*v, hp:2600, lp:7000});
+  },
+  hitcan: function(v,o){
+    var f=PG_NOTE[o.note||0];
+    pgT({f:f,   f2:f*0.5, type:'square',   d:0.13, g:0.38*v, lp:2600});
+    pgT({f:110, f2:55,    type:'triangle', d:0.16, g:0.28*v, at:0.006});
+    pgN({d:0.09, g:0.20*v, lp:5200, lp2:600, hp:200});
+  },
+  wall: function(v,o){
+    pgT({f:1480, f2:1180, type:'triangle', d:0.030, g:0.09*v});
+    pgN({d:0.026, g:0.12*v, hp:2400, lp:7200});
+  },
+  goal: function(v,o){
+    if(o.mine){                                   // A4 -> E5 -> A5, sale
+      pgT({f:440,    f2:440, type:'triangle', d:0.10, g:0.26*v});
+      pgT({f:659.25,         type:'triangle', d:0.10, g:0.26*v, at:0.065});
+      pgT({f:880,    f2:880, type:'triangle', d:0.20, g:0.30*v, at:0.130});
+      pgT({f:1760,           type:'square',   d:0.09, g:0.09*v, at:0.130, lp:6000});
+      pgN({d:0.05, g:0.09*v, hp:3000, lp:9000});
+    }else{                                        // A4 -> G4 -> D4, scende e si spegne
+      pgT({f:440,    f2:440,  type:'triangle', d:0.10, g:0.24*v, lp:2200});
+      pgT({f:392,             type:'triangle', d:0.10, g:0.24*v, at:0.065, lp:1800});
+      pgT({f:293.66, f2:220,  type:'triangle', d:0.24, g:0.28*v, at:0.130, lp:1400});
+      pgT({f:73.42,  f2:55,   type:'sine',     d:0.28, g:0.26*v, at:0.130});
+    }
+  },
+  save: function(v,o){                            // battimento 5Hz = vetro/metallo
+    pgT({f:659.25, f2:783.99, type:'triangle', d:0.20,  g:0.20*v});
+    pgT({f:664.50, f2:790.00, type:'triangle', d:0.20,  g:0.20*v});
+    pgT({f:1318.5, f2:1567.9, type:'square',   d:0.045, g:0.10*v, lp:7000});
+    pgN({d:0.07, g:0.18*v, hp:1800, lp:6800});
+  },
+  pip: function(v,o){
+    pgT({f:659.25, type:'triangle', d:0.06, g:0.12*v});
+    pgT({f:880,    type:'triangle', d:0.09, g:0.12*v, at:0.055});
+  },
+  mod: function(v,o){
+    var up=!!o.good, cls=o.cls||0;
+    var a=up?523.25:392, b=up?783.99:293.66;      // direzione = polarita'
+    if(cls===0){                                  // verde: caldo, solido
+      pgT({f:a,   type:'triangle', d:0.07, g:0.26*v, lp:3400});
+      pgT({f:b,   type:'triangle', d:0.13, g:0.28*v, at:0.06, lp:3400});
+      pgT({f:b*2, type:'square',   d:0.06, g:0.07*v, at:0.06, lp:5200});
+    }else if(cls===1){                            // rosso: coppia stonata, sgradevole
+      pgT({f:a,      type:'square', d:0.08, g:0.20*v, lp:2000});
+      pgT({f:a*1.06, type:'square', d:0.08, g:0.18*v, lp:2000});
+      pgT({f:b, f2:b*0.94, type:'square', d:0.14, g:0.22*v, at:0.06, lp:1700});
+    }else{                                        // viola: tre tick instabili
+      pgT({f:a,      type:'triangle', d:0.045, g:0.20*v, lp:5000});
+      pgT({f:a*1.19, type:'triangle', d:0.045, g:0.20*v, at:0.035, lp:5000});
+      pgT({f:b,      type:'triangle', d:0.100, g:0.24*v, at:0.070, lp:5000});
+    }
+  },
+  tick: function(v,o){                            // nota FISSA: nessuna direzione
+    pgT({f:440,  f2:440, type:'triangle', d:0.07, g:0.24*v});
+    pgT({f:1760,         type:'square',   d:0.02, g:0.06*v, lp:6000});
+  },
+  go: function(v,o){                              // la stessa nota un'ottava sopra
+    pgT({f:880,  f2:880, type:'triangle', d:0.12, g:0.28*v});
+    pgT({f:1760,         type:'square',   d:0.04, g:0.09*v, lp:7000});
+    pgN({d:0.10, g:0.11*v, hp:900, lp:5000});
+  }
+};
+
+/* ── ROUTER DI EVENTO — unico punto d'ingresso dal feed ─────────────────── */
+/* Ritorna true se l'evento e' stato gestito dal pong (chi chiama fa break).  */
+function pgOnEvent(e){
+  var sc=null; try{ sc=RTD._sc; }catch(_x){}
+  var mine=(String(e.who)===String(RTD.myId));
+  var k=e.k, n, can;
+  if(k==='hit'){
+    n=pgNote(e.who);
+    can=!!(sc && sc.pgxC && performance.now()-sc.pgxC<150);
+    if(can){
+      sc.pgxC=0;
+      if(pgSfx('hitcan', 0.78, {note:n, pan:pgPadPan(e.who)}) && mine) pgHap('light');
+    }else{
+      pgSfx('hit', mine?0.62:0.50, {note:n, mine:mine, pan:pgPadPan(e.who)});
+    }
+    return true;
+  }
+  if(k==='cannon'){ if(sc) sc.pgxC=performance.now(); return true; }  // muto: suona nell'hit
+  if(k==='cushion'){ if(!pgBlind()) pgSfx('wall',0.22); return true; } // ghost: muto (§5.3)
+  if(k==='goal'){
+    if(pgSfx('goal', mine?1.00:0.95, {mine:mine})) pgHap(mine?'medium':'rigid');
+    return true;
+  }
+  if(k==='shield'){
+    if(pgSfx('save', 0.95, {pan:pgPadPan(e.who)}) && mine) pgHap('medium');
+    return true;
+  }
+  if(k==='pip'){    pgSfx('pip', 0.28, {pan:pgPipPan()}); return true; }
+  if(k==='pipget'){ pgSfx('mod', 0.55, {cls:pgCls(e.c), good:mine}); return true; }
+  if(k==='end'){    return true; }   // SILENZIO (§2.10) — e nessun boato da calcio
+  return false;
+}
+
 function rtdDrawPong(ctx,raw,lp,now,w,hh){
   var MW=RTD.map.w,MH=RTD.map.h;
   var sx=w/MW,sy=hh/MH;
   pgDiagFrame();   // SONDA: conta i frame davvero disegnati
+  var plp=pgLerp(now)||lp;
   ctx.drawImage(rtdBg('pg',w,hh,function(bc){
     bc.fillStyle='#05070e';bc.fillRect(0,0,w,hh);
     bc.strokeStyle='rgba(250,204,21,.08)';bc.lineWidth=1;
@@ -47000,7 +47468,7 @@ function rtdDrawPong(ctx,raw,lp,now,w,hh){
   }
   // p row: [id, x, seat, pw, cannon, shield, pwkind]. Opponent paddle is
   // interpolated between ticks (smooth); my paddle keeps client prediction.
-  var LPp=rtdLerpRow(lp,'p'),pgMyX=null;
+  var LPp=rtdLerpRow(plp,'p'),pgMyX=null;
   (raw.p||[]).forEach(function(r){
     var isMe=r[0]===RTD.myId;
     var col=isMe?'#38bdf8':'#f87171';
@@ -47041,33 +47509,56 @@ function rtdDrawPong(ctx,raw,lp,now,w,hh){
       ctx.beginPath();ctx.moveTo(cx-pw*0.62,syb);ctx.lineTo(cx+pw*0.62,syb);ctx.stroke();
       ctx.restore();
     }
+    var hu=-1,hs=RTD._sc.pgHit;
+    if(hs&&String(hs.id)===String(r[0])){
+      hs.py=py;                                     // il ventaglio parte da QUESTA linea
+      hs.sy=seatBottom?-1:1;                        // e la palla se ne va da QUESTA parte
+      var he=(now-hs.t0)/130;
+      if(he>=0&&he<1)hu=1-he;
+    }
     ctx.shadowColor=col;ctx.shadowBlur=16;
-    ctx.fillStyle=col;
-    ctx.fillRect(cx-pw/2,py-4,pw,8);
+    if(hu>0){
+      ctx.fillStyle=isMe?'#bae6fd':'#fecaca';
+      ctx.save();
+      ctx.translate(cx,py);
+      ctx.scale(1+0.10*hu,1+0.55*hu);
+      ctx.fillRect(-pw/2,-4,pw,8);
+      ctx.restore();
+    }else{
+      ctx.fillStyle=col;
+      ctx.fillRect(cx-pw/2,py-4,pw,8);
+    }
     ctx.shadowBlur=0;
     // cannon armed marker — offset by the VIEW orientation, not the raw seat
     // (fix: seat-1 mirror flipped it off its own half / into the field)
     if(r[4]){
+      if(!RTD.lite){
+        var cr=(0.30+0.10*Math.sin(now/170))*sx;
+        ctx.strokeStyle=isMe?'rgba(74,222,128,.55)':'rgba(248,113,113,.55)';
+        ctx.lineWidth=2;
+        ctx.beginPath();
+        ctx.arc(cx,py+(seatBottom?-0.22*sx:0.22*sx),cr,0,6.283);
+        ctx.stroke();
+      }
       ctx.font=(0.4*sx)+'px serif';ctx.textAlign='center';ctx.textBaseline='middle';
       ctx.fillText('💥',cx,py+(seatBottom?-20:20));
     }
   });
   // ── balls (multiball capable) — interpolated index-wise between snapshots ──
-  var ballsB=(lp&&lp.b&&lp.b.balls)||raw.balls||[];
-  var ballsA=(lp&&lp.a&&lp.a.balls)||ballsB;
-  var kk=lp?lp.k:0, sameN=(ballsA.length===ballsB.length);
-  for(var bi=0;bi<ballsB.length;bi++){
-    var bB=ballsB[bi], bA=sameN?ballsA[bi]:bB;
-    var bx=(bA[0]+(bB[0]-bA[0])*kk)*sx;
-    var by=FYp(bA[1]+(bB[1]-bA[1])*kk);
-    var curved=bB[4];
-    for(var i=1;i<=3;i++){
+  pb=RTD._sc.pgB||(RTD._sc.pgB=[]);
+  pgBalls(plp,raw,sx,sy,MW,MH,flipP,pb);          // 1: posizioni (Hermite, riabbinate)
+  pgFxTrail(ctx,pb,sx,RTD.lite);                  // 2: scie   — SOTTO le palle
+  pgFxHit(ctx,pb,now,sx);                         //    ventaglio d'impatto — SOTTO le palle
+  var nh=RTD.lite?1:3,rr=0.22*sx;                 // 3: le palle, SEMPRE per ultime
+  for(bi=0;bi<pb.length;bi+=6){
+    var bx=pb[bi],by=pb[bi+1],curved=pb[bi+5];
+    for(i=1;i<=nh;i++){
       ctx.fillStyle=(curved?'rgba(196,181,253,':'rgba(250,204,21,')+(0.16/i)+')';
-      ctx.beginPath();ctx.arc(bx,by,0.22*sx+i*2,0,6.283);ctx.fill();
+      ctx.beginPath();ctx.arc(bx,by,rr+i*2,0,6.283);ctx.fill();
     }
     ctx.shadowColor=curved?'#c4b5fd':'#facc15';ctx.shadowBlur=14;
     ctx.fillStyle=curved?'#efe9ff':'#fff8d6';
-    ctx.beginPath();ctx.arc(bx,by,0.22*sx,0,6.283);ctx.fill();
+    ctx.beginPath();ctx.arc(bx,by,rr,0,6.283);ctx.fill();
     ctx.shadowBlur=0;
   }
   // ── active-modifier HUD: icon + label + timer, per player, view-oriented ──
@@ -47114,15 +47605,21 @@ function rtdDrawPong(ctx,raw,lp,now,w,hh){
   // ── COUNTDOWN server-authoritative (raw.freeze): la palla e' PARCHEGGIATA dal
   //    server (vx=vy=0) finche' non finisce — qui lo si mostra, grande e chiaro. ──
   var fz=raw.freeze||0;
-  if(fz>0)fz=Math.max(0,fz-(now-(raw.rx||now))/1000);   // smooth tra due snapshot (20Hz)
+  /* [F5] il countdown sullo STESSO orologio della palla: leggendo raw.freeze
+     (= presente) mentre la palla e' disegnata 85ms nel passato, "VIA!" scattava
+     85ms PRIMA che la palla partisse davvero. */
+  if(plp&&plp.a&&plp.b&&plp.a.freeze!=null&&plp.b.freeze!=null){
+    fz=plp.a.freeze+(plp.b.freeze-plp.a.freeze)*plp.k;
+    if(fz<0)fz=0;
+  }else if(fz>0)fz=Math.max(0,fz-(now-(raw.rx||now))/1000);
   var sc=RTD._sc;
-  if((raw.freeze||0)>0)sc.pgFz=1;
-  else if(sc.pgFz){sc.pgFz=0;sc.pgGo=now;TWS.play('pick',0.7);}
+  if(fz>0)sc.pgFz=1;
+  else if(sc.pgFz){sc.pgFz=0;sc.pgGo=now;pgSfx('go',1);}
   var goAge=sc.pgGo?(now-sc.pgGo):9e9;
   if(fz>0||goAge<650){
     var live=fz>0;
     var n=Math.ceil(fz);
-    if(live&&n<=3&&sc.pgTick!==n){sc.pgTick=n;TWS.play('beat',0.9);}   // un battito al secondo
+    if(live&&n<=3&&sc.pgTick!==n){sc.pgTick=n;pgSfx('tick',1,{n:n});}   // un battito al secondo
     var frac=live?(1-(n-fz)):Math.max(0,1-goAge/650);   // 1→0 dentro il secondo
     ctx.save();
     ctx.fillStyle='rgba(3,6,12,'+(live?0.40:0.40*Math.max(0,1-goAge/650))+')';
@@ -47155,6 +47652,11 @@ function rtdDrawPong(ctx,raw,lp,now,w,hh){
       ctx.font='bold '+Math.round(Math.max(11,R*0.30))+'px Russo One, sans-serif';
       ctx.fillStyle='rgba(253,230,138,.92)';
       ctx.fillText('PRONTI…',cxq,cyq+R*1.32);
+      if(raw.serve!=null){
+        ctx.font='bold '+Math.round(Math.max(10,hh*0.022))+'px Russo One, sans-serif';
+        ctx.fillStyle='rgba(203,213,225,.9)';
+        ctx.fillText(raw.serve===pgMySeat()?'⬇ VIENE VERSO DI TE':'⬆ PARTE VERSO DI LUI',w/2,hh*0.60);
+      }
       ctx.font='bold '+Math.round(Math.max(9,R*0.24))+'px Russo One, sans-serif';
       ctx.fillStyle='rgba(148,163,184,.85)';
       ctx.fillText('↔ TRASCINA LA BARRA SOTTO',cxq,hh-14);
@@ -47168,6 +47670,7 @@ function rtdDrawPong(ctx,raw,lp,now,w,hh){
     }
     ctx.restore();
   }
+  pgFxEnd(ctx,now,w,hh);   // [F7] ultimo strato: la linea di fondo
 }
 
 // ── SUMO ────────────────────────────────────────────────────────────
