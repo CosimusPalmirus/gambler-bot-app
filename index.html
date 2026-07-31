@@ -39638,7 +39638,12 @@ function gldOnMsg(m){
     GLD.tour=!!m.tour;   // TORNEO: autoritativo dal server (ripulisce anche flag stantii)
     // CHAT SPETTATORI: da qui in poi sei un gladiatore del torneo → iscriviti al
     // canale, il ticker d'angolo mostrerà i commenti mentre combatti
-    if(GLD.tour){TRN.chatSubbed=0;trnChatSub();}
+    // 31/07: il canale e' quello della MIA LOBBY (r:<mid>), non del torneo:
+    // in partita si parla con i propri avversari. Il mid lo manda il server
+    // dentro lo start (out["mid"] per le room di torneo). I messaggi dei
+    // gruppi Telegram arrivano lo stesso: li rilancia il server in ogni lobby.
+    GLD.mid=m.mid||'';
+    if(GLD.tour){TRN.chatSubbed=0;trnChatSub();if(typeof trnChatSwap==='function')trnChatSwap();}
     if(m.viewers!=null)GLD.viewers=m.viewers;
     GLD.map=m.map;GLD.r0=(m.map&&m.map.size)||10;GLD.cols=(m.map&&m.map.cols)||[];GLD.r=GLD.r0;
     GLD.names=m.names||{};GLD.myId=String(m.you);
@@ -40236,6 +40241,8 @@ function gldHoldBtn(id,onDown,onUp){
   b.addEventListener('mousedown',down);b.addEventListener('mouseup',up);b.addEventListener('mouseleave',up);
 }
 function gldShowOver(m){
+  // fuori dal match la chat torna quella del TORNEO
+  try{GLD.mid='';TRN.chatSubbed=0;trnChatSub();trnChatSwap();}catch(_cq){}
   GLD.ui='over';gldStopRaf();
   if(m.practice||GLD.practice){
     TWS.play(m.you_won?'win':'lose');
@@ -41855,6 +41862,7 @@ function trnInjectCSS(){
    +'.trn-net-champ .tc-n{font-family:\'Russo One\',sans-serif;font-size:11px;color:#ffd76b;max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:3px auto 0;}'
    +'.trn-net-champ .tc-q{font-size:16px;color:var(--txt2);}'
    /* INTERVALLO tra i round: banner countdown (intermission_until) + invito a spettare */
+   +'.trn-im-badge{position:fixed;top:calc(8px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:60;display:flex;gap:8px;align-items:center;padding:6px 14px;border-radius:999px;background:rgba(10,8,4,.92);border:1px solid rgba(255,196,64,.55);box-shadow:0 0 14px rgba(255,180,40,.28);font-family:Russo One,sans-serif;font-size:12px;color:#ffd77a;letter-spacing:.5px;}.trn-im-badge span{color:#fff;font-size:14px;}'
    +'.trn-interm{position:relative;overflow:hidden;background:linear-gradient(155deg,rgba(255,160,40,.15),rgba(255,60,60,.06));border:1px solid rgba(255,180,60,.5);border-radius:16px;padding:15px 14px;margin:12px 0;text-align:center;animation:trnImGlow 2.8s ease-in-out infinite;}'
    +'@keyframes trnImGlow{50%{box-shadow:0 0 24px rgba(255,180,60,.4);border-color:rgba(255,205,85,.75);}}'
    +'.trn-interm::before{content:"";position:absolute;left:-40%;top:0;width:40%;height:100%;background:linear-gradient(100deg,transparent,rgba(255,220,130,.16),transparent);animation:trnImSheen 3.4s ease-in-out infinite;}'
@@ -42019,8 +42027,35 @@ function trnIntermHTML(d){
 }
 // ticker 1s SOLO-testo (nessun fetch pesante): aggiorna #trn-im-cd, si autospegne
 // a fine countdown e chiede un refresh per far comparire il prossimo my_match.
+// ── TIMER SEMPRE VISIBILE (31/07) ─────────────────────────────────────────
+// Il countdown dell'intervallo esisteva solo dentro la pagina del torneo, e
+// il suo ticker si spegneva uscendo: chi aspettava il match successivo nella
+// schermata del Colosseo non sapeva quanto mancasse. Questa pastiglia vive
+// sopra qualunque schermata finche' l'intervallo dura, e sparisce da sola.
+// Il conto e' su un istante ASSOLUTO (intermission_until), quindi resta
+// esatto anche senza aggiornare lo stato dal server.
+function trnImBadge(){
+  var s=trnImSecs(TRN.state),el=document.getElementById('trn-im-badge');
+  if(s<=0){if(el&&el.parentNode)el.parentNode.removeChild(el);
+    if(TRN.imBadgeT){clearInterval(TRN.imBadgeT);TRN.imBadgeT=null;}return;}
+  if(CUR==='torneo'){   // li' il banner grande c'e' gia': niente doppione
+    if(el&&el.parentNode)el.parentNode.removeChild(el);return;}
+  if(!el){
+    el=document.createElement('div');el.id='trn-im-badge';el.className='trn-im-badge';
+    el.onclick=function(){try{go('torneo');}catch(_g){}};
+    document.body.appendChild(el);
+  }
+  var mm=Math.floor(s/60),ss=s%60;
+  el.innerHTML='<b>⚔️ PROSSIMO ROUND</b><span>'+(mm?mm+':'+(ss<10?'0':'')+ss:s+'s')+'</span>';
+}
+function trnImBadgeArm(){
+  if(TRN.imBadgeT)return;
+  TRN.imBadgeT=setInterval(trnImBadge,1000);
+  trnImBadge();
+}
 function trnImArm(d){
   if(trnImSecs(d)<=0)return;
+  trnImBadgeArm();
   if(TRN.imTick)return;
   TRN.imTick=setInterval(function(){
     if(CUR!=='torneo'){clearInterval(TRN.imTick);TRN.imTick=null;return;}
@@ -42691,6 +42726,15 @@ function trnChatSock(){
 // (che e' anche cio' che vedono i client vecchi). Senza questo, aprendo un
 // torneo FUTURO si finiva a scrivere nella chat dell'evento in corso.
 function trnChatCh(){
+  // DENTRO un match di torneo la chat e' quella della TUA lobby: si parla con
+  // gli avversari di quella partita, non con tutto il tabellone. Il mid arriva
+  // dallo start del server (out["mid"] per le room di torneo).
+  try{
+    if(typeof GLD!=='undefined'&&GLD.tour&&!GLD.spec&&GLD.ui==='match'&&GLD.mid)
+      return 'r:'+String(GLD.mid);
+    if(typeof RTD!=='undefined'&&RTD.tour&&!RTD.spec&&RTD.ui==='match'&&RTD.mid)
+      return 'r:'+String(RTD.mid);
+  }catch(_c){}
   if(typeof TRN!=='undefined'&&TRN.det)return String(TRN.det);
   var t=(typeof TRN!=='undefined'&&TRN.st&&TRN.st.active)?TRN.st.id:'';
   return t?String(t):'';
@@ -42700,7 +42744,8 @@ function trnChatSub(){
   if(!s)return;
   var ch=trnChatCh();
   if(TRN.chatCh===ch&&TRN.chatSubbed)return;   // gia' iscritto a questo canale
-  TRN.chatCh=ch;TRN.chatSubbed=1;TRN.chat=[];
+  TRN.chatCh=ch;TRN.chatSubbed=1;
+  TRN.chatBy=TRN.chatBy||{};TRN.chat=TRN.chatBy[ch]||[];
   try{s.send({t:'chat_sub',tid:ch});}catch(e){}
 }
 function trnChatSend(){
@@ -42719,18 +42764,27 @@ function trnChatKey(ev){if(ev&&(ev.key==='Enter'||ev.keyCode===13)){ev.preventDe
 function trnOnChat(m){
   if(!m)return;
   if(m.t==='chat_slow'){toast('Vai piano con la chat 😄','warn',1400);return;}
-  var _ch=(typeof trnChatCh==='function')?trnChatCh():'';
-  if(m.t==='chat_log'){
-    if(String(m.tid||'')!==_ch)return;          // backlog di un altro torneo
-    TRN.chat=(m.msgs||[]).slice(-40);
-  }else{
-    // un messaggio senza tid viene dal canale generale: si mostra solo se
-    // e' quello che sto guardando, se no le chat di due tornei si mescolano
-    if(String(m.tid||'')!==_ch)return;
-    TRN.chat.push(m);if(TRN.chat.length>40)TRN.chat=TRN.chat.slice(-40);
-  }
+  // ARCHIVIO PER CANALE (31/07). Prima un messaggio con un canale diverso da
+  // quello calcolato veniva SCARTATO: entrando in partita il canale cambia, e
+  // i messaggi sparivano finche' non si rientrava nella pagina (dove il backlog
+  // li faceva ricomparire tutti insieme). Adesso ogni canale ha la sua coda:
+  // non si perde niente e passare da una schermata all'altra non cancella nulla.
+  TRN.chatBy=TRN.chatBy||{};
+  var ch=String(m.tid||'');
+  var q=TRN.chatBy[ch]||(TRN.chatBy[ch]=[]);
+  if(m.t==='chat_log')TRN.chatBy[ch]=(m.msgs||[]).slice(-40);
+  else{q.push(m);if(q.length>40)TRN.chatBy[ch]=q.slice(-40);}
+  var mio=(typeof trnChatCh==='function')?trnChatCh():'';
+  TRN.chat=TRN.chatBy[mio]||[];
   trnChatPaint();
   trnTickerPaint();
+}
+// da chiamare quando si cambia schermata: rimette in vista la coda del canale
+// giusto senza chiedere niente al server
+function trnChatSwap(){
+  TRN.chatBy=TRN.chatBy||{};
+  TRN.chat=TRN.chatBy[(typeof trnChatCh==='function')?trnChatCh():'']||[];
+  trnChatPaint();trnTickerPaint();
 }
 // c.g=1 -> arriva da un GRUPPO TELEGRAM (ponte lato bot): si marca, se no
 // sembrerebbe uno spettatore collegato all'app e nessuno capirebbe con chi
@@ -43366,6 +43420,7 @@ function rtdOnMsg(m){
     RTD.practice=!!m.practice;
     RTD.game=m.game;
     RTD.map=m.map;RTD.names=m.names||{};RTD.profiles=m.profiles||{};RTD.myId=String(m.you);
+    RTD.mid=m.mid||'';   // canale chat della MIA lobby (r:<mid>)
     RTD.potEur=m.pot_eur||0;if(m.rate)RTD.rate=m.rate;
     RTD.snaps=[];RTD.over=null;RTD.lastRaw=null;RTD.pgSeat=null;RTD.anim={};RTD.fxq=[];RTD.skids=[];RTD.stampQ=[];
     RTD.feedRows=[];RTD.shake=0;RTD.cam.ok=false;RTD._sc={};RTD._lf=0;RTD._lookC={};RTD._wsRk=0;
