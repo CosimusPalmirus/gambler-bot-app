@@ -8435,8 +8435,36 @@ body{position:relative;}
       <div class="pvp-hero-scrim"></div>
       <div class="pvp-hero-rays"></div>
       <div class="pvp-hero-glow"></div>
+      <span class="pvp-cor tl"></span><span class="pvp-cor tr"></span>
+      <span class="pvp-cor bl"></span><span class="pvp-cor br"></span>
+      <div class="pvp-hero-kick">⚔️ 1 CONTRO 1 · DAL VIVO</div>
       <div class="pvp-hero-title">PvP ARENA</div>
-      <div class="pvp-hero-sub">Challenge real players · Winner takes the pot <span class="pvp-fee">−5% fee</span></div>
+      <div class="pvp-hero-sub">Sfida giocatori veri · chi vince prende il piatto <span class="pvp-fee">−5% commissione</span></div>
+      <!-- MINI BANNER TORNEI dentro l'arena (31/07). Stessi id di prima
+           (trn-duel-card / trn-rb-flag / trn-mega-next): dlTrnBanner e
+           dlTrnLight continuano ad alimentarlo senza sapere che si e' spostato,
+           comprese le due luci "iscrizioni aperte" (oro) e "LIVE" (rosso). -->
+      <div class="trn-ribbon pvp-trn" id="trn-duel-card" onclick="go('torneo')">
+        <div class="trn-rb-shine"></div>
+        <div class="trn-rb-cup">🏆</div>
+        <div class="trn-rb-tx">
+          <div class="trn-rb-title">TORNEI <span class="trn-rb-flag" id="trn-rb-flag"></span></div>
+          <div class="trn-rb-sub" id="trn-mega-next">Prossimamente… tieni d'occhio questa card</div>
+        </div>
+        <div class="trn-rb-arrow">▸</div>
+      </div>
+    </div>
+    <!-- CHI C'E' ADESSO (31/07) — riga viva sopra le statistiche. Chiusa dice
+         quanti sono in linea; toccandola si apre e dice in quale coda stanno. -->
+    <div class="pvp-live" id="dl-live" onclick="dlLiveToggle()">
+      <div class="pvp-live-bar">
+        <span class="pvp-live-dot" id="dl-live-dot"></span>
+        <span class="pvp-live-n" id="dl-live-n">·</span>
+        <span class="pvp-live-lbl">in linea adesso</span>
+        <span class="pvp-live-q" id="dl-live-q"></span>
+        <span class="pvp-live-arr" id="dl-live-arr">▾</span>
+      </div>
+      <div class="pvp-live-det" id="dl-live-det"></div>
     </div>
     <div class="pvp-stats">
       <div class="pvp-stat"><div class="pvp-stat-ico">🏆</div><div class="pvp-stat-val win" id="dl-wins">0</div><div class="pvp-stat-lbl">WINS</div></div>
@@ -8445,15 +8473,9 @@ body{position:relative;}
     </div>
     <div id="pvp-incoming"></div>
 
-    <div class="trn-ribbon" id="trn-duel-card" onclick="go('torneo')">
-      <div class="trn-rb-shine"></div>
-      <div class="trn-rb-cup">🏆</div>
-      <div class="trn-rb-tx">
-        <div class="trn-rb-title">TORNEI <span class="trn-rb-flag" id="trn-rb-flag"></span></div>
-        <div class="trn-rb-sub" id="trn-mega-next">Prossimamente… tieni d'occhio questa card</div>
-      </div>
-      <div class="trn-rb-arrow">▸</div>
-    </div>
+    <!-- il vecchio stendardo TORNEI stava qui: e' salito DENTRO il banner
+         PvP ARENA (31/07), con gli stessi id. Due copie direbbero la stessa
+         cosa a due dita di distanza. -->
 
     <div class="tw-mega" onclick="go('turf')">
       <div class="twb-scene">
@@ -12499,6 +12521,17 @@ body{position:relative;}
     "La lancia (pilum)":"The spear (pilum)",
     "— ogni tanto la folla ne getta una: chi la raccoglie lancia invece di colpire":"— every so often the crowd throws one in: whoever picks it up throws instead of swinging",
     "Non sai da dove iniziare?":"Not sure where to start?",
+    /* ── BANNER PvP ARENA (31/07) ── */
+    "⚔️ 1 CONTRO 1 · DAL VIVO":"⚔️ 1 ON 1 · LIVE",
+    "Sfida giocatori veri · chi vince prende il piatto":"Challenge real players · winner takes the pot",
+    "−5% commissione":"−5% fee",
+    /* ── CHI C'E' ADESSO (31/07) ── */
+    "in linea adesso":"online right now",
+    "in corso":"live",
+    "Conteggio non disponibile in questo momento.":"Count unavailable right now.",
+    "Nessuno in coda adesso. Scegli un gioco: il primo che entra apre la coda.":"Nobody is queuing right now. Pick a game: whoever goes in first opens the queue.",
+    "Chi è in coda aspetta un avversario a quella posta. Entra nella stessa e si parte subito.":"Anyone in a queue is waiting for an opponent at that stake. Join the same one and you start right away.",
+    "I giochi in tempo reale non stanno rispondendo: qui vedi solo le code dei duelli a turni.":"Real-time games are not responding: you only see the turn-based duel queues here.",
     "— apri COME SI COMBATTE qui sotto: mosse, armi e arena":"— open HOW TO FIGHT below: moves, weapons and arena"
   };
 
@@ -12589,6 +12622,9 @@ body{position:relative;}
     [/hai raccolto: PICCOZZA/g,'you got: PICKAXE'],
     [/hai raccolto: MASSO/g,'you got: BOULDER'],
     [/hai raccolto: MAGNESITE/g,'you got: CHALK'],
+    /* ── CHI C'E' ADESSO: la pastiglia unisce numero e parola in un nodo solo ── */
+    [/(\d+) in coda/g,'$1 waiting'],
+    [/(\d+) in partita/g,'$1 playing'],
     /* ── tab TORNEI dinamiche (prima di /GIOCA/) ── */
     [/👥 (\d+)\/(\d+) iscritti/g,'👥 $1/$2 registered'],
     [/👥 (\d+) iscritti/g,'👥 $1 registered'],
@@ -12699,6 +12735,177 @@ var LBL_AGAIN='🔁 RIVINCITA';
 var BACKEND='https://62-238-17-24.sslip.io';
 var tg=window.Telegram.WebApp;
 try{tg.ready();tg.expand();tg.setHeaderColor('#08090d');tg.setBackgroundColor('#08090d');}catch(e){}
+
+// ── VIBRAZIONE SU TUTTI I TASTI (31/07) ───────────────────────────────────
+// Due pezzi che lavorano insieme.
+// (1) UN CANCELLO davanti all'aptica di Telegram. Nel file ci sono gia' una
+//     ottantina di chiamate sparse (giochi, esiti, power-up, editor): senza
+//     cancello un tocco che passa sia dall'ascoltatore qui sotto sia da una
+//     di quelle chiamate vibrerebbe DUE volte, e due colpi a pochi
+//     millisecondi non si sentono come due tocchi ma come un ronzio sporco.
+//     Il cancello lascia passare un impulso ogni 45 ms: le vibrazioni volute
+//     restano tutte, i doppioni spariscono. Vale anche per il codice vecchio,
+//     perche' avvolge l'OGGETTO, non i punti di chiamata.
+// (2) UN SOLO ascoltatore in fase di cattura sul documento: qualunque cosa sia
+//     un tasto vibra, senza dover toccare i 473 onclick a mano (e senza che il
+//     prossimo tasto scritto da qui in avanti se ne debba ricordare).
+// Escluso di proposito: tutto cio' che sta dentro un <canvas>. I giochi hanno
+// gia' la loro aptica, molto piu' fitta e pensata sul colpo; un impulso in piu'
+// per ogni tocco la sporcherebbe.
+// Forza dell'impulso: un impulso DEBOLE non deve mai zittire uno FORTE che
+// arriva subito dopo. Senza questa scala, il colpetto del tocco sul canvas
+// mangerebbe il "colpo pieno" o il "vinto/perso" che il gioco fa scattare nello
+// stesso istante — e il momento importante si perderebbe per fare posto a
+// quello banale. Dentro la finestra del cancello passa solo chi e' PIU' forte.
+var HAP_FORZA={soft:1,light:1,sel:1,medium:2,rigid:3,heavy:3,notif:4};
+var HAP={on:true,last:0,gap:45,forza:0};
+try{ HAP.on = (localStorage.getItem('gb_hap') !== '0'); }catch(_h1){}
+window.gbSetHaptics=function(v){
+  HAP.on=!!v;
+  try{ localStorage.setItem('gb_hap', v?'1':'0'); }catch(_h2){}
+  if(v){ try{ tg.HapticFeedback && tg.HapticFeedback.impactOccurred('medium'); }catch(_h3){} }
+};
+(function(){
+  var H=tg&&tg.HapticFeedback; if(!H) return;
+  ['impactOccurred','notificationOccurred','selectionChanged'].forEach(function(m){
+    var orig=H[m];
+    if(typeof orig!=='function') return;
+    var mia=(m==='notificationOccurred')?4:(m==='selectionChanged'?1:0);
+    H[m]=function(k){
+      if(!HAP.on) return;
+      var f=mia||HAP_FORZA[String(k||'light')]||1;
+      var now=Date.now();
+      // doppione: passa solo se e' PIU' forte di quello appena andato
+      if(now-HAP.last<HAP.gap && f<=HAP.forza) return;
+      HAP.last=now; HAP.forza=f;
+      try{ return orig.apply(H,arguments); }catch(_h4){}
+    };
+  });
+})();
+// un tocco = un impulso, scelto in base a COSA si tocca
+function hapTap(kind){
+  try{
+    var H=tg&&tg.HapticFeedback; if(!H) return;
+    if(kind==='sel'){ if(H.selectionChanged)H.selectionChanged(); else if(H.impactOccurred)H.impactOccurred('soft'); }
+    else if(kind==='forte'){ if(H.impactOccurred)H.impactOccurred('medium'); }
+    else if(H.impactOccurred) H.impactOccurred('light');
+  }catch(_h5){}
+}
+// ── VIBRAZIONE DEGLI EVENTI DI GIOCO (31/07) ──────────────────────────────
+// Questa non riguarda i tasti ma quello che SUCCEDE: la palla presa di
+// racchetta nel pong, il colpo incassato nel Colosseo o nel tank, la botta in
+// gara. Gli eventi arrivano gia' tutti dal server dentro quattro raccoglitori
+// (twrFeedEvent, tkFeedEvent, gldFeedEvent, rtdFeedEvent) che il file usa per
+// suoni ed effetti: mi aggancio LI', una riga per raccoglitore, invece di
+// sparpagliare ottanta chiamate dentro i giochi.
+//
+// Una regola sola: vibra cio' che riguarda ME. Il colpo incassato si sente
+// FORTE, quello dato medio, le cose minori (raccolte, tocchi, spari) leggere;
+// morte e vittoria passano dalla notifica, che sul telefono e' un'altra voce
+// del motorino e si distingue al volo. Chi guarda da spettatore non sente
+// niente: il suo id non combacia con nessuno.
+// Ogni riga e':  evento: [se l'autore sono IO, se il bersaglio sono IO]
+//
+// ⚠️ Vibrano gli ESITI, non le mie azioni. Ci sono arrivato guardando il
+// motore: il turf manda un evento 'shot' per OGNI proiettile (turfwar_rt.py
+// ~800) e ha il fuoco automatico — una vibrazione per pallottola sarebbe un
+// ronzio continuo, non un ritorno. E in generale l'azione l'ho gia' sentita
+// quando ho toccato lo schermo: farla vibrare di nuovo quando l'eco torna dal
+// server (100-150 ms dopo, troppo tardi per il cancello) darebbe due colpi per
+// un gesto solo. Quindi niente 'shot', 'swing', 'atk', 'jab', 'dash': restano
+// il colpo dato e preso, la parata, la raccolta, la morte, il gol.
+var HAP_EV={
+  turf:{ hit:['colpo','colpito'], kill:['uccisione','morte'], shield:['colpo',null],
+         heal:['leggero',null], loot:['leggero',null], levelup:['leggero',null],
+         incoming:[null,'colpo'] },
+  tank:{ hit:['colpo','colpito'], kill:['uccisione','morte'], shield:['colpo','colpo'],
+         pickup:['leggero',null] },
+  glad:{ hit:['colpo','colpito'], kill:['uccisione','morte'], stun:[null,'colpito'],
+         block:['colpo','colpo'] },
+  // pong, biliardo, snake, boxe, derby, scalata e race passano tutti da qui
+  rtd:{ hit:['leggero','colpito'],   // pong: la palla presa di racchetta
+        save:['colpo',null], goal:['vittoria',null],
+        ko:[null,'morte'], death:[null,'morte'], splat:[null,'morte'],
+        lava:[null,'morte'], ringout:[null,'morte'],
+        crash:['colpito','colpito'], shove:['colpo','colpito'], bump:['colpo','colpito'],
+        pickup:['leggero',null], pick:['leggero',null], eat:['leggero',null],
+        boost:['leggero',null], turbo:['leggero',null], ckpt:['leggero',null],
+        dive:['colpo',null], graze:[null,'leggero'], scopa:['colpo',null],
+        pot:['colpo',null], sink:['colpo',null], hole:['vittoria',null],
+        finish:['vittoria',null], rwin:['vittoria',null] }
+};
+function hapGioco(t){
+  var H=tg&&tg.HapticFeedback; if(!H) return;
+  try{
+    if(t==='morte'){ if(H.notificationOccurred)H.notificationOccurred('error'); else if(H.impactOccurred)H.impactOccurred('rigid'); }
+    else if(t==='vittoria'){ if(H.notificationOccurred)H.notificationOccurred('success'); else if(H.impactOccurred)H.impactOccurred('heavy'); }
+    else if(t==='colpito'){ if(H.impactOccurred)H.impactOccurred('heavy'); }
+    else if(t==='uccisione'){ if(H.impactOccurred)H.impactOccurred('rigid'); }
+    else if(t==='colpo'){ if(H.impactOccurred)H.impactOccurred('medium'); }
+    else if(H.impactOccurred) H.impactOccurred('light');
+  }catch(_hg){}
+}
+function hapDaFeed(gioco,e,me){
+  try{
+    if(!HAP.on||!e||e.k==null||me==null) return;
+    var tab=HAP_EV[gioco]; if(!tab) return;
+    var r=tab[e.k]; if(!r) return;
+    var io=(e.who!=null&&String(e.who)===String(me));
+    var su=(e.victim!=null&&String(e.victim)===String(me));
+    var scelta=su?r[1]:(io?r[0]:null);
+    if(scelta) hapGioco(scelta);
+  }catch(_hf){}
+}
+
+(function(){
+  // i selettori coprono i tasti veri, le piastrelle cliccabili e qualunque
+  // elemento con un onclick appeso: e' cosi' che si prendono tutti i 473.
+  var SEL='button,[onclick],[role="button"],.action-btn,.pvp-tile,.pvp-random,'
+         +'.pvp-m-btn,.tw-tier,.bnav-btn,.back-btn,.nav-btn,.tab,.chip,.tw-mega,label,'
+         // comandi dei giochi che non sono <button>: barre, stick, tasti azione
+         +'.tw-act,.tk-act,.rtd-act,.gld-act,.scl-act,.blg-act,.gr-btn,.joy,.stick,'
+         +'[data-act],[data-hap]';
+  // i tasti di scelta (poste, tab, barra in fondo) usano il tic leggero della
+  // selezione invece del colpo: si toccano di fila e il colpo pieno stanca
+  var LEGGERI=['tw-tier','bnav-btn','tab','chip'];
+  function alTocco(ev){
+    try{
+      if(!HAP.on) return;
+      var t=ev.target;
+      if(!t||!t.closest) return;
+      // DENTRO I GIOCHI (31/07, seconda passata). Prima il canvas era escluso e
+      // i comandi disegnati — salta, spara, tira, muovi — restavano muti: sono
+      // proprio quelli che si toccano di piu'. Adesso anche il canvas da' il
+      // suo colpetto, e regge per due motivi:
+      //  · pointerdown scatta UNA volta per dito appoggiato, non durante il
+      //    trascinamento (pointermove non passa di qui): niente ronzio continuo
+      //    mentre si mira o si guida;
+      //  · il cancello e' a PRIORITA', quindi questo colpetto leggero non
+      //    zittisce mai l'impulso forte che il gioco fa scattare nello stesso
+      //    istante (colpo andato a segno, morte, vittoria): passa il piu' forte.
+      // Un canvas puo' chiamarsi fuori con data-nohap, se un gioco non lo vuole.
+      var cv=t.closest('canvas');
+      if(cv){
+        if(cv.getAttribute&&cv.getAttribute('data-nohap')!==null) return;
+        hapTap('tap');
+        return;
+      }
+      var el=t.closest(SEL);
+      if(!el) return;
+      if(el.disabled) return;
+      if(el.getAttribute&&el.getAttribute('data-nohap')!==null) return;
+      var cl=el.classList;
+      var leggero=cl&&LEGGERI.some(function(c){return cl.contains(c);});
+      hapTap(leggero?'sel':'tap');
+    }catch(_h6){}
+  }
+  // Due ascoltatori, non uno: sulle webview vecchie senza PointerEvent (il file
+  // le contempla gia' altrove) pointerdown non esiste e senza touchstart NIENTE
+  // vibrerebbe. Dove esistono entrambi scattano insieme, e il cancello dei
+  // 45 ms mangia il secondo: mai due colpi per un dito solo.
+  document.addEventListener('pointerdown',alTocco,true);
+  document.addEventListener('touchstart',alTocco,{capture:true,passive:true});
+})();
 
 var S={
   btc:0,rate:90000,cur:'EUR',
@@ -26026,6 +26233,9 @@ function go(id){
     }
     // TORNEO: lasciando l'hub verso una schermata ≠ glad/torneo, spegni poll + WS spettatore
     if(CUR==='torneo'&&id!=='glad'&&id!=='torneo'&&typeof trnTeardown==='function')trnTeardown();
+    // CHI C'E' ADESSO: il conteggio si aggiorna SOLO mentre guardi i duelli
+    if(id==='duel'){ if(typeof dlLiveStart==='function')dlLiveStart(); }
+    else if(typeof dlLiveStop==='function')dlLiveStop();
   }catch(e){}
   CUR=id;
   try{ GBMusic.scene(id); }catch(e){}
@@ -33889,7 +34099,65 @@ function dlInjectCSS(){
    +'.ch-promo{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);z-index:8;padding:12px 14px;border-radius:14px;background:#141a28;border:2px solid #cbb18b;box-shadow:0 12px 44px rgba(0,0,0,.8);text-align:center;}'
    +'.ch-promo-row{display:flex;gap:8px;}.ch-promo-lbl{font-size:10px;color:var(--txt3);margin-top:6px;letter-spacing:1px;}'
    +'.ch-promo button{background:#e8d0a0;border:none;border-radius:9px;width:50px;height:50px;cursor:pointer;display:flex;align-items:center;justify-content:center;}'
-   +'.ch-promo button .ch-pc{font-size:32px;}';
+   +'.ch-promo button .ch-pc{font-size:32px;}'
+   /* ── CHI C'E' ADESSO (31/07) ── */
+   +'.pvp-live{margin:0 0 12px;padding:10px 12px;border-radius:14px;cursor:pointer;background:linear-gradient(180deg,rgba(16,22,18,.95),rgba(10,14,12,.95));border:1px solid rgba(57,217,138,.32);box-shadow:0 0 16px rgba(57,217,138,.10);transition:border-color .18s ease;}'
+   +'.pvp-live.aperta{border-color:rgba(57,217,138,.6);}'
+   +'.pvp-live.muto{border-color:rgba(255,255,255,.14);box-shadow:none;}'
+   +'.pvp-live-bar{display:flex;align-items:center;gap:8px;}'
+   +'.pvp-live-dot{width:9px;height:9px;border-radius:50%;background:#39d98a;box-shadow:0 0 9px #39d98a;animation:pvpLiveBeat 2s ease-in-out infinite;flex:0 0 auto;}'
+   +'.pvp-live.muto .pvp-live-dot{background:#7b8794;box-shadow:none;animation:none;}'
+   +'@keyframes pvpLiveBeat{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.82)}}'
+   +'.pvp-live-n{font-family:Russo One,sans-serif;font-size:19px;color:#39d98a;line-height:1;}'
+   +'.pvp-live.muto .pvp-live-n{color:#9aa5b1;}'
+   +'.pvp-live-lbl{font-size:11px;color:var(--txt3);letter-spacing:.6px;text-transform:uppercase;}'
+   +'.pvp-live-q{margin-left:auto;font-size:11px;color:#ffd77a;background:rgba(255,196,64,.13);border:1px solid rgba(255,196,64,.3);border-radius:999px;padding:3px 9px;white-space:nowrap;}'
+   +'.pvp-live-arr{font-size:12px;color:var(--txt3);transition:transform .18s ease;}'
+   +'.pvp-live.aperta .pvp-live-arr{transform:rotate(180deg);}'
+   +'.pvp-live-det{display:none;margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:9px;}'
+   +'.pvp-live.aperta .pvp-live-det{display:block;}'
+   +'.pvp-live-riga{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:12px;}'
+   +'.pvp-live-riga .g{color:#e7ecf3;font-weight:600;}'
+   +'.pvp-live-riga .e{color:#ffd77a;font-size:11px;background:rgba(255,196,64,.12);border-radius:6px;padding:1px 6px;}'
+   +'.pvp-live-riga .n{margin-left:auto;color:#39d98a;font-family:Russo One,sans-serif;}'
+   +'.pvp-live-vuoto{font-size:11px;color:var(--txt3);padding:4px 0 2px;line-height:1.5;}'
+   +'.pvp-live-nota{font-size:10px;color:var(--txt3);opacity:.75;margin-top:7px;line-height:1.45;}'
+   /* ── BANNER PvP ARENA rifatto (31/07) ── */
+   /* piu' aria, un filo d'oro sul bordo e le quattro grappe agli angoli: da
+      riquadro con un video dentro a insegna dell'arena. */
+   /* flex-shrink:0 e' obbligatorio, non estetica: .game-content e' un flex in
+      colonna e comprimeva il banner fino al suo min-height di 150px, tagliando
+      via lo stendardo dei tornei (overflow:hidden). Stesso motivo per cui
+      .trn-ribbon aveva gia' flex-shrink:0 quando stava fuori. */
+   +'.pvp-hero{padding:20px 14px 14px;flex-shrink:0;border:1px solid rgba(255,190,90,.28);box-shadow:0 10px 30px rgba(0,0,0,.45),inset 0 0 40px rgba(239,68,68,.10);}'
+   /* il velo sopra il video va piu' scuro in basso: prima la riga di testo e lo
+      stendardo cadevano sulla parte piu' movimentata del filmato */
+   +'.pvp-hero-scrim{background:linear-gradient(180deg,rgba(6,8,14,.38) 0%,rgba(6,8,14,.62) 50%,rgba(6,8,14,.84) 100%) !important;}'
+   +'.pvp-cor{position:absolute;width:16px;height:16px;border:2px solid rgba(255,196,64,.55);pointer-events:none;z-index:3;}'
+   +'.pvp-cor.tl{top:8px;left:8px;border-right:0;border-bottom:0;}'
+   +'.pvp-cor.tr{top:8px;right:8px;border-left:0;border-bottom:0;}'
+   +'.pvp-cor.bl{bottom:8px;left:8px;border-right:0;border-top:0;}'
+   +'.pvp-cor.br{bottom:8px;right:8px;border-left:0;border-top:0;}'
+   +'.pvp-hero-kick{position:relative;z-index:3;display:inline-block;font-size:9.5px;letter-spacing:2.2px;color:#ffd77a;background:rgba(255,196,64,.12);border:1px solid rgba(255,196,64,.34);border-radius:999px;padding:3px 11px;margin-bottom:8px;}'
+   /* il titolo prende un lampo che lo attraversa ogni tanto, non un lucore fisso */
+   /* il filmato sotto e' molto acceso: senza un'ombra scura il titolo in
+      gradiente ci si perde dentro. Prima l'ombra nera che stacca, poi il
+      caldo arancione che tiene il tono dell'arena. */
+   +'.pvp-hero-title{font-size:30px;letter-spacing:5px;background:linear-gradient(180deg,#fff 30%,#ffcf8a 65%,#ff8f6b 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 2px 5px rgba(0,0,0,.85)) drop-shadow(0 0 16px rgba(255,120,60,.4));}'
+   /* un lampo che attraversa il titolo ogni tanto: tenuto basso di opacita\',
+      se no in mezzo alla corsa sembra una patina bianca appoggiata sopra */
+   +'.pvp-hero-title::after{content:"";position:absolute;left:-30%;top:0;width:22%;height:100%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.34),transparent);mix-blend-mode:overlay;transform:skewX(-18deg);animation:pvpLampo 5.2s ease-in-out infinite;pointer-events:none;}'
+   +'@keyframes pvpLampo{0%,80%{left:-30%;opacity:0}84%{opacity:1}96%,100%{left:112%;opacity:0}}'
+   +'.pvp-hero-sub{font-size:11.5px;margin-top:5px;text-shadow:0 1px 4px rgba(0,0,0,.85);}'
+   +'.pvp-hero-kick{text-shadow:0 1px 3px rgba(0,0,0,.7);}'
+   /* la commissione non deve andare a capo da sola: e\' un pezzo della frase */
+   +'.pvp-fee{white-space:nowrap;}'
+   /* ── il mini stendardo TORNEI, dentro l'arena ── */
+   +'.pvp-hero .trn-ribbon.pvp-trn{margin:13px 0 0;padding:9px 11px;gap:9px;z-index:4;border-radius:12px;clip-path:none;text-align:left;}'
+   +'.pvp-hero .trn-ribbon.pvp-trn .trn-rb-cup{font-size:20px;}'
+   +'.pvp-hero .trn-ribbon.pvp-trn .trn-rb-title{font-size:11px;letter-spacing:1.6px;}'
+   +'.pvp-hero .trn-ribbon.pvp-trn .trn-rb-sub{font-size:10.5px;line-height:1.35;}'
+   +'.pvp-hero .trn-ribbon.pvp-trn .trn-rb-arrow{font-size:15px;}';
   document.head.appendChild(st);
 }
 function dlEsc(s){ return String(s==null?'':s).replace(/[<>&"']/g,function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c];}); }
@@ -34015,6 +34283,121 @@ function dlStartPoll(mode){
   },1600);
 }
 function dlStopPoll(){ if(_dlPoll){ clearInterval(_dlPoll); _dlPoll=null; } }
+
+// ── CHI C'E' ADESSO (31/07) ─────────────────────────────────────────────────
+// La riga viva in cima ai duelli. Chiusa dice quante persone stanno usando la
+// mini-app in questo momento; toccandola si apre e dice in QUALE coda stanno,
+// gioco per gioco e posta per posta.
+// I numeri arrivano da /duel/presence, che unisce due sorgenti: le connessioni
+// del server real-time e chi ha interrogato il backend di recente. Nessun nome
+// e nessun uid: solo conteggi.
+// Il polling gira SOLO mentre la schermata duelli e' quella attiva (avvio e
+// stop stanno in go()), ogni 7 s, e si ferma da solo se l'app va in secondo
+// piano: una schermata ferma non deve pesare sul backend.
+var DLLIVE={aperta:false,timer:null,dati:null,busy:false,ko:0};
+
+function dlLiveToggle(){
+  DLLIVE.aperta=!DLLIVE.aperta;
+  var el=document.getElementById('dl-live');
+  if(el) el.classList.toggle('aperta',DLLIVE.aperta);
+  dlLiveRender();
+  if(DLLIVE.aperta) dlLiveFetch();   // aprendo, il dettaglio si vuole fresco
+}
+
+function dlLiveFetch(){
+  if(DLLIVE.busy) return;
+  if(!S.userId){ dlLiveRender(); return; }
+  if(document.hidden) return;        // app in secondo piano: non disturbare
+  DLLIVE.busy=true;
+  fetch(BACKEND+'/duel/presence?user_id='+encodeURIComponent(S.userId),
+        {headers:{'ngrok-skip-browser-warning':'1'}})
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      DLLIVE.busy=false;
+      if(d&&d.ok){ DLLIVE.dati=d; DLLIVE.ko=0; } else { DLLIVE.ko++; }
+      dlLiveRender();
+    })
+    .catch(function(){ DLLIVE.busy=false; DLLIVE.ko++; dlLiveRender(); });
+}
+
+function dlLiveStart(){
+  if(DLLIVE.timer) return;
+  dlLiveFetch();
+  DLLIVE.timer=setInterval(dlLiveFetch,7000);
+}
+function dlLiveStop(){
+  if(DLLIVE.timer){ clearInterval(DLLIVE.timer); DLLIVE.timer=null; }
+}
+
+// Il nome del gioco lo dice l'app, non il server: dlModeName e' gia' quello che
+// si legge sulle piastrelle, e le sue parole hanno gia' la traduzione inglese.
+// L'emoji va staccata dal nome, se no il nodo di testo diventa "🧨 VICOLI" e il
+// motore i18n non riconosce piu' la chiave "VICOLI" (traduce nodi interi).
+function dlLiveNome(codice,fallback){
+  var s='';
+  try{ if(typeof dlModeName==='function') s=dlModeName(codice); }catch(_n1){}
+  if(!s) s=fallback||String(codice||'').toUpperCase();
+  var p=String(s).split(' ');
+  if(p.length>1 && !/[a-zA-Z]/.test(p[0]))
+    return {ic:'<span class="e" style="background:none;border:0;padding:0;font-size:13px;">'+dlEsc(p[0])+'</span>',
+            nome:p.slice(1).join(' ')};
+  return {ic:'',nome:s};
+}
+
+function dlLiveRender(){
+  var box=document.getElementById('dl-live');
+  if(!box) return;
+  var n=document.getElementById('dl-live-n'),
+      q=document.getElementById('dl-live-q'),
+      det=document.getElementById('dl-live-det');
+  var d=DLLIVE.dati;
+  // niente dati (o troppi errori di fila): si dichiara, non si inventa
+  var muto=(!d||DLLIVE.ko>=2);
+  box.classList.toggle('muto',!!muto);
+  if(muto){
+    if(n) n.textContent='·';
+    if(q) q.textContent='';
+    if(det) det.innerHTML='<div class="pvp-live-vuoto">Conteggio non disponibile in questo momento.</div>';
+    return;
+  }
+  if(n) n.textContent=String(d.online||0);
+  var inCoda=d.in_queue||0, inPartita=d.in_match||0;
+  if(q){
+    var pezzi=[];
+    if(inCoda>0)    pezzi.push(inCoda+' in coda');
+    if(inPartita>0) pezzi.push(inPartita+' in partita');
+    q.textContent=pezzi.join(' · ');
+  }
+  if(!det) return;
+  var h='';
+  var code=d.queues||[];
+  if(code.length){
+    code.forEach(function(c){
+      var nm=dlLiveNome(c.game,c.label);
+      var posta=(c.eur||c.eur===0)?('€'+(Math.round(c.eur*100)/100)):'';
+      var quanti=c.max?(c.n+'/'+c.max):String(c.n);
+      h+='<div class="pvp-live-riga">'+nm.ic
+        +'<span class="g">'+dlEsc(nm.nome)+'</span>'
+        +(posta?'<span class="e">'+dlEsc(posta)+'</span>':'')
+        +'<span class="n">'+dlEsc(quanti)+'</span></div>';
+    });
+  }else{
+    h+='<div class="pvp-live-vuoto">Nessuno in coda adesso. Scegli un gioco: il primo che entra apre la coda.</div>';
+  }
+  (d.playing||[]).forEach(function(p){
+    if(!p.n) return;
+    var nm=dlLiveNome(p.game,p.label);
+    h+='<div class="pvp-live-riga">'+nm.ic
+      +'<span class="g">'+dlEsc(nm.nome)+'</span>'
+      +'<span class="e">in corso</span><span class="n">'+p.n+'</span></div>';
+  });
+  if(d.rt_ok===false){
+    h+='<div class="pvp-live-nota">I giochi in tempo reale non stanno rispondendo: qui vedi solo le code dei duelli a turni.</div>';
+  }else{
+    h+='<div class="pvp-live-nota">Chi è in coda aspetta un avversario a quella posta. Entra nella stessa e si parte subito.</div>';
+  }
+  det.innerHTML=h;
+}
 function dlCancelSearch(){
   dlStopPoll();
   fetch(BACKEND+'/duel/app_cancel',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId})})
@@ -36264,6 +36647,7 @@ function twrPosOf(id){
 }
 function twrFeedEvent(e){
   var me=TWR.myId;
+  hapDaFeed('turf',e,me);      // vibrazione: solo cio' che riguarda me
   var ic={melee:'👊',pistol:'🔫',snipe:'🎯',fire:'🔥',zone:'☢️',raid:'🚨',trap:'🪤',ram:'🚗',boom:'💥',bomb:'💣'};
   if(e.k==='kill'){
     var who=e.who?twrName(e.who):'La città';
@@ -38651,6 +39035,7 @@ function tkFxAdd(tp,x,y,dur,big,txt,col){
 }
 function tkFeedEvent(e){
   var me=TKD.myId;
+  hapDaFeed('tank',e,me);      // vibrazione: solo cio' che riguarda me
   if(e.k==='shot'){
     TWS.play('cannon',e.who===me?1:0.75);
   }else if(e.k==='bounce'){
@@ -39987,6 +40372,7 @@ function gldCrowd(kind){
 }
 function gldFeedEvent(e){
   var me=GLD.myId,k=e.k;
+  hapDaFeed('glad',e,me);      // vibrazione: solo cio' che riguarda me
   if(k==='atk'){gldSnd('fendente',e.who===me?1:0.6);}
   else if(k==='special'){gldSnd('special',e.who===me?1:0.6);var ps=gldPosOf(e.who);if(ps)gldFxAdd('ring',ps[0],ps[1],520,null,'#ff8a3a');}
   else if(k==='parry'){
@@ -44744,6 +45130,7 @@ function rtdLerp(){
 // ── feed → sounds / fx ──────────────────────────────────────────────
 function rtdFeedEvent(e){
   var me=RTD.myId,g=RTD.game;
+  hapDaFeed('rtd',e,me);       // vibrazione: solo cio' che riguarda me
   switch(e.k){
     case 'goal':
       if(g==='calcio'){blgGoalEv(e);break;}
