@@ -1243,6 +1243,18 @@ body.gb-nav-on .bnav{display:flex;}
 .rl-spin:disabled{opacity:.5;cursor:not-allowed;}
 
 /* ===== LOTTO v2 — tabs ===== */
+/* scheda ISTRUZIONI della lotteria (04/08/2026): prima non c'erano proprio,
+   e i premi scritti a mano nella pagina non coincidevano con quelli pagati. */
+.lt-rules{margin-top:12px;border-radius:12px;padding:10px 12px 12px;
+  background:linear-gradient(160deg,rgba(255,215,0,.07),rgba(255,255,255,.02));
+  border:1px solid rgba(255,215,0,.18);}
+.lt-rules-h{font-size:11px;letter-spacing:1.4px;color:var(--gold);opacity:.95;
+  margin-bottom:7px;font-weight:700;}
+.lt-rules-b{font-size:11.5px;line-height:1.65;color:rgba(255,255,255,.74);}
+.lt-rules-b b{color:rgba(255,255,255,.95);font-weight:700;}
+.lt-rules-b .lt-odds{display:block;margin-top:7px;padding-top:7px;
+  border-top:1px solid rgba(255,255,255,.08);font-size:10.5px;
+  color:rgba(255,255,255,.5);}
 .lt-tabs{display:flex;gap:5px;margin-bottom:4px;}
 .lt-tab{flex:1;padding:8px 4px;border-radius:9px;background:rgba(255,255,255,.04);
   border:1px solid var(--border);color:var(--txt2);font-family:'Russo One',Impact,sans-serif;
@@ -8518,6 +8530,16 @@ body.gb-nav-on .bnav{display:flex;}
 .rc-wheel-hub{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:38px;height:38px;border-radius:50%;
   display:flex;align-items:center;justify-content:center;font-size:17px;
   background:radial-gradient(circle at 40% 34%,#3b4350,#12161d);border:1px solid rgba(255,255,255,.16);}
+/* LA MANOPOLA dello sterzo (04/08/2026) — stessa grammatica di .twr-knob:
+   sta al centro del volante e trasla col dito. Non trasla il volante: quello
+   continua a ruotare, cosi' i due segnali si sommano invece di sostituirsi. */
+.rc-knob{position:absolute;left:50%;top:50%;width:34px;height:34px;margin:-17px 0 0 -17px;
+  border-radius:50%;pointer-events:none;transition:none;z-index:3;
+  background:radial-gradient(circle at 50% 38%,#f8fafc 0%,#cbd5e1 55%,#94a3b8 100%);
+  border:2px solid rgba(255,255,255,.55);
+  box-shadow:0 3px 10px rgba(0,0,0,.55),inset 0 1px 3px rgba(255,255,255,.5);}
+.rc-wheel-wrap.on .rc-knob{box-shadow:0 3px 14px rgba(255,255,255,.35),
+  inset 0 1px 3px rgba(255,255,255,.6);}
 .rc-wheel-hint{font-size:8.5px;letter-spacing:1.2px;color:rgba(255,255,255,.45);text-align:center;}
 /* il volante non intercetta piu' il tocco da solo: lo fa la fascia */
 .rc-wheel{pointer-events:none;}
@@ -10210,21 +10232,29 @@ body.gb-nav-on .bnav{display:flex;}
       </div>
     </div>
     <div id="lt-pane-play">
-      <div class="info-lbl" style="text-align:center;margin-top:6px;">PICK 6 NUMBERS (1-49)</div>
+      <div class="info-lbl" id="lt-pick-lbl" style="text-align:center;margin-top:6px;">PICK 6 NUMBERS (1-49)</div>
       <div class="picks-display" id="lt-picks"></div>
       <div class="num-grid" id="lt-nums"></div>
       <div style="display:flex;gap:6px;margin-top:8px;">
         <button class="b-btn" onclick="ltRandom()" style="flex:1;">🎲 Random</button>
         <button class="b-btn" onclick="ltClear()" style="flex:1;">🗑 Clear</button>
       </div>
+      <!-- I VALORI QUI SOTTO SONO SEGNAPOSTO: li riempie ltFillRules() con
+           quelli che manda il server (/lotto/info -> prizes_eur), che sono gli
+           STESSI con cui si paga. Prima erano scritti a mano qui e non
+           coincidevano: "2 numeri ~10 EUR" mentre il gioco ne paga 2. -->
       <div class="prize-table" style="margin-top:10px;">
-        <div class="prize-row"><span class="prize-lbl">2 numbers ✓</span><span class="prize-val">~€10</span></div>
-        <div class="prize-row"><span class="prize-lbl">3 numbers ✓</span><span class="prize-val">~€15</span></div>
-        <div class="prize-row"><span class="prize-lbl">4 numbers ✓</span><span class="prize-val">~€25</span></div>
-        <div class="prize-row"><span class="prize-lbl">5 numbers ✓</span><span class="prize-val" id="lt-prize-5">min €50 + 10% jkp</span></div>
+        <div class="prize-row"><span class="prize-lbl">2 numbers ✓</span><span class="prize-val" id="lt-pz-2">—</span></div>
+        <div class="prize-row"><span class="prize-lbl">3 numbers ✓</span><span class="prize-val" id="lt-pz-3">—</span></div>
+        <div class="prize-row"><span class="prize-lbl">4 numbers ✓</span><span class="prize-val" id="lt-pz-4">—</span></div>
+        <div class="prize-row"><span class="prize-lbl">5 numbers ✓</span><span class="prize-val" id="lt-pz-5">—</span></div>
         <div class="prize-row jkp"><span class="prize-lbl">🔥 ALL 6 🔥</span><span class="prize-val" id="lt-jkp-table">FULL JACKPOT</span></div>
       </div>
-      <button class="action-btn gold" onclick="ltBuy()" style="margin-top:10px;">🎫 BUY TICKET — €10</button>
+      <button class="action-btn gold" onclick="ltBuy()" style="margin-top:10px;" id="lt-buy-btn">🎫 BUY TICKET</button>
+      <div class="lt-rules" id="lt-rules">
+        <div class="lt-rules-h">📖 HOW IT WORKS</div>
+        <div class="lt-rules-b" id="lt-rules-body"></div>
+      </div>
     </div>
     <div id="lt-pane-mine" style="display:none;">
       <div class="lt-stat-row">
@@ -12925,7 +12955,7 @@ body.gb-nav-on .bnav{display:flex;}
     "La lancia (pilum)":"The spear (pilum)",
     "— ogni tanto la folla ne getta una: chi la raccoglie lancia invece di colpire":"— every so often the crowd throws one in: whoever picks it up throws instead of swinging",
     "Non sai da dove iniziare?":"Not sure where to start?",
-    "TIENI IL DITO ↔ PER STERZARE":"HOLD YOUR FINGER ↔ TO STEER",
+    "TRASCINA LA MANOPOLA ↔ PER STERZARE":"DRAG THE KNOB ↔ TO STEER",
     /* ── MENU TORNEI: albo, campione, schede passate (01/08) ── */
     "🏛 ULTIMI TORNEI":"🏛 PAST TOURNAMENTS",
     "Nessun torneo in programma.":"No tournament scheduled.",
@@ -33166,32 +33196,82 @@ function initLotto(){
   if(LT.cdTimer)clearInterval(LT.cdTimer);
   LT.cdTimer=setInterval(ltUpdateCountdown,30000);
 }
+/* LA VETRINA LA DECIDE IL SERVER (04/08/2026).
+   Prima questa pagina teneva una tabella dei premi tutta sua, scritta
+   nell'HTML, e non coincideva con quella con cui si paga: "2 numeri ~10 EUR"
+   mentre il gioco ne paga 2, cioe' cinque volte tanto. Adesso /lotto/info
+   manda `prizes_eur` (calcolata dagli STESSI moltiplicatori del pagamento,
+   via lotto_common.py) e qui si disegna quello che arriva.
+   Il ripiego tiene i valori giusti di OGGI, non quelli vecchi: se il server e'
+   indietro di un rilascio la pagina resta comunque onesta. */
+var LT_FALLBACK={pz:{2:2,3:16,4:120,5:1200},tick:2,jmin:50,picks:6,maxn:49,
+                 days:'Tue & Fri 20:00'};
+function ltFillRules(d){
+  d=d||{};
+  var pz=(d.prizes_eur&&typeof d.prizes_eur==='object')?d.prizes_eur:LT_FALLBACK.pz;
+  var tick=(+d.ticket_eur>0)?+d.ticket_eur:LT_FALLBACK.tick;
+  var jmin=(+d.jackpot_min_eur>0)?+d.jackpot_min_eur:LT_FALLBACK.jmin;
+  var pk=(+d.picks>0)?+d.picks:LT_FALLBACK.picks;
+  var mx=(+d.max_num>0)?+d.max_num:LT_FALLBACK.maxn;
+  var days=d.draw_days||LT_FALLBACK.days;
+  var eur=function(v){return '€'+(+v).toLocaleString(undefined,{maximumFractionDigits:2});};
+  [2,3,4,5].forEach(function(k){
+    var el=document.getElementById('lt-pz-'+k);
+    var v=pz[k]!==undefined?pz[k]:pz[String(k)];
+    if(el&&v!==undefined)el.textContent=eur(v);
+  });
+  var b=document.getElementById('lt-buy-btn');
+  if(b)b.textContent='🎫 BUY TICKET — '+eur(tick);
+  var pick=document.getElementById('lt-pick-lbl');
+  if(pick)pick.textContent='PICK '+pk+' NUMBERS (1-'+mx+')';
+  /* la probabilita' del jackpot, calcolata: combinazioni di mx su pk. Sta
+     scritta perche' su un gioco a soldi veri il giocatore ha diritto di
+     sapere contro cosa gioca. */
+  var comb=1;for(var i=0;i<pk;i++)comb=comb*(mx-i)/(i+1);
+  comb=Math.round(comb);
+  var body=document.getElementById('lt-rules-body');
+  if(body){
+    body.innerHTML=
+      'Pick <b>'+pk+' numbers</b> from <b>1 to '+mx+'</b>, then wait for the draw.'
+      +'<br>Draws run <b>'+days+'</b> — one ticket costs <b>'+eur(tick)+'</b>.'
+      +'<br>Match <b>2 or more</b> and you win: even 2 gives your ticket back.'
+      +'<br>Match all '+pk+' and you take the <b>whole jackpot</b>, never less'
+      +' than <b>'+eur(jmin)+'</b> — it grows with every ticket sold until'
+      +' somebody wins it.'
+      +'<span class="lt-odds">Odds of the jackpot: 1 in '
+      +comb.toLocaleString()+'. Prizes are paid in BTC at the rate of the'
+      +' moment, straight into your balance.</span>';
+  }
+}
 function ltLoadInfo(){
   if(!S.userId)return;
   fetch(BACKEND+'/lotto/info?user_id='+S.userId,{headers:{'ngrok-skip-browser-warning':'1'}})
     .then(function(r){return r.json();})
     .then(function(d){
+      ltFillRules(d);          // premi, prezzo del biglietto e istruzioni
       if(d.jackpot_btc!==undefined){
         var jkpEur=Math.round(d.jackpot_btc*S.rate);
-        if(jkpEur<100)jkpEur=100;
+        // (04/08) il pavimento era 100 EUR scritto a mano, mentre il minimo
+        // GARANTITO dal gioco e' 50: si prometteva il doppio del dovuto.
+        var jmin=(+d.jackpot_min_eur>0)?Math.round(+d.jackpot_min_eur):50;
+        if(jkpEur<jmin)jkpEur=jmin;
         LT.jackpot=jkpEur;
         var jkpEl=document.getElementById('lt-jackpot');
         if(jkpEl)jkpEl.textContent='€'+LT.jackpot.toLocaleString();
         var jkpTab=document.getElementById('lt-jkp-table');
         if(jkpTab)jkpTab.textContent='€'+LT.jackpot.toLocaleString();
-        // 5-numbers prize = max(€50, 10% jackpot) — minimum €50 guaranteed
-        var p5=document.getElementById('lt-prize-5');
-        if(p5){
-          var prize5=Math.max(50,Math.round(LT.jackpot*0.1));
-          p5.textContent='€'+prize5.toLocaleString();
-        }
+        // Il premio del 5/6 NON si inventa piu' qui (era max(50, 10% del
+        // jackpot) e valeva 1200): arriva dal server come tutti gli altri.
       }
       if(d.user_tickets!==undefined){
         LT.myTickets=d.user_tickets;
         var c=document.getElementById('lt-my-count');
         if(c)c.textContent=LT.myTickets;
         var s=document.getElementById('lt-my-spent');
-        if(s)s.textContent='€'+(LT.myTickets*10);
+        // (04/08) moltiplicava per 10 col biglietto da 2: mostrava cinque
+        // volte la spesa vera.
+        var _tk=(+d.ticket_eur>0)?+d.ticket_eur:2;
+        if(s)s.textContent='€'+(LT.myTickets*_tk).toLocaleString(undefined,{maximumFractionDigits:2});
       }
       if(d.user_ticket_list){LT.myTicketList=d.user_ticket_list;ltRenderMyTickets();}
       if(d.history){LT.history=d.history;ltRenderHistory();}
@@ -45931,9 +46011,10 @@ function rtdRafWatch(){
 // Perche' cosi': un volante e' un comando RELATIVO (giro rispetto a dove sto
 // andando), lo stick era ASSOLUTO (punta a nord-est). Senza la conversione, il
 // volante avrebbe sterzato verso un punto fisso dello schermo.
-var RCC={steer:0,gas:0,drift:false,rot:0,attivo:false,x0:0,s0:0,stop:null};
+var RCC={steer:0,gas:0,drift:false,rot:0,attivo:false,x0:0,s0:0,stop:null,eng:false};
 var RC_ROT=2.0;      // quanto gira il volante DA VEDERE a tutto sterzo (radianti)
-var RC_RAGGIO=84;    // (03/08/2026) DISTANZA DAL CENTRO per tutto sterzo.
+var RC_RAGGIO=76;    // (04/08: 84 -> 76, lo STESSO degli altri stick)
+                     // DISTANZA DAL CENTRO per tutto sterzo.
                      // Non e' piu' quanto hai SCORSO — e' dove TIENI il dito:
                      // 84 px dal mozzo stanno appena fuori dal cerchio del
                      // volante (raggio 59) e ci arriva un pollice senza
@@ -45965,12 +46046,26 @@ function rcVolanteInit(){
        si tiene il gas non si disturbano piu'.
        L'ESTETICA RESTA IL VOLANTE: la manopola non esiste (si passa null) e a
        muoversi e' la rotazione del disegno, come prima. */
-    RCC.stop=twrStickInit('rc-wheel-wrap',null,function(vx,vy){
+    RCC.stop=twrStickInit('rc-wheel-wrap','rc-knob',function(vx,vy){
       RCC.attivo=true;
-      RCC.steer=Math.max(-1,Math.min(1,vx));
+      /* LA STESSA CURVA DEGLI ALTRI GIOCHI (04/08/2026), copiata da twrJoyInit:
+         zona morta 0.18, poi smoothstep t*t*(3-2t). Con la risposta lineare di
+         prima il primo quarto di dito valeva quanto l'ultimo, e le correzioni
+         piccole — quelle che si fanno DENTRO la curva — erano grosse quanto le
+         sterzate. Qui si usa il solo asse orizzontale: lo sterzo e' un asse. */
+      var a=Math.abs(vx);
+      if(a<0.18){
+        if(RCC.eng){RCC.eng=false;}
+        RCC.steer=0;
+      }else{
+        var t=Math.min(1,(a-0.18)/0.82);t=t*t*(3-2*t);
+        RCC.steer=(vx<0?-t:t);
+        if(!RCC.eng){RCC.eng=true;try{grHaptic('sel');}catch(_h){}}
+      }
       RCC.rot=RCC.steer*RC_ROT;
       w.style.transform='rotate('+(RCC.rot*57.2958)+'deg)';
     },function(){
+      RCC.eng=false;
       // Dito staccato: il COMANDO e' gia' a zero, sull'istante. Il disegno del
       // volante continua a rientrare con la sua molla (rcVolanteRitorno), ma
       // non comanda piu' niente: l'auto e' dritta subito.
@@ -46975,8 +47070,12 @@ function rtdShowMatch(){
         +'<div class="rc-wheel-spoke h"></div>'
         +'<div class="rc-wheel-spoke v"></div>'
         +'<div class="rc-wheel-hub">🏁</div>'
+        /* LA MANOPOLA (04/08/2026): segue il dito come lo stick degli altri
+           giochi. Senza, il volante girava e basta — e una rotazione non dice
+           QUANTO stai sterzando, quindi si correggeva a tentoni. */
+        +'<div class="rc-knob" id="rc-knob"></div>'
       +'</div>'
-      +'<div class="rc-wheel-hint">TIENI IL DITO ↔ PER STERZARE</div>'
+      +'<div class="rc-wheel-hint">TRASCINA LA MANOPOLA ↔ PER STERZARE</div>'
       +'</div>'
       +'<div class="arc-ov-right rc-pedals">'
       +'<button class="rc-pedal drift" id="arc-drift">🔥<span>DERAPA</span></button>'
@@ -55265,27 +55364,49 @@ function dbEdDrawLite(){
   ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=2;
   ctx.strokeRect(W/2-52,H*0.235-30,104,30);                      // porta
   var lk=blgNormLook(DB_ED.look),tm=DB_ED.tm;
-  var bodyCol=(tm===0)?'#ef4444':'#38bdf8';
-  var skinCol=(typeof BLG_SKINC!=='undefined'&&BLG_SKINC[lk.sk|0])||'#e0b088';
   var px=W/2,py=H*0.58,pr=30;
   ctx.globalAlpha=0.28;ctx.fillStyle='#000';                     // ombra
   ctx.beginPath();ctx.ellipse(px,py+pr*0.62,pr*0.85,pr*0.4,0,0,6.283);ctx.fill();
   ctx.globalAlpha=1;
-  ctx.fillStyle='#e5e7eb';                                       // gambe
-  ctx.fillRect(px-pr*0.42,py+pr*0.72,pr*0.32,pr*0.55);
-  ctx.fillRect(px+pr*0.10,py+pr*0.72,pr*0.32,pr*0.55);
-  ctx.fillStyle=bodyCol;                                         // maglia (colore squadra)
-  ctx.beginPath();
-  ctx.moveTo(px-pr*0.7,py-pr*0.15);ctx.lineTo(px+pr*0.7,py-pr*0.15);
-  ctx.lineTo(px+pr*0.55,py+pr*0.78);ctx.lineTo(px-pr*0.55,py+pr*0.78);ctx.closePath();ctx.fill();
-  ctx.fillStyle=skinCol;                                         // testa (pelle scelta)
-  ctx.beginPath();ctx.arc(px,py-pr*0.5,pr*0.4,0,6.283);ctx.fill();
-  var nm=DB_ED.look.nm|0;                                        // numero di maglia
-  if(nm>0){
-    ctx.fillStyle='#ffffff';ctx.font='bold '+Math.round(pr*0.6)+'px Orbitron,monospace';
-    ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText(String(nm),px,py+pr*0.28);
-    ctx.textAlign='left';ctx.textBaseline='alphabetic';
+  /* IL PERSONAGGIO VERO, ANCHE QUI (04/08/2026).
+     Prima questa anteprima disegnava un trapezio per la maglia e un cerchio
+     per la testa: niente capelli, scarpini, guanti, fascia, accessori — cioe'
+     NON mostrava quasi niente di quello che stai scegliendo. E un designer che
+     non mostra la scelta non e' un'anteprima "ridotta": e' rotta.
+     Segnalato dal proprietario, e i log lo confermavano: {"at":"dbedit",
+     "tier":"full","red":1} — telefono potente, ma un interruttore "grafica
+     ridotta" rimasto acceso nel dispositivo lo mandava qui per sempre.
+     Il ripiego serviva a evitare l'ANIMAZIONE (rAF, coriandoli, tifo), non il
+     personaggio: `blgCheer` passa da `rtdSprite`, che e' una CACHE — si cuoce
+     una volta per aspetto e poi e' un'immagine gia' pronta. Quindi qui si
+     disegna UN fotogramma dello sprite VERO, lo stesso del campo.
+     Lo sprite porta gia' il numero di maglia (blgBody legge lk.nm): non va
+     ridisegnato a mano, verrebbe doppio. */
+  var _dbSpr=null;
+  try{ _dbSpr=blgCheer(tm,lk); }catch(_bc){ _dbSpr=null; }
+  if(_dbSpr){
+    ctx.drawImage(_dbSpr,px-pr*1.12,py-pr*1.12,pr*2.24,pr*2.24);
+  }else{
+    /* RETE DI SICUREZZA: se lo sprite non si puo' cuocere (webview davvero
+       vecchia), meglio l'omino che un riquadro vuoto. */
+    var bodyCol=(tm===0)?'#ef4444':'#38bdf8';
+    var skinCol=(typeof BLG_SKINC!=='undefined'&&BLG_SKINC[lk.sk|0])||'#e0b088';
+    ctx.fillStyle='#e5e7eb';                                     // gambe
+    ctx.fillRect(px-pr*0.42,py+pr*0.72,pr*0.32,pr*0.55);
+    ctx.fillRect(px+pr*0.10,py+pr*0.72,pr*0.32,pr*0.55);
+    ctx.fillStyle=bodyCol;                                       // maglia
+    ctx.beginPath();
+    ctx.moveTo(px-pr*0.7,py-pr*0.15);ctx.lineTo(px+pr*0.7,py-pr*0.15);
+    ctx.lineTo(px+pr*0.55,py+pr*0.78);ctx.lineTo(px-pr*0.55,py+pr*0.78);ctx.closePath();ctx.fill();
+    ctx.fillStyle=skinCol;                                       // testa
+    ctx.beginPath();ctx.arc(px,py-pr*0.5,pr*0.4,0,6.283);ctx.fill();
+    var nm=DB_ED.look.nm|0;
+    if(nm>0){
+      ctx.fillStyle='#ffffff';ctx.font='bold '+Math.round(pr*0.6)+'px Orbitron,monospace';
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(String(nm),px,py+pr*0.28);
+      ctx.textAlign='left';ctx.textBaseline='alphabetic';
+    }
   }
 }
 // sezioni opzioni: mostra SOLO indici raggiungibili (free o con skin che li concede)
