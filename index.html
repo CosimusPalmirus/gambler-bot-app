@@ -10476,6 +10476,7 @@ body.gb-nav-on .bnav{display:flex;}
         <div class="bal-lbl">BALANCE</div>
         <div class="bal-num" id="w-bal">€0.00</div>
         <div class="bal-sub" id="w-btc">0.00000000 BTC</div>
+        <div class="bal-sub" id="w-ton" style="display:none;">0.00 TON</div>
       </div>
     </div>
     <div style="display:flex;gap:8px;">
@@ -12924,7 +12925,7 @@ body.gb-nav-on .bnav{display:flex;}
     "La lancia (pilum)":"The spear (pilum)",
     "— ogni tanto la folla ne getta una: chi la raccoglie lancia invece di colpire":"— every so often the crowd throws one in: whoever picks it up throws instead of swinging",
     "Non sai da dove iniziare?":"Not sure where to start?",
-    "SCORRI IL DITO ↔ PER STERZARE":"SLIDE YOUR FINGER ↔ TO STEER",
+    "TIENI IL DITO ↔ PER STERZARE":"HOLD YOUR FINGER ↔ TO STEER",
     /* ── MENU TORNEI: albo, campione, schede passate (01/08) ── */
     "🏛 ULTIMI TORNEI":"🏛 PAST TOURNAMENTS",
     "Nessun torneo in programma.":"No tournament scheduled.",
@@ -13728,6 +13729,7 @@ function grStart(){
       try{ if(typeof grcXmemLoad==='function'){ var _xm3=grcXmemLoad(); if(_xm3){ _xm3.runs=(+_xm3.runs||0)+1; grcXmemSave(); } } }catch(_xm3e){}   // M3: memoria cross-run (localStorage-guarded) — conteggio notti
       try{ grMiniReset(); }catch(_mm){}   // M3: reset minimappa CLIENT-ONLY (inerte), nuova run
       var _th=grTheme(); toast('🎰 '+_th.nm+' — '+_th.intro,'gold',4200);
+      if(d.balances)S.bal=d.balances;   /* 03/08: tutte le valute, se il server le manda */
       if(d.btc!==undefined){ S.btc=d.btc; refresh(); } grUpdBal();
       // HOOK GDR (I1): carta CONTRATTO prima di entrare nel Palazzo (cb chiamata UNA volta;
       // server vecchio / GR_RPG_ON=false → _go() secco, comportamento identico a prima)
@@ -15032,6 +15034,7 @@ function grEventResolve(idx, ei){
     .then(function(r){return r.json();}).then(function(d){
       GR.busy=false;
       if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); return; }
+      if(d.balances)S.bal=d.balances;   /* 03/08: tutte le valute, se il server le manda */
       if(d.btc!==undefined){ S.btc=d.btc; refresh(); }
       var ev=(d&&d.event)||{};
       var parts=[]; if(ev.text) parts.push(ev.text);
@@ -15078,7 +15081,8 @@ function grActResolve(idx, extra){
         setTimeout(function(){
           grHideVideo();
           GR.busy=false; if(_ch)_ch.style.opacity='1';
-          if(d.btc!==undefined){ S.btc=d.btc; refresh(); }
+          if(d.balances)S.bal=d.balances;   /* 03/08: tutte le valute, se il server le manda */
+      if(d.btc!==undefined){ S.btc=d.btc; refresh(); }
           if(d.over){ grEnd(d); } else { grRender(d); }
         }, 1150);
       }, reveal);
@@ -23517,6 +23521,7 @@ function grCashout(){
     .then(function(r){return r.json();}).then(function(d){
       GR.busy=false;
       if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); return; }
+      if(d.balances)S.bal=d.balances;   /* 03/08: tutte le valute, se il server le manda */
       if(d.btc!==undefined){ S.btc=d.btc; refresh(); }
       grSound('win-medium'); grEnd(d);
     }).catch(function(){ GR.busy=false; toast('Network error','err'); });
@@ -26826,6 +26831,17 @@ function refresh(){
   });
   var w=document.getElementById('w-bal');if(w)w.textContent=b;
   var wb=document.getElementById('w-btc');if(wb)wb.textContent=btcStr(S.btc);
+  /* IL TON (03/08/2026). La riga compare SOLO se il saldo e maggiore di zero.
+     Oggi non lo e per nessuno, ed e giusto cosi: finche non esistono un gioco
+     che accetta TON e un prelievo che lo porta fuori, scrivere "0,00 TON" a
+     tutti prometterebbe una cosa che non c e. Il client e pronto, la promessa
+     no. */
+  var wt=document.getElementById('w-ton');
+  if(wt){
+    var vt=(S.bal&&+S.bal.TON)||0;
+    if(vt>0){ wt.textContent=vt.toFixed(2)+' TON'; wt.style.display=''; }
+    else wt.style.display='none';
+  }
   var wdb=document.getElementById('wd-bal');if(wdb)wdb.textContent=b;
   var wdbtc=document.getElementById('wd-btc');if(wdbtc)wdbtc.textContent=btcStr(S.btc);
   var lvl=getLevel(S.xp);
@@ -34908,6 +34924,7 @@ function dlStartMatch(mode,eur){
   fetch(BACKEND+'/duel/app_join',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId,mode:mode,bet_btc:eurToBtc(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
     .then(function(r){return r.json();}).then(function(d){
       if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); dlCloseOverlay(); if(typeof loadBalance==='function')loadBalance(); return; }
+      if(d.balances)S.bal=d.balances;   /* 03/08: tutte le valute, se il server le manda */
       if(d.btc!==undefined){ S.btc=d.btc; refresh(); }
       if(d.status==='done'){ dlShowResult(d); return; }
       dlStartPoll(mode);
@@ -35051,7 +35068,8 @@ function dlCancelSearch(){
 }
 function dlShowResult(d){
   dlStopPoll();
-  if(d.btc!==undefined){ S.btc=d.btc; refresh(); }
+  if(d.balances)S.bal=d.balances;   /* 03/08: tutte le valute, se il server le manda */
+      if(d.btc!==undefined){ S.btc=d.btc; refresh(); }
   dlVsScreen(d, function(){
     if(d.picked_random){ dlGameWheel((d.detail&&d.detail.mode)||d.mode, function(){ dlReveal(d); }); }
     else { dlReveal(d); }
@@ -35209,7 +35227,8 @@ function dlGameWheel(mode, onDone){
 }
 function dlReveal(d){
   dlStopPoll();
-  if(d.btc!==undefined){ S.btc=d.btc; refresh(); }
+  if(d.balances)S.bal=d.balances;   /* 03/08: tutte le valute, se il server le manda */
+      if(d.btc!==undefined){ S.btc=d.btc; refresh(); }
   if(typeof loadBalance==='function')loadBalance().then(function(){dlUpdateStatsDom();});
   var youP1=d.you_p1, det=d.detail||{}, mode=det.mode||d.mode, win=d.you_win;
   var oppName = youP1 ? d.p2_name : d.p1_name;
@@ -35300,6 +35319,7 @@ function dlBjStart(eur){
   fetch(BACKEND+'/duel/bjl_join',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId,bet_btc:eurToBtc(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
     .then(function(r){return r.json();}).then(function(d){
       if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); dlCloseOverlay(); if(typeof loadBalance==='function')loadBalance(); return; }
+      if(d.balances)S.bal=d.balances;   /* 03/08: tutte le valute, se il server le manda */
       if(d.btc!==undefined){ S.btc=d.btc; refresh(); }
       if(d.state==='playing'||d.state==='done'){ dlBjEnter(d); return; }
       dlBjMatchPoll();
@@ -35403,7 +35423,8 @@ function dlBjBoard(d){
 }
 function dlBjAfterDone(d){
   dlBjStopPoll(); dlBjStopTick();
-  if(d.btc!==undefined){ S.btc=d.btc; refresh(); }
+  if(d.balances)S.bal=d.balances;   /* 03/08: tutte le valute, se il server le manda */
+      if(d.btc!==undefined){ S.btc=d.btc; refresh(); }
   if(typeof loadBalance==='function')loadBalance().then(function(){dlUpdateStatsDom();});
   if(!DLBJ.shown){
     DLBJ.shown=true;
@@ -36636,6 +36657,7 @@ function dlSendChallenge(){
     .then(function(r){return r.json();}).then(function(d){
       uiBusy(false);
       if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); return; }
+      if(d.balances)S.bal=d.balances;   /* 03/08: tutte le valute, se il server le manda */
       if(d.btc!==undefined){ S.btc=d.btc; refresh(); }
       DLRND.bet=eur;   // so if they accept a LIVE game, the entry + play-again use this stake
       dlModalHTML('<div class="pvp-m-title" style="color:#ffd700;">CHALLENGE SENT</div><div class="pvp-radar"><div class="pvp-radar-ico">⚔️</div></div>'+
@@ -36721,6 +36743,7 @@ function dlSendRematch(uid,eur){
     .then(function(r){return r.json();}).then(function(d){
       uiBusy(false);
       if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); return; }
+      if(d.balances)S.bal=d.balances;   /* 03/08: tutte le valute, se il server le manda */
       if(d.btc!==undefined){ S.btc=d.btc; refresh(); }
       DLRND.bet=eur;
       dlModalHTML('<div class="pvp-m-title" style="color:#ffd700;">CHALLENGE SENT</div><div class="pvp-radar"><div class="pvp-radar-ico">⚔️</div></div>'+
@@ -37797,18 +37820,27 @@ function twrHud(m){
 }
 
 // ── joystick ────────────────────────────────────────────────────────
-function twrStickInit(joyId,knobId,onVec,onEnd,radius){
+function twrStickInit(joyId,knobId,onVec,onEnd,radius,centroId){
   // Multi-touch safe: every stick follows ONLY the finger that landed on it
   // (tracked by touch identifier), so move + aim work at the same time.
-  var joy=document.getElementById(joyId),knob=document.getElementById(knobId);
+  // (03/08/2026) Due parametri facoltativi, additivi — i sei chiamanti
+  // esistenti non cambiano di una virgola:
+  //  · `centroId`: da quale elemento prendere il punto NEUTRO. Serve quando la
+  //    zona che raccoglie il dito e' piu' grande del comando disegnato e non
+  //    gli sta concentrica (la fascia del volante della race: alta 190px, col
+  //    volante in fondo — lo zero deve stare sul mozzo, non a meta' fascia).
+  //  · `knobId` puo' essere null: se il comando non trasla ma RUOTA, la
+  //    manopola non esiste e il componente non deve toccarla.
+  var joy=document.getElementById(joyId),knob=knobId?document.getElementById(knobId):null;
   if(!joy)return;
+  var centro=centroId?document.getElementById(centroId):null;
   var R=radius||44,drag=false,tid=null;   // raggio trascinamento (default 44; piu grande = stick piu comodo)
   function setVecXY(cx,cy){
-    var r=joy.getBoundingClientRect();
+    var r=(centro||joy).getBoundingClientRect();
     var dx=cx-(r.left+r.width/2),dy=cy-(r.top+r.height/2);
     var m=Math.sqrt(dx*dx+dy*dy);
     if(m>R){dx=dx/m*R;dy=dy/m*R;m=R;}
-    knob.style.transform='translate('+dx+'px,'+dy+'px)';
+    if(knob)knob.style.transform='translate('+dx+'px,'+dy+'px)';
     if(m/R<0.14)onVec(0,0);else onVec(dx/R,dy/R);
   }
   function findTouch(ev){
@@ -37837,7 +37869,8 @@ function twrStickInit(joyId,knobId,onVec,onEnd,radius){
     if(!drag)return;
     if(!findTouch(ev))return;
     drag=false;tid=null;joy.classList.remove('on');
-    knob.style.transform='translate(0,0)';onEnd();
+    if(knob)knob.style.transform='translate(0,0)';
+    onEnd();
   }
   joy.addEventListener('touchstart',tstart,{passive:false});
   joy.addEventListener('touchmove',tmove,{passive:false});
@@ -37845,7 +37878,7 @@ function twrStickInit(joyId,knobId,onVec,onEnd,radius){
   // mouse fallback (desktop: one pointer at a time)
   function mdown(ev){ev.preventDefault();drag=true;tid=null;joy.classList.add('on');setVecXY(ev.clientX,ev.clientY);}
   function mmove(ev){if(!drag||tid!=null)return;setVecXY(ev.clientX,ev.clientY);}
-  function mup(){if(!drag||tid!=null)return;drag=false;joy.classList.remove('on');knob.style.transform='translate(0,0)';onEnd();}
+  function mup(){if(!drag||tid!=null)return;drag=false;joy.classList.remove('on');if(knob)knob.style.transform='translate(0,0)';onEnd();}
   joy.addEventListener('mousedown',mdown);
   window.addEventListener('mousemove',mmove);
   window.addEventListener('mouseup',mup);
@@ -45898,10 +45931,14 @@ function rtdRafWatch(){
 // Perche' cosi': un volante e' un comando RELATIVO (giro rispetto a dove sto
 // andando), lo stick era ASSOLUTO (punta a nord-est). Senza la conversione, il
 // volante avrebbe sterzato verso un punto fisso dello schermo.
-var RCC={steer:0,gas:0,drift:false,rot:0,attivo:false,x0:0,s0:0};
+var RCC={steer:0,gas:0,drift:false,rot:0,attivo:false,x0:0,s0:0,stop:null};
 var RC_ROT=2.0;      // quanto gira il volante DA VEDERE a tutto sterzo (radianti)
-var RC_DRAG=108;     // pixel di scorrimento orizzontale per tutto sterzo:
-                     // un pollice ci arriva senza staccare la mano
+var RC_RAGGIO=84;    // (03/08/2026) DISTANZA DAL CENTRO per tutto sterzo.
+                     // Non e' piu' quanto hai SCORSO — e' dove TIENI il dito:
+                     // 84 px dal mozzo stanno appena fuori dal cerchio del
+                     // volante (raggio 59) e ci arriva un pollice senza
+                     // staccare la mano. La fascia e' larga il 46% dello
+                     // schermo, quindi 84 px ci stanno comodi anche stretti.
 var RC_LOCK=0.95;    // sterzo pieno = 54 gradi di scostamento dal muso
 var RC_COAST=0.20;   // gas "a folle": appena sopra la zona morta del motore
                      // (GAS_DEAD 0.18), cosi' col gas alzato si STERZA ancora
@@ -45912,33 +45949,34 @@ function rcVolanteInit(){
       dft=document.getElementById('arc-drift');
   RCC.steer=0;RCC.gas=0;RCC.drift=false;RCC.rot=0;RCC.attivo=false;
   var zona=document.getElementById('rc-wheel-wrap');
+  // Se una gara precedente aveva montato lo stick, lo si smonta PRIMA di
+  // rimontarlo: `rcVolanteInit` gira a ogni partita e la versione vecchia
+  // appendeva due ascoltatori nuovi a window ogni volta, senza mai togliere i
+  // vecchi (dieci gare = venti ascoltatori vivi).
+  if(RCC.stop){try{RCC.stop();}catch(e){}RCC.stop=null;}
   if(w&&zona){
-    // Il comando NON e' piu' la rotazione del volante: e' lo scorrimento
-    // ORIZZONTALE del dito dentro la fascia. RC_DRAG e' quanti pixel di
-    // scorrimento valgono tutto sterzo: 108 px stanno comodi in un pollice
-    // senza staccare la mano, e sono molto meno di un arco completo.
-    var giu=function(ev){
-      var t=(ev.touches&&ev.touches[0])||ev;
-      RCC.x0=t.clientX;RCC.s0=RCC.steer;RCC.attivo=true;
-      if(ev.preventDefault)ev.preventDefault();
-    };
-    var muovi=function(ev){
-      if(!RCC.attivo)return;
-      var t=(ev.touches&&ev.touches[0])||ev;
-      var d=(t.clientX-RCC.x0)/RC_DRAG;
-      RCC.steer=Math.max(-1,Math.min(1,RCC.s0+d));
+    /* LO STERZO E' UNO STICK (03/08/2026). Prima era uno scorrimento RELATIVO
+       che si accumulava da dove avevi appoggiato il dito: non esisteva un
+       punto neutro fisico, e dopo qualche curva il dito era a bordo fascia
+       senza piu' corsa. Adesso la posizione del dito E' lo sterzo — zero al
+       centro, tutto sterzo a RC_RAGGIO — che e' esattamente il comando degli
+       altri giochi, e infatti e' lo stesso componente (`twrStickInit`), con
+       la sua zona morta e la sua sicurezza sul multi-touch: sterzare mentre
+       si tiene il gas non si disturbano piu'.
+       L'ESTETICA RESTA IL VOLANTE: la manopola non esiste (si passa null) e a
+       muoversi e' la rotazione del disegno, come prima. */
+    RCC.stop=twrStickInit('rc-wheel-wrap',null,function(vx,vy){
+      RCC.attivo=true;
+      RCC.steer=Math.max(-1,Math.min(1,vx));
       RCC.rot=RCC.steer*RC_ROT;
       w.style.transform='rotate('+(RCC.rot*57.2958)+'deg)';
-      if(ev.preventDefault)ev.preventDefault();
-    };
-    var su=function(){ RCC.attivo=false; };
-    zona.addEventListener('touchstart',giu,{passive:false});
-    zona.addEventListener('touchmove',muovi,{passive:false});
-    zona.addEventListener('touchend',su);
-    zona.addEventListener('touchcancel',su);
-    zona.addEventListener('mousedown',giu);
-    window.addEventListener('mousemove',muovi);
-    window.addEventListener('mouseup',su);
+    },function(){
+      // Dito staccato: il COMANDO e' gia' a zero, sull'istante. Il disegno del
+      // volante continua a rientrare con la sua molla (rcVolanteRitorno), ma
+      // non comanda piu' niente: l'auto e' dritta subito.
+      RCC.attivo=false;
+      RCC.steer=0;
+    },RC_RAGGIO,'rc-wheel');  // <- il centro e' il MOZZO, non la fascia
   }
   function pedale(el,giu,su){
     if(!el)return;
@@ -45957,7 +45995,10 @@ function rcVolanteRitorno(){
   if(RCC.attivo||Math.abs(RCC.rot)<0.01)return;
   RCC.rot*=0.86;
   if(Math.abs(RCC.rot)<0.01)RCC.rot=0;
-  RCC.steer=RCC.rot/RC_ROT;
+  // NIENTE `RCC.steer=RCC.rot/RC_ROT` (03/08/2026): questa riga legava il
+  // comando all'animazione del disegno, e l'auto continuava a girare per
+  // mezzo secondo dopo che avevi staccato il dito (31 fotogrammi misurati).
+  // Adesso qui torna al centro SOLO il disegno.
   var w=document.getElementById('rc-wheel');
   if(w)w.style.transform='rotate('+(RCC.rot*57.2958)+'deg)';
 }
@@ -46935,7 +46976,7 @@ function rtdShowMatch(){
         +'<div class="rc-wheel-spoke v"></div>'
         +'<div class="rc-wheel-hub">🏁</div>'
       +'</div>'
-      +'<div class="rc-wheel-hint">SCORRI IL DITO ↔ PER STERZARE</div>'
+      +'<div class="rc-wheel-hint">TIENI IL DITO ↔ PER STERZARE</div>'
       +'</div>'
       +'<div class="arc-ov-right rc-pedals">'
       +'<button class="rc-pedal drift" id="arc-drift">🔥<span>DERAPA</span></button>'
@@ -55628,11 +55669,23 @@ var SC={
                   // Scalato con VIEW (era 3.2 con VIEW=16, cioe' 0.2×VIEW): con
                   // VIEW=10 mezza finestra e' 5 celle, 1.9 tiene il giocatore
                   // sempre dentro il quadro senza incollarlo al bordo.
-  CAMUP:0.15,     // bias FISSO di camera verso l'alto (celle). Era 1.35 con camera
-                  // CENTRATA; ora l'ancora ALTA (ANCH=0.30) tiene gia' il giocatore
-                  // in cima, quindi questo resta solo un filo d'aria sopra la testa.
-                  // Tenuto BASSO: con ANCH gia' basso un CAMUP alto ributterebbe il
-                  // giocatore verso il centro/basso, annullando "tienilo in alto".
+  CAMUP:1.45,     // bias FISSO di camera verso l'alto (celle).
+                  // (03/08/2026) Era 0.15, e il conto diceva che era troppo poco:
+                  // il bordo alto stava a piedi + 0.15 + vhU = piedi + 4.65, ma
+                  // chi sta sul ripiano SUCCESSIVO (LEVEL_DY = 3) ha la testa a
+                  // 3 + PH = +4.95. Cioe' il rivale sulla piattaforma che stai
+                  // per prendere era decapitato dal quadro, in una salita fatta
+                  // tutta di salti da 3 celle.
+                  // Con 1.45 il bordo va a +5.95: la testa entra con una cella
+                  // tonda di margine. (Il soffitto del corridoio, +6.00, resta
+                  // fuori per cinque centesimi: non e' un obiettivo di questa
+                  // costante.)
+                  // Il commento di prima temeva che un CAMUP alto "ributtasse il
+                  // giocatore verso il centro". Il numero dice di no: per finire
+                  // al centro servirebbe CAMUP 3.0 ((4.50+3.0)/15 = 0.50). A 1.45
+                  // il giocatore sta al 39.7% dall'alto — era il 31% — quindi
+                  // ancora nella meta' alta e ben sopra la fascia dei comandi.
+                  // vh = VIEW x (hh/w) = 15 celle, vhU = vh x ANCH = 4.50.
   CAMKY:9.0,      // follow critically-damped: costante (1/s) dello smorzamento in
   CAMKX:6.5,      // Y e X. Applicato come 1-exp(-k*dt) => INDIPENDENTE dal frame
                   // rate (il vecchio min(1,7*dt) era lineare: a 30fps smorzava il
@@ -55800,6 +55853,13 @@ var SC={
 // dell'ARRAMPICATA V7 §2 (tenere il salto NON fa arrampicare). Il server legge my come sempre.
   JHOLDSYN:0.25,
   PH:1.95,        // = climb_rt PH (altezza AABB, testa a y+PH — rework CHECKPOINT 19/07)
+  REDMIN:0.42,    // vedi SCL_REDMIN sotto (tenuto anche qui per chi legge SC.)
+  BLADEPAD:0.35,  // = climb_rt BLADE_CELL_PAD (03/08/2026). Il margine con cui il
+                  // server allarga la banda letale delle lame quando la converte
+                  // in celle. Serve a sclPlateSpan per calcolare la portata della
+                  // piastra-soglia con la STESSA geometria del server invece di
+                  // ricopiarne il risultato: r1 e pyo arrivano sul filo, questo e'
+                  // l'unico numero da tenere allineato.
   JHOLD:0.2,      // = climb_rt JUMP_HOLD_MIN (my≤ → G_CUT hop corto)
   MANTMY:0.5,     // = climb_rt MANTLE_MY (my> da hang → mantle)
   DROPMY:0.5,     // = climb_rt DROP_MY (my< → lascia bordo / drop one-way)
@@ -59699,7 +59759,7 @@ function rtdBuildScalata(){
     if(eTele!=null&&o.k0>0)o.tl=Math.max(0,o.k0-eTele);
     // §4.5 v3: euristica LANDING (lb esportato STRETTO = overlap 3-5 celle,
     // tipi F/S/L/W) → piastra-soglia bakeata sull'overlap (sclTileCv)
-    o.plate=(eLb===1&&(o.lb1-o.lb0)<=5&&'FSLW'.indexOf(o.tid)>=0);
+    o.plate=sclPlateSpan(o,eLb);
     // V7 §1: server senza la coda (o fixture legacy) → costanti mirror SC come
     // fallback, mai i numeri inventati di prima. Per il PENDOLO l'ampiezza è p1
     // (l'engine ci scrive PEND_AMP); per la SEGA p1 è il VERSO di rotazione ±1.
@@ -59790,6 +59850,71 @@ function rtdBuildScalata(){
 // 1 tile = 1 fascia-colonna (8 col: separatore/parete sx + via) × 18 righe a
 // CELL_BAKE 56px/cella ⇒ 448×1008 (0.45Mpx). Griglia 4×6; LRU 9 attorno alla
 // camera (~16MB RGBA). Il blit per frame è 2-6 drawImage scalati.
+/* ══ LA CAMPATA DELLA PIASTRA-SOGLIA (03/08/2026) ═══════════════════════════
+   Quali colonne della superficie sottostante stanno davvero sotto tiro.
+   Restituisce [da, a] oppure null.
+
+   Prima erano quattro tipi su dodici (F, S, L, W) e si dipingeva TUTTA la
+   fascia lb0..lb1 — fino a sei celle per una trappola che ne occupa due,
+   cioe' si vietava anche la linea buona. Pressa, pistone, sega e pendolo non
+   dicevano niente: il pavimento sotto di loro era identico a uno sicuro, e
+   con la lava che sale non c'e' tempo di alzare gli occhi.
+
+   `p1` non e' un numero generico: per ogni trappola E' il suo parametro
+   geometrico, e viaggia gia' sul filo. Quindi la campata si CALCOLA.
+   I riferimenti a climb_rt.py qui sotto vanno tenuti aggiornati: se la
+   geometria di una trappola cambia la' e non qui, questa piastra mente — e su
+   un gioco a soldi veri un avviso che mente e' peggio di nessun avviso. ══ */
+/* IL PAVIMENTO DEL PREAVVISO DURO (03/08/2026), in secondi.
+   Il rosso a gradino — l'ultimo avviso, quello che dice "adesso parte" —
+   cominciava a un quinto del telegrafo. Ma il telegrafo si accorcia con la
+   quota (x0.68 a settore 5), quindi il preavviso era piu' corto PROPRIO dove
+   il gioco corre di piu' e il piatto e' piu' grosso: 0.204 s, sotto il tempo
+   di reazione di un pollice. Adesso non scende mai sotto 0.42 s.
+   Non puo' sconfinare nella quiete: l'assert di climb_rt.py:12156 tiene il
+   telegrafo base in [1.3, 2.2] s e la scala peggiore e' 0.68, quindi il
+   telegrafo non e' mai piu' corto di 0.884 s — sempre piu' del doppio.
+   k0 e k1 restano intatti: la finestra in cui si muore non cambia. */
+var SCL_REDMIN=0.42;
+
+function sclPlateSpan(o,eLb){
+  if(eLb!==1||!o)return null;
+  var x=o.x|0,lb0=o.lb0|0,lb1=o.lb1|0,p1=+o.p1||0,a,b,f2;
+  var CL=function(v){return Math.max(lb0,Math.min(lb1,v));};
+  switch(o.tid){
+    case 'P': a=b=x; break;                                  /* climb_rt 3234-3236 */
+    case 'L': a=x;b=CL(x+Math.max(1,p1)-1); break;           /* climb_rt 3237-3240 */
+    case 'F': f2=(x+1<=lb1)?x+1:x-1;                         /* climb_rt 3241-3246 */
+              a=Math.min(x,f2);b=Math.max(x,f2); break;
+    case 'S': a=x;b=x+Math.max(1,p1)-1; break;               /* climb_rt 3247-3253 */
+    case 'H': f2=CL(x+(p1>0?1:-1));                          /* climb_rt 3254-3258 */
+              a=Math.min(x,f2);b=Math.max(x,f2); break;
+    case 'W': a=Math.max(lb0,Math.min(lb1-2,x-1));b=a+2; break;  /* climb_rt 3259-3261 */
+    case 'R': case 'D':
+      /* LE LAME: la portata sulla riga del corpo esce dalla STESSA geometria
+         del server, con i numeri che arrivano nel payload (r1 = raggio esterno
+         della banda letale, pyo = righe fra la riga di cammino e il perno):
+             portata = floor( sqrt( (r1+PAD)^2 - pyo^2 ) )
+         Oggi: sega 1 (perno sulla riga, r1 1.5), pendolo 2 (perno due righe
+         piu' su, r1 2.6). Se domani il server ritara r1 o alza il perno, la
+         piastra lo segue da sola. E se il perno salisse tanto da non arrivare
+         piu' al corpo, la radice va negativa e qui esce null: il pendolo si
+         esclude senza che nessuno debba ricordarsene. */
+      var hi=(+o.r1||0)+SC.BLADEPAD,py=+o.pyo||0,q=hi*hi-py*py;
+      if(!(q>0))return null;
+      var rr=Math.floor(Math.sqrt(q));
+      if(rr<0)return null;
+      a=x-rr;b=x+rr; break;
+    /* FUORI: O (rullo) non uccide e occupa decine di celle — sarebbe un muro
+       rosso muto; B (palla) e' un proiettile e la sua geometria non si ricava
+       dal payload, e un avviso inventato e' peggio di nessuno; C (pavimento
+       che crolla) ha gia' il suo linguaggio. */
+    default: return null;
+  }
+  a=CL(a);b=CL(b);
+  return (b>=a)?[a,b]:null;
+}
+
 function sclTileCv(tc,trw){
   var key=tc*8+trw,e=SC.tiles[key];
   if(e){e.t=++SC.tileT;return e.c;}
@@ -60243,7 +60368,10 @@ function sclTileCv(tc,trw){
     if(tp3.lb1<gx0||tp3.lb0>gx0+cols-1)continue;
     yy=(topRow-pr3)*CB;
     var plh=Math.max(3,CB*0.10);
-    for(gx=Math.max(tp3.lb0,gx0);gx<=Math.min(tp3.lb1,gx0+cols-1);gx++){
+    /* Si dipinge la CAMPATA (le colonne davvero sotto tiro), non la fascia:
+       il taglio per riquadro qui sopra resta su lb0/lb1 perche' e' un
+       soprainsieme della campata — piu' economico e sempre corretto. */
+    for(gx=Math.max(tp3.plate[0],gx0);gx<=Math.min(tp3.plate[1],gx0+cols-1);gx++){
       xx=(gx-gx0)*CB;
       c.fillStyle='rgba(200,36,36,.40)';c.fillRect(xx,yy,CB,plh);
       c.fillStyle='rgba(0,0,0,.5)';     // tacche diagonali alternate (hazard)
@@ -60901,7 +61029,12 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
   // stava fuori campo proprio nell'istante in cui la si deve mirare. Ora c'e'
   // un bias FISSO verso l'alto (CAM_UP celle) che tiene sempre in quadro il
   // livello successivo, piu' il termine ∝ vy per le cadute lunghe.
-  var lead=SC.CAMUP+Math.max(-1.6,Math.min(2.2,SC.predVy*SC.LEADK));
+  // Il fermo BASSO e' -3.0 e non -1.6 (03/08/2026): con CAMUP salito a 1.45 il
+  // lookahead minimo sarebbe diventato -0.15, cioe' cadendo la camera avrebbe
+  // smesso di guardare in basso proprio mentre serve vedere dove si atterra.
+  // Con -3.0 il minimo torna a -1.55 (era -1.45) e il bordo basso resta dov'era
+  // (piedi-12.05 contro piedi-11.95). Il fermo ALTO non si tocca.
+  var lead=SC.CAMUP+Math.max(-3.0,Math.min(2.2,SC.predVy*SC.LEADK));
   // salita: il lookahead segue subito; discesa: rientra piu' morbido (no scatti).
   // Smorzamento ESPONENZIALE (1-exp(-k*dt)): stessa risposta a 30 e a 60 fps.
   SC.lead+=(lead-SC.lead)*(1-Math.exp(-(lead>SC.lead?7:4.5)*dt));
@@ -61155,10 +61288,26 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
     ctx.fillStyle='#454f61';ctx.fillRect(msx,msTop,mw3,mth);
     ctx.fillStyle='#cbd5e1';ctx.fillRect(msx,msTop,mw3,Math.max(3,cell*0.14));
     ctx.fillStyle='rgba(255,255,255,.55)';ctx.fillRect(msx,msTop,mw3,2*RTD.dpr);
-    ctx.fillStyle='rgba(245,158,11,.85)';ctx.fillRect(msx,msTop+mth-Math.max(2,cell*0.12),mw3,Math.max(2,cell*0.05));
+    /* (03/08/2026) Era ambra fissa — lo STESSO colore della spazzata del
+       rullo e della vernice a strisce sotto le cenge, e per giunta sulla
+       faccia inferiore del ripiano, che e' esattamente dove quella vernice
+       vive. Ora prende l'accento del BIOMA: misurato su 20 mondi, tutte e 59
+       le piattaforme mobili nascono nei settori 1/3/4 (verde, viola, ciano),
+       nessuna nei due biomi ambrati. Il guscio ||SCL_BIO[0] e' lo stesso gia'
+       usato per gli accenti delle cenge. */
+    var _mpBio=SCL_BIO[sclSec(mpy0|0)]||SCL_BIO[0];
+    ctx.globalAlpha=0.85;ctx.fillStyle=_mpBio.acc;
+    ctx.fillRect(msx,msTop+mth-Math.max(2,cell*0.12),mw3,Math.max(2,cell*0.05));
+    ctx.globalAlpha=1;
     ctx.fillStyle='rgba(0,0,0,.46)';ctx.fillRect(msx,msTop+mth-Math.max(2,cell*0.08),mw3,Math.max(2,cell*0.08));
-    // bulloni d'angolo ambra (leggibilità "macchina mobile", non trappola)
-    ctx.fillStyle='#f59e0b';
+    // Bulloni d'angolo: erano ambra per dire "macchina mobile, non trappola"
+    // — scelta deliberata, ma l'ambra e' anche il colore del rullo e della
+    // vernice di pericolo. Adesso dicono la stessa cosa con l'accento del
+    // bioma, che nel quadro non e' di nessun altro. (03/08/2026)
+    // I CHEVRON di direzione restano ambra apposta: ricolorarli porterebbe il
+    // contrasto sul corpo da 2.95:1 a 1.91:1 nel bioma viola, e sono il segno
+    // su cui si cronometra il salto su un ripiano in movimento.
+    ctx.fillStyle=_mpBio.acc;
     ctx.fillRect(msx+cell*0.06,msTop+mth*0.34,cell*0.1,cell*0.1);
     ctx.fillRect(msx+mw3-cell*0.16,msTop+mth*0.34,cell*0.1,cell*0.1);
     // chevron direzione del moto (orizz/vert/circ) sulla superficie
@@ -61444,7 +61593,7 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
         var fyP=hh2+(camY-o.y)*cell;
         ctx.fillStyle='rgba(0,0,0,'+(0.13+0.30*chP)+')';
         ctx.beginPath();ctx.ellipse(tcxp+jpx*0.4,fyP-cell*0.05,cell*(0.16+0.32*chP),cell*(0.05+0.06*chP),0,0,6.283);ctx.fill();
-        if(u>=o.k0-0.2*(o.k0-o.tl)){
+        if(u>=o.k0-Math.max(SCL_REDMIN,0.2*(o.k0-o.tl))){
           ctx.globalCompositeOperation='lighter';
           ctx.fillStyle='rgba(239,68,68,'+(0.12+0.15*Math.sin(now/50))+')';
           ctx.fillRect(txs-cell*0.15,headBot,cell*1.3,cell*(2.0-(hy*1.28+0.42)));
@@ -61504,7 +61653,7 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
       }else if(u>=o.tl){   // ── V4 §4.3.5 (C4) CARICA: OCCHIO che TI SEGUE + BUIO
         //    che si chiude sul corridoio; mira ROSSA solo ultimo 20% (§4.3.4) ──
         var chg=(u-o.tl)/Math.max(0.001,o.k0-o.tl);
-        var lRed=u>=o.k0-0.2*(o.k0-o.tl);
+        var lRed=u>=o.k0-Math.max(SCL_REDMIN,0.2*(o.k0-o.tl));
         // il BUIO: la luce del corridoio muore mentre l'occhio carica
         ctx.fillStyle='rgba(4,6,12,'+(0.30*chg)+')';
         ctx.fillRect(txs,tcyp-cell*0.85,lw,cell*1.7);
@@ -61564,7 +61713,7 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
           if(sh2>0.5){ctx.beginPath();ctx.arc(txs+sb*cell+cell*(0.15+sh2*0.3),tys+cell-5,1.8,0,6.283);ctx.fill();}
         }
         // warning rosso SOLO nell'ultimo 20% del telegraph (V4 §4.3.4)
-        if(o.k0>o.tl&&u>=o.k0-0.2*(o.k0-o.tl)){ctx.globalCompositeOperation='lighter';ctx.fillStyle='rgba(239,68,68,'+(0.12+0.14*Math.sin(now/60))+')';ctx.fillRect(txs,tys+cell*0.6,o.len*cell,cell*0.4);ctx.globalCompositeOperation='source-over';}
+        if(o.k0>o.tl&&u>=o.k0-Math.max(SCL_REDMIN,0.2*(o.k0-o.tl))){ctx.globalCompositeOperation='lighter';ctx.fillStyle='rgba(239,68,68,'+(0.12+0.14*Math.sin(now/60))+')';ctx.fillRect(txs,tys+cell*0.6,o.len*cell,cell*0.4);ctx.globalCompositeOperation='source-over';}
       }
     }else if(o.tid==='A'){    // GOCCIA ACIDO: cresce → cade → pozza
       ctx.fillStyle='#374151';ctx.fillRect(txs+cell*0.3,tys,cell*0.4,cell*0.14);
@@ -61595,7 +61744,7 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
       else if(u<o.k0)wext=1.5*cell*(u-(o.k0-_exW))/_exW;       // STRIKE fulmineo
       else wext=1.5*cell;                                      // CHIUSI
       // rosso SOLO nell'ultimo 20% del telegraph (V4 §4.3.4)
-      if(wWin&&u>=o.k0-0.2*(o.k0-o.tl)){ctx.globalCompositeOperation='lighter';ctx.fillStyle='rgba(239,68,68,'+(0.1+0.14*Math.sin(now/60))+')';ctx.fillRect(wx0,tys,3*cell,cell);ctx.globalCompositeOperation='source-over';}
+      if(wWin&&u>=o.k0-Math.max(SCL_REDMIN,0.2*(o.k0-o.tl))){ctx.globalCompositeOperation='lighter';ctx.fillStyle='rgba(239,68,68,'+(0.1+0.14*Math.sin(now/60))+')';ctx.fillRect(wx0,tys,3*cell,cell);ctx.globalCompositeOperation='source-over';}
       var wLw=cell*0.22+wext,wRx=wx0+3*cell-cell*0.12-wext;
       ctx.fillStyle='#4b5563';
       ctx.fillRect(wx0-cell*0.1,tys,wLw,cell);
@@ -61703,13 +61852,16 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
       var eyChg=(u>=o.tl&&u<o.k0)?(u-o.tl)/eyT:(eyKill?1:0);
       var eyRed=eyKill||(u>=o.k0-0.2*eyT&&u<o.k0);
       var eyCx=(o.tid==='L'||o.tid==='S')?(o.x+o.len*0.5):(o.tid==='W'?(o.x0+1.5):(o.x+0.5));
-      var eyX=ox+eyCx*cell,eyY=hh2+(camY-(o.y+1.6))*cell,eyR=5*RTD.dpr;
+      var eyX=ox+eyCx*cell,eyY=hh2+(camY-(o.y+1.6))*cell,eyR=6.4*RTD.dpr;
       // gabbietta metallica della lampada
       ctx.fillStyle='#141a24';
       ctx.beginPath();ctx.arc(eyX,eyY,eyR+1.6*RTD.dpr,0,6.283);ctx.fill();
       ctx.strokeStyle='#3a4656';ctx.lineWidth=1.2*RTD.dpr;ctx.stroke();
       // palpebra: chiusa a riposo, si apre con la carica
-      var eyOp=0.25+0.75*eyChg;
+      /* (03/08/2026) Partiva da 0.25: il primo terzo della crescita era quasi
+     invisibile, cioe' proprio la parte che insegna il ritmo dell'attesa.
+     Partendo piu' spenti la salita si vede da subito. I TEMPI non cambiano. */
+  var eyOp=0.16+0.84*eyChg;
       ctx.fillStyle=eyRed?'#fca5a5':'#cbd5e1';
       ctx.beginPath();ctx.ellipse(eyX,eyY,eyR*0.92,eyR*0.92*eyOp,0,0,6.283);ctx.fill();
       // pupilla che TI GUARDA (fuori range near: fissa al centro)
