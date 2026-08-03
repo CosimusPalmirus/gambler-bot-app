@@ -8683,8 +8683,8 @@ body.gb-nav-on .bnav{display:flex;}
       <div class="lotto-icon">🎫</div>
       <div class="lotto-info">
         <div class="lotto-title">CRYPTO LOTTO</div>
-        <div class="lotto-sub">Jackpot min €100 • Tue & Fri 20:00</div>
-        <div class="lotto-sub" style="opacity:.7;font-size:9px;margin-top:2px;">Match 5 = €50 + 10% jkp • Match 6 = FULL</div>
+        <div class="lotto-sub">Biglietto €2 · jackpot min €50 · mar &amp; ven 20:00</div>
+        <div class="lotto-sub" style="opacity:.7;font-size:9px;margin-top:2px;">3 numeri = €16 · 4 = €120 · 5 = €1.200 · 6 = JACKPOT</div>
       </div>
       <div class="lotto-go">PLAY →</div>
     </div>
@@ -10210,7 +10210,7 @@ body.gb-nav-on .bnav{display:flex;}
       </div>
     </div>
     <div id="lt-pane-play">
-      <div class="info-lbl" style="text-align:center;margin-top:6px;">PICK 6 NUMBERS (1-90)</div>
+      <div class="info-lbl" style="text-align:center;margin-top:6px;">PICK 6 NUMBERS (1-49)</div>
       <div class="picks-display" id="lt-picks"></div>
       <div class="num-grid" id="lt-nums"></div>
       <div style="display:flex;gap:6px;margin-top:8px;">
@@ -10559,6 +10559,12 @@ body.gb-nav-on .bnav{display:flex;}
         <div class="info-lbl" style="margin-bottom:4px;">IMPORTO DA INVIARE</div>
         <input id="swap-amount" type="text" inputmode="decimal" placeholder="0.00" oninput="swapAmountChanged()" style="width:100%;padding:11px;border-radius:8px;background:rgba(0,0,0,.45);color:var(--txt);border:1px solid rgba(255,255,255,.12);font-family:'Orbitron';font-size:16px;">
         <div id="swap-min" style="font-size:11px;color:var(--txt3);margin-top:5px;min-height:15px;"></div>
+        <!-- Chip rapidi (03/08/2026). Il proprietario chiedeva 10/25/50, ma qui
+             l importo e nella valuta di PARTENZA: "10" in TON non e dieci euro,
+             e il pannello non conosce un cambio in euro - conosce il MINIMO che
+             il servizio accetta. I chip stanno su quello, che e anche lattrito
+             vero: scrivi una cifra, e ti risponde che e sotto il minimo. -->
+        <div id="swap-chips" style="display:none;gap:6px;margin-top:8px;"></div>
         <div id="swap-estimate" style="font-size:13px;color:var(--gold);margin-top:6px;min-height:18px;text-align:center;font-family:'Orbitron';"></div>
 
         <button class="action-btn gold" style="width:100%;margin-top:12px;" onclick="swapCreate()" id="swap-go-btn">🔄 CONVERTI IN BTC</button>
@@ -12659,6 +12665,7 @@ body.gb-nav-on .bnav{display:flex;}
     "rampino, muro, piccozza… tieni premuto OGGETTO per mirare, rilascia per usare":"grapple, wall, pickaxe… hold ITEM to aim, release to use",
     /* ── DEAD PEAK V4 C2: SPINTONE (contatto automatico, zero input) ── */
     "SPINTONATO!":"SHOVED!",
+    "COLPITO!":"HIT!",   /* lotto 4: impatto non letale, feed `hit` */
     "SPINTONE!":"SHOVE!",
     "Spintone automatico":"Automatic shove",
     "corri addosso a un rivale a tutta velocità e lo sbalzi via — nessun tasto, occhio al \"!\"":"sprint into a rival at full speed to send him flying — no button, watch for the \"!\"",
@@ -33123,13 +33130,14 @@ function crRenderHist(){
   }).join('')||'<span style="color:var(--txt3);font-size:10px;">No history yet</span>';
 }
 
-var LT={picks:[],jackpot:100,nextDraw:0,myTickets:0,cdTimer:null,tab:'play',myTicketList:[],history:[]};
+var LT={picks:[],jackpot:100,nextDraw:0,myTickets:0,cdTimer:null,tab:'play',myTicketList:[],history:[],
+        maxNum:49,ticketEur:2};
 function initLotto(){
   ltLoadInfo();
   var nums=document.getElementById('lt-nums');
   if(nums){
     nums.innerHTML='';
-    for(var n=1;n<=90;n++){
+    for(var n=1;n<=(LT.maxNum||49);n++){   // 6 su 49 dal 02/08/2026 (era 90)
       var d=document.createElement('div');
       d.className='num';d.textContent=n;
       (function(num){d.onclick=function(){ltToggle(num);};})(n);
@@ -33487,14 +33495,36 @@ function swapEstimate(c,amt){
     if(res.status===503){ swapShowOff(); return; }
     var d=res.data||{};
     var minEl=document.getElementById('swap-min'), estEl=document.getElementById('swap-estimate');
-    if(d.minAmount!=null){ minEl.textContent='min: '+d.minAmount+' '+c.ticker.toUpperCase(); }
-    else { minEl.textContent=''; }
+    var chipEl=document.getElementById('swap-chips');
+    if(d.minAmount!=null){
+      minEl.textContent='min: '+d.minAmount+' '+c.ticker.toUpperCase();
+      /* I chip nascono dal minimo VERO appena arrivato dal servizio: niente
+         cifre inventate, e coprono il caso che fa perdere piu tempo - la
+         cifra sotto il minimo, che il server rifiuta dopo il viaggio. */
+      SWAP.min=+d.minAmount||0;
+      if(chipEl&&SWAP.min>0){
+        var mk=function(mul,et){
+          var v=+(SWAP.min*mul).toPrecision(4);
+          return '<button class="twr-opt" style="flex:1;font-size:11px;" onclick="swapChip('+v+')">'+et+'</button>';
+        };
+        chipEl.innerHTML=mk(1,'minimo')+mk(2,'x2')+mk(5,'x5');
+        chipEl.style.display='flex';
+      }
+    }
+    else { minEl.textContent=''; if(chipEl)chipEl.style.display='none'; }
     if(amt>0 && d.estimatedBtc!=null){ estEl.textContent='≈ '+Number(d.estimatedBtc).toFixed(8)+' BTC'; }
     else if(amt>0 && d.warning){ estEl.textContent='⚠️ '+d.warning; }
     else { estEl.textContent=''; }
   }).catch(function(){});
 }
 
+function swapChip(v){
+  var el=document.getElementById('swap-amount');
+  if(!el)return;
+  el.value=String(v);
+  swapAmountChanged();
+  try{TWS.play('pick',0.5);}catch(e){}
+}
 function swapCreate(){
   var c=SWAP.sel;
   if(!c){ toast('Scegli prima una crypto','warn'); return; }
@@ -43126,12 +43156,19 @@ function trnAlbRow(t,primo){
       +(r2.length?'<div class="trn-sch-d2">'+r2.join(' · ')+'</div>':'')
       +(r3.length?'<div class="trn-sch-d2">'+r3.join(' · ')+'</div>':'')
     +'</div>'
-    +(ann?'':'<div class="trn-sch-ar">'+(aperta?'▴':'▾')+'</div>')
+    /* Il chevron era ▾: prometteva "mi apro qui sotto". Da quando la scheda
+       porta alla PAGINA del torneo deve dire dove va, non cosa fa. (02/08) */
+    +(ann?'':'<div class="trn-sch-ar">'+(aperta?'▴':'›')+'</div>')
     +(aperta?trnAlbCard(t):'')
     +'</div>';
 }
-// la scheda aperta: SOLA LETTURA. Non riusa la pagina del torneo, che
-// attaccherebbe chat morta, invito a un evento finito e un badge fuorviante.
+// LA FISARMONICA DI PRIMA — non piu' raggiungibile dal 02/08/2026: toccare
+// una scheda apre la PAGINA del torneo (trnDetArchHTML). Il motivo per cui
+// allora non si riusava la pagina era giusto — "chat morta, invito a un
+// evento finito, badge fuorviante" — ed e' esattamente cio' che la pagina
+// d'archivio NON fa: e' un renderer suo, senza chat, senza iscrizione, col
+// badge CONCLUSO. Il codice resta qui finche' non c'e' un giro di potatura.
+// la scheda aperta: SOLA LETTURA.
 function trnAlbCard(t){
   var r='';
   function riga(k,v){ if(v===''||v==null)return; r+='<div class="trn-row"><span class="trn-k">'+k+'</span><span class="trn-v">'+v+'</span></div>'; }
@@ -43147,8 +43184,10 @@ function trnAlbCard(t){
     +'<div class="trn-alb-more" onclick="trnAlbTap(\'\')">▴ CHIUDI</div></div>';
 }
 function trnAlbTap(id){
-  TRN.albOpen=(TRN.albOpen===String(id))?'':String(id);
-  trnRender();
+  /* Prima apriva una fisarmonica: la stessa scheda, un po' piu' in basso.
+     Adesso porta alla PAGINA di quel torneo — che esisteva gia' e non era
+     raggiungibile per i tornei chiusi. (02/08/2026) */
+  trnDetOpen(String(id||''));
 }
 function trnAlbAll(){ TRN.albAll=true; trnRender(); }
 function trnHelpTap(){ TRN.helpOpen=!TRN.helpOpen; trnRender(); }
@@ -43364,9 +43403,25 @@ function trnRender(){
   }else if(hd&&(!d||!d.active)&&!up&&TRN.hist&&TRN.hist.length){
     hd.textContent='🏛 ALBO';
     _hdSalta=1;
+  }else if(hd&&d&&d.active&&d.status==='done'&&TRN.hist&&TRN.hist.length){
+    /* Col torneo appena concluso la tab mostra l'ALBO (vedi piu' sotto): il
+       badge diceva ancora CONCLUSO, cioe' lo stato di un torneo che non e'
+       piu' la vista principale. (02/08/2026) */
+    hd.textContent='🏛 ALBO';
+    _hdSalta=1;
   }
   if(hd&&!_hdSalta)hd.textContent=(!d||!d.active)?(up?'⏳ ISCRIZIONI':''):(d.status==='reg'?'⏳ ISCRIZIONI':(d.status==='checkin'?'✅ PRESENZE':(d.status==='live'?'🔴 LIVE':(d.status==='done'?'🏁 CONCLUSO':''))));
-  if(!d||!d.active){
+  /* LA TAB SI APRE SUI TORNEI, NON SULL'ULTIMO TORNEO (02/08/2026).
+     Un torneo appena concluso resta `active` con status 'done' finche' il
+     backend non lo archivia: la tab si apriva quindi sulla sua scheda
+     completa — tabellone, iscritti, chat — mentre chi entra vuole l'elenco.
+     Adesso in quel caso si va all'albo, dove quel torneo e' la PRIMA scheda
+     con la fascetta CAMPIONE, e da li' si apre la sua pagina.
+     La guardia sull'albo serve: se la storia non e' ancora arrivata dal
+     server si tiene la vista di prima, cosi' non si passa mai da una pagina
+     piena a una vuota. */
+  var _chiuso=(d&&d.active&&d.status==='done'&&TRN.hist&&TRN.hist.length);
+  if(!d||!d.active||_chiuso){
     // ── LA TAB VIVE QUI IL 90% DEL TEMPO (01/08) ──────────────────────────
     // Prima, senza tornei in programma, questa schermata era una emoji e una
     // riga di scuse. Adesso porta l'ALBO: chi ha vinto, quando, in quanti
@@ -43535,10 +43590,17 @@ function trnDetClose(){
 // poi la lista dei prossimi. null = tid sparito (torneo archiviato) → si torna
 // all'elenco invece di restare su una pagina vuota.
 function trnDetFind(){
-  var d=TRN.state;if(!d||!TRN.det)return null;
-  if(d.active&&String(d.id||'')===TRN.det)return {t:d,cur:d};
+  var d=TRN.state;if(!TRN.det)return null;
+  if(d&&d.active&&String(d.id||'')===TRN.det)return {t:d,cur:d};
   var up=(d&&d.upcoming)||[],i;
   for(i=0;i<up.length;i++){if(String(up[i].id||'')===TRN.det)return {t:up[i],cur:null};}
+  /* I TORNEI CHIUSI (02/08/2026). Senza questo ramo, toccare una scheda
+     dell'albo faceva tornare indietro da soli: la pagina non trovava il
+     torneo e si chiudeva. `arch` dice a trnDetRender di disegnare la pagina
+     d'archivio, che e' una pagina sua — non quella del torneo vivo coi pezzi
+     spenti. */
+  var hs=TRN.hist||[];
+  for(i=0;i<hs.length;i++){if(String(hs[i].id||'')===TRN.det)return {t:hs[i],cur:null,arch:1};}
   return null;
 }
 function trnDetSecs(t){
@@ -43758,10 +43820,61 @@ function trnDetSig(t,cur){
   }
   return s;
 }
+/* LA PAGINA DI UN TORNEO CHIUSO (02/08/2026).
+   Mostra SOLO quello che il server manda davvero nell'albo (la whitelist di
+   _tour_history_pub): campione con foto e titoli, finalisti, gioco, data,
+   iscritti, presenti al via, round giocati, premio. Niente iscrizione, niente
+   countdown, niente chat — il canale di un torneo finito non esiste piu' — e
+   niente tabellone in diretta: i round grezzi non escono dal server, e
+   inventarli sarebbe peggio che non mostrarli. Se un dato manca, la sua riga
+   non c'e'. */
+function trnDetArchHTML(t){
+  var ann=(t.status==='cancelled');
+  var nomi=t.winner_name||((t.winners_names||[]).join(', '))||'';
+  var fin=(t.finalists||[]).filter(function(x){return x&&x.name;});
+  var righe='';
+  var add=function(k,v){ if(v!==''&&v!=null)righe+='<div class="trn-row"><span class="trn-k">'+k+'</span><span class="trn-v">'+v+'</span></div>'; };
+  add('🎮 Gioco',trnGameIcon(t.game)+' <span>'+trnEsc(t.game_label||t.game||'Colosseo')+'</span>');
+  var dd=trnFmtD(t.ts,1);
+  if(dd)add('📅 Giocato',trnEsc(dd));
+  if(t.players_count)add('👥 Iscritti',t.players_count);
+  if(t.present_count!=null)add('✅ Al via',t.present_count);
+  if(t.rounds_count)add('⚔️ Round',t.rounds_count);
+  if(t.prize_text)add('🏆 Premio',trnEsc(t.prize_text));
+  return '<button class="twr-editbtn" onclick="trnDetClose()">◂ TUTTI I TORNEI <span>torna all elenco dei tornei</span></button>'
+   +'<div class="tw-hero"><div class="tw-hero-t" style="color:#ffd76b;text-shadow:0 0 20px rgba(255,200,60,.5);">'+trnEsc(t.name||'TORNEO')+'</div>'
+   +'<div style="margin-top:5px;"><span class="trn-up-badge">'+trnGameIcon(t.game)+' <span>'+trnEsc(t.game_label||t.game||'Colosseo')+'</span></span> '
+   +'<span class="trn-up-badge">'+(ann?'✖ ANNULLATO':'🏁 CONCLUSO')+'</span></div></div>'
+   +(ann
+     ?'<div class="tw-note" style="text-align:center;">Questo torneo e stato annullato: nessun campione, nessun premio assegnato.</div>'
+     :(nomi
+       ?'<div class="section-ttl">👑 CAMPIONE</div>'
+        +'<div class="trn-champ">'+trnAvHTML(nomi,t.winner_photo,1)
+        +'<div class="trn-champ-n">'+trnEsc(nomi)+'</div>'
+        +((t.winner_titles>=2)?'<em class="trn-tit">🏅 '+t.winner_titles+' titoli</em>':'')
+        +'</div>'
+       :'<div class="tw-note" style="text-align:center;">Nessun campione registrato per questo torneo.</div>'))
+   +'<div class="trn-card">'+righe+'</div>'
+   +((!ann&&fin.length>1)
+     ?'<div class="section-ttl">🥈 IN FINALE</div><div class="trn-card">'
+      +fin.map(function(x,i){
+          return '<div class="trn-row"><span class="trn-k">'+(i===0?'🥇':'🥈')+' '+trnEsc(x.name)+'</span>'
+                +'<span class="trn-v">'+(i===0?'campione':'finalista')+'</span></div>';
+        }).join('')
+      +'</div>'
+     :'');
+}
 function trnDetRender(){
   var el=document.getElementById('trn-body');if(!el)return;
   var f=trnDetFind();
   if(!f){TRN.det=null;TRN.detSig='';trnRender();return;}
+  if(f.arch){
+    var hdA=document.getElementById('trn-hdr-st');
+    if(hdA)hdA.textContent=(f.t.status==='cancelled')?'✖ ANNULLATO':'🏁 CONCLUSO';
+    var sigA='arch|'+String(f.t.id||'');
+    if(TRN.detSig!==sigA){TRN.detSig=sigA;el.innerHTML=trnDetArchHTML(f.t);}
+    return;
+  }
   var t=f.t,cur=f.cur,me=trnDetMe(t,cur);
   var hd=document.getElementById('trn-hdr-st');
   if(hd)hd.textContent=!cur?'⏳ ISCRIZIONI'
@@ -44216,6 +44329,7 @@ var ARC_SOUNDS={
   dpkHook:function(v){TWS.tone({f:880,f2:1520,type:'square',d:0.08,g:0.16*v,lp:2800});TWS.tone({f:320,f2:170,d:0.11,g:0.12*v,lp:1200});},  // twang aggancio rampino
   dpkPull:function(v){TWS.noise({d:0.2,g:0.18*v,hp:380,lp:1900});TWS.tone({f:540,f2:130,type:'sawtooth',d:0.24,g:0.13*v,lp:1300});},        // strappo fune (traino)
   dpkPin:function(v){TWS.tone({f:1900,f2:1150,type:'square',d:0.05,g:0.18*v,lp:3800});TWS.tone({f:640,f2:430,d:0.07,g:0.11*v});},          // chiodo piantato (tink-tink)
+  dpkGrip:function(v){TWS.noise({d:0.07,g:0.13*v,hp:1100,lp:5200});TWS.tone({f:430,f2:250,type:'triangle',d:0.09,g:0.09*v,lp:1600});},                     // presa al bordo: raschio corto sulla roccia + tonfo del corpo
   dpkWall:function(v){TWS.tone({f:110,f2:52,type:'square',d:0.17,g:0.3*v,lp:520});TWS.noise({d:0.13,g:0.17*v,lp:640});},                    // thud pietra (muro giù)
   dpkBreak:function(v){TWS.noise({d:0.17,g:0.24*v,hp:280,lp:2500});TWS.tone({f:820,f2:190,type:'square',d:0.13,g:0.15*v,lp:1800});},        // crack (muro/chiodo rotto)
   dpkAxe:function(v){TWS.noise({d:0.12,g:0.15*v,hp:900,lp:4400});TWS.tone({f:2600,f2:900,type:'square',d:0.06,g:0.11*v});},                 // spazzata piccozza (clang)
@@ -45862,8 +45976,13 @@ function rcComandi(){
   var g=RCC.gas;
   if(g<=0&&Math.abs(RCC.steer)>0.05)g=RC_COAST;   // gas alzato ma volante girato
   if(g<=0)return {mx:0,my:0};
+  /* LO STERZO (02/08/2026). `st` e' lo scostamento del volante, e il server
+     lo somma al PROPRIO angolo: la latenza esce dall'anello, perche' l'anello
+     non passa piu' di qui. `mx,my` restano quelli di sempre — direzione
+     assoluta calcolata sull'angolo ricevuto — cosi' un server vecchio guida
+     esattamente come oggi e il rilascio dei due lati puo' essere sfasato. */
   var t=ang+RCC.steer*RC_LOCK;
-  return {mx:Math.cos(t)*g,my:Math.sin(t)*g};
+  return {mx:Math.cos(t)*g,my:Math.sin(t)*g,st:RCC.steer};
 }
 
 function rtdPump(){
@@ -45877,9 +45996,9 @@ function rtdPump(){
     var _rc=rcComandi();
     if(_rc){
       if(_rc.mx===0&&_rc.my===0){
-        if(!RTD.sentZero){rtdSend({t:'in',mx:0,my:0});RTD.sentZero=true;}
+        if(!RTD.sentZero){rtdSend({t:'in',mx:0,my:0,st:0});RTD.sentZero=true;}
       }else{
-        rtdSend({t:'in',mx:_rc.mx,my:_rc.my});RTD.sentZero=false;
+        rtdSend({t:'in',mx:_rc.mx,my:_rc.my,st:_rc.st});RTD.sentZero=false;
       }
     }
     if(RTD.aim.on){rtdSend({t:'aim',ax:1,ay:0,on:1});RTD.sentAimZero=false;}
@@ -46146,6 +46265,7 @@ function rtdFeedEvent(e){
     }else if(g==='race'){var _hv=e.who===me?1:rcDvol(e.who);rcSfx('crunch',0.8*_hv);rcSfx('rcClang',0.8*_hv);RTD.shake=Math.min(8,RTD.shake+3);rcSparks(e.who,8);rcSkidBlot(e.who);}else if(g==='pong'){
       pgSfx('hit',1,{who:e.who});
       RTD._sc.pgHit={id:e.who,t0:performance.now()+pgDly(),py:null,sy:0,x:0,ux:0,uy:0,got:0};
+    }else if(g==='scalata'){sclHitEv(e);   /* lotto 4: l'impatto non letale della scalata cadeva qui dentro e usciva come una biglia da biliardo */
     }else{TWS.play('puckhit',0.8);}break;
     case 'cushion':if(g==='pong')pgSfx('wall',1);else TWS.play('bounce2',0.5);break;
     case 'shield':
@@ -46236,7 +46356,7 @@ function rtdFeedEvent(e){
         TWS.play('dpkPull',0.9);
         try{if(window.SC){SC.pull.who=String(e.who);SC.pull.victim=String(e.victim);SC.pull.t0=performance.now();}}catch(_hk){}
         if(String(e.victim)===String(me)){
-          rtdStamp('AGGANCIATO!','#f87171');RTD.shake=Math.min(10,RTD.shake+6);
+          rtdStamp('AGGANCIATO!','#f87171');sclShake('wall',0.8);   // il rampino strattona di LATO: shake orizzontale, e il tasto USA resta fermo
           try{tg.HapticFeedback&&tg.HapticFeedback.impactOccurred('heavy');}catch(_h2){}
         }else if(String(e.who)===String(me))rtdStamp('TIRATO GIÙ!','#38bdf8');
         rtdFeed('🪝 '+rtdName(e.who)+' aggancia col rampino '+rtdName(e.victim));
@@ -46245,7 +46365,7 @@ function rtdFeedEvent(e){
       TWS.play('whoosh',0.5);break;
     case 'break':
       if(g!=='scalata')break;   // DEAD PEAK ITEMS §3.4: muro rotto dalla piccozza (seat = indice row)
-      TWS.play('dpkBreak',0.9);RTD.shake=Math.min(8,RTD.shake+4);
+      TWS.play('dpkBreak',0.9);sclShake('crush',0.6);   // muratura che cede: rumble sordo, non un colpo
       if(String(e.who)===String(me))rtdStamp('MURO ROTTO!','#a3e635');
       else{try{if(window.SC&&SC.mySeat>=0&&(e.seat|0)===SC.mySeat)rtdStamp('MURO ROTTO!','#f87171');}catch(_bk){}}
       rtdFeed('⛏ '+rtdName(e.who)+' spacca un muro');
@@ -46346,7 +46466,7 @@ function rtdFeedEvent(e){
           if(String(e.who)===String(me)){
             SC.mash={t0:_cnow,hits:0,lastT:0};   // prompt locale (barra da raw.stn)
             rtdStamp('INCATENATO!','#f87171');
-            RTD.shake=Math.min(10,RTD.shake+6);
+            sclShake('press',0.7);   // la catena inchioda VERSO IL BASSO: press è l unica voce verticale secca
             SC.flash={t0:_cnow,dur:420,a:0.24,col:'#f87171'};
             try{tg.HapticFeedback&&tg.HapticFeedback.notificationOccurred('warning');}catch(_c1){}
           }
@@ -46366,8 +46486,15 @@ function rtdFeedEvent(e){
       TWS.play('whoosh',0.5);
       if(e.victim===me){
         rtdStamp('SPINTONATO!','#f87171');
-        RTD.shake=Math.min(8,RTD.shake+4);
-        try{tg.HapticFeedback&&tg.HapticFeedback.impactOccurred('medium');}catch(_sh){}
+        /* kdx/kdy = versore della spinta dal server (climb_rt _feed_ev shove).
+           Il mondo ha y verso l alto e lo schermo verso il basso, da qui il
+           meno. Il fallback esiste perché con dx=dy=0 sclShake normalizza a
+           zero e spike (rum:0) non produrrebbe NESSUNA scossa. */
+        var _kbx=(e.kdx|0),_kby=(e.kdy|0);
+        if(_kbx||_kby)sclShake('spike',0.55,_kbx,-_kby);else sclShake('spike',0.55);
+        /* haptic tolto: HAP_EV.rtd.shove dà già 'colpito' alla vittima via
+           hapDaFeed (chiamato a inizio rtdFeedEvent) = impactOccurred('heavy').
+           Quello inline era un secondo colpo, e per giunta scavalcava HAP.on. */
       }else if(e.who===me)rtdStamp('SPINTONE!','#a3e635');
       rtdFeed('💨 '+rtdName(e.who)+' spinge '+rtdName(e.victim));   // kill-feed per TUTTI (pattern hook)
       break;
@@ -46375,7 +46502,7 @@ function rtdFeedEvent(e){
       if(g!=='scalata')break;
       rtdStamp('LAVA!','#f97316');TWS.play('alarm',0.8);
       rtdFeed('🌋 LA LAVA SALE — chi resta giù è fuori!');
-      RTD.shake=Math.min(10,RTD.shake+6);
+      sclShake('crush',0.9);   // la marea che parte è un boato lungo, non uno schiaffo
       break;
     case 'lead':
       if(g!=='scalata')break;
@@ -46396,7 +46523,7 @@ function rtdFeedEvent(e){
       TWS.play('dpkLadw',0.7);
       try{   // rider sopra la scala: bordo ambra + haptic crescente (§4.5)
         if(String(e.victim)===String(me)||(window.SC&&SC.mySeat>=0&&(e.seat|0)===SC.mySeat)){
-          rtdStamp('LA SCALA CEDE!','#facc15');RTD.shake=Math.min(6,RTD.shake+3);
+          rtdStamp('LA SCALA CEDE!','#facc15');sclShake('graze',0.7);   // telegraph: 110ms, il piede sente il legno che lavora
           if(window.SC)SC.flash={t0:performance.now(),dur:700,a:0.2,col:'#facc15'};
           tg.HapticFeedback&&tg.HapticFeedback.impactOccurred('light');
         }
@@ -46405,7 +46532,7 @@ function rtdFeedEvent(e){
       break;
     case 'ladf':   // DEAD PEAK v6 §2.5/§2.11 (C4): SCALA che CROLLA — UNICO trigger del topple + ragdoll rider
       if(g!=='scalata')break;
-      TWS.play('dpkLadf',0.95);RTD.shake=Math.min(9,RTD.shake+5);
+      TWS.play('dpkLadf',0.95);sclShake('crush',1);   // il crollo è l evento che il rumble lungo descrive meglio
       try{sclHitstop((e.riders||[]).map(String).indexOf(String(me))>=0?4:2);}catch(_fhs){}   // v6 §1.5 (C6): render-hitstop sul crollo scala
       try{
         if(window.SC){
@@ -46506,7 +46633,7 @@ function rtdFeedEvent(e){
     case 'bomb':TWS.play('tickbomb');break;
     case 'boom':
       if(g==='scalata'){   // DEAD PEAK v6 §2.7/§2.11 (C4): PETARDO esploso → shove radiale (non kill)
-        TWS.play('dpkBoom',0.95);RTD.shake=Math.min(11,RTD.shake+7);
+        TWS.play('dpkBoom',0.95);sclShake('cannon',0.8);   // detonazione: `cannon` è la voce con l attacco più duro dopo press
         try{sclHitstop(String(e.victim)===String(me)?4:3);}catch(_bhs){}   // v6 §1.5 (C6): render-hitstop sulla detonazione (più forte se colpisce me)
         try{
           if(window.SC&&SC.cell){
@@ -47159,7 +47286,13 @@ function rtdDragInit(){
     var dx=p0[0]-RTD.drag.sx,dy=p0[1]-RTD.drag.sy;
     var m=Math.hypot(dx,dy);
     RTD.drag.dx=dx;RTD.drag.dy=dy;
-    RTD.drag.pw=Math.min(1,m/120);
+    /* CODA 6 (02/08/2026) — la potenza piena chiedeva 120px di trascinamento.
+       Il gesto e' gia' libero (parte da dove tocchi, non dal disco: vedi down()
+       qui sopra), ma se il dito parte DAL disco — ed e' li' che parte, perche'
+       e' il disco a pulsare per invitarti — sotto restano una quarantina di
+       pixel prima del bordo. A 78 la potenza piena ci sta anche partendo da li',
+       e chi trascina di piu' non perde niente. */
+    RTD.drag.pw=Math.min(1,m/78);
   }
   function up(ev){
     if(!RTD.drag)return;
@@ -49332,6 +49465,42 @@ function rtdDrawSumo(ctx,raw,lp,now,w,hh){
   ctx.textAlign='center';ctx.font='bold '+(w*0.05)+'px Russo One, sans-serif';
   ctx.fillStyle='#a3e635';
   ctx.fillText('ROUND '+(raw.round||1),w/2,58);
+  /* CODA 4 (02/08/2026) — IL CONTO ALLA ROVESCIA.
+     Il server tiene fermi i lottatori per raw.freeze secondi e rifiuta i
+     comandi (arcade_rt.py, Sumo.action). Senza disegnarlo, il giocatore vede
+     due sagome immobili che non rispondono: sembra rotto. Qui si vede, con la
+     stessa grammatica del pong — velatura, numero grande, anello che si
+     svuota, VIA! che resta mezzo secondo. */
+  var szFz=raw.freeze||0, szTot=raw.ftot||3;
+  var szSc=RTD._sc||(RTD._sc={});
+  if(szFz>0)szSc.suFz=1;
+  else if(szSc.suFz){szSc.suFz=0;szSc.suGo=now;}
+  var szAge=szSc.suGo?(now-szSc.suGo):9e9;
+  if(szFz>0||szAge<600){
+    var szLive=szFz>0, szN=Math.ceil(szFz);
+    var szA=szLive?1:Math.max(0,1-szAge/600);
+    ctx.save();
+    ctx.fillStyle='rgba(3,6,12,'+(0.42*szA)+')';ctx.fillRect(0,0,w,hh);
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.globalAlpha=szA;
+    if(szLive){
+      var szFrac=Math.max(0,Math.min(1,szFz/szTot));
+      ctx.strokeStyle='rgba(163,230,53,.85)';ctx.lineWidth=5;
+      ctx.beginPath();ctx.arc(w/2,hh/2,w*0.16,-1.5708,-1.5708+6.2832*szFrac);ctx.stroke();
+      ctx.fillStyle='#a3e635';
+      ctx.font='bold '+(w*0.20)+'px Russo One, sans-serif';
+      ctx.fillText(String(szN),w/2,hh/2);
+      ctx.fillStyle='rgba(226,232,240,.85)';
+      ctx.font='bold '+(w*0.045)+'px Russo One, sans-serif';
+      ctx.fillText('FERMI',w/2,hh/2+w*0.17);
+    }else{
+      ctx.fillStyle='#ffd700';
+      ctx.font='bold '+(w*0.17)+'px Russo One, sans-serif';
+      ctx.fillText('VIA!',w/2,hh/2);
+    }
+    ctx.restore();
+    ctx.textBaseline='alphabetic';
+  }
 }
 
 // ── SHOVE ───────────────────────────────────────────────────────────
@@ -49384,6 +49553,19 @@ function rtdDrawShove(ctx,raw,lp,now,w,hh){
     ctx.strokeStyle='#ffd700';ctx.lineWidth=2;
     ctx.beginPath();ctx.arc(w/2,(MH-0.8)*sy,0.42*sx,0,6.283);ctx.stroke();
     ctx.globalAlpha=1;
+    /* CODA 6 — il cerchio che pulsa invita a toccare il disco, che e' il punto
+       peggiore da cui partire: sotto non c'e' schermo per tirare indietro. Il
+       gesto invece si puo' cominciare ovunque. Lo diciamo, invece di lasciarlo
+       indovinare. */
+    if(!RTD.drag){
+      ctx.globalAlpha=0.55;
+      ctx.fillStyle='#e2e8f0';ctx.textAlign='center';
+      ctx.font='bold '+Math.max(10,w*0.032)+'px Inter, system-ui, sans-serif';
+      ctx.fillText(GB_LANG==='en'?'Drag from anywhere, release to shoot'
+                                 :'Trascina da dove vuoi, lascia per tirare',
+                   w/2,(MH-0.8)*sy-0.42*sx-14);
+      ctx.globalAlpha=1;
+    }
   }
 }
 
@@ -51012,8 +51194,148 @@ function rtdDrawBackg(ctx,raw,lp,now,w,hh){
 // pile di prese, glow di turno, SCOPA! celebrativo (scopa + scintille pooled).
 // Nessun tocco a regole/punteggio: table/hand/opts/scope vengono SOLO letti.
 // suit: [emoji, colore, colore scuro, nome]. c//10 = seme, c%10+1 = valore.
-var SC_SUITS=[['🪙','#c98a1a','#7a4d0b','DENARI'],['🗡️','#5b6b86','#2c3547','SPADE'],
-              ['🏆','#b06b12','#6e3f07','COPPE'],['🌿','#2f9e46','#175424','BASTONI']];
+/* I semi erano quattro EMOJI (🪙 🗡️ 🏆 🌿): le disegna il sistema
+   operativo, quindi le carte cambiavano faccia fra iOS e Android, il bastone
+   era un rametto, la coppa un trofeo sportivo e la spada dritta invece che
+   sciabolata. Ora sono pittura nostra (scSuitPaint), dentro lo sprite gia'
+   bakeato per carta: costo per fotogramma ZERO. (coda 2, 02/08/2026) */
+var SC_SUITS=[['','#c98a1a','#7a4d0b','DENARI'],['','#5b6b86','#2c3547','SPADE'],
+              ['','#b06b12','#6e3f07','COPPE'],['','#2f9e46','#175424','BASTONI']];
+/* Un seme, disegnato a mano, in un quadrato di lato s centrato in (cx,cy). */
+function scSuitPaint(g,suit,cx,cy,s,chiaro,scuro){
+  var r=s*0.5;
+  g.save();g.translate(cx,cy);
+  g.lineJoin='round';g.lineCap='round';
+  if(suit===0){                                  /* DENARI — moneta a rosone */
+    g.fillStyle=chiaro;g.beginPath();g.arc(0,0,r,0,6.283);g.fill();
+    g.strokeStyle=scuro;g.lineWidth=Math.max(1,s*0.07);
+    g.beginPath();g.arc(0,0,r*0.99,0,6.283);g.stroke();
+    g.beginPath();g.arc(0,0,r*0.72,0,6.283);g.stroke();
+    g.fillStyle=scuro;                           /* rosone a otto punte */
+    g.beginPath();
+    for(var k=0;k<16;k++){
+      var an=k*Math.PI/8,rr=(k%2)?r*0.24:r*0.56;
+      if(k===0)g.moveTo(Math.cos(an)*rr,Math.sin(an)*rr);
+      else g.lineTo(Math.cos(an)*rr,Math.sin(an)*rr);
+    }
+    g.closePath();g.fill();
+    g.fillStyle='rgba(255,255,255,.5)';          /* riflesso */
+    g.beginPath();g.arc(-r*0.33,-r*0.36,r*0.17,0,6.283);g.fill();
+  }else if(suit===1){                            /* SPADE — sciabola curva */
+    g.strokeStyle=chiaro;g.lineWidth=Math.max(1.6,s*0.15);
+    g.beginPath();g.moveTo(-r*0.10,r*0.62);
+    g.quadraticCurveTo(r*0.62,r*0.10,r*0.30,-r*0.86);   /* lama */
+    g.stroke();
+    g.strokeStyle=scuro;g.lineWidth=Math.max(1,s*0.06);
+    g.beginPath();g.moveTo(-r*0.10,r*0.62);
+    g.quadraticCurveTo(r*0.62,r*0.10,r*0.30,-r*0.86);
+    g.stroke();
+    g.strokeStyle=scuro;g.lineWidth=Math.max(1.4,s*0.11);
+    g.beginPath();g.moveTo(-r*0.52,r*0.40);g.lineTo(r*0.32,r*0.80);g.stroke();  /* elsa */
+    g.beginPath();g.moveTo(-r*0.16,r*0.58);g.lineTo(-r*0.40,r*0.92);g.stroke(); /* impugnatura */
+    g.fillStyle=scuro;g.beginPath();g.arc(-r*0.46,r*1.00,s*0.09,0,6.283);g.fill();
+  }else if(suit===2){                            /* COPPE — calice */
+    g.fillStyle=chiaro;
+    g.beginPath();                               /* coppa */
+    g.moveTo(-r*0.62,-r*0.62);g.lineTo(r*0.62,-r*0.62);
+    g.quadraticCurveTo(r*0.52,r*0.12,0,r*0.24);
+    g.quadraticCurveTo(-r*0.52,r*0.12,-r*0.62,-r*0.62);
+    g.closePath();g.fill();
+    g.strokeStyle=scuro;g.lineWidth=Math.max(1,s*0.06);g.stroke();
+    g.fillStyle=scuro;
+    g.fillRect(-r*0.11,r*0.20,r*0.22,r*0.34);    /* stelo */
+    g.beginPath();g.arc(0,r*0.30,s*0.10,0,6.283);g.fill();   /* nodo */
+    g.beginPath();                               /* piede */
+    g.moveTo(-r*0.46,r*0.86);g.lineTo(r*0.46,r*0.86);
+    g.quadraticCurveTo(0,r*0.44,-r*0.46,r*0.86);g.closePath();g.fill();
+    g.fillStyle='rgba(255,255,255,.42)';
+    g.beginPath();g.ellipse?g.ellipse(-r*0.26,-r*0.30,r*0.13,r*0.24,0,0,6.283)
+                           :g.arc(-r*0.26,-r*0.30,r*0.14,0,6.283);g.fill();
+  }else{                                         /* BASTONI — clava nodosa */
+    g.strokeStyle=chiaro;g.lineWidth=Math.max(1.8,s*0.20);
+    g.beginPath();g.moveTo(-r*0.42,r*0.88);
+    g.quadraticCurveTo(r*0.04,r*0.02,r*0.18,-r*0.84);g.stroke();
+    g.strokeStyle=scuro;g.lineWidth=Math.max(1,s*0.05);
+    g.beginPath();g.moveTo(-r*0.42,r*0.88);
+    g.quadraticCurveTo(r*0.04,r*0.02,r*0.18,-r*0.84);g.stroke();
+    g.fillStyle=scuro;                           /* i nodi */
+    g.beginPath();g.arc(-r*0.24,r*0.50,s*0.085,0,6.283);g.fill();
+    g.beginPath();g.arc(r*0.02,-r*0.06,s*0.075,0,6.283);g.fill();
+    g.strokeStyle=scuro;g.lineWidth=Math.max(1,s*0.07);
+    g.beginPath();g.moveTo(r*0.02,-r*0.06);g.lineTo(r*0.40,-r*0.30);g.stroke();  /* moncone */
+  }
+  g.restore();
+}
+/* Le figure: FANTE in piedi, CAVALLO col cavaliere, RE in trono. Sagome, non
+   ritratti — ma si riconoscono, che e' quello che un riquadro con dentro
+   un emoji non faceva. */
+function scFigPaint(g,rk,cx,cy,W,H,chiaro,scuro){
+  g.save();g.translate(cx,cy);
+  g.fillStyle=scuro;g.strokeStyle=scuro;g.lineJoin='round';g.lineCap='round';
+  var u=H*0.055;
+  if(rk===9){                                    /* CAVALLO col cavaliere */
+    /* Corpo pieno, quattro zampe, collo che sale, testa col muso in giu':
+       la sagoma precedente era una spezzata e leggeva come una macchia. */
+    g.fillStyle=scuro;
+    g.beginPath();                               /* tronco */
+    g.moveTo(-u*2.6,u*0.2);
+    g.quadraticCurveTo(-u*2.9,-u*1.5,-u*1.1,-u*1.7);
+    g.lineTo(u*1.2,-u*1.5);
+    g.quadraticCurveTo(u*2.5,-u*1.3,u*2.3,u*0.3);
+    g.quadraticCurveTo(u*0.2,u*0.9,-u*2.6,u*0.2);
+    g.closePath();g.fill();
+    g.beginPath();                               /* collo e testa */
+    g.moveTo(u*1.4,-u*1.4);
+    g.quadraticCurveTo(u*2.6,-u*2.6,u*2.5,-u*3.6);
+    g.lineTo(u*3.5,-u*3.9);
+    g.quadraticCurveTo(u*3.9,-u*3.2,u*3.1,-u*2.9);
+    g.quadraticCurveTo(u*2.9,-u*2.0,u*2.4,-u*1.2);
+    g.closePath();g.fill();
+    g.strokeStyle=scuro;g.lineWidth=u*0.75;g.lineCap='round';
+    g.beginPath();g.moveTo(-u*1.9,u*0.5);g.lineTo(-u*2.2,u*3.0);g.stroke();   /* zampe */
+    g.beginPath();g.moveTo(-u*0.7,u*0.7);g.lineTo(-u*0.4,u*3.0);g.stroke();
+    g.beginPath();g.moveTo(u*1.1,u*0.7);g.lineTo(u*1.0,u*3.0);g.stroke();
+    g.beginPath();g.moveTo(u*2.0,u*0.4);g.lineTo(u*2.5,u*3.0);g.stroke();
+    g.beginPath();                               /* coda */
+    g.moveTo(-u*2.7,-u*0.5);g.quadraticCurveTo(-u*3.9,u*0.6,-u*3.3,u*2.4);g.stroke();
+    g.strokeStyle=chiaro;g.lineWidth=u*0.5;      /* criniera */
+    g.beginPath();g.moveTo(u*1.5,-u*1.7);g.quadraticCurveTo(u*2.3,-u*2.7,u*2.6,-u*3.5);g.stroke();
+    g.fillStyle=chiaro;                          /* il cavaliere, in sella */
+    g.beginPath();g.arc(-u*0.5,-u*3.5,u*0.85,0,6.283);g.fill();
+    g.strokeStyle=chiaro;g.lineWidth=u*1.05;
+    g.beginPath();g.moveTo(-u*0.5,-u*2.7);g.lineTo(-u*0.7,-u*1.6);g.stroke();
+    g.lineWidth=u*0.6;
+    g.beginPath();g.moveTo(-u*0.6,-u*2.4);g.lineTo(u*1.3,-u*2.1);g.stroke();  /* braccio alle redini */
+  }else if(rk===10){                             /* RE in trono */
+    g.lineWidth=u*1.4;
+    g.fillStyle=chiaro;                          /* corona */
+    g.beginPath();
+    g.moveTo(-u*1.8,-u*3.0);g.lineTo(-u*1.8,-u*4.3);g.lineTo(-u*0.9,-u*3.5);
+    g.lineTo(0,-u*4.6);g.lineTo(u*0.9,-u*3.5);g.lineTo(u*1.8,-u*4.3);
+    g.lineTo(u*1.8,-u*3.0);g.closePath();g.fill();
+    g.fillStyle=scuro;
+    g.beginPath();g.arc(0,-u*1.9,u*1.15,0,6.283);g.fill();      /* testa */
+    g.beginPath();                                              /* mantello */
+    g.moveTo(-u*2.6,u*3.2);g.lineTo(-u*1.5,-u*0.7);
+    g.quadraticCurveTo(0,-u*1.6,u*1.5,-u*0.7);
+    g.lineTo(u*2.6,u*3.2);g.closePath();g.fill();
+    g.strokeStyle=chiaro;g.lineWidth=u*0.7;
+    g.beginPath();g.moveTo(0,-u*0.4);g.lineTo(0,u*3.0);g.stroke();
+  }else{                                         /* FANTE in piedi */
+    g.lineWidth=u*1.4;
+    g.fillStyle=scuro;
+    g.beginPath();g.arc(0,-u*2.6,u*1.05,0,6.283);g.fill();      /* testa */
+    g.beginPath();                                              /* farsetto */
+    g.moveTo(-u*1.9,u*3.0);g.lineTo(-u*1.2,-u*1.3);
+    g.quadraticCurveTo(0,-u*2.0,u*1.2,-u*1.3);
+    g.lineTo(u*1.9,u*3.0);g.closePath();g.fill();
+    g.strokeStyle=scuro;g.lineWidth=u*1.1;
+    g.beginPath();g.moveTo(u*1.5,-u*0.8);g.lineTo(u*3.0,-u*2.2);g.stroke();  /* braccio */
+    g.fillStyle=chiaro;
+    g.beginPath();g.arc(0,u*0.6,u*0.75,0,6.283);g.fill();       /* bottone */
+  }
+  g.restore();
+}
 // disposizione pip (frazioni W,H) per i valori numerici 1..7
 var SC_PIPS={
   1:[[0.5,0.5]],
@@ -51050,23 +51372,26 @@ function scCardSprite(c,W,H){
     g.fillStyle=st[2];g.textAlign='center';g.textBaseline='middle';
     g.font='bold '+(H*0.16)+'px Russo One, sans-serif';
     g.fillText(nm,W*0.155,H*0.115);
-    g.font=(H*0.115)+'px serif';g.fillText(st[0],W*0.155,H*0.245);
+    scSuitPaint(g,Math.floor(c/10),W*0.155,H*0.255,H*0.13,st[1],st[2]);
     g.save();g.translate(W*0.845,H*0.885);g.rotate(Math.PI);
     g.fillStyle=st[2];g.font='bold '+(H*0.16)+'px Russo One, sans-serif';g.fillText(nm,0,0);
-    g.font=(H*0.115)+'px serif';g.fillText(st[0],0,H*0.13);g.restore();
+    scSuitPaint(g,Math.floor(c/10),0,H*0.135,H*0.13,st[1],st[2]);g.restore();
     // arte centrale
     g.textAlign='center';g.textBaseline='middle';
     if(rk>=8){ // figura: pannello + seme grande + lettera
       g.fillStyle=sette?'rgba(212,175,55,.16)':'rgba(0,0,0,.045)';
       scRR(g,W*0.22,H*0.24,W*0.56,H*0.52,W*0.09);g.fill();
       g.strokeStyle=st[1];g.lineWidth=1.1;scRR(g,W*0.22,H*0.24,W*0.56,H*0.52,W*0.09);g.stroke();
-      g.font=(H*0.28)+'px serif';g.fillText(st[0],W/2,H*0.42);
-      g.fillStyle=st[1];g.font='bold '+(H*0.19)+'px Russo One, sans-serif';g.fillText(nm,W/2,H*0.665);
+      /* Niente nome scritto: nelle carte napoletane non c'e', la figura la
+         dice la lettera nell'angolo — e scritto in mezzo sbatteva sulle gambe. */
+      scFigPaint(g,rk,W/2,H*0.50,W,H,st[1],st[2]);
+      scSuitPaint(g,Math.floor(c/10),W*0.775,H*0.30,H*0.14,st[1],st[2]);
     }else if(rk===1){
-      g.font=(H*0.4)+'px serif';g.fillText(st[0],W/2,H*0.52);
+      scSuitPaint(g,Math.floor(c/10),W/2,H*0.52,H*0.42,st[1],st[2]);
     }else{
-      var pips=SC_PIPS[rk]||SC_PIPS[1];g.font=(H*0.15)+'px serif';
-      for(var p=0;p<pips.length;p++)g.fillText(st[0],W*pips[p][0],H*pips[p][1]);
+      var pips=SC_PIPS[rk]||SC_PIPS[1];
+      for(var p=0;p<pips.length;p++)
+        scSuitPaint(g,Math.floor(c/10),W*pips[p][0],H*pips[p][1],H*0.155,st[1],st[2]);
     }
     if(sette){g.fillStyle='#d4af37';g.font=(H*0.11)+'px serif';g.fillText('✨',W*0.5,H*0.15);}
   });
@@ -51256,6 +51581,11 @@ function scEvent(e){
     scSpawnCard(e.card,true,ox2,oy2,pileX,pileY,Gt.tw,Gt.th,380,20,(Math.random()-0.5)*0.8,1);
     RTD._sc.scPileFlash=mine?'me':'op';RTD._sc.scPileFlashT=performance.now();
     if(e.card===6||got.indexOf(6)>=0)scBurst(pileX+Gt.tw*0.4,pileY+Gt.th*0.4,14,42); // settebello
+  }else if(e.k==='count'){
+    /* IL CONTEGGIO — arrivava dal server e veniva buttato: alla fine della
+       smazzata si vedeva "3 a 2" senza sapere perche'. Ora si tiene e lo
+       disegna rtdDrawScopa. (coda 2, 02/08/2026) */
+    RTD._sc.scCount=e;RTD._sc.scCountT=performance.now();
   }else if(e.k==='scopa'){
     RTD._sc.scSweepT=performance.now();
     var Gs=scGeom(w,hh,1,newT.length);
@@ -51400,8 +51730,90 @@ function rtdDrawScopa(ctx,raw,lp,now,w,hh){
   ctx.font='bold '+(w*0.038)+'px Russo One, sans-serif';ctx.textAlign='center';
   var hint=mine?(sel!=null?(((raw.opts||[])[sel]||[]).length?'tocca la carta del tavolo da prendere':'tocca di nuovo per BUTTARLA'):'tocca una tua carta'):'GIOCA LUI — '+Math.ceil(raw.turn_t||0)+'s';
   ctx.fillText(hint,w/2,hh*0.30);
+  // IL TABELLONE: se la smazzata e' finita, il conteggio copre tutto.
+  if(RTD._sc.scCount)scDrawCount(ctx,RTD._sc.scCount,now,w,hh);
   // memorizza lo stato per il diff delle animazioni (ref, zero-alloc)
   RTD._sc.scPrevT=table;RTD._sc.scPrevH=hand;RTD._sc.scPrevOpp=oppN;
+}
+/* ── IL CONTEGGIO, PUNTO PER PUNTO (coda 2, 02/08/2026) ────────────────────
+   Prima si vedeva solo il punteggio finale: "3 a 2", senza sapere perche'.
+   Qui si vedono le cinque righe con i NUMERI di tutti e due — non solo chi ha
+   vinto la riga — cosi' il totale si puo' rifare a occhio e la primiera
+   smette di essere magia (e' l'unica che nessuno sa calcolare a mente). */
+function scDrawCount(ctx,e,now,w,hh){
+  var me=String(RTD.myId),ids=Object.keys(e.pts||{});
+  if(ids.length<2)return;
+  var op=ids[0]===me?ids[1]:ids[0];
+  if(ids.indexOf(me)<0)op=ids[1];
+  var mio=ids.indexOf(me)>=0?me:ids[0];
+  var ent=Math.min(1,(now-(RTD._sc.scCountT||now))/420);
+  var ease=1-Math.pow(1-ent,3);
+  var PW=Math.min(w*0.86,360),PH=Math.min(hh*0.72,330);
+  var px=(w-PW)/2,py=(hh-PH)/2-hh*0.02+(1-ease)*22;
+  ctx.save();
+  ctx.globalAlpha=0.55*ease;ctx.fillStyle='#05070c';ctx.fillRect(0,0,w,hh);
+  ctx.globalAlpha=ease;
+  ctx.fillStyle='#12151f';
+  if(ctx.roundRect){ctx.beginPath();ctx.roundRect(px,py,PW,PH,14);ctx.fill();}
+  else ctx.fillRect(px,py,PW,PH);
+  ctx.strokeStyle='rgba(255,215,0,.45)';ctx.lineWidth=1.5;
+  if(ctx.roundRect){ctx.beginPath();ctx.roundRect(px,py,PW,PH,14);ctx.stroke();}
+  else ctx.strokeRect(px,py,PW,PH);
+  /* I corpi dei caratteri si legano a UNA misura sola: prima scalavano sulla
+     larghezza mentre le righe scalavano sull'altezza, e su un pannello largo e
+     basso l'intestazione finiva sopra la prima riga. */
+  var U=Math.min(PW,PH*1.05);
+  var cx1=px+PW*0.60,cx2=px+PW*0.82,lx=px+PW*0.07;
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillStyle='#ffd700';ctx.font='bold '+(U*0.062)+'px Russo One, sans-serif';
+  ctx.fillText('CONTEGGIO',px+PW/2,py+PH*0.085);
+  ctx.font='bold '+(U*0.042)+'px Orbitron, monospace';
+  ctx.fillStyle='#9ca3af';
+  ctx.fillText('TU',cx1,py+PH*0.175);ctx.fillText('LUI',cx2,py+PH*0.175);
+  var righe=[
+    ['CARTE',      (e.carte||{})[mio]|0, (e.carte||{})[op]|0, null],
+    ['DENARI',     (e.den||{})[mio]|0,   (e.den||{})[op]|0,   null],
+    ['SETTEBELLO', e.sette===mio?1:0,    e.sette===op?1:0,    'si'],
+    ['PRIMIERA',   (e.prim||{})[mio]|0,  (e.prim||{})[op]|0,  null],
+    ['SCOPE',      (e.scope||{})[mio]|0, (e.scope||{})[op]|0, 'scope']
+  ];
+  var y0=py+PH*0.255,dy=PH*0.108;
+  for(var i=0;i<righe.length;i++){
+    var R=righe[i],y=y0+i*dy;
+    var vinta=(R[3]==='scope')?null:(R[1]>R[2]?1:(R[2]>R[1]?2:0));
+    ctx.textAlign='left';
+    ctx.fillStyle=(R[3]==='scope')?((R[1]||R[2])?'#ffd700':'#9ca3af')
+                 :(vinta===1?'#39ff14':(vinta===2?'#ef4444':'#9ca3af'));
+    ctx.font='bold '+(U*0.044)+'px Inter, system-ui, sans-serif';
+    ctx.fillText(R[0],lx,y);
+    ctx.textAlign='center';
+    var t1=R[3]==='si'?(R[1]?'SI':'--'):String(R[1]);
+    var t2=R[3]==='si'?(R[2]?'SI':'--'):String(R[2]);
+    /* Il SI del settebello va in Inter: in Orbitron "SI" si legge "5I".
+       E le scope, che sono punti gia' contati e quindi non hanno una riga da
+       "vincere", restano in oro invece che in grigio: valgono, e si vede. */
+    var siRow=(R[3]==='si');
+    ctx.font='bold '+(U*(siRow?0.044:0.050))+'px '+(siRow?'Inter, system-ui, sans-serif':'Orbitron, monospace');
+    var c1=vinta===1?'#39ff14':'#e5e7eb',c2=vinta===2?'#ef4444':'#e5e7eb';
+    if(R[3]==='scope'){c1=R[1]>0?'#ffd700':'#6b7280';c2=R[2]>0?'#ffd700':'#6b7280';}
+    if(siRow){c1=R[1]?'#39ff14':'#6b7280';c2=R[2]?'#ef4444':'#6b7280';}
+    ctx.fillStyle=c1;ctx.fillText(t1,cx1,y);
+    ctx.fillStyle=c2;ctx.fillText(t2,cx2,y);
+    ctx.strokeStyle='rgba(255,255,255,.06)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(lx,y+dy*0.42);ctx.lineTo(px+PW*0.93,y+dy*0.42);ctx.stroke();
+  }
+  var pm=(e.pts||{})[mio]|0,po=(e.pts||{})[op]|0;
+  var yt=y0+righe.length*dy+PH*0.045;
+  ctx.textAlign='left';ctx.fillStyle='#ffd700';
+  ctx.font='bold '+(U*0.055)+'px Russo One, sans-serif';ctx.fillText('TOTALE',lx,yt);
+  ctx.textAlign='center';ctx.font='bold '+(U*0.075)+'px Orbitron, monospace';
+  ctx.fillStyle=pm>po?'#39ff14':'#e5e7eb';ctx.fillText(String(pm),cx1,yt);
+  ctx.fillStyle=po>pm?'#ef4444':'#e5e7eb';ctx.fillText(String(po),cx2,yt);
+  ctx.textAlign='center';ctx.font='bold '+(U*0.048)+'px Russo One, sans-serif';
+  ctx.fillStyle=pm>po?'#39ff14':(po>pm?'#ef4444':'#9ca3af');
+  ctx.fillText(pm>po?'HAI VINTO':(po>pm?'HAI PERSO':'PAREGGIO'),px+PW/2,py+PH*0.945);
+  ctx.restore();
+  ctx.textAlign='start';ctx.textBaseline='alphabetic';
 }
 // ═══════════════════════════════════════════════════════════════════
 // MINIGAMES PACK client — SNAKE · BASKET · ARCHERY · QUICK DRAW ·
@@ -52288,17 +52700,25 @@ var BLG_LOOK_DEF={sk:1,hr:1,hc:0,pt:0,tr:0,bt:0,sg:1,nm:0,ce:0,hd:0,sl:0,au:0};
 var BLG_IDXMAX={sk:6,hr:8,hc:7,pt:8,tr:3,bt:7,sg:3,nm:99,ce:7,hd:7,sl:3,au:4};   // = cosmetics_common.DERBY_IDX_MAX (strato 3 sanificazione)
 // Mirror ESATTO di backend._FREE_DERBY + gate derivato dai look_patch del catalogo
 // (il gating VERO e' server-side in _derby_sanitize: qui e' solo UX dell'editor).
-var DB_FREE={sk:[0,1,2,3],hr:[0,1,2,3],hc:[0,1,2,3,4],pt:[0,1,2],tr:[0,1],bt:[0,1,2,3],sg:[0,1],ce:[0,1,2],hd:[0],sl:[0],au:[0]};
-var DB_GATE={hc:{5:['calcio_bomber']},
-  hr:{7:['calcio_stella'],8:['calcio_leggenda']},
+/* CALVO (hr 5) libera dal 02/08/2026: era fuori da DB_FREE e da DB_GATE,
+   quindi il personalizzatore non la mostrava affatto. Non e' un premio. */
+var DB_FREE={sk:[0,1,2,3],hr:[0,1,2,3,5],hc:[0,1,2,3,4],pt:[0,1,2],tr:[0,1],bt:[0,1,2,3],sg:[0,1],ce:[0,1,2],hd:[0],sl:[0],au:[0]};
+/* Le undici opzioni che erano orfane (02/08/2026): esistevano nel gioco ma
+   nessuna sfida le concedeva, quindi la griglia le nascondeva per sempre.
+   Questa tabella DEVE combaciare con COSMETIC_DEFS in backend.py: e' il server
+   a decidere, qui si disegna soltanto. */
+var DB_GATE={hc:{5:['calcio_bomber'],6:['calcio_tikitaka'],7:['calcio_fenomeno']},
+  hr:{4:['calcio_regista'],6:['calcio_street'],7:['calcio_stella'],8:['calcio_leggenda']},
+  sk:{4:['calcio_pallonedoro'],5:['calcio_muro'],6:['calcio_diavolo']},
   pt:{3:['calcio_bomber'],4:['calcio_muro'],5:['calcio_numero10','calcio_pallonedoro'],6:['calcio_regista'],7:['calcio_fenomeno'],8:['calcio_stella']},
   tr:{2:['calcio_capitano','calcio_numero10','calcio_pallonedoro'],3:['calcio_tikitaka']},
   bt:{5:['calcio_tikitaka'],6:['calcio_pallonedoro']},
   sg:{2:['calcio_capitano','calcio_muro','calcio_pallonedoro']},
   ce:{3:['calcio_numero10'],4:['calcio_stella'],5:['calcio_leggenda'],6:['calcio_diavolo'],7:['calcio_pallonedoro']},
-  hd:{1:['calcio_street'],3:['calcio_fenomeno'],5:['calcio_pallonedoro','calcio_leggenda'],6:['calcio_diavolo']},
+  hd:{1:['calcio_street'],2:['calcio_cecchino'],3:['calcio_fenomeno'],4:['calcio_esordiente'],
+      5:['calcio_pallonedoro','calcio_leggenda'],6:['calcio_diavolo'],7:['calcio_stella']},
   sl:{1:['calcio_street'],2:['calcio_regista'],3:['calcio_leggenda']},
-  au:{2:['calcio_fenomeno'],3:['calcio_diavolo'],4:['calcio_pallonedoro','calcio_leggenda']}};
+  au:{1:['calcio_bomber'],2:['calcio_fenomeno'],3:['calcio_diavolo'],4:['calcio_pallonedoro','calcio_leggenda']}};
 var DB_COSNAME={calcio_esordiente:'ESORDIENTE',calcio_cecchino:'CECCHINO',calcio_capitano:'CAPITANO',calcio_muro:'MURO',calcio_tikitaka:'TIKI-TAKA',calcio_bomber:'BOMBER',calcio_numero10:'NUMERO 10',calcio_pallonedoro:'PALLONE D’ORO',calcio_street:'STREET',calcio_regista:'REGISTA',calcio_fenomeno:'FENOMENO',calcio_stella:'STELLA',calcio_diavolo:'DIAVOLO',calcio_leggenda:'LEGGENDA'};
 // normalizza QUALSIASI look (strato 3: clampa, mai sollevare — money game)
 function blgNormLook(l){
@@ -54426,16 +54846,26 @@ function blgDrawCore(ctx,raw,lp,now,w,hh,dt){
     // lati e nei ravvicinati leggeva come una pozza sotto il giocatore.
     ctx.beginPath();ctx.ellipse(px,py+pr*0.50,pr*0.64*(jmp?0.8:1),pr*0.30*(jmp?0.8:1),0,0,6.283);ctx.fill();
     ctx.globalAlpha=1;
-    // ── marcatore "SEI TU": base-ring + chevron nel verso di facing (sempre visibile) ──
+    // ── marcatore "SEI TU": l'anello dice CHI sei ed e' sempre vero, quindi
+    //    resta sempre. Il CHEVRON no: un cuneo che parte dal giocatore e punta
+    //    da qualche parte, in un gioco di calcio, vuol dire una cosa sola —
+    //    LI' VA IL TIRO. Senza palla non va da nessuna parte, e stava mentendo
+    //    dodici volte al minuto. Ora compare col possesso (fl&64), lo stesso
+    //    bit che accende l'anello colorato. (coda 8a, 02/08/2026)
     if(pid===String(RTD.myId)){
       var ypul=0.6+0.4*Math.sin(now/300),ycol=tm===0?'239,68,68':'56,189,248';
       ctx.strokeStyle='rgba('+ycol+','+(0.28+0.32*ypul).toFixed(2)+')';ctx.lineWidth=2*RTD.dpr;
       ctx.beginPath();ctx.arc(px,py,pr+2.4*RTD.dpr,0,6.283);ctx.stroke();
-      ctx.save();ctx.translate(px+sfx*(pr+9*RTD.dpr),py+sfy*(pr+9*RTD.dpr));ctx.rotate(Math.atan2(sfy,sfx));
-      ctx.fillStyle='rgba('+ycol+','+(0.5+0.35*ypul).toFixed(2)+')';
-      var ycs=5.5*RTD.dpr;
-      ctx.beginPath();ctx.moveTo(ycs,0);ctx.lineTo(-ycs,-ycs);ctx.lineTo(-ycs*0.35,0);ctx.lineTo(-ycs,ycs);ctx.closePath();ctx.fill();
-      ctx.restore();
+      if(fl&64){
+        ctx.save();ctx.translate(px+sfx*(pr+9*RTD.dpr),py+sfy*(pr+9*RTD.dpr));ctx.rotate(Math.atan2(sfy,sfx));
+        ctx.fillStyle='rgba('+ycol+','+(0.5+0.35*ypul).toFixed(2)+')';
+        var ycs=5.5*RTD.dpr;
+        ctx.beginPath();ctx.moveTo(ycs,0);ctx.lineTo(-ycs,-ycs);ctx.lineTo(-ycs*0.35,0);ctx.lineTo(-ycs,ycs);ctx.closePath();ctx.fill();
+        ctx.restore();
+      }
+      // dove sei, in coordinate base: serve alla freccia di bordo dopo il
+      // restore della camera (coda 8b). Tre numeri, nessuna allocazione.
+      BLG.myPx=px;BLG.myPy=py;BLG.myCol=ycol;
     }
     ctx.save();
     ctx.translate(px+jx+sfx*ceDx,py+jy+sfy*ceDx-jmp);
@@ -54599,6 +55029,48 @@ function blgDrawCore(ctx,raw,lp,now,w,hh,dt){
     ctx.strokeRect(BLG.offX,BLG.offY,BLG.H*BLG.S,BLG.W*BLG.S);
   }
   ctx.restore();
+  /* ── IL TUO CALCIATORE E' FUORI (coda 8b, 02/08/2026) ─────────────────────
+     La camera insegue la PALLA con zoom 1.6: quando la palla e' lontana il tuo
+     calciatore esce dall'inquadratura e sparisce. Il radar qui sotto mostra
+     tutti ed e' piccolo; non risponde alla domanda "dove sono IO".
+     Freccia sul bordo, spazio-schermo (dopo il restore, come il radar), che
+     punta verso di te e dice quanti metri. Zero costo quando sei in campo. */
+  if(cam.ok&&BLG.myPx!=null&&BLG.S){
+    var fzz=cam.z||1;
+    var fsx=(BLG.myPx-cam.x)*fzz+w/2,fsy=(BLG.myPy-cam.y)*fzz+hh/2;
+    var fmar=30*RTD.dpr;
+    if(fsx<fmar||fsx>w-fmar||fsy<fmar||fsy>hh-fmar){
+      var fdx=fsx-w/2,fdy=fsy-hh/2,fdn=Math.hypot(fdx,fdy)||1;
+      fdx/=fdn;fdy/=fdn;
+      var fhw=w/2-fmar,fhh=hh/2-fmar;
+      var ft=Math.min(Math.abs(fhw/(Math.abs(fdx)<1e-4?1e-4:fdx)),
+                      Math.abs(fhh/(Math.abs(fdy)<1e-4?1e-4:fdy)));
+      var fex=w/2+fdx*ft,fey=hh/2+fdy*ft;
+      var fpul=0.65+0.35*Math.sin(now/240);
+      var fmet=Math.round(fdn/(fzz*BLG.S));            // schermo -> metri di campo
+      ctx.save();
+      ctx.translate(fex,fey);
+      ctx.rotate(Math.atan2(fdy,fdx));
+      var fs=11*RTD.dpr;
+      ctx.fillStyle='rgba(0,0,0,.55)';
+      ctx.beginPath();ctx.moveTo(fs*1.25,0);ctx.lineTo(-fs*0.85,-fs*0.95);
+      ctx.lineTo(-fs*0.85,fs*0.95);ctx.closePath();ctx.fill();
+      ctx.fillStyle='rgba('+BLG.myCol+','+fpul.toFixed(2)+')';
+      ctx.beginPath();ctx.moveTo(fs,0);ctx.lineTo(-fs*0.7,-fs*0.75);
+      ctx.lineTo(-fs*0.7,fs*0.75);ctx.closePath();ctx.fill();
+      ctx.restore();
+      if(fmet>3){
+        ctx.font='bold '+(10*RTD.dpr)+'px Orbitron, monospace';
+        ctx.textAlign='center';ctx.textBaseline='middle';
+        var flx=fex-fdx*20*RTD.dpr,fly=fey-fdy*20*RTD.dpr;
+        ctx.fillStyle='rgba(0,0,0,.6)';
+        ctx.fillText(fmet+'m',flx+1,fly+1);
+        ctx.fillStyle='#fff';
+        ctx.fillText(fmet+'m',flx,fly);
+        ctx.textAlign='start';ctx.textBaseline='alphabetic';
+      }
+    }
+  }
   // ── RADAR (20/07): awareness quando la camera non mostra tutto il campo.
   // Screen-space (post restore), solo fillRect/strokeRect (~15 op: ok anche in
   // lite), alpha ∝ zoom ⇒ sparisce da solo quando si vede il campo intero (ph=1).
@@ -55166,10 +55638,35 @@ var SC={
                   // rate (il vecchio min(1,7*dt) era lineare: a 30fps smorzava il
                   // doppio che a 60 e la camera "scattava"). Y piu' reattivo di X
                   // perche' la salita e' l'asse che conta.
-  CAMDZ:0.06,     // dead-zone della camera in celle: sotto questo scarto il target
-                  // NON muove la camera (anti-tremolio quando il giocatore e' fermo
-                  // e la prediction oscilla di frazioni di cella).
+  CAMDZ:0.18,     // dead-zone della camera in celle, in CAMMINO. E' una SCATOLA, non
+                  // una soglia: lo scarto target-camera viene RIDOTTO di questo valore
+                  // prima del follow (vedi il blocco FOLLOW in rtdDrawScalata), quindi
+                  // dentro la scatola la camera sta ferma e appena ne esce riparte da
+                  // velocita' ZERO. PERCHE' alzata da 0.06: con la vecchia soglia il
+                  // valore andava tenuto minuscolo, perche' superarlo faceva partire
+                  // la camera a velocita' piena (gradino); una scatola vera si puo'
+                  // permettere di essere larga. 0.18 su una mezza finestra alta di
+                  // ~4.5 celle (vhU = vh*ANCH con VIEW=10) e' il 4% del campo utile:
+                  // assorbe il rumore della prediction e il beccheggio delle
+                  // piattaforme mobili, non assorbe il moto vero.
+  CAMDZF:0.05,    // la stessa scatola IN CADUTA (SC.predVy<0: la gravita' sottrae,
+                  // vedi sclPhysics), quasi chiusa. PERCHE': in caduta il terreno
+                  // arriva addosso e ogni frazione di cella di ritardo e' lettura
+                  // tolta al giocatore proprio nel momento in cui deve decidere; il
+                  // tremolio, li', non e' il problema piu' grosso.
+  CAMDZX:0.45,    // scatola in X. PERCHE' piu' larga della Y: in orizzontale il target
+                  // porta gia' tre termini smorzati che si muovono da soli (bias verso
+                  // nextCx, leadX proporzionale a vx, aim-camera) su una mezza finestra
+                  // da 5 celle. Senza una scatola larga la camera insegue di continuo
+                  // spostamenti che il giocatore non ha chiesto.
   AIMCAM_FRAC:0.50,AIMCAM_MAXX:3.8,AIMCAM_MAXY:3.5,   // C3 §4.4: aim-camera — offset della camera verso l'endpoint (frazione + cap celle X/Y) mentre si mira rampino/catena col drag; IN 1-exp(-8dt)/OUT 1-exp(-5dt). Client-only, nessun xcheck.
+  /* Il tetto del debito di render MENTRE SI GIOCA (03/08/2026). Era 190 per
+     tutti, e 190 ms di mondo vecchio in una corsa dove la lava e' l'orologio
+     sono informazione falsa, non rifinitura. Adesso 190 resta solo alla
+     kill-cam — li' il gioco per te e' finito e nessun dato ti serve piu'.
+     Cosi' la soglia che il piano voleva VERIFICARE su un telefono e' imposta
+     prima: il p99 non puo' sforare perche' il massimo non puo' sforare. */
+  HITSTOPLIVE:110,
   HITSTOPMAX:190,   // v6 §1.5 (C6): render-hitstop CLIENT-ONLY, sim-safe. Tetto (ms) del clock-virtuale SC.vo congelato sui beat d'impatto (wall-jump/rampino-teso/trampolino/graze/petardo). Riusa il MECCANISMO SC.vo (pattern derby BLG.hsT): congela SOLO il render, MAI la sim (le posizioni restano byte-identiche al server). ~3 frame @60fps.
   TROWS:18,TCOLS:8,CBAKE:56,BPU:13,   // §4: tile 8×18 a 56px/cella (448×1008), decal 13px/u
   // ── MIRROR climb_rt v3 PLATFORMER (§2 — bit-identici, gate xcheck §7.m). y
@@ -55664,15 +56161,66 @@ var SCL_CAUSE={blade:'lama rotante',press:'pressa',laser:'laser',spike:'punte',b
 // wl = SUPERFICIE CALPESTABILE (la banda piu chiara del frame), acc = appiglio.
 // Il settore 4 "CIELO" era azzurro brillante (#7fc9f2) con piattaforme oro:
 // contrasto quasi nullo, la causa visiva dell'"accozzaglia". Ora e' notturno.
+/* Chiavi AGGIUNTE il 02/08/2026 per i passi 3 e 9 — quelle vecchie non si
+   toccano, cosi' nessun'altra pittura cambia:
+     shellA  le due tinte del guscio (righe alterne), gia' in rgba: il bake non
+             deve MAI costruire una stringa di colore (regola 4 della spec)
+     haze    la foschia dentro la campata: e' semitrasparente, ed e' da li' che
+             si vede il fondo
+     bays    quante campate per modulo 11x8: 0 = settore chiuso (il basecamp
+             resta una cantina), 2 = spalancato (la vetta)
+     far/mid le tinte dei due piani di sfondo. SCHIARISCONO con la quota
+             (nebbia 0,10 -> 0,46) mentre il corpo dei solidi resta scuro: in
+             basso leggi il bordo chiaro su fondo scuro, in alto la sagoma
+             scura su fondo chiaro, e il passaggio fra le due letture E'
+             l'altezza. */
 var SCL_BIO=[
-  {bg:'#0f131a',bg2:'#0c1016',wall:'#3d4a5c',wl:'#cfdcee',acc:'#8aa2bd'},
-  {bg:'#0d1512',bg2:'#0a1210',wall:'#33513f',wl:'#b6ebcd',acc:'#4ade80'},
-  {bg:'#17100c',bg2:'#120c09',wall:'#5e3a22',wl:'#f4c69e',acc:'#f97316'},
-  {bg:'#110c1d',bg2:'#0d0917',wall:'#3d2c60',wl:'#dcc9f7',acc:'#c084fc'},
-  {bg:'#131d29',bg2:'#0f1822',wall:'#44586e',wl:'#d8e9fa',acc:'#7dd3fc'},
-  {bg:'#16120a',bg2:'#110e08',wall:'#4d3c17',wl:'#f6e2a6',acc:'#facc15'},
-  {bg:'#141014',bg2:'#0d0a0d',wall:'#4d3c17',wl:'#f8e8bd',acc:'#fde68a'}
+  {bg:'#0f131a',bg2:'#0c1016',wall:'#1b2027',wl:'#cfdcee',acc:'#8aa2bd',
+   shellA:['rgba(15,19,26,.90)','rgba(12,16,22,.87)'],haze:'rgba(120,140,170,.10)',
+   warn:'#f2c200',bays:0,far:'rgba(120,140,170,.10)',mid:'rgba(120,140,170,.14)'},
+  {bg:'#0d1512',bg2:'#0a1210',wall:'#1b2422',wl:'#b6ebcd',acc:'#4ade80',
+   shellA:['rgba(13,21,18,.90)','rgba(10,18,16,.87)'],haze:'rgba(90,150,120,.13)',
+   warn:'#f2c200',bays:1,far:'rgba(90,150,120,.16)',mid:'rgba(90,150,120,.21)'},
+  {bg:'#17100c',bg2:'#120c09',wall:'#221f1c',wl:'#f4c69e',acc:'#f97316',
+   shellA:['rgba(23,16,12,.90)','rgba(18,12,9,.87)'],haze:'rgba(180,110,70,.15)',
+   warn:'#f2c200',bays:1,far:'rgba(180,110,70,.22)',mid:'rgba(180,110,70,.29)'},
+  {bg:'#110c1d',bg2:'#0d0917',wall:'#1f1c2b',wl:'#dcc9f7',acc:'#c084fc',
+   shellA:['rgba(17,12,29,.90)','rgba(13,9,23,.87)'],haze:'rgba(140,110,200,.16)',
+   warn:'#f2c200',bays:2,far:'rgba(140,110,200,.28)',mid:'rgba(140,110,200,.36)'},
+  {bg:'#131d29',bg2:'#0f1822',wall:'#1e2531',wl:'#d8e9fa',acc:'#7dd3fc',
+   shellA:['rgba(19,29,41,.90)','rgba(15,24,34,.87)'],haze:'rgba(110,150,200,.18)',
+   warn:'#f2c200',bays:2,far:'rgba(110,150,200,.34)',mid:'rgba(110,150,200,.44)'},
+  {bg:'#16120a',bg2:'#110e08',wall:'#232130',wl:'#f6e2a6',acc:'#facc15',
+   shellA:['rgba(22,18,10,.90)','rgba(17,14,8,.87)'],haze:'rgba(190,160,80,.20)',
+   warn:'#f2c200',bays:2,far:'rgba(190,160,80,.40)',mid:'rgba(190,160,80,.50)'},
+  {bg:'#141014',bg2:'#0d0a0d',wall:'#212834',wl:'#f8e8bd',acc:'#fde68a',
+   shellA:['rgba(20,16,20,.90)','rgba(13,10,13,.87)'],haze:'rgba(230,200,120,.22)',
+   warn:'#f2c200',bays:2,far:'rgba(230,200,120,.46)',mid:'rgba(230,200,120,.56)'}
 ];
+/* Le tre leghe del grigliato (passo 5). La scelta dipende SOLO dalla riga
+   ((r*13)%3), quindi e' costante lungo tutto il run e uguale per tutti:
+   acciaio freddo, ferro caldo, zinco chiaro. */
+var SCL_STEEL=[['#8b95a6','#5a6473'],['#a08160','#6b5236'],['#9aa39b','#646c64']];
+/* Le 56 tinte del bagliore della lava, a passo 0,25 di cella (0..14).
+   Costruita UNA volta al caricamento: nel ciclo di disegno il colore si legge,
+   non si compone. 56 e non 14 perche' `lv` arriva col decimale e la rampa e'
+   continua: a 14 gradini il bagliore scatterebbe a ogni cella intera, e un
+   pop periodico su un segno di minaccia e' peggio del difetto che togliamo. */
+var SCL_LAVAL=(function(){
+  var a=[],i,d;
+  for(i=0;i<56;i++){
+    d=i/4;
+    a.push('rgba(255,'+(90+((d*6)|0))+',30,'+(0.30*(14-d)/14).toFixed(3)+')');
+  }
+  return a;
+})();
+/* CAMPATA: ogni 11x8 celle il guscio si apre. E' l'unica ragione per cui i
+   piani di sfondo esistono davvero invece di essere ridipinti al 99,95%. */
+function sclBay(gx,r,sec){
+  var nb=SCL_BIO[sec].bays;if(!nb)return 0;
+  var mx=((gx%11)+11)%11,my=((r%8)+8)%8,wdt=nb>=2?6:5;
+  return (mx>=2&&mx<=1+wdt&&my>=1&&my<=4)?1:0;
+}
 var SCL_COLS=['#f87171','#38bdf8','#a3e635','#facc15','#c084fc','#fb923c','#2dd4bf','#f472b6','#e5e7eb','#94a3b8'];
 // mix del seat color verso bianco/nero per l'ombreggiatura a 2 toni (cache: i seat
 // sono 10 fissi, la key e' col+'|'+t) — zero alloc a regime.
@@ -55899,7 +56447,11 @@ function sclLavaSnd(on,prox){
       var lp=c.createBiquadFilter();lp.type='lowpass';lp.frequency.value=210;lp.connect(SCA.g);
       SCA.s=c.createBufferSource();SCA.s.buffer=b;SCA.s.loop=true;SCA.s.playbackRate.value=0.5;SCA.s.connect(lp);SCA.s.start();
     }
-    if(SCA.s)SCA.g.gain.setTargetAtTime(on?(0.006+0.075*prox):0.0001,TWS.ctx.currentTime,0.2);
+    /* `gv` e' il volume NUDO del tappeto, quello senza duck: il tick ci
+       moltiplica sopra il fattore. Senza memoria, un duck che arriva mentre
+       il tappeto e' fermo non saprebbe a quale valore tornare. */
+    if(SCA.s){SCA.gv=on?(0.006+0.075*prox):0.0001;
+      SCA.g.gain.setTargetAtTime(Math.max(0.0001,SCA.gv*SCDK.k),TWS.ctx.currentTime,0.2);}
   }catch(e){}
 }
 // §7.4 v3: loop WALL-SLIDE del MIO player — bed persistente (pattern sclLavaSnd):
@@ -55914,7 +56466,8 @@ function sclSlideSnd(on){
       var bp=c.createBiquadFilter();bp.type='bandpass';bp.frequency.value=1100;bp.Q.value=0.9;bp.connect(SCWS.g);
       SCWS.s=c.createBufferSource();SCWS.s.buffer=b;SCWS.s.loop=true;SCWS.s.playbackRate.value=1.15;SCWS.s.connect(bp);SCWS.s.start();
     }
-    if(SCWS.s)SCWS.g.gain.setTargetAtTime(on?0.028:0.0001,TWS.ctx.currentTime,0.06);
+    if(SCWS.s){SCWS.gv=on?0.028:0.0001;
+      SCWS.g.gain.setTargetAtTime(Math.max(0.0001,SCWS.gv*SCDK.k),TWS.ctx.currentTime,0.06);}
   }catch(e){}
 }
 // ── V4 §4.3.1 (C4): BED AUDIO di carica trappole — parte a t_kill−tele (u≥tl)
@@ -55967,8 +56520,51 @@ var SCL_AMB=[
   {g:0.006,lp:520,hp:30,pr:0.50,hz:88,hg:0.017,ac:null,ap:0},         // 5 caveau: ronzio dorato
   {g:0.006,lp:520,hp:30,pr:0.50,hz:88,hg:0.019,ac:null,ap:0}          // 6 vetta/caveau
 ];
+/* ── LA STANZA (lotto 6, 02/08/2026) ──────────────────────────────────────
+   `SCDK.k` e' il fattore che moltiplica TUTTI i tappeti: 1 = nessun duck.
+   Scende di colpo quando succede qualcosa che conta e risale in ~380 ms.
+   Il valore vive qui e lo applica solo `sclDuckTick`: i tappeti non sanno
+   niente del duck, moltiplicano e basta. */
+var SCDK={k:1,dep:0,t0:0,dur:380};
+function sclDuck(dep,ms){
+  var nw=performance.now();
+  /* Il confronto va fatto col duck RESIDUO in questo istante, non con quello
+     di partenza — e' la stessa regola con cui sclShake decide se un colpo
+     nuovo vince su uno ancora vivo.
+     Provato, e il primo tentativo sbagliava: confrontando la profondita'
+     ORIGINALE, due colpi uguali ravvicinati facevano un duck solo e il
+     secondo — quello che vuoi sentire — restava senza stanza. Col residuo,
+     il secondo riarma; e un colpo piu' debole non ruba comunque la stanza a
+     uno piu' forte ancora in corso. */
+  var u=SCDK.t0?(nw-SCDK.t0)/SCDK.dur:1;
+  var res=(u<1)?SCDK.dep*(1-u):0;
+  if(dep>=res){SCDK.dep=dep;SCDK.t0=nw;SCDK.dur=Math.max(120,ms|0||380);}
+}
+function sclDuckTick(now){
+  var k=1;
+  if(SCDK.t0){
+    var u=(now-SCDK.t0)/SCDK.dur;
+    if(u<1)k=1-SCDK.dep*(1-u)*(1-u);          // giu' secco, ritorno morbido
+    else{SCDK.t0=0;SCDK.dep=0;}
+  }
+  if(Math.abs(k-SCDK.k)<0.004)return;          // niente scritture inutili
+  SCDK.k=k;
+  if(!TWS.ctx)return;
+  var t=TWS.ctx.currentTime;
+  /* Il fattore si applica QUI, su tutti i tappeti, e non dentro le guardie
+     che ognuno ha per non riscrivere un gain fermo: se no un tappeto che non
+     cambia — la lava mentre sei lontano, l'ambiente mentre resti nel settore —
+     non si abbasserebbe mai, e dopo la morte resterebbe abbassato per sempre. */
+  try{
+    if(SCAM.g&&SCAM.gv!=null)SCAM.g.gain.setTargetAtTime(Math.max(0.0001,SCAM.gv*k),t,0.05);
+    if(SCAM.og&&SCAM.ogv!=null)SCAM.og.gain.setTargetAtTime(Math.max(0.0001,SCAM.ogv*k),t,0.05);
+    if(SCA.g&&SCA.gv!=null)SCA.g.gain.setTargetAtTime(Math.max(0.0001,SCA.gv*k),t,0.05);
+    if(SCWS.g&&SCWS.gv!=null)SCWS.g.gain.setTargetAtTime(Math.max(0.0001,SCWS.gv*k),t,0.05);
+  }catch(e){}
+}
 function sclAmb(sec,now){
   if(!TWS.ctx||!TWS.on){
+    SCAM.gv=0.0001;SCAM.ogv=0.0001;
     if(SCAM.g)try{SCAM.g.gain.setTargetAtTime(0.0001,TWS.ctx.currentTime,0.15);
                   SCAM.og.gain.setTargetAtTime(0.0001,TWS.ctx.currentTime,0.15);}catch(e){}
     return;
@@ -55988,12 +56584,18 @@ function sclAmb(sec,now){
     if(SCAM.sec!==sec){   // CROSSFADE ~1s al cambio settore della camera (§4)
       SCAM.sec=sec;
       var t=TWS.ctx.currentTime;
-      SCAM.g.gain.setTargetAtTime(d.g,t,0.35);
+      /* Anche QUI il fattore: sclAmb riscrive i gain col valore grezzo della
+         tabella a ogni cambio di settore, e senza il duck bastava cambiare
+         bioma durante un colpo per annullare la stanza. (lotto 6) */
+      SCAM.gv=d.g;
+      SCAM.g.gain.setTargetAtTime(Math.max(0.0001,d.g*SCDK.k),t,0.35);
       SCAM.lp.frequency.setTargetAtTime(d.lp,t,0.35);
       SCAM.hp.frequency.setTargetAtTime(d.hp,t,0.35);
       SCAM.s.playbackRate.setTargetAtTime(d.pr,t,0.35);
-      if(d.hz){SCAM.osc.frequency.setTargetAtTime(d.hz,t,0.35);SCAM.og.gain.setTargetAtTime(d.hg,t,0.35);}
-      else SCAM.og.gain.setTargetAtTime(0.0001,t,0.35);
+      if(d.hz){SCAM.osc.frequency.setTargetAtTime(d.hz,t,0.35);
+               SCAM.ogv=d.hg;
+               SCAM.og.gain.setTargetAtTime(Math.max(0.0001,d.hg*SCDK.k),t,0.35);}
+      else{SCAM.ogv=0.0001;SCAM.og.gain.setTargetAtTime(0.0001,t,0.35);}
     }
     // accenti: one-shot con jitter, MAI per frame (stessa disciplina del wind-up)
     if(d.ac&&now-SCAM.accT>d.ap){SCAM.accT=now+Math.random()*d.ap*0.6;TWS.play(d.ac,0.45+Math.random()*0.3);}
@@ -56007,10 +56609,37 @@ function sclAmb(sec,now){
 //    server restano byte-identiche. `sev` = 1..4 frame → durata ms (≈16.7ms/frame). ──
 function sclHitstop(sev){
   if(RTD.game!=='scalata'||!window.SC)return;
-  var ms=Math.max(1,Math.min(4,sev|0))*17;
+  /* IL CANCELLO (lotto 4, 02/08/2026). PERCHE': SC.vo non e' "il freeze di
+     questo colpo", e' l'UNICO orologio con cui sclLerp pesca dal buffer, e
+     ogni ms di finestra lo fa arretrare di 1 ms fino a HITSTOPMAX=190. Con i
+     beat concatenati (rampino, colpo, spintone, atterraggio) si incolla al
+     tetto e allora il quadro intero — altezza della lava, fasi delle
+     trappole, posizioni dei rivali — viene disegnato fino a 275 ms nel
+     passato mentre la mia prediction sta a t=0. In una corsa dove la lava e'
+     l'orologio, e a soldi veri, quello non e' un effetto: e' informazione
+     falsa. Oltre 110 ms di debito il beat si RINUNCIA. */
+  if((SC.vo||0)>110)return;
   var nw=performance.now();
+  /* Contatore degli armamenti su finestra scorrevole da 1 s: nessuna
+     allocazione, e serve perche' la soglia di rilascio del lotto (6/s) va
+     letta, non stimata. */
+  if(nw-(SC.hsW||0)>1000){if((SC.hsN|0)>(SC.hsPk|0))SC.hsPk=SC.hsN|0;SC.hsN=0;SC.hsW=nw;}
+  SC.hsN=(SC.hsN|0)+1;
+  var ms=Math.max(1,Math.min(4,sev|0))*17;
   SC.hsT=Math.max(SC.hsT||0,nw+ms);
 }
+/* Il verbale del debito, da chiamare A MANO dalla console a fine partita.
+   Alloca una stringa, ma NON sta nel ciclo di disegno: e' l'unico modo di
+   leggere l'istogramma da un telefono collegato, che e' l'unica misura che
+   conti (sul PC il dpr e il fill-rate sono un altro gioco). */
+window.sclVoStat=function(){
+  if(!window.SC||!SC.voH)return 'nessuna misura';
+  var n=SC.voN||1,acc=0,p99=200,i,over=0;
+  for(i=0;i<20;i++){acc+=SC.voH[i];if(acc/n>=0.99){p99=i*10+10;break;}}
+  for(i=15;i<20;i++)over+=SC.voH[i];
+  return 'vo p99='+p99+'ms  max='+Math.round(SC.voMax||0)+'ms  oltre150='
+        +((over/n)*100).toFixed(2)+'%  hitstop-picco='+(SC.hsPk|0)+'/s  fotogrammi='+n;
+};
 
 // ── SCREEN-SHAKE CALIBRATO PER TRAPPOLA (POLISH §3): direzionale + decadimento
 //    quadratico, con CAP GLOBALE anti-nausea sull'ampiezza applicata. Non usa
@@ -56025,7 +56654,14 @@ var SCL_SHK={
   spike: {dur:150,amp:4.0,f:44,dx:0,dy:1,rum:0},
   laser: {dur:120,amp:2.6,f:52,dx:1,dy:0,rum:0},
   wall:  {dur:260,amp:5.5,f:24,dx:1,dy:0,rum:0},
-  graze: {dur:110,amp:2.4,f:58,dx:0,dy:0,rum:1}      // near-miss: micro-shake (§2)
+  graze: {dur:110,amp:2.4,f:58,dx:0,dy:0,rum:1},     // near-miss: micro-shake (§2)
+  /* Il masso non può usare `crush`: SC.rockT lo ri-arma ogni 260 ms e crush
+     dura 900, quindi terrebbe il canale (winner-takes-all) per tutta la
+     discesa e mangerebbe ogni graze e metà degli spike di atterraggio.
+     300 ms si spengono PRIMA del ri-armo successivo: il masso avvisa senza
+     occupare. dx/dy espliciti perché con rum:1 sclShake li legge comunque:
+     senza, s.dx resta undefined e ox diventa NaN (torre invisibile). */
+  rumble:{dur:300,amp:3.0,f:9,dx:0,dy:0,rum:1}
 };
 function sclShake(kind,vol,dx,dy){
   var d=SCL_SHK[kind];if(!d)return;
@@ -56040,6 +56676,15 @@ function sclShake(kind,vol,dx,dy){
   s.dx=(dx!=null?dx:d.dx);s.dy=(dy!=null?dy:d.dy);
   var m=Math.hypot(s.dx,s.dy);
   if(m>0.001){s.dx/=m;s.dy/=m;}
+  /* LA STANZA (lotto 6): ogni colpo che scuote la torre abbassa anche i
+     tappeti, in proporzione a quanto scuote. Sta QUI e non sparso nei
+     trenta rami del feed perche' dal lotto 1 sclShake e' l'unico ingresso
+     degli impatti di Dead Peak: un posto solo da tarare, e nessun evento
+     che si dimentica di fare spazio al proprio suono.
+     La profondita' viene dall'ampiezza REALE gia' calcolata (quindi tiene
+     conto del volume passato e del tetto), non dal nome dell'evento. */
+  if(typeof sclDuck==='function')
+    sclDuck(Math.min(0.55,0.18+0.045*amp),Math.max(220,Math.min(520,d.dur)));
 }
 
 // ── DEAD PEAK v6 §2.5 (C4): SCALA giallo-cantiere ancorata alla base (0,0)
@@ -56105,6 +56750,71 @@ function sclGrazeEv(e){
     if(!SC.flash)SC.flash={t0:_gn,dur:300,a:0.20,col:'#d81b3c',vig:1};
     TWS.play('sclHeart',0.9);
     try{tg.HapticFeedback&&tg.HapticFeedback.impactOccurred('light');}catch(_g){}
+  }
+}
+
+/* ── L'IMPATTO CHE NON UCCIDE (lotto 4, 02/08/2026) — consuma il feed `hit`
+   di climb_rt (_hit_ev, V7 §W5b: seat = indice row come 'graze', kdx/kdy
+   quantizzati x10 con lo STESSO decoder dello splat, i 0..9 dalla forza,
+   w=1 solo quando il corpo NON si e' mosso). Lo emette ogni _knock:
+   piccozza, catena, petardo, masso, pistone, rullo — cioe' il colpo piu'
+   comune del PvP, che fino a oggi finiva nel ramo generico degli altri
+   giochi e suonava 'puckhit'.
+   Due scelte dichiarate, e non sono estetiche:
+    · w=1 NON vuol dire "sbattuto contro il muro". Il motore lo emette anche
+      per chi e' ancorato alla catena e ha RESISTITO (climb_rt 4541): nessun
+      muro, nessuno spostamento. Per questo lo stampo e' il neutro COLPITO! e
+      per questo con w=1 non si butta polvere direzionale contro una parete
+      che puo' non esserci: si resta addosso al corpo.
+    · cancello di visibilita' PRIMA di toccare il pool: un colpo quaranta
+      piani sotto non e' nel quadro, non e' mai silenzioso (il volume ha un
+      pavimento) e si porterebbe via fino a 12 dei 96 slot delle particelle.
+      Fuori dalle 5 righe si esce subito; il mio colpo passa sempre. ── */
+function sclHitEv(e){
+  var raw=RTD.lastRaw;if(!raw||!raw.p||!window.SC)return;
+  var seat=e.seat|0,row=raw.p[seat];
+  if(!row)return;
+  var mine=String(row[0])===String(RTD.myId);
+  var dy=Math.abs(row[2]-(SC.myY||0));
+  if(!mine&&dy>5)return;
+  var iv=Math.max(0,Math.min(9,e.i|0))/9;
+  var dv=mine?1:Math.max(0.22,1-dy/9);
+  var cell=SC.cell||40,now=performance.now();
+  var px=SC.ox+row[1]*cell,py=SC.hh2+(SC.cam.y-row[2])*cell;
+  var kx=(e.kdx|0)/10,ky=(e.kdy|0)/10,kl=Math.sqrt(kx*kx+ky*ky);
+  if(kl<0.001){kx=0;ky=-1;kl=1;}
+  kx/=kl;ky/=kl;
+  /* freno da 90 ms sui colpi altrui: una spazzata di piccozza fa piu' eventi
+     nello stesso tick e gli avvii audio sono un budget condiviso con i
+     wind-up delle trappole, che valgono di piu' (dicono cosa STA per
+     succedere). Il mio colpo non si frena mai. */
+  if(mine||now-(SC.hitST||0)>90){
+    SC.hitST=now;
+    // 'punch' e' gia' il vocabolario del CORPO che incassa (spintone, bump):
+    // il suono della sorgente lo ha suonato la trappola, non lo si raddoppia
+    TWS.play('punch',(mine?0.7:0.42)*dv*(0.55+0.45*iv));
+  }
+  if(e.w){
+    // il corpo ha retto: scintille strette addosso, nessuna scia di
+    // spostamento, perche' spostamento non ce n'e' stato
+    for(var i2=0;i2<(mine?7:4);i2++){
+      var a2=Math.random()*6.283,sp2=(50+Math.random()*130)*RTD.dpr;
+      sclP(px,py-SC.PR*cell*0.9,Math.cos(a2)*sp2,Math.sin(a2)*sp2,
+           170+Math.random()*150,(i2&1)?'#fde68a':'#cbd5e1',
+           (1+Math.random()*1.2)*RTD.dpr,80*RTD.dpr,0,0.93);
+    }
+  }else{
+    // il corpo e' partito: la polvere segue il verso della spinta vera
+    sclDust(px,py+SC.PR*cell*0.25,mine?6:4,kx>=0?1:-1,0.5+0.6*iv,'rgba(203,213,225,.55)');
+  }
+  if(mine){
+    sclShake('spike',0.35+0.45*iv);
+    sclHitstop(iv>0.55?2:1);
+    // se il colpo ha ucciso parla la morte, non l'impatto: stampo solo da vivo
+    if((row[3]|0)&1)rtdStamp('COLPITO!','#f87171');
+    // haptic dal dizionario condiviso e nel rispetto di HAP.on: il feed `hit`
+    // della scalata non ha `who`/`victim`, quindi hapDaFeed non scatta mai
+    try{if(HAP&&HAP.on)hapGioco(iv>0.55?'colpito':'colpo');}catch(_hh){}
   }
 }
 
@@ -58718,6 +59428,11 @@ function rtdBuildScalata(){
   SC.cam.ok=false;SC.lead=0;SC.leadX=0;SC.vo=0;SC.slowT=0;SC.koCam=null;SC.flash=null;SC.anim={};
   SC.aimCamX=0;SC.aimCamY=0;   // C3 §4.4: offset camera-mira smorzato (reset a inizio match)
   SC.hsT=0;SC.fxT=0;SC.streakT=0;SC.coyT=0;SC.mpV=0;SC.pWs=0;   // v6 §1.2/§1.3/§1.5/§1.6 (C6): reset render-hitstop + edge-detect FEEL
+  /* LOTTO 4 — la contabilita' del debito di render, azzerata a ogni match.
+     L'array si alloca UNA volta sola e si riusa: un match non deve mai
+     pagare memoria per una misura, o la misura cambia cio' che misura. */
+  if(!SC.voH)SC.voH=new Uint16Array(20);
+  SC.voH.fill(0);SC.voN=0;SC.voMax=0;SC.hsN=0;SC.hsW=0;SC.hsPk=0;SC.hitST=0;
   SC.crRef=null;SC.trailT=0;SC.emberT=0;SC.rockT=0;SC.startAt=performance.now();
   // ── ITEMS: reset stato slot/mirror (mySeat ricavato dalla prima row §4.2) ──
   SC.mySeat=-1;SC.myItem=0;SC.myUses=0;SC.itemDown=0;SC.hudIt=-1;
@@ -58887,6 +59602,15 @@ function rtdBuildScalata(){
   //    (nessun bordo montabile sopra) → segno il lato esposto in muteA. Render = anelli
   //    di pietra scolpiti (affordance). Zero costo per-frame (solo celle in vista). ──
   SC.muteA=new Uint8Array(SC.W*SC.H);
+  /* NGRAB (02/08/2026): le celle dove il server NEGA la presa. Arrivano da
+     map_info; se la chiave manca (server vecchio) resta tutto a zero e si
+     torna al comportamento di prima, senza rompere niente. */
+  SC.ngrabA=new Uint8Array(SC.W*SC.H);
+  var _ng=(RTD.map&&RTD.map.ngrab)||[];
+  for(var _ni=0;_ni<_ng.length;_ni++){
+    var _nx=_ng[_ni][0]|0,_ny=_ng[_ni][1]|0;
+    if(_nx>=0&&_nx<SC.W&&_ny>=0&&_ny<SC.H)SC.ngrabA[_ny*SC.W+_nx]=1;
+  }
   var _mrun=function(mx,my){var t=my;while(t<SC.H&&SC.wallA[t*SC.W+mx]===1)t++;return t-my;};
   for(var _mx=0;_mx<SC.W;_mx++)for(var _my=0;_my<SC.H;_my++){
     if(SC.wallA[_my*SC.W+_mx]!==1)continue;
@@ -58993,6 +59717,39 @@ function rtdBuildScalata(){
     else if(o.tid==='O')o.x0=o.x+0.5;
     SC.traps.push(o);
   }
+  /* ── LA VERNICE DI PERICOLO (passo 8, 02/08/2026): dove fa male, e dove
+     uccide. Presa dal DATO VERO del server — lb0/lb1 sono i bordi reali del
+     run, r0/r1 la banda letale esatta di lame e pendoli — non da una
+     approssimazione per tid: un segno di pericolo che mente e' peggio di
+     nessun segno. Si costruisce QUI, una volta, e sclTileCv la legge:
+     zero operazioni per fotogramma. 0=niente 1=fa male 2=uccide. */
+  SC.hazA=new Uint8Array(SC.W*SC.H);
+  var _hz=function(hx,hy,lv){
+    if(hx<0||hx>=SC.W||hy<0||hy>=SC.H)return;
+    var hi=hy*SC.W+hx;
+    if(SC.hazA[hi]<lv)SC.hazA[hi]=lv;
+  };
+  for(var _ti=0;_ti<SC.traps.length;_ti++){
+    var _o=SC.traps[_ti],_id=_o.tid;
+    if(_id==='R'||_id==='D'){
+      // lame e pendoli: la banda letale e' r0..r1 attorno al perno, sul run
+      var _y0=Math.floor(_o.y+(_o.pyo|0)+(+_o.r0||0)),
+          _y1=Math.ceil(_o.y+(_o.pyo|0)+(+_o.r1||0));
+      if(_y1<_y0){var _sw=_y0;_y0=_y1;_y1=_sw;}
+      for(var _hx=(_o.lb0|0);_hx<=(_o.lb1|0);_hx++)
+        for(var _hy=_y0;_hy<=_y1;_hy++)_hz(_hx,_hy,2);
+    }else if(_id==='L'||_id==='S'||_id==='C'){
+      var _cs=_o.cells||null;
+      if(_cs){for(var _ci=0;_ci<_cs.length;_ci++)_hz(_cs[_ci]|0,_o.y|0,2);}
+      else{for(var _lx=0;_lx<(_o.len||1);_lx++)_hz((_o.x|0)+_lx,_o.y|0,2);}
+    }else if(_id==='W'){
+      for(var _wx=0;_wx<(_o.len||3);_wx++)_hz((_o.x0|0)+_wx,_o.y|0,2);
+    }else if(_id==='O'||_id==='B'){
+      // spazzanti: coprono tutto il run. Livello 1 (ambra), se no il quadro
+      // diventa un muro giallo e il segno smette di dire qualcosa.
+      for(var _sx=(_o.lb0|0);_sx<=(_o.lb1|0);_sx++)_hz(_sx,_o.y|0,1);
+    }
+  }
   // layer decal sangue PERSISTENTE full-map a bassa risoluzione 13px/u
   // (SCALATA_WIDE §4: 32×13 = 416 × 92×13 = 1196 px, sotto ogni cap)
   var bw=SC.W*SC.BPU,bh=SC.H*SC.BPU;
@@ -59047,10 +59804,44 @@ function sclTileCv(tc,trw){
   // fondo bioma per riga (righe alternate = corsi di mattoni) + tinta identità via
   for(r=topRow;r>=gy0;r--){
     yy=(topRow-r)*CB;
-    if(r>=SC.H){c.fillStyle='#0b0910';c.fillRect(0,yy,cv.width,CB+1);continue;}
+    /* PASSO 3 (02/08/2026) — il fondo non e' piu' opaco.
+       Qui prima si riempiva OGNI riga a tutta larghezza con un colore pieno:
+       il tile copriva sempre la finestra e cielo + parallax venivano ridipinti
+       sopra al 99,95%. Ora il guscio si dipinge cella per cella e dentro le
+       CAMPATE lascia passare il fondo.
+       ATTENZIONE alla riga sotto: fuori mappa non si dipinge PIU' NIENTE. Se
+       tornasse il nero pieno, sopra la vetta il cielo non si vedrebbe mai e
+       tutto questo passo sarebbe inutile. */
+    if(r>=SC.H||r>SC.YT){continue;}
     sec=sclSec(r);b=SCL_BIO[sec];
-    c.fillStyle=(r&1)?b.bg:b.bg2;
-    c.fillRect(0,yy,cv.width,CB+1);
+    /* TELAIO DELLA CAMPATA (lotto 2) — dal passo 3 la campata è solo un
+       cambio di tinta: haze (alpha 0,10-0,22) contro shellA (alpha 0,87-0,90).
+       Con la nebbia dei piani di sfondo che sale con la quota quella
+       differenza si assottiglia e la campata legge come una macchia sul muro,
+       non come un'apertura. Il telaio è il segno che la rende un buco.
+       I due settori vicini si chiedono a sclSec perché al confine di settore
+       cambia il numero di campate: senza, mancherebbe un architrave ogni tanto,
+       e un telaio incompleto è peggio di nessun telaio. */
+    var _bsU=sclSec(r+1),_bsD=sclSec(r-1);
+    var _frW=Math.max(2,CB*0.085),_frT=Math.max(3,CB*0.125);
+    for(cx=0;cx<cols;cx++){
+      gx=gx0+cx;if(gx>=SC.W)continue;xx=cx*CB;
+      var _bay=sclBay(gx,r,sec);
+      c.fillStyle=_bay?b.haze:b.shellA[r&1];
+      c.fillRect(xx,yy,CB+0.6,CB+0.6);
+      if(_bay){
+        /* SOLO sul perimetro dell'apertura: dipingerlo anche fra due celle di
+           campata vorrebbe dire disegnare la griglia 11x8, cioè rendere
+           visibile la cosa che i passi 3 e 9 hanno nascosto.
+           NIENTE filo bianco sul davanzale: quel valore appartiene al
+           separatore di settore (59497), che è l'unico riferimento di quota. */
+        c.fillStyle='rgba(0,0,0,.55)';
+        if(!sclBay(gx,r+1,_bsU))c.fillRect(xx,yy,CB+0.6,_frT);          // architrave
+        if(!sclBay(gx,r-1,_bsD))c.fillRect(xx,yy+CB-_frW,CB+0.6,_frW);  // davanzale
+        if(!sclBay(gx-1,r,sec))c.fillRect(xx,yy,_frW,CB+0.6);           // stipite sinistro
+        if(!sclBay(gx+1,r,sec))c.fillRect(xx+CB-_frW,yy,_frW,CB+0.6);   // stipite destro
+      }
+    }
     // WORLD v4 "M" req.3: la TINTA DI VIA (velo colorato + stripe per corsia) e'
     // RIMOSSA. Il mondo non ha piu' 4 corsie: e' una sola serpentina, quindi la
     // tinta era rumore puro che spezzava lo sfondo in bande colorate.
@@ -59146,9 +59937,15 @@ function sclTileCv(tc,trw){
   //                                  superficie chiara continua col ripiano e
   //                                  una fascia ACCENTO sullo spigolo esterno.
   var eg=Math.max(2,CB*0.09),lipH=Math.max(3,CB*0.14);
+  /* PASSO 6 (02/08/2026) — la banda chiara ora si disegna solo dove sopra
+     c'e' aria, quindi ne restano molte meno: per non perdere segnale
+     cresce da 0.14 a 0.20-0.23, e cresce CON LA QUOTA (innesto vetta).
+     Numero, non oggetto: nessuna allocazione nel ciclo di disegno. */
+  var lipK=0;
   for(r=gy0;r<=topRow;r++){
     if(r>=SC.H)continue;
-    b=SCL_BIO[sclSec(r)];yy=(topRow-r)*CB;
+    lipK=sclSec(r);b=SCL_BIO[lipK];yy=(topRow-r)*CB;
+    lipH=Math.max(3,CB*(0.20+0.03*lipK/6));
     for(cx=0;cx<cols;cx++){
       gx=gx0+cx;
       if(gx>=SC.W||!SC.wallA[r*SC.W+gx])continue;
@@ -59162,19 +59959,77 @@ function sclTileCv(tc,trw){
       }else{
         // corpo pieno
         c.fillStyle=b.wall;c.fillRect(xx,yy,CB+0.6,CB+0.6);
-        // SUPERFICIE CALPESTABILE: banda chiara ancorata a yy (= mondo r+1)
-        c.fillStyle=b.wl;c.fillRect(xx,yy,CB+0.6,lipH);
-        c.fillStyle='rgba(255,255,255,.55)';c.fillRect(xx,yy,CB+0.6,2);
+        /* SUPERFICIE CALPESTABILE — ma solo se sopra c'e' ARIA.
+           Prima la banda stava su OGNI cella solida: un camino di 7 celle
+           prometteva 7 appoggi e ne dava uno. Dove sopra c'e' altro solido,
+           al posto della banda va una giuntura scura: muro continuo. */
+        var freeUp=(r+1>=SC.H)||!(SC.wallA[(r+1)*SC.W+gx]||SC.onewayA[(r+1)*SC.W+gx]);
+        if(freeUp){
+          c.fillStyle=b.wl;c.fillRect(xx,yy,CB+0.6,lipH);
+          c.fillStyle='rgba(255,255,255,.80)';c.fillRect(xx,yy,CB+0.6,2.6);
+          c.fillStyle='rgba(0,0,0,.32)';c.fillRect(xx,yy+lipH-1.5,CB+0.6,1.5);
+        }else{
+          c.fillStyle='rgba(0,0,0,.30)';c.fillRect(xx,yy,CB+0.6,2.5);
+        }
         // spigolo inferiore scuro (da' spessore, separa dalla cella sotto)
         c.fillStyle='rgba(0,0,0,.42)';c.fillRect(xx,yy+CB-eg,CB+0.6,eg);
-        if(!isFloor){
-          // APPIGLIO: montanti verticali sui lati esterni del pilastro
+        /* VERNICE DI PERICOLO (passo 8): sulla faccia verticale SOTTO il
+           bordo, mai sulla banda chiara — la superficie calpestabile deve
+           restare la cosa piu' luminosa del quadro. Giallo/nero = uccide,
+           ambra tratteggiata = fa male. */
+        var hzv=SC.hazA?SC.hazA[r*SC.W+gx]:0;
+        if(hzv){
+          var hy0=yy+lipH+1,hh2=Math.max(3,CB*0.20);
+          if(hzv===2){
+            c.fillStyle='rgba(20,16,3,.85)';c.fillRect(xx,hy0,CB+0.6,hh2);
+            c.save();c.beginPath();c.rect(xx,hy0,CB+0.6,hh2);c.clip();
+            c.fillStyle=b.warn;
+            var hstep=Math.max(6,CB*0.20);
+            for(var hcx=-hh2;hcx<CB+hh2;hcx+=hstep*2){
+              c.beginPath();
+              c.moveTo(xx+hcx,hy0+hh2);c.lineTo(xx+hcx+hh2,hy0);
+              c.lineTo(xx+hcx+hh2+hstep,hy0);c.lineTo(xx+hcx+hstep,hy0+hh2);
+              c.closePath();c.fill();
+            }
+            c.restore();
+          }else{
+            c.fillStyle='rgba(245,158,11,.42)';
+            var hdash=Math.max(3,CB*0.14);
+            for(var hdx=0;hdx<CB;hdx+=hdash*2)
+              c.fillRect(xx+hdx,hy0,hdash,Math.max(2,CB*0.09));
+          }
+        }
+        /* APPIGLIO (passo 7, 02/08/2026) — era un montante da CB*0.11:
+           sette pixel su una cella da 66 per dire "qui ti puoi aggrappare".
+           Ora e' un cuneo con la VERNICE DELLA SUPERFICIE ruotata di 90 gradi
+           e tre pioli: una sola famiglia di colore ("qui ci si sta"), e
+           l'orientamento dice come — orizzontale si cammina, verticale ci si
+           aggrappa. Ambra no (nel guscio vuol dire "fa male"), ciano no (e' il
+           colore del seat 1: una scala piazzata sarebbe indistinguibile).
+           LE CONDIZIONI SONO QUELLE DEL SERVER, tutte e quattro: solido, sopra
+           libero (freeUp, passo 6), lato libero, e NON in ngrab. */
+        if(!isFloor&&freeUp&&!SC.ngrabA[r*SC.W+gx]){
           var freeL=!(gx>0&&(SC.wallA[r*SC.W+gx-1]||SC.onewayA[r*SC.W+gx-1]));
           var freeR=!(gx<SC.W-1&&(SC.wallA[r*SC.W+gx+1]||SC.onewayA[r*SC.W+gx+1]));
-          c.fillStyle=b.acc;c.globalAlpha=0.85;
-          if(freeL)c.fillRect(xx,yy,Math.max(3,CB*0.11),CB*0.62);
-          if(freeR)c.fillRect(xx+CB-Math.max(3,CB*0.11),yy,Math.max(3,CB*0.11),CB*0.62);
-          c.globalAlpha=1;
+          var gw=Math.max(4,CB*0.21),gpi=Math.max(2,CB*0.055);
+          if(freeL||freeR){
+            c.fillStyle='rgba(8,6,3,.75)';        // contorno: tiene anche su fondo chiaro
+            if(freeL){c.beginPath();c.moveTo(xx-2,yy-2);c.lineTo(xx+CB*0.34+3,yy-2);
+                      c.lineTo(xx-2,yy+CB*0.52+4);c.closePath();c.fill();}
+            if(freeR){c.beginPath();c.moveTo(xx+CB+2,yy-2);c.lineTo(xx+CB-CB*0.34-3,yy-2);
+                      c.lineTo(xx+CB+2,yy+CB*0.52+4);c.closePath();c.fill();}
+            c.fillStyle=b.wl;
+            if(freeL){c.beginPath();c.moveTo(xx,yy);c.lineTo(xx+CB*0.34,yy);
+                      c.lineTo(xx,yy+CB*0.52);c.closePath();c.fill();}
+            if(freeR){c.beginPath();c.moveTo(xx+CB,yy);c.lineTo(xx+CB-CB*0.34,yy);
+                      c.lineTo(xx+CB,yy+CB*0.52);c.closePath();c.fill();}
+            c.fillStyle='rgba(0,0,0,.62)';
+            for(var gpr=0;gpr<3;gpr++){
+              var gpy=yy+lipH+CB*(0.15+gpr*0.21);
+              if(freeL)c.fillRect(xx,gpy,gw,gpi);
+              if(freeR)c.fillRect(xx+CB-gw,gpy,gw,gpi);
+            }
+          }
         }
       }
     }
@@ -59196,7 +60051,8 @@ function sclTileCv(tc,trw){
   owShG.addColorStop(0,'rgba(0,0,0,.42)');owShG.addColorStop(1,'rgba(0,0,0,0)');
   for(r=gy0;r<=topRow;r++){
     if(r>=SC.H)continue;
-    b=SCL_BIO[sclSec(r)];yy=(topRow-r)*CB;
+    lipK=sclSec(r);b=SCL_BIO[lipK];yy=(topRow-r)*CB;
+    lipH=Math.max(3,CB*(0.20+0.03*lipK/6));
     for(cx=0;cx<cols;cx++){
       gx=gx0+cx;if(gx>=SC.W)continue;
       if(!SC.onewayA[r*SC.W+gx])continue;
@@ -59209,16 +60065,94 @@ function sclTileCv(tc,trw){
       c.save();c.translate(0,yy+owTh);
       c.fillStyle=owShG;c.fillRect(xx,0,CB+0.6,CB*0.70);
       c.restore();
-      // CORPO
+      /* CORPO — ma il ripiano one-way NON e' un blocco: ci si passa da sotto,
+         e adesso lo dice la faccia. Si buca il guscio con destination-out (li'
+         il tile diventa davvero trasparente e si vede il fondo) e si rimettono
+         tre doghe di metallo. La lega dipende solo dalla riga, quindi e'
+         costante lungo il run e identica per tutti. (passo 5, 02/08/2026) */
       c.fillStyle=b.wall;c.fillRect(xx,yy,CB+0.6,owTh);
-      // SUPERFICIE CALPESTABILE ancorata a yy (identica ai pilastri)
-      c.fillStyle=b.wl;c.fillRect(xx,yy,CB+0.6,lipH);
-      c.fillStyle='rgba(255,255,255,.55)';c.fillRect(xx,yy,CB+0.6,2);
+      var owGap=owTh-lipH-CB*0.07;
+      if(owGap>2){
+        c.save();c.globalCompositeOperation='destination-out';
+        c.fillRect(xx,yy+lipH,CB+0.6,owGap);c.restore();
+        var mv=SCL_STEEL[((r*13)%3+3)%3];
+        /* RIFLESSI (lotto 2) — la doga era due riquadri piatti, e il secondo
+           (mv[1] alto 1px in fondo) era quasi morto: stessa famiglia di tinta
+           del corpo, spessore sotto la soglia del downscale. Adesso ogni doga
+           è un tondino illuminato da sopra-sinistra: è il volume, non la
+           tinta, a dire che sotto quel ripiano ci si passa.
+           Il pavimento del filo è 1,5px e non 1: a RTD.lite il tile da 56px/
+           cella viene ridotto di circa 0,64, quindi 1px arriva a 0,64 e
+           sparisce proprio sul telefono.
+           Il terminatore in basso è nero e non mv[1]: su un corpo già scuro
+           serve uno stacco vero, altrimenti la doga non finisce, sfuma.
+           COSTO: +9 fillRect per cella one-way (3 doghe x 3 riquadri nuovi),
+           tutto a bake-time — zero per fotogramma, zero gradienti, zero
+           allocazioni. */
+        var slW=CB*0.20,slFil=Math.max(1.5,CB*0.045),slBot=Math.max(1,CB*0.03),slX;
+        for(var sl=0;sl<3;sl++){
+          slX=xx+CB*0.045+sl*CB*0.335;
+          c.fillStyle=mv[1];                    // corpo: il tondino sta nell'ombra
+          c.fillRect(slX,yy+lipH,slW,owGap);
+          c.fillStyle=mv[0];                    // faccia illuminata da sopra-sinistra
+          c.fillRect(slX,yy+lipH,slW*0.46,owGap);
+          c.fillStyle='rgba(255,255,255,.16)';  // filo speculare: dice "metallo", non "pietra"
+          c.fillRect(slX+slFil*0.5,yy+lipH,slFil,owGap);
+          c.fillStyle='rgba(0,0,0,.34)';        // il fianco destro gira via dalla luce
+          c.fillRect(slX+slW-slFil,yy+lipH,slFil,owGap);
+          c.fillStyle='rgba(0,0,0,.5)';         // terminatore: la doga FINISCE qui
+          c.fillRect(slX,yy+lipH+owGap-slBot,slW,slBot);
+        }
+      }
+      // SUPERFICIE CALPESTABILE ancorata a yy — stessa regola dei pilastri:
+      // se sopra c'e' un altro solido, questo ripiano non e' un appoggio.
+      var owFreeUp=(r+1>=SC.H)||!(SC.wallA[(r+1)*SC.W+gx]||SC.onewayA[(r+1)*SC.W+gx]);
+      if(owFreeUp){
+        c.fillStyle=b.wl;c.fillRect(xx,yy,CB+0.6,lipH);
+        c.fillStyle='rgba(255,255,255,.80)';c.fillRect(xx,yy,CB+0.6,2.6);
+        c.fillStyle='rgba(0,0,0,.32)';c.fillRect(xx,yy+lipH-1.5,CB+0.6,1.5);
+      }else{
+        c.fillStyle='rgba(0,0,0,.30)';c.fillRect(xx,yy,CB+0.6,2.5);
+      }
       // spigolo inferiore netto: dice dove FINISCE il solido
       c.fillStyle='rgba(0,0,0,.50)';c.fillRect(xx,yy+owTh-Math.max(2,CB*0.09),CB+0.6,Math.max(2,CB*0.09));
       // testata: smusso scuro verticale (chiude il volume del ripiano)
       if(owL){c.fillStyle='rgba(0,0,0,.35)';c.fillRect(xx,yy,Math.max(2,CB*0.07),owTh);}
       if(owR){c.fillStyle='rgba(0,0,0,.35)';c.fillRect(xx+CB-Math.max(2,CB*0.07),yy,Math.max(2,CB*0.07),owTh);}
+    }
+  }
+  /* OCCLUSIONE DI CONTATTO (lotto 2) — finora un pilastro e l'aria accanto
+     si toccavano senza che niente lo dicesse: due campiture affiancate sullo
+     stesso piano, e la torre leggeva piatta. L'unica ombra proiettata di tutta
+     la mappa era owShG, e sta solo sotto i ripiani one-way.
+     Qui l'aria SOTTO un muro pieno si scurisce. È il segno più economico che
+     esista per dare spessore a un mondo, perché non aggiunge un oggetto: usa
+     il vuoto che c'è già.
+     GUARDIA: si dipinge SOLO su celle vuote, quindi la banda chiara (passo 6),
+     il cuneo (passo 7) e la vernice di pericolo (passo 8) — che vivono tutti
+     dentro la cella piena — non vengono toccati.
+     ORIENTAMENTO: r+1 è la cella SOPRA nel mondo e yy cresce verso il basso,
+     quindi l'ombra cade. Se un giorno uno dei due versi si inverte, questo
+     blocco va riletto per primo.
+     PROIETTA SOLO wallA, mai onewayA: il one-way ha già la sua ombra (owShG,
+     poco sopra) e raddoppiarla chiuderebbe di scuro il varco proprio dove il
+     gioco deve dire "da sotto ci si passa".
+     Il gradiente è UNO per tile, come owShG: mai uno per cella, mai uno per
+     fotogramma. */
+  var sclOccG=c.createLinearGradient(0,0,0,CB*0.36);
+  sclOccG.addColorStop(0,'rgba(0,0,0,.34)');sclOccG.addColorStop(1,'rgba(0,0,0,0)');
+  for(r=gy0;r<=topRow;r++){
+    if(r+1>=SC.H)continue;
+    yy=(topRow-r)*CB;
+    for(cx=0;cx<cols;cx++){
+      gx=gx0+cx;if(gx>=SC.W)continue;
+      var _oci=r*SC.W+gx;
+      if(SC.wallA[_oci]||SC.onewayA[_oci])continue;
+      if(!SC.wallA[(r+1)*SC.W+gx])continue;
+      xx=cx*CB;
+      c.save();c.translate(0,yy);
+      c.fillStyle=sclOccG;c.fillRect(xx,0,CB+0.6,CB*0.36);
+      c.restore();
     }
   }
   // ── celle dei 5 modi di salita + snodi + hole statici (SCALATA_WIDE §2) ──
@@ -59427,6 +60361,52 @@ function sclSky(sec,w,hh){
     c.fillStyle=g;c.fillRect(0,0,w,hh);
   });
 }
+/* I DUE PIANI DI SFONDO (passo 9, 02/08/2026) — bakeati a SCALA 0,5 e
+   riscalati nel drawImage: sono fondi sfocati a bassissima frequenza, non si
+   vede la differenza, e il conto della memoria torna a quello di oggi
+   (18,3 cielo + 9,2 far + 9,2 mid = 36,7 MB, contro i 36,6 di due piani a
+   piena risoluzione). La dimensione ridotta sta nella chiave, se no si bakea
+   due volte. */
+function sclFar(sec,w,hh){
+  var W2=Math.max(8,Math.round(w*0.5)),H2=Math.max(8,Math.round(hh*0.5));
+  return rtdBg('sclFar'+sec+'_'+W2+'x'+H2,W2,H2,function(c){
+    var b=SCL_BIO[sec];
+    var sd=sec*311.7+13;
+    function rnd(){sd=(sd*9301+49297)%233280;return sd/233280;}
+    c.fillStyle=b.far;
+    // creste: masse lontane, profilo spezzato, nessun dettaglio riconoscibile
+    for(var i=0;i<4;i++){
+      var bw=W2*(0.30+rnd()*0.40),bx=rnd()*W2-bw*0.4;
+      var by=H2*(0.20+rnd()*0.55),bh=H2*(0.45+rnd()*0.5);
+      c.beginPath();
+      c.moveTo(bx,by+bh);
+      c.lineTo(bx+bw*0.22,by+bh*0.35);
+      c.lineTo(bx+bw*0.44,by+bh*0.62);
+      c.lineTo(bx+bw*0.68,by);
+      c.lineTo(bx+bw,by+bh*0.5);
+      c.lineTo(bx+bw,by+bh);
+      c.closePath();c.fill();
+    }
+  });
+}
+function sclMid(sec,w,hh){
+  var W2=Math.max(8,Math.round(w*0.5)),H2=Math.max(8,Math.round(hh*0.5));
+  return rtdBg('sclMid'+sec+'_'+W2+'x'+H2,W2,H2,function(c){
+    var b=SCL_BIO[sec];
+    var sd=sec*577.1+29;
+    function rnd(){sd=(sd*9301+49297)%233280;return sd/233280;}
+    c.fillStyle=b.mid;
+    // colonne e travi: struttura, non paesaggio. Verticali larghe + due
+    // traversi, cosi' da' senso di impalcatura senza competere con niente.
+    for(var i=0;i<5;i++){
+      var cw=W2*(0.05+rnd()*0.07),cxp=rnd()*W2;
+      c.fillRect(cxp,0,cw,H2);
+      var ty=H2*(0.15+rnd()*0.6);
+      c.fillRect(cxp-cw*1.6,ty,cw*4.2,Math.max(1,H2*0.012));
+      c.fillRect(cxp-cw*1.2,ty+H2*0.22,cw*3.4,Math.max(1,H2*0.010));
+    }
+  });
+}
 function sclPar(sec,w,hh){
   return rtdBg('sclPar'+sec,w,hh,function(c){
     // req.3: parallax RIDOTTO A ZERO RUMORE. Prima erano 10 gruppi di insegne
@@ -59591,8 +60571,11 @@ function sclSplatEv(e){
     // POLISH §5: lampo rosso a VIGNETTA (bordi che si chiudono) invece del
     // fill piatto — la morte MIA si sente addosso, non è un flash qualunque
     SC.flash={t0:now,dur:520,a:0.5,col:'#d81b3c',vig:1};
-    sclShake('crush',0.85);
-    RTD.shake=Math.min(14,RTD.shake+9);
+    /* Una riga sola, e vera. Il `crush` 0.85 che stava qui non raggiungeva
+       mai lo schermo: sclShake è winner-takes-all e il colpo più forte,
+       armato nello stesso millisecondo, lo sovrascriveva sempre. La morte
+       MIA prende la voce più dura che esiste, e non trema l HUD sopra. */
+    sclShake('press',1);
     try{tg.HapticFeedback&&tg.HapticFeedback.notificationOccurred('error');}catch(_e){}
     // POLISH 19/07: la morte MIA dice subito COSA mi ha ucciso (stamp causa) —
     // il ritorno al checkpoint (se attivo) arriva col feed 'ckpt' al respawn.
@@ -59602,7 +60585,10 @@ function sclSplatEv(e){
     SC.koCam={x:e.x!=null?e.x:null,y:e.y||0,t0:now};SC.slowT=now+120;   // V4 §4.3.2: 120ms
   }else{
     SC.flash={t0:now,dur:250,a:0.25,col:'#d81b3c'};
-    RTD.shake=Math.min(10,RTD.shake+8);
+    /* 4.5*0.5 = 2.25, cioè SOTTO i 2.4 del graze: la morte di un altro non
+       deve poter zittire il mio near-miss, che è l unica cosa che mi tiene
+       vivo. Vale anche quando muoiono in tre nello stesso tick. */
+    sclShake('crush',0.5);
   }
 }
 
@@ -59624,15 +60610,18 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
   if(!SC.wallA||SC.cell<=0||Math.abs(SC.cell-w/SC.VIEW)>0.5)rtdBuildScalata();
   // POLISH §6: zoom della sequenza vetta. SC.cell resta CANONICA (= w/VIEW, il
   // guard di rebuild e xcheck_consts la leggono così): si scala solo la cella
-  // DISEGNATA. Il culling resta calcolato su VIEW=13 → superset, mai un buco.
+  // DISEGNATA. Il culling resta calcolato su VIEW=10 (SC.VIEW, il valore vero:
+  // il vecchio commento diceva 13, che era la v5) → superset, mai un buco.
   var zW=1;
   if(SC.win){
     var wk0=(now-SC.win.t0)/620;
     zW=1+0.5*(wk0<1?(1-(1-wk0)*(1-wk0)):1);   // ease-out fino a 1.5×, poi tenuto
   }
   // ANCORA ALTA (req.COMMITTENTE 1): hh2 e' la riga SCHERMO su cui cade SC.cam.y,
-  // cioe' dove sta il giocatore. Era hh/2 (centro); ora hh*ANCH con ANCH=0.64,
-  // quindi il 64% del quadro sta SOPRA di lui e si vede molto piu' percorso.
+  // cioe' dove sta il giocatore. Era hh/2 (centro); ora hh*ANCH con ANCH=0.30
+  // (il commento diceva 0.64: era la v5, quella del bug segnalato dal
+  // committente), quindi sopra di lui sta il 30% del quadro e SOTTO il 70%: i
+  // controlli in basso non lo coprono mai e la finestra resta ASIMMETRICA.
   // Tutto il resto del renderer usa hh2 come origine ⇒ una riga sola sposta
   // mondo, decal, fx e mappa in modo coerente.
   var cell=SC.cell*zW,ox=SC.ox,hh2=hh*SC.ANCH;
@@ -59644,9 +60633,13 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
   // v6 §1.5 (C6): render-hitstop (pattern derby BLG.hsT) PRIMA dello slow-mo: sui
   // beat d'impatto SC.vo cresce a dt PIENO = quasi-freeze del render, cappato a
   // HITSTOPMAX; poi rientra col decay normale. Congela solo il render, non la sim.
-  if(now<SC.hsT)SC.vo=Math.min(SC.HITSTOPMAX,SC.vo+dt*1000);
+  if(now<SC.hsT)SC.vo=Math.min(SC.meDead?SC.HITSTOPMAX:SC.HITSTOPLIVE,SC.vo+dt*1000);
   else if(now<SC.slowT)SC.vo=Math.min(195,SC.vo+dt*650);
   else if(SC.vo>0)SC.vo=Math.max(0,SC.vo-dt*900);
+  /* LA MISURA (lotto 4): due operazioni intere e zero allocazioni, perche'
+     il cancello qui sopra e' una promessa e una promessa si verifica
+     contando. Bucket da 10 ms, il 19esimo raccoglie tutto sopra 190. */
+  if(SC.voH){var _vb=(SC.vo*0.1)|0;if(_vb>19)_vb=19;SC.voH[_vb]++;SC.voN=(SC.voN|0)+1;if(SC.vo>(SC.voMax||0))SC.voMax=SC.vo;}
   var lpb=sclLerp(now)||lp;
   if(!lpb)return;
   // tempo server LERPATO dal buffer 85ms (§3.3 — MAI performance.now per le f(t))
@@ -59955,14 +60948,34 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
   ty=Math.max(vhD,Math.min(SC.H-vhU,ty));
   tx=Math.max(SC.VIEW/2,Math.min(SC.W-SC.VIEW/2,tx));
   if(!SC.cam.ok){SC.cam.ok=true;SC.cam.y=ty;SC.cam.x=tx;SC.leadX=0;}
-  // FOLLOW critically-damped, frame-rate-independent (1-exp(-k*dt)) + DEAD-ZONE:
-  // se il target e' entro CAMDZ celle dalla camera NON la muoviamo (anti-tremolio
-  // a giocatore fermo). koCam/win vogliono uno snap piu' duro (segue il vincitore
-  // o la kill-cam), quindi la dead-zone si applica solo al follow normale.
+  // FOLLOW critically-damped, frame-rate-independent (1-exp(-k*dt)) + DEAD-ZONE
+  // A SCATOLA. PERCHE' a scatola e non a soglia, che era il codice di prima:
+  // con `if(Math.abs(_dy)>CAMDZ) cam.y+=_dy*k` la camera resta immobile fin
+  // dentro la zona e poi, nel primo fotogramma fuori, insegue lo scarto PIENO,
+  // cioe' riparte alla stessa velocita' che avrebbe senza dead-zone. Il gradino
+  // non spariva: si spostava di CAMDZ. Con la prediction che oscilla attorno al
+  // confine il risultato e' fermo/scatto/fermo, ed e' quello che a schermo si
+  // legge come beccheggio. Sottraendo la scatola dallo scarto, invece, il moto
+  // entra da ZERO e cresce con continuita': stessa immobilita' a giocatore
+  // fermo, nessuno scatto quando si esce.
+  // Le sorgenti VERE del beccheggio sono due, e vanno dette perche' fra sei mesi
+  // non si vada a cercare colpevoli inesistenti: il rumore della prediction
+  // contro la riconciliazione (poco sopra) e le piattaforme mobili che portano
+  // il giocatore. Lo squash di atterraggio NON c'entra: quello vive dentro
+  // sclDrawClimber e non entra mai nel calcolo di ty, che viene da SC.pred.y.
+  // koCam/win vogliono lo snap duro (la camera segue il vincitore o la kill-cam):
+  // per loro la scatola non esiste.
   var _hard=(SC.win||(SC.koCam&&SC.meDead));
   var _dy=ty-SC.cam.y,_dx=tx-SC.cam.x;
-  if(_hard||Math.abs(_dy)>SC.CAMDZ)SC.cam.y+=_dy*(1-Math.exp(-SC.CAMKY*dt));
-  if(_hard||Math.abs(_dx)>SC.CAMDZ)SC.cam.x+=_dx*(1-Math.exp(-SC.CAMKX*dt));
+  if(!_hard){
+    // in caduta la scatola si stringe: il terreno arriva addosso e la camera
+    // deve stare incollata (predVy<0 = si scende, gravita' in sclPhysics).
+    var _dzy=(SC.predVy<0)?SC.CAMDZF:SC.CAMDZ;
+    if(_dy>_dzy)_dy-=_dzy;else if(_dy<-_dzy)_dy+=_dzy;else _dy=0;
+    if(_dx>SC.CAMDZX)_dx-=SC.CAMDZX;else if(_dx<-SC.CAMDZX)_dx+=SC.CAMDZX;else _dx=0;
+  }
+  SC.cam.y+=_dy*(1-Math.exp(-SC.CAMKY*dt));
+  SC.cam.x+=_dx*(1-Math.exp(-SC.CAMKX*dt));
   var camY=SC.cam.y,camX=SC.cam.x;
   // ── POLISH §3: SCREEN-SHAKE direzionale per trappola, con CAP GLOBALE. Entra
   //    in ox/hh2 ⇒ trema il MONDO, non la mappa strategica né l'HUD. Inviluppo
@@ -59983,16 +60996,25 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
   hh2+=sky;SC.hh2=hh2;
   var ox=w/2-camX*cell+skx;SC.ox=ox;   // origine schermo della colonna 0 (segue cam.x)
   sclAmb(sclSec(Math.max(0,Math.min(SC.H-1,SC.cam.y|0))),now);   // POLISH §4: ambience del bioma
+  sclDuckTick(now);   // lotto 6: la stanza. Scrive solo quando il fattore cambia davvero.
   // ── sfondo: cielo + parallax del bioma corrente (offset y 0.35 + x 0.15 §4) ──
   var camSec=sclSec(Math.max(0,Math.min(SC.H-1,camY|0)));
   ctx.drawImage(sclSky(camSec,w,hh),0,0);
+  /* TRE PIANI (passo 9): il lontano si muove poco, il medio di piu' — e' la
+     parallasse che fa la profondita'. Bakeati a meta' risoluzione e riscalati
+     qui: due drawImage in piu' per fotogramma, memoria identica a prima. */
+  var farC=sclFar(camSec,w,hh),midC=sclMid(camSec,w,hh);
+  var fOff=((camY*0.18*cell)%hh+hh)%hh,fOffX=-(((camX*0.07*cell)%w+w)%w);
+  ctx.drawImage(farC,fOffX,fOff-hh,w,hh);
+  ctx.drawImage(farC,fOffX,fOff,w,hh);
+  ctx.drawImage(farC,fOffX+w,fOff-hh,w,hh);
+  ctx.drawImage(farC,fOffX+w,fOff,w,hh);
   var pOff=((camY*0.35*cell)%hh+hh)%hh;
   var pOffX=-(((camX*0.15*cell)%w+w)%w);
-  var par=sclPar(camSec,w,hh);
-  ctx.drawImage(par,pOffX,pOff-hh);
-  ctx.drawImage(par,pOffX,pOff);
-  ctx.drawImage(par,pOffX+w,pOff-hh);
-  ctx.drawImage(par,pOffX+w,pOff);
+  ctx.drawImage(midC,pOffX,pOff-hh,w,hh);
+  ctx.drawImage(midC,pOffX,pOff,w,hh);
+  ctx.drawImage(midC,pOffX+w,pOff-hh,w,hh);
+  ctx.drawImage(midC,pOffX+w,pOff,w,hh);
   // ── TILE visibili (drawImage scalati 56px→cell, LRU 12 — WIDE §4) ──
   //    I limiti erano CABLATI (tc1<=3, tr1<=5) su una mappa 32x92: WORLD v4 "M"
   //    e' larga W=36, cioe' 5 colonne di tile (36/8=4.5). Con il cap a 3 le
@@ -60007,6 +61029,35 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
     ctx.drawImage(sclTileCv(tcI,trI),
       ox+tcI*SC.TCOLS*cell,hh2+(camY-(trI*SC.TROWS+SC.TROWS))*cell,
       SC.TCOLS*cell,SC.TROWS*cell);
+  }
+  /* ── LA LAVA CHE ILLUMINA (§3.2, 02/08/2026) ────────────────────────────
+     L'unica sorgente calda del mondo. Il sotto dei ripiani entro 14 celle dal
+     fronte si scalda, e piu' e' vicino piu' brucia; sopra le 14, niente.
+     Un fillRect per run, TETTO di 26 run per quadro come impone la spec — e'
+     l'unico effetto per fotogramma che il porto aggiunge, e va tenuto corto.
+     Sta qui e non nel bake apposta: la lava sale sempre, e rifare i tile a
+     ogni salita sarebbe l'operazione piu' cara del renderer ripetuta per
+     sempre. */
+  /* FIX 02/08/2026 (trovato dal giro ultracode, ed era mio, di stamattina):
+     il gate era `lv != null`, ma il server manda `lv` SEMPRE — vale 0.0 fino
+     a T_LAVA=80s (climb_rt.py:601 e 6872). Quindi per i primi OTTANTA SECONDI
+     di ogni partita tutte le piattaforme delle righe basse brillavano di
+     arancione senza che ci fosse nessuna lava. La lava vera e' gated su
+     `lvw>0.01` in tre punti (62325, 62380, 62452); il bagliore no. */
+  var lvY=(raw&&raw.lv!=null)?raw.lv:null;
+  if(lvY!=null&&lvY>0.01&&RTD.map&&RTD.map.plats){
+    var lvP=RTD.map.plats,lvN=0;
+    for(var lvI=0;lvI<lvP.length&&lvN<26;lvI++){
+      var lvR=lvP[lvI],lvRy=lvR[0],lvD=lvRy-lvY;
+      if(lvD<0||lvD>=14)continue;                       // fuori dalla fascia calda
+      if(lvRy<camY-vhD-1||lvRy>camY+vhU+1)continue;     // fuori dal quadro
+      var lvX0=ox+lvR[1]*cell,lvW=(lvR[2]-lvR[1]+1)*cell;
+      if(lvX0+lvW<0||lvX0>w)continue;
+      var lvYs=hh2+(camY-lvRy)*cell;
+      ctx.fillStyle=SCL_LAVAL[(lvD*4)|0]||SCL_LAVAL[55];   // letto, non composto
+      ctx.fillRect(lvX0,lvYs+cell*0.86,lvW,cell*0.22);
+      lvN++;
+    }
   }
   // ── decal sangue: blit con lo STESSO src-rect 2D della camera + fade 8s (§4) ──
   if(SC.bloodCv){
@@ -61020,6 +62071,48 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
     //     32768 (V4 C2 §2.2.8) → knockback vittima spintone. Per il player
     //     LOCALE resta anche il canale pred (già istantaneo). ═══
     var flE=fl^pfl;
+    /* ═══ LOTTO 4 — I TRE BEAT DELL'ARRAMPICATA (02/08/2026) ═══════════════
+       Aggancio (64), presa al bordo (512), montata (1024): i tre gesti che il
+       giocatore compie APPOSTA e che oggi passano muti. Ognuno e' un accento
+       piu' un fermo-immagine cortissimo; il fermo-immagine passa sempre dal
+       cancello di sclHitstop, quindi in un tratto denso si spegne da solo.
+       I tre freni NON sono gusto:
+        · il bit 1024 viene iniettato nella prediction DOPO `an.pf=fl` (61585
+          contro 61570), quindi per il giocatore locale non entra mai in pfl e
+          `flE&1024` e' vero a OGNI fotogramma per tutta la montata: senza il
+          freno da MANTT si armerebbe un hitstop a 60 Hz e il gesto piu'
+          frequente del gioco diventerebbe un'immagine incollata;
+        · lo spintone stacca la presa lato motore e il giocatore riafferra
+          subito: senza i 250 ms si sentirebbero due prese in mezzo secondo;
+        · il bit 64 copre tre stati del rampino (tiro, volo, zip) e fra l'uno
+          e l'altro puo' esserci un tick di buco: senza i 300 ms il passaggio
+          di consegne suonerebbe come due agganci.
+       Qui non nasce nessuna stringa: pid e isMe esistono gia' nel ciclo.
+       NB: NON e' vero che su questi bit la prediction sia spenta — a 60356 il
+       mantle la lascia accesa. E' esattamente il motivo del freno. */
+    if((flE&64)&&(fl&64)&&now-(an.hkT||0)>300){
+      an.hkT=now;
+      var _hkv=Math.max(0.25,1-Math.abs(rr[2]-SC.myY)/10);
+      // lo strappo della fune solo se il feed 'hook' non lo ha appena suonato:
+      // la vittima di un traino sentirebbe dpkPull due volte
+      if(now-((SC.pull&&SC.pull.t0)||0)>300)TWS.play('dpkPull',(isMe?0.5:0.28)*_hkv);
+      if(isMe){sclShake('graze',0.7);sclHitstop(2);}
+    }
+    if((flE&512)&&(fl&512)&&now-(an.hgT||0)>250){
+      an.hgT=now;
+      var _hgv=Math.max(0.25,1-Math.abs(rr[2]-SC.myY)/10);
+      TWS.play('dpkGrip',(isMe?0.85:0.35)*_hgv);
+      sclDust(ppx,ppy-pr*1.15,isMe?3:2,(an.rig&&an.rig.pdx>0)?1:-1,0.35,'rgba(203,213,225,.5)');
+      if(isMe){sclShake('graze',0.5);sclHitstop(1);}
+    }
+    if((flE&1024)&&(fl&1024)&&now-(an.mnT||0)>SC.MANTT*1000){
+      an.mnT=now;
+      // il beat piu' PICCOLO dei tre, e senza suono: la montata e' il gesto
+      // piu' frequente dell'arrampicata, caricarla sarebbe il passo che urla
+      // piu' del colpo
+      sclDust(ppx,ppy+pr*0.1,isMe?3:2,(an.vxs||0)>0?-1:1,0.45,'rgba(203,213,225,.5)');
+      if(isMe)sclHitstop(1);
+    }
     if(((flE&16384)&&(fl&16384))||((flE&8192)&&(fl&8192))){
       an.landT=now;
       var thHrd=!!(fl&8192),thV=Math.max(0.25,1-Math.abs(rr[2]-SC.myY)/10);
@@ -61050,7 +62143,9 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
       an.shvD=(Math.abs(an.vxs||0)>0.3)?((an.vxs||0)>0?1:-1):-(an.fdir||1);
       TWS.play('punch',(isMe?0.85:0.55)*Math.max(0.25,1-Math.abs(rr[2]-SC.myY)/10));
       sclDust(ppx,ppy+pr*0.25,5,-an.shvD,0.8,'rgba(203,213,225,.6)');
-      if(isMe)sclShake('spike',0.45);   // colpo secco (il feed 'shove' aggiunge già RTD.shake+haptic)
+      /* Lo shake dello spintone vive SOLO sul feed 'shove' (46370): lì
+         arrivano kdx/kdy e la scossa punta nel verso giusto. Qui restano
+         posa, jelly, polvere e thud, che il bit 32768 sa fare e il feed no. */
       sclJelly(an,an.shvD,0.3,((rr[1]*7+rr[2]*13)%6.283));   // v6 §4.2 (C5) Regime 2: floppy spintone (bit 32768 = shove/petardo)
     }
     sclPose(an,rr,fl,now,isMe,pi3);   // riempie an.rig dallo stato (§4)
@@ -61593,7 +62688,7 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
     if(rpy>=-hh&&now-SC.rockT>260){
       SC.rockT=now;
       var rkK=1+rpy/hh;                          // 0 a uno schermo → 1 appena sopra
-      RTD.shake=Math.min(8,RTD.shake+1+2*rkK);   // rumble ∝ vicinanza
+      sclShake('rumble',0.35+0.65*rkK);   // rumble ∝ vicinanza (1.05 a uno schermo, 3.0 addosso)
       for(var rb2=0;rb2<3;rb2++)                 // sassolini in caduta dalla colonna del masso
         sclP(rcx+(Math.random()-0.5)*cell*1.6,-2*RTD.dpr,
              (Math.random()-0.5)*30*RTD.dpr,(40+Math.random()*70)*RTD.dpr,
@@ -61774,6 +62869,44 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
       }
     }
   }
+  /* LA MAREA CHE NON SI VEDE (lotto 5, 02/08/2026).
+     Sotto il bordo dello schermo la lava oggi non dice niente: c'e' un suono a
+     volume 0,08 e basta, per circa quattro celle. In quelle quattro celle uno
+     decide se scendere a raccogliere.
+     LA CADENZA VIENE DAL TEMPO, NON DALLA DISTANZA. La marea accelera da 0,38
+     a 1,28 celle al secondo: dieci celle valgono 24 secondi a inizio partita e
+     8 alla fine. Un battito agganciato alla distanza prometterebbe tempo e
+     consegnerebbe spazio, sbagliando sempre di piu' man mano che la partita
+     conta. La velocita' si ricava dall'OSSERVAZIONE — due istantanee del
+     buffer, differenza di lv su differenza dei tempi d'arrivo — cosi' resta
+     vera anche se un giorno si ritocca l'accelerazione senza dirlo al client. */
+  if(lvw>0.01&&!lavaVis){
+    var mvS=RTD.snaps,mvV=0;
+    if(mvS&&mvS.length>1){
+      var mvA=mvS[mvS.length-2],mvB=mvS[mvS.length-1];
+      var mvDt=(mvB.rx-mvA.rx)/1000;
+      if(mvDt>0.05&&mvA.lv!=null&&mvB.lv!=null)mvV=(mvB.lv-mvA.lv)/mvDt;
+    }
+    if(mvV<0.2)mvV=0.2;                                   // pavimento: mai una promessa infinita
+    var mvTtl=(SC.myY-lvw)/mvV;                           // secondi al contatto
+    if(mvTtl<0)mvTtl=0;
+    if(mvTtl<40){
+      var mvU=1-Math.min(1,mvTtl/40);                     // 0 lontana → 1 addosso
+      var mvPer=Math.max(260,Math.min(1800,mvTtl*90));    // il battito accelera col TEMPO
+      var mvPh=(now%mvPer)/mvPer;
+      var mvBeat=Math.pow(1-mvPh,3);                      // colpo secco, coda lunga
+      var mvH=(3+7*mvU)*RTD.dpr;
+      var mvW=Math.max(0,edgeR);                          // mai sotto la mappa strategica
+      ctx.save();
+      ctx.globalAlpha=(0.18+0.34*mvU)*(0.55+0.45*mvBeat);
+      ctx.fillStyle='#ff5a1c';
+      ctx.fillRect(0,hh-mvH,mvW,mvH);
+      ctx.globalAlpha=(0.10+0.30*mvU)*mvBeat;
+      ctx.fillStyle='#ffd08a';
+      ctx.fillRect(0,hh-mvH-2*RTD.dpr,mvW,2*RTD.dpr);
+      ctx.restore();
+    }
+  }
   sclLavaSnd(lvw>0.01,lavaVis?Math.max(0.1,Math.min(1,1-(SC.myY-lvw)/14)):0.08);
   // §7.4 v3: loop wall-slide (solo il MIO stato — pred istantanea o bit 2048 server)
   sclSlideSnd(!SC.meDead&&((SC.pred.ok&&SC.pred.wallside!==0)||!!(meFl&2048)));
@@ -61811,7 +62944,7 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
     if(_p.grounded&&SC.mpV<-16){
       var _fs=Math.min(1,(-SC.mpV-16)/14);
       for(var _lr=0;_lr<8;_lr++){var _la=_lr/8*6.283185;sclP(_mepx+Math.cos(_la)*6*RTD.dpr,_mefy,Math.cos(_la)*(50+_fs*90),-Math.abs(Math.sin(_la))*30*RTD.dpr,300,'rgba(200,196,188,.6)',(1.6+_fs)*RTD.dpr,60*RTD.dpr,0,0.9);}
-      RTD.shake=Math.min(6,RTD.shake+2+_fs*3);
+      sclShake('spike',0.35+0.4*_fs);   // atterraggio: colpo VERTICALE ∝ velocità di caduta (1.4 a 3.0 px)
       if(_fs>0.5)try{sclHitstop(2);}catch(_lh){}
     }
     SC.mpV=_pvy;   // vy precedente per il landing-detect del prossimo frame
@@ -61889,9 +63022,16 @@ function rtdDrawScalata(ctx,raw,lp,now,w,hh,dt){
     ctx.fillStyle='#fbbf24';
     ctx.beginPath();ctx.moveTo(ckx,cky-3.6*RTD.dpr);ctx.lineTo(ckx+3.6*RTD.dpr,cky-2.2*RTD.dpr);ctx.lineTo(ckx,cky-0.8*RTD.dpr);ctx.closePath();ctx.fill();
   }
-  // finestrella camera (x E y con la camera-finestra)
+  // finestrella camera (x E y con la camera-finestra). PERCHE' vhU e non vh/2:
+  // la finestra verticale NON e' simmetrica da quando esiste la ancora alta —
+  // sopra la camera stanno vhU=vh*ANCH celle, sotto vhD=vh-vhU (vedi il clamp ai
+  // bordi e il culling, che usano gia' vhU/vhD). Con ANCH=0.30 il vecchio vh/2
+  // disegnava il rettangolo 0.2*vh troppo in alto, cioe' ~4 celle: il pallino del
+  // giocatore usciva dal bordo basso della finestrella mentre a schermo il
+  // giocatore era in mezzo al quadro. La mappa e' uno strumento di lettura, non
+  // una decorazione: deve dire il vero. L'altezza resta vh perche' vhU+vhD=vh.
   ctx.strokeStyle='rgba(255,255,255,.4)';ctx.lineWidth=1;
-  ctx.strokeRect(mtX+((camX-SC.VIEW/2)/SC.W)*mtW,mtY+mtH-((camY+vh/2)/SC.H)*mtH,(SC.VIEW/SC.W)*mtW,(vh/SC.H)*mtH);
+  ctx.strokeRect(mtX+((camX-SC.VIEW/2)/SC.W)*mtW,mtY+mtH-((camY+vhU)/SC.H)*mtH,(SC.VIEW/SC.W)*mtW,(vh/SC.H)*mtH);
   // ── indicatore FURIA (bordo arancio pulsante) + flash kill ──
   if(meFl&16){
     ctx.globalAlpha=0.22+0.14*Math.sin(now/110);
