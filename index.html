@@ -9478,19 +9478,20 @@ body.gb-nav-on .bnav{display:flex;}
           <div class="dc-bc-icon">⬇</div>
           <div class="dc-bc-name">LOW</div>
           <div class="dc-bc-range">2 – 6</div>
-          <div class="dc-bc-mult">×2</div>
+          <!-- il valore lo scrive dcFillMult() con quello che manda il server -->
+          <div class="dc-bc-mult" id="dc-m-lo">×2</div>
         </button>
         <button class="dc-bet-card hot" data-dc="7" onclick="dcSelPick('7')">
           <div class="dc-bc-icon">7️⃣</div>
           <div class="dc-bc-name">LUCKY SEVEN</div>
           <div class="dc-bc-range">= 7</div>
-          <div class="dc-bc-mult">×6</div>
+          <div class="dc-bc-mult" id="dc-m-7">×5.7</div>
         </button>
         <button class="dc-bet-card" data-dc="hi" onclick="dcSelPick('hi')">
           <div class="dc-bc-icon">⬆</div>
           <div class="dc-bc-name">HIGH</div>
           <div class="dc-bc-range">8 – 12</div>
-          <div class="dc-bc-mult">×2</div>
+          <div class="dc-bc-mult" id="dc-m-hi">×2</div>
         </button>
       </div>
     </div>
@@ -32781,7 +32782,9 @@ function dcRoll(){
       var winEur=(resp.payout_btc*S.rate);
       totalEl.classList.add('win');
       statusEl.textContent='🎉 You won €'+winEur.toFixed(2)+'! ('+sum+')';
-      setTimeout(function(){ if(resp.mult>=6) gSound('win-big'); else gSound('win-medium'); },200);
+      /* (05/08) soglia da 6 a 5: col "7" passato a 5.7x, il tiro che DEVE
+         suonare grosso avrebbe smesso di farlo. */
+      setTimeout(function(){ if(resp.mult>=5) gSound('win-big'); else gSound('win-medium'); },200);
       toast('🎉 +€'+winEur.toFixed(2)+' ('+sum+')','ok');
     } else {
       totalEl.classList.add('lose');
@@ -34351,6 +34354,29 @@ function fetchRate(){
     .then(function(d){if(d.rate)S.rate=d.rate;refresh();})
     .catch(function(){});
 }
+/* LA TABELLA DEI PAGAMENTI DEL DADO LA DICE IL SERVER (05/08/2026).
+   Prima i moltiplicatori erano scritti a mano QUI nel markup e a mano nel
+   backend, in due posti che non si parlavano: cambiarne uno solo vuol dire
+   promettere una cifra e pagarne un'altra — lo stesso difetto che la lotteria
+   aveva ("2 numeri: 10 EUR" mentre ne pagava 2).
+   Il ripiego sono i valori di OGGI, non quelli vecchi: se il server e'
+   indietro di un rilascio la pagina resta comunque onesta. */
+var DC_MULT_FALLBACK={lo:2,hi:2,seven:5.7};
+function dcFillMult(d){
+  var m=(d&&d.dice_mult&&typeof d.dice_mult==='object')?d.dice_mult:DC_MULT_FALLBACK;
+  DC_MULT=m;
+  var scrivi=function(id,v){
+    var el=document.getElementById(id);
+    if(!el||!(+v>0))return;
+    /* niente decimali inutili: 2 resta "x2", 5.7 resta "x5.7" */
+    el.textContent='×'+(Math.abs(+v-Math.round(+v))<1e-9?String(Math.round(+v)):String(+v));
+  };
+  scrivi('dc-m-lo', m.lo!==undefined?m.lo:DC_MULT_FALLBACK.lo);
+  scrivi('dc-m-hi', m.hi!==undefined?m.hi:DC_MULT_FALLBACK.hi);
+  scrivi('dc-m-7',  m.seven!==undefined?m.seven:DC_MULT_FALLBACK.seven);
+}
+var DC_MULT=DC_MULT_FALLBACK;
+
 function loadBalance(){
   if(!S.userId){
     var hb=document.getElementById('home-bal');
@@ -34368,6 +34394,7 @@ function loadBalance(){
     .then(function(d){
       if(S._pendingSyncs>0)return;
       if(d.error){setBalanceStatus('Error: '+d.error,'offline');return;}
+      dcFillMult(d);        /* i pagamenti del dado, come li dice il server */
       S.btc=d.btc||0;
       S.wins=d.wins||0;
       S.losses=d.losses||0;
