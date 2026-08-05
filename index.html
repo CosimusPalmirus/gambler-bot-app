@@ -37289,7 +37289,11 @@ function twrOnMsg(m){
   if(t==='hello_ok'){
     if(m.rate)TWR.rate=m.rate;
     if(TWR.pendingTicket){twrSend({t:'join_ticket',ticket:TWR.pendingTicket});TWR.pendingTicket=null;twrShowSearch();return;}
-    if(TWR.pendingJoin){TWR.pendingJoin=false;twrSend({t:'join',tier:TWR.tier});}
+    /* `iv` = cosa sa fare questa pagina. 2 = sa mostrare l'offerta di scambio
+       e mandare il verbo `swap`. Il server serve chi NON lo manda come ha
+       sempre fatto (raccolta automatica), cosi' una pagina vecchia in cache
+       non resta senza bottino davanti a una scelta che non sa mostrare. */
+    if(TWR.pendingJoin){TWR.pendingJoin=false;twrSend({t:'join',tier:TWR.tier,iv:2});}
     return;
   }
   if(t==='lobby'){
@@ -37371,7 +37375,7 @@ function twrJoin(){
   TWS.init();TWS.res();
   try{tg.HapticFeedback&&tg.HapticFeedback.impactOccurred('medium');}catch(e){}
   if(!TWR.wsOk){TWR.pendingJoin=true;twrConnect();return;}
-  twrSend({t:'join',tier:TWR.tier});
+  twrSend({t:'join',tier:TWR.tier,iv:2});   // iv: vedi il commento sopra
 }
 function twrLeave(){twrSend({t:'leave'});}
 function twrThrowStart(ev,code){
@@ -37772,7 +37776,11 @@ function twrShowMatch(){
     +'<div class="twr-joy tw-ov-move" id="twr-joy"><div class="twr-knob" id="twr-knob"></div></div>'
     +'<div class="twr-btns tw-ov-right">'
     +'<div class="twr-side2">'
-    +'<button class="twr-carbtn" id="twr-carbtn" style="display:none;" ontouchstart="event.preventDefault();twrAct(\'vehicle\')" onmousedown="twrAct(\'vehicle\')">🚗<span id="twr-carbtn-t">SALI</span></button>'
+    /* Il quadrato e' UNO SOLO e cambia mestiere: 🚗 SALI oppure 🔫 SCAMBIA.
+       Non se ne aggiunge un secondo perche' .twr-side2 e' una colonna flex e
+       farebbe salire lo stick di mira di ~32 px sotto il pollice.
+       TWR.ctxAct dice cosa manda, e viene riscritto in TUTTI i rami. */
+    +'<button class="twr-carbtn" id="twr-carbtn" style="display:none;" ontouchstart="event.preventDefault();twrAct(TWR.ctxAct||\'vehicle\')" onmousedown="twrAct(TWR.ctxAct||\'vehicle\')"><span id="twr-carbtn-ic">🚗</span><span id="twr-carbtn-t">SALI</span></button>'
     +'<div class="twr-items" id="twr-items"></div>'
     +'</div>'
     +'<div class="twr-aimwrap"><div class="twr-joy aim" id="twr-aimjoy"><div class="twr-knob aim" id="twr-aimknob"><span id="twr-aim-ic">👊</span></div></div><div class="twr-aim-sub" id="twr-aim-sub">MIRA &amp; SPARA</div></div>'
@@ -37908,6 +37916,20 @@ function twrHud(m){
       chips=chips.filter(function(c){return c.indexOf('NELLA ZONA')<0;});
       chips.unshift('<span class="twr-schip hot">☢ SEI NELLA ZONA!</span>');
     }
+    /* COSA LASCI, non solo cosa prendi. L'arma in mano non la sceglie il
+       giocatore — gliela sceglie il motore — e due delle emoji piu' vistose
+       (doppietta, lanciarazzi) sono fra le armi peggiori. Premere SCAMBIA
+       senza sapere cosa si butta sarebbe lo stesso furto silenzioso di
+       prima, con un bottone sopra. */
+    if(you.swap){
+      var _sn=function(c,n){
+        var d=TWR_IT[c]||['📦',c||'—'];
+        return d[0]+' '+d[1]+(n===null||n===undefined?'':' <b>'+n+'</b>');
+      };
+      chips.unshift('<span class="twr-schip">'
+        +(you.swap.drop?_sn(you.swap.drop,you.swap.drop_ammo)+' → ':'')
+        +_sn(you.swap.get,you.swap.get_ammo)+'</span>');
+    }
     stat.innerHTML=chips.slice(0,2).join('');
   }
   var fz=document.getElementById('twr-frenzy');
@@ -37963,11 +37985,23 @@ function twrHud(m){
       wp.className='twr-weap'+(wLow?' low':'')+(wEmpty?' empty':'');
     }
   }
-  var cb=document.getElementById('twr-carbtn'),cbt=document.getElementById('twr-carbtn-t');
+  var cb=document.getElementById('twr-carbtn'),cbt=document.getElementById('twr-carbtn-t'),
+      cbi=document.getElementById('twr-carbtn-ic');
   if(cb){
-    if(you.in_car){cb.style.display='flex';if(cbt)cbt.textContent='SCENDI';}
-    else if(you.near_car){cb.style.display='flex';if(cbt)cbt.textContent='SALI';}
-    else cb.style.display='none';
+    /* ctxAct si riscrive in OGNI ramo, anche quando il bottone sparisce: se lo
+       si impostasse solo nel ramo dello scambio, dopo la prima offerta
+       resterebbe 'swap' per sempre e il tasto 🚗 SALI manderebbe `swap`. */
+    if(you.swap&&!you.in_car){
+      /* SCAMBIA vince sull'auto: l'auto e' ancora li' un attimo dopo, l'arma
+         per terra e' la decisione che stai prendendo adesso. */
+      TWR.ctxAct='swap';
+      cb.style.display='flex';
+      if(cbi)cbi.textContent=(TWR_LOOT_IC[you.swap.get]||(TWR_IT[you.swap.get]||['📦'])[0]);
+      if(cbt)cbt.textContent='SCAMBIA';
+    }
+    else if(you.in_car){TWR.ctxAct='vehicle';cb.style.display='flex';if(cbi)cbi.textContent='🚗';if(cbt)cbt.textContent='SCENDI';}
+    else if(you.near_car){TWR.ctxAct='vehicle';cb.style.display='flex';if(cbi)cbi.textContent='🚗';if(cbt)cbt.textContent='SALI';}
+    else {TWR.ctxAct='vehicle';cb.style.display='none';}
   }
   var itEl=document.getElementById('twr-items');
   if(itEl){
