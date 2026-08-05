@@ -12453,6 +12453,10 @@ body.gb-nav-on .bnav{display:flex;}
     "SEI FUORI":"YOU'RE OUT",
     "ULTIMO IN PIEDI":"LAST ONE STANDING",
     "RESA DEI CONTI FINITA":"SHOWDOWN OVER",
+    "PARTITA INTERROTTA":"MATCH ABORTED",
+    "La partita si e' fermata per un guasto. Non ha vinto nessuno.":"The match stopped because of a fault. Nobody won.",
+    "La tua posta e' gia' tornata sul tuo saldo.":"Your stake is already back in your balance.",
+    "La tua posta ti verra' restituita a breve.":"Your stake will be returned to you shortly.",
     "CARRO VINCENTE":"WINNING TANK",
     "CARRO DISTRUTTO":"TANK DESTROYED",
     "VITTORIA":"VICTORY",
@@ -37133,6 +37137,27 @@ var TWR_IT={MOLOTOV:['🍾','Molotov'],GRENADE:['💣','Granata'],SMOKE:['💨',
   MEDIKIT:['❤️','Medikit'],VEST:['🛡️','Giubbotto'],KNIFE:['🗡️','Coltello'],BAT:['🏏','Mazza'],
   PISTOL:['🔫','Pistola'],SMG:['⚡','SMG'],SHOTGUN:['💥','Doppietta'],ROCKET:['🚀','Lanciarazzi'],SNIPER:['🎯','Fucile'],SPRINT:['⚡','Scatto'],
   UZI:['🌀','Uzi'],LMG:['⛓️','Mitragliatrice'],MAGNUM:['💢','Magnum']};
+/* ── IL BOTTINO SI VEDE PER TERRA (05/08/2026) ──────────────────────────
+   TWR_LOOT e' LA STESSA LISTA di LOOT_CODES nel motore (turfwar_rt.py),
+   NELLO STESSO ORDINE: sul filo viaggia l'indice, non il nome. APPEND-ONLY,
+   mai riordinare — la pagina si carica a mano, quindi per ore un client con
+   la tabella vecchia leggerebbe indici nuovi e ogni icona mentirebbe.
+   test_turf_bottino.py rilegge questo array e lo confronta col server. */
+var TWR_LOOT=['MEDIKIT','VEST','KNIFE','PISTOL','BAT','SHOTGUN','MOLOTOV','GRENADE','TRAP','SMOKE','INTEL','SPRINT','ROCKET','UZI','LMG','MAGNUM','SMG','SNIPER'];
+/* Icone PER TERRA. Partono da TWR_IT, con una sola correzione: in TWR_IT ci
+   sono due ⚡ (SMG e SPRINT). Nell'HUD non da' fastidio perche' c'e' scritto
+   anche il nome; per terra sarebbero indistinguibili, e sono due cose che
+   valgono in modo molto diverso. */
+var TWR_LOOT_IC={SPRINT:'👟'};
+/* Colore della CATEGORIA: da lontano il colore arriva prima del disegno. */
+var TWR_LOOT_CAT={PISTOL:0,SMG:0,SHOTGUN:0,ROCKET:0,SNIPER:0,UZI:0,LMG:0,MAGNUM:0,
+  KNIFE:1,BAT:1, MEDIKIT:2,VEST:2, MOLOTOV:3,GRENADE:3,TRAP:3,SMOKE:3,INTEL:3,SPRINT:3};
+var TWR_LOOT_COL=['rgba(226,90,72,.30)','rgba(232,150,60,.30)','rgba(90,200,120,.30)','rgba(90,150,235,.30)'];
+function twrLootIcona(i){
+  var code=TWR_LOOT[i]; if(!code) return null;
+  return {code:code, ic:(TWR_LOOT_IC[code]||(TWR_IT[code]&&TWR_IT[code][0])||'📦'),
+          cat:(TWR_LOOT_CAT[code]||0)};
+}
 var TWR_TIERS=[['1','€1'],['2','€2'],['5','€5'],['10','€10'],['20','€20'],['50','€50']];
 var TWR_CARCOL=['#b3273b','#2b6cb0','#3c7a3e','#8b5cf6','#b3762b'];
 
@@ -37773,6 +37798,28 @@ function twrShowOver(m){
   if(m.practice||TWR.practice){
     TWS.play(m.you_won?'win':'lose');
     twrOv(practiceOverHTML(!!m.you_won,'twrPracAgain','twrPracToReal'),true);
+    twrShowLobby(true);
+    return;
+  }
+  /* PARTITA ANNULLATA (05/08/2026). Il server ha una rete: se una partita si
+     rompe a meta' restituisce a ognuno la SUA posta e manda `annullata`.
+     Senza questo ramo il messaggio cadeva in quello della sconfitta e diceva
+     che un giocatore fantasma aveva vinto €0.00 — una bugia, su una partita a
+     soldi veri, proprio nel momento in cui il giocatore ha bisogno di sapere
+     che i suoi soldi sono tornati indietro. */
+  if(m.annullata){
+    TWS.play('lose');
+    twrOv('<div class="twr-annullata">'
+      +'<div style="font-size:44px;">🛑</div>'
+      +'<div class="tw-lose-t">PARTITA INTERROTTA</div>'
+      +'<div class="tw-ov-sub">La partita si e\' fermata per un guasto. Non ha vinto nessuno.</div>'
+      +(m.rimborsata===false
+         ? '<div class="tw-ov-sub" style="color:#ffd166;margin-top:8px;">La tua posta ti verra\' restituita a breve.</div>'
+         : '<div class="tw-ov-sub" style="color:#7ee787;margin-top:8px;">La tua posta e\' gia\' tornata sul tuo saldo.</div>')
+      +'<div class="tw-ov-btns">'
+      +'<button class="action-btn gold" onclick="twrAgain()">🔁 GIOCA ANCORA</button>'
+      +'<button class="action-btn" onclick="twrAgain();go(\'home\')">🏠 HOME</button>'
+      +'</div></div>',true);
     twrShowLobby(true);
     return;
   }
@@ -38799,9 +38846,36 @@ function twrFrame(){
   (raw.cr||[]).forEach(function(cr){
     var cx=W2X(cr[0]+0.5),cy=W2Y(cr[1]+0.5);
     var pulse=1+0.06*Math.sin(now/200+cr[0]);
-    ctx.font=(cell*0.5*pulse)+'px serif';
-    if(cr[2]){ctx.shadowColor='rgba(255,215,0,.9)';ctx.shadowBlur=14;ctx.fillText('🎁',cx,cy);}
-    else{ctx.shadowColor='rgba(255,215,0,.4)';ctx.shadowBlur=8;ctx.fillText('📦',cx,cy);}
+    /* La cassa d'ORO resta 🎁: dentro ha DUE cose e su una piastrella non ci
+       stanno, ed e' un punto di riferimento che tutti riconoscono da lontano.
+       Gli indici viaggiano comunque, quindi si potra' cambiare idea. */
+    if(cr[2]){
+      ctx.font=(cell*0.5*pulse)+'px serif';
+      ctx.shadowColor='rgba(255,215,0,.9)';ctx.shadowBlur=14;ctx.fillText('🎁',cx,cy);
+      ctx.shadowBlur=0;return;
+    }
+    /* cr[3] c'e' SOLO se sei vivo e ce l'hai davvero davanti: il server lo
+       taglia per morti e spettatori (se no un amico morto su un secondo
+       telefono leggerebbe il bottino di tutta la citta'). Quando manca —
+       server vecchio, oppure cassa lontana — si disegna il pacco di sempre. */
+    var L=(cr.length>3)?twrLootIcona(cr[3]):null;
+    if(!L){
+      ctx.font=(cell*0.5*pulse)+'px serif';
+      ctx.shadowColor='rgba(255,215,0,.4)';ctx.shadowBlur=8;ctx.fillText('📦',cx,cy);
+      ctx.shadowBlur=0;return;
+    }
+    var r=cell*0.34*pulse;
+    ctx.save();
+    ctx.fillStyle=TWR_LOOT_COL[L.cat]||TWR_LOOT_COL[0];
+    ctx.beginPath();
+    if(ctx.roundRect)ctx.roundRect(cx-r,cy-r,r*2,r*2,r*0.42);
+    else ctx.rect(cx-r,cy-r,r*2,r*2);
+    ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.16)';ctx.lineWidth=1;ctx.stroke();
+    ctx.restore();
+    ctx.font=(cell*0.52*pulse)+'px serif';
+    ctx.shadowColor='rgba(0,0,0,.55)';ctx.shadowBlur=6;
+    ctx.fillText(L.ic,cx,cy);
     ctx.shadowBlur=0;
   });
   // own traps
