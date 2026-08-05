@@ -407,18 +407,32 @@ body.gb-nav-on .bnav{display:flex;}
    12px piu' in basso e da quella fessura si vedrebbe scorrere il contenuto.
    Il respiro passa alla topbar, che nell'occasione rientra in colonna a 16px
    (aveva 14px suoi). */
-#home .scroll{ padding-top:0; }
+/* `contain:paint` dice al browser che quello che si disegna qui dentro non
+   esce dai bordi: puo' saltare il ricalcolo del resto della pagina. */
+#home .scroll{ padding-top:0; contain:paint; }
 #home .scroll > .home-topbar{ margin:0 -16px; padding:12px 16px 8px; }
 #home .scroll > .home-hero{
   position:sticky; top:0;
   margin:0 -16px 4px; padding:10px 16px 12px;
   transition:padding .28s cubic-bezier(.4,0,.2,1), background .28s;
 }
-/* le transizioni stanno sullo stato NORMALE, cosi' vale in tutti e due i versi */
-#home .hero-frame{ transition:width .28s cubic-bezier(.4,0,.2,1),
-  height .28s cubic-bezier(.4,0,.2,1), margin .28s, box-shadow .28s; }
-#home .hero-name{ transition:font-size .28s cubic-bezier(.4,0,.2,1), margin .28s; }
-#home .hero-tag{ transition:height .2s, opacity .18s, margin .2s; }
+/* ── HOME FLUIDA (05/08/2026) ────────────────────────────────────────────
+   Le transizioni stanno sullo stato NORMALE, cosi' valgono in tutti e due i
+   versi. Ma prima animavano `width`, `height`, `font-size`, `padding` e
+   `margin`: tutte proprieta' che RIFANNO IL LAYOUT. Per 280 ms, a ogni
+   fotogramma, il browser ricalcolava la posizione di tutto il contenuto —
+   e lo faceva PROPRIO MENTRE il dito stava scorrendo (l'hero si raccoglie
+   alla soglia dei 10 px). E' il modo classico di far singhiozzare uno
+   scorrimento su un telefono.
+   Adesso si anima solo cio' che il compositore sa fare da solo: `transform`
+   e `opacity`. La misura vera del riquadro cambia comunque — serve al flex
+   della barra raccolta — ma di scatto, in un fotogramma solo, invece di
+   trascinarsi dietro 280 ms di ricalcoli. */
+#home .hero-frame{ transition:transform .28s cubic-bezier(.4,0,.2,1),
+  box-shadow .28s; transform-origin:center center; will-change:transform; }
+#home .hero-name{ transition:transform .28s cubic-bezier(.4,0,.2,1), opacity .2s;
+  transform-origin:left center; }
+#home .hero-tag{ transition:opacity .18s, transform .2s; transform-origin:left center; }
 #home .hero-frame-outer-glow, #home .hero-frame-ring,
 #home .hero-frame-glow, #home .hero-sparkle{ transition:opacity .2s; }
 
@@ -426,12 +440,21 @@ body.gb-nav-on .bnav{display:flex;}
 #home.hero-min .scroll > .home-hero{
   display:flex; align-items:center; gap:12px; text-align:left;
   padding:8px 16px; margin-bottom:8px;
-  background:rgba(8,9,13,.94);
-  -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
+  /* (05/08) VIA IL backdrop-filter. Su un elemento `position:sticky` obbliga
+     il compositore a ri-sfocare TUTTO il contenuto che gli scorre sotto, a
+     ogni fotogramma, per sempre — non solo durante la transizione. E non si
+     vedeva: dietro uno sfondo opaco al 94% una sfocatura da 10 px non arriva
+     all'occhio. Lo sfondo sale a .97, che e' l'unica cosa che serviva davvero
+     (staccare la barra dal contenuto che scorre).
+     Stesso ragionamento gia' fatto il 28/07 altrove in questo file. */
+  background:rgba(8,9,13,.97);
   border-bottom:1px solid rgba(255,255,255,.07);
 }
+/* la misura cambia di scatto (serve al flex), la SCALA e' quella che si
+   anima: cosi' l'occhio vede una transizione morbida e il documento no. */
 #home.hero-min .hero-frame{
   width:40px; height:40px; margin:0; flex:0 0 40px;
+  transform:scale(1);
   box-shadow:0 0 0 2px rgba(255,215,0,.45), 0 4px 12px rgba(0,0,0,.5);
 }
 #home.hero-min .hero-name{ font-size:16px; letter-spacing:1.6px; margin:0; white-space:nowrap; }
@@ -12956,7 +12979,7 @@ body.gb-nav-on .bnav{display:flex;}
     "La lancia (pilum)":"The spear (pilum)",
     "— ogni tanto la folla ne getta una: chi la raccoglie lancia invece di colpire":"— every so often the crowd throws one in: whoever picks it up throws instead of swinging",
     "Non sai da dove iniziare?":"Not sure where to start?",
-    "TRASCINA LA MANOPOLA ↔ PER STERZARE":"DRAG THE KNOB ↔ TO STEER",
+    "MANOPOLA ↔ STERZA · IL GAS È AUTOMATICO":"KNOB ↔ STEERS · GAS IS AUTOMATIC",
     /* ── MENU TORNEI: albo, campione, schede passate (01/08) ── */
     "🏛 ULTIMI TORNEI":"🏛 PAST TOURNAMENTS",
     "Nessun torneo in programma.":"No tournament scheduled.",
@@ -46038,7 +46061,13 @@ function rtdRafWatch(){
 // Perche' cosi': un volante e' un comando RELATIVO (giro rispetto a dove sto
 // andando), lo stick era ASSOLUTO (punta a nord-est). Senza la conversione, il
 // volante avrebbe sterzato verso un punto fisso dello schermo.
-var RCC={steer:0,gas:0,drift:false,rot:0,attivo:false,x0:0,s0:0,stop:null,eng:false};
+/* IL GAS SI DA' DA SOLO (05/08/2026). Prima andava tenuto premuto, e i due
+   pedali erano impilati sullo stesso lato: col pollice sinistro sullo sterzo,
+   per GAS e DERAPA ne restava uno solo — quindi derapare mentre si accelera
+   era fisicamente impossibile, non difficile. Adesso l'auto corre da sola e
+   il pollice destro e' libero di tenere la derapata quanto serve. */
+var RC_GAS_AUTO=1;
+var RCC={steer:0,gas:RC_GAS_AUTO,drift:false,rot:0,attivo:false,x0:0,s0:0,stop:null,eng:false};
 var RC_ROT=2.0;      // quanto gira il volante DA VEDERE a tutto sterzo (radianti)
 var RC_RAGGIO=76;    // (04/08: 84 -> 76, lo STESSO degli altri stick)
                      // DISTANZA DAL CENTRO per tutto sterzo.
@@ -46055,7 +46084,7 @@ var RC_COAST=0.20;   // gas "a folle": appena sopra la zona morta del motore
 function rcVolanteInit(){
   var w=document.getElementById('rc-wheel'), gas=document.getElementById('rc-gas'),
       dft=document.getElementById('arc-drift');
-  RCC.steer=0;RCC.gas=0;RCC.drift=false;RCC.rot=0;RCC.attivo=false;
+  RCC.steer=0;RCC.gas=RC_GAS_AUTO;RCC.drift=false;RCC.rot=0;RCC.attivo=false;
   var zona=document.getElementById('rc-wheel-wrap');
   // Se una gara precedente aveva montato lo stick, lo si smonta PRIMA di
   // rimontarlo: `rcVolanteInit` gira a ogni partita e la versione vecchia
@@ -46108,7 +46137,12 @@ function rcVolanteInit(){
     el.addEventListener('mousedown',function(e){e.preventDefault();giu();el.classList.add('on');});
     window.addEventListener('mouseup',function(){su();el.classList.remove('on');});
   }
-  pedale(gas,function(){RCC.gas=1;},function(){RCC.gas=0;});
+  /* Il pedale che era GAS adesso e' il FRENO: premuto ALZA il piede, e al
+     rilascio l'auto riprende da sola. Senza, il giocatore perderebbe l'unico
+     modo di rallentare in ingresso curva e il gioco sarebbe piu' povero, non
+     piu' facile. (Il ripiego RC_COAST piu' sotto tiene comunque un filo di
+     spinta se stai sterzando: e' un'alzata di piede, non un'ancora.) */
+  pedale(gas,function(){RCC.gas=0;},function(){RCC.gas=RC_GAS_AUTO;});
   pedale(dft,function(){RCC.drift=true;RTD.aim.on=true;},function(){RCC.drift=false;RTD.aim.on=false;});
 }
 
@@ -47102,11 +47136,11 @@ function rtdShowMatch(){
            QUANTO stai sterzando, quindi si correggeva a tentoni. */
         +'<div class="rc-knob" id="rc-knob"></div>'
       +'</div>'
-      +'<div class="rc-wheel-hint">TRASCINA LA MANOPOLA ↔ PER STERZARE</div>'
+      +'<div class="rc-wheel-hint">MANOPOLA ↔ STERZA · IL GAS È AUTOMATICO</div>'
       +'</div>'
       +'<div class="arc-ov-right rc-pedals">'
       +'<button class="rc-pedal drift" id="arc-drift">🔥<span>DERAPA</span></button>'
-      +'<button class="rc-pedal gas" id="rc-gas">⛽<span>GAS</span></button>'
+      +'<button class="rc-pedal gas" id="rc-gas">🛑<span>FRENO</span></button>'
       +'</div>';
   }else if(inp==='stick+dash'||inp==='stick+bomb'){
     var lbl=inp==='stick+dash'?'💨<span>DASH</span>':'💣<span>BOMBA</span>';
