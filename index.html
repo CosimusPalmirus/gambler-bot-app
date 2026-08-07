@@ -10679,7 +10679,7 @@ body.gb-nav-on .bnav{display:flex;}
          misurata anche quella, per non "aggiustare" cio' che e' gia' a posto. -->
     <div class="bal-card" style="height:auto;min-height:0;flex-shrink:0;">
       <div>
-        <div class="bal-lbl">TON BALANCE</div>
+        <div class="bal-lbl">YOUR CASINO TON</div>
         <div class="bal-num" id="tonui-bal">0 TON</div>
         <div class="bal-sub" id="tonui-sub">&nbsp;</div>
       </div>
@@ -66165,6 +66165,31 @@ function tonUiSonda(){
   });
 }
 
+/* LA RETE DI SICUREZZA.
+   `ui.connected` e' un getter, e ci ha gia' mentito una volta (al click il
+   ripristino non era finito e diceva `false`). Non ci si affida a lui e
+   basta: si prova ad aprire, e SE il modale solleva "already connected" —
+   che e' l'unico che sappiamo riconoscere e l'unico che sappiamo curare —
+   si scollega e si riprova UNA volta sola.
+   Una volta sola: se dopo lo scollegamento solleva ancora, il problema e'
+   un altro e riprovare in tondo lo nasconderebbe. */
+function tonUiApriModale(ui, puoRiprovare){
+  var p;
+  try{ p = ui.openModal(); }catch(e){ p = Promise.reject(e); }
+  if(!p || typeof p.then !== 'function') p = Promise.resolve(p);
+  return p['catch'](function(e){
+    var m = (e && e.message) ? String(e.message) : String(e);
+    if(!puoRiprovare || m.indexOf('already connected') === -1) throw e;
+    tonUiDiario('gia-collegato', 'il modale ha detto already connected: scollego');
+    var d = null;
+    try{ d = ui.disconnect(); }catch(e2){}
+    if(!d || typeof d.then !== 'function') d = Promise.resolve();
+    return d['catch'](function(){ return null; }).then(function(){
+      return tonUiApriModale(ui, false);
+    });
+  });
+}
+
 function tonUiSbloccaBtn(){
   var b = document.getElementById('tonui-cbtn');
   if(b){ b.disabled = false; b.textContent = '\ud83d\udd17 CONNECT WALLET'; }
@@ -66315,9 +66340,19 @@ function tonUiDisegna(){
            ? 'Your wallet is connected here, but it has not proved it is '
              + 'yours yet. Tap below: it will reconnect and sign a short '
              + 'message. Nothing leaves your wallet.'
-           : 'Connect your TON wallet to set where your withdrawals are sent. '
-             + 'No address to type, nothing to mistype.')
+           : 'Connect your TON wallet to tell us <b>where to send your '
+             + 'withdrawals</b>. No address to type, nothing to mistype.')
         + '</div>'
+        /* la distinzione che vale soldi in entrambe le direzioni */
+        + '<div style="font-size:11px;color:var(--txt3);margin-top:8px;'
+        + 'line-height:1.5;">Connecting does <b>not</b> move any TON. '
+        + 'The TON in your wallet stay in your wallet \u2014 we cannot see '
+        + 'them or touch them. The balance above is what you hold '
+        + '<b>inside the casino</b>, and it only grows with a deposit.</div>'
+        + (meta
+           ? '<button class="action-btn red" style="width:100%;margin-top:8px;" '
+             + 'onclick="tonUiScollega()">DISCONNECT</button>'
+           : '')
         + '<button class="action-btn gold" style="width:100%;margin-top:10px;" '
         + 'onclick="tonUiCollega()" id="tonui-cbtn">\ud83d\udd17 CONNECT WALLET</button>'
         + '<div id="tonui-err" style="display:none;font-size:11.5px;'
@@ -66502,15 +66537,28 @@ function tonUiCollega(){
      firmata sul nonce di ADESSO. Una connessione gia' aperta non ne ha una,
      e non c'e' modo di chiedergliela senza rifare il collegamento.
      Tocca solo il browser: l'indirizzo provato sul server resta dov'e'. */
-  var pronto;
+  /* IL RIPRISTINO E' ASINCRONO, e guardare troppo presto da' la risposta
+     sbagliata: al click `ui.connected` dice ancora `false`, un istante dopo
+     dice `true`, e `openModal()` solleva. Si aspetta `connectionRestored`,
+     che e' l'unico momento in cui la domanda ha una risposta vera. */
+  var ripristino = Promise.resolve();
   try{
-    if(ui.connected || (ui.account && ui.account.address)){
-      tonUiDiario('gia-collegato', 'scollego per ottenere una prova nuova');
-      pronto = ui.disconnect();
-    }
+    if(ui.connectionRestored && typeof ui.connectionRestored.then === 'function')
+      ripristino = ui.connectionRestored;
   }catch(e){}
-  if(!pronto || typeof pronto.then !== 'function') pronto = Promise.resolve();
-  pronto['catch'](function(){ return null; }).then(function(){
+  ripristino['catch'](function(){ return null; }).then(function(){
+    var gia = false;
+    try{ gia = !!(ui.connected || (ui.account && ui.account.address)); }catch(e){}
+    if(!gia) return null;
+    /* Non basta riusare la connessione vecchia: serve una prova NUOVA,
+       firmata sul nonce di ADESSO, e una connessione gia' aperta non ne ha
+       una. Tocca solo il browser: l'indirizzo provato sul server resta. */
+    tonUiDiario('gia-collegato', 'scollego per ottenere una prova nuova');
+    var d = null;
+    try{ d = ui.disconnect(); }catch(e){}
+    if(d && typeof d.then === 'function') return d['catch'](function(){ return null; });
+    return null;
+  }).then(function(){
     return swapApi('/ton/connect/nonce');
   }).then(function(res){
     if(!res.ok || !res.data || !res.data.nonce) throw new Error('could not get a challenge from the server');
@@ -66527,7 +66575,7 @@ function tonUiCollega(){
        e, per un wallet esterno, la sua Promise puo' non risolversi MAI
        (`ignoreErrors:true` non risolve e non rigetta). La prova la raccoglie
        `onStatusChange`. */
-    return ui.openModal();
+    return tonUiApriModale(ui, true);
   }).then(function(){
     /* l'ambiente si registra QUI, non prima: e' il momento in cui la
        libreria sta per decidere come aprire il link del wallet. */
@@ -66556,8 +66604,11 @@ function tonUiScollega(){
      finche' non se ne collega un altro. Cancellarlo su un tocco vorrebbe
      dire perdere l'unico indirizzo verificato che abbiamo, e costringere a
      rifare la prova per un ripensamento. */
+  tonUiDici('');
   if(typeof toast==='function')
-    toast('Disconnected here. Connect another wallet to change the payout address.','ok');
+    toast('Disconnected. Your balance and your wallet are untouched.','ok');
+  /* si ridisegna: se no la carta continua a mostrare lo stato di prima */
+  try{ tonUiDisegna(); }catch(e){}
 }
 
 /* ── prelevare: nessun indirizzo da scrivere, per costruzione ── */
