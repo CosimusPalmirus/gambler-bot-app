@@ -10537,6 +10537,9 @@ body.gb-nav-on .bnav{display:flex;}
       <button class="action-btn" style="flex:1;" onclick="go('deposit')">📥 DEPOSIT</button>
       <button class="action-btn red" style="flex:1;" onclick="go('withdraw')">📤 WITHDRAW</button>
     </div>
+    <button class="action-btn" style="width:100%;margin-top:8px;
+            border-color:rgba(56,189,248,.5);color:#7dd3fc;"
+            onclick="tonUiGo()">&#128142; TON WALLET</button>
     <div>
       <div class="section-ttl" style="padding:0;"><svg class="gb-ic-t" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-2-1.3-2 1.3-2-1.3-2 1.3-2-1.3L6 21V3Z"/><path d="M9 8h6"/><path d="M9 12h6"/></svg>RECENT TRANSACTIONS</div>
       <div class="tx-list" id="w-tx" style="margin-top:8px;">
@@ -10657,6 +10660,74 @@ body.gb-nav-on .bnav{display:flex;}
       </div>
     </div>
     <!-- ═══ /INSTANT-SWAP ═══ -->
+  </div>
+</div>
+
+<div id="ton" class="screen">
+  <div class="game-hdr">
+    <button class="back-btn" onclick="go('wallet')">&larr;</button>
+    <div class="game-title">&#128142; TON</div>
+  </div>
+  <div class="game-content">
+
+    <!-- flex-shrink:0 — `.game-content` e' un flex COLONNA, e senza questo
+         la carta viene COMPRESSA: misurato, il testo debordava e "TON
+         BALANCE" e l'indirizzo sotto restavano tagliati. Non e' una regola
+         CSS da correggere (non ne esiste una che fissi l'altezza): e' la
+         carta che, avendo tre righe invece di due, non entra nello spazio
+         che il flex le lascia. La carta del WALLET non ha il problema —
+         misurata anche quella, per non "aggiustare" cio' che e' gia' a posto. -->
+    <div class="bal-card" style="height:auto;min-height:0;flex-shrink:0;">
+      <div>
+        <div class="bal-lbl">TON BALANCE</div>
+        <div class="bal-num" id="tonui-bal">0 TON</div>
+        <div class="bal-sub" id="tonui-sub">&nbsp;</div>
+      </div>
+    </div>
+
+    <!-- ═══ IL WALLET ═══ -->
+    <div class="info-card" id="tonui-wcard">
+      <div class="info-lbl">YOUR TON WALLET</div>
+      <div id="tonui-wbody" style="margin-top:8px;">
+        <div style="font-size:12px;color:var(--txt2);line-height:1.55;">
+          Loading&hellip;
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ IL PRELIEVO ═══ -->
+    <div class="info-card" id="tonui-wd" style="display:none;">
+      <div class="info-lbl">WITHDRAW</div>
+      <div id="tonui-wdbody" style="margin-top:8px;"></div>
+    </div>
+
+    <!-- ═══ IL PRELIEVO IN CORSO ═══ -->
+    <div class="info-card" id="tonui-pend" style="display:none;
+         border-color:rgba(56,189,248,.45);background:rgba(56,189,248,.06);">
+      <div class="info-lbl">IN PROGRESS</div>
+      <div id="tonui-pendbody" style="margin-top:8px;"></div>
+    </div>
+
+    <!-- ═══ IL DEPOSITO, CHE NON C'E' ANCORA ═══ -->
+    <div class="info-card">
+      <div class="info-lbl">DEPOSIT TON</div>
+      <div style="font-size:12px;color:var(--txt2);line-height:1.55;margin-top:8px;">
+        Direct TON deposits are not enabled yet. For now you can convert TON
+        into your BTC balance &mdash; it lands on your deposit address
+        automatically.
+      </div>
+      <button class="action-btn" style="width:100%;margin-top:10px;
+              border-color:rgba(56,189,248,.5);color:#7dd3fc;"
+              onclick="go('deposit');if(typeof tonQuickStart==='function')tonQuickStart();">
+        &#128260; CONVERT TON &rarr; BTC
+      </button>
+    </div>
+
+    <div>
+      <div class="section-ttl" style="padding:0;">TON WITHDRAWALS</div>
+      <div class="tx-list" id="tonui-hist" style="margin-top:8px;"></div>
+    </div>
+
   </div>
 </div>
 
@@ -33207,20 +33278,34 @@ function crRenderHist(){
 }
 
 var LT={picks:[],jackpot:100,nextDraw:0,myTickets:0,cdTimer:null,tab:'play',myTicketList:[],history:[],
-        maxNum:49,ticketEur:2};
+        maxNum:99,ticketEur:2};   // ripiego: il valore VERO arriva da /lotto/info
+/* LA GRIGLIA LA DECIDE IL SERVER (06/08/2026).
+   Prima `LT.maxNum` era 49 CABLATO e nessuno lo assegnava mai dalla risposta
+   di /lotto/info: la griglia si costruiva subito, prima che la fetch
+   tornasse, e restava a 49 per sempre. Finche' anche il server diceva 49 la
+   cosa non si vedeva; col passaggio a 6/99 il giocatore poteva scegliere solo
+   nella PRIMA META' dei numeri mentre l'estrazione ne pescava 99 — cioe'
+   probabilita' molto peggiori di quelle scritte nella tabella dei premi.
+   Adesso la griglia si RIFA' quando arriva la risposta, e solo se il numero
+   e' cambiato davvero (rifarla a ogni giro perderebbe la selezione). */
+function ltRicostruisciGriglia(){
+  var nums=document.getElementById('lt-nums');
+  if(!nums)return;
+  var mx=LT.maxNum||49;
+  if(nums.getAttribute('data-mx')===String(mx))return;   // gia' giusta
+  nums.innerHTML='';
+  for(var n=1;n<=mx;n++){
+    var d=document.createElement('div');
+    d.className='num';d.textContent=n;
+    (function(num){d.onclick=function(){ltToggle(num);};})(n);
+    if(LT.picks.indexOf(n)>=0)d.classList.add('sel');
+    nums.appendChild(d);
+  }
+  nums.setAttribute('data-mx',String(mx));
+}
 function initLotto(){
   ltLoadInfo();
-  var nums=document.getElementById('lt-nums');
-  if(nums){
-    nums.innerHTML='';
-    for(var n=1;n<=(LT.maxNum||49);n++){   // 6 su 49 dal 02/08/2026 (era 90)
-      var d=document.createElement('div');
-      d.className='num';d.textContent=n;
-      (function(num){d.onclick=function(){ltToggle(num);};})(n);
-      if(LT.picks.indexOf(n)>=0)d.classList.add('sel');
-      nums.appendChild(d);
-    }
-  }
+  ltRicostruisciGriglia();
   ltRenderPicks();
   ltUpdateCountdown();
   if(LT.cdTimer)clearInterval(LT.cdTimer);
@@ -33234,7 +33319,7 @@ function initLotto(){
    via lotto_common.py) e qui si disegna quello che arriva.
    Il ripiego tiene i valori giusti di OGGI, non quelli vecchi: se il server e'
    indietro di un rilascio la pagina resta comunque onesta. */
-var LT_FALLBACK={pz:{2:2,3:16,4:120,5:1200},tick:2,jmin:50,picks:6,maxn:49,
+var LT_FALLBACK={pz:{2:10,3:90,4:1200,5:24000},tick:2,jmin:30000,picks:6,maxn:99,
                  days:'Tue & Fri 20:00'};
 function ltFillRules(d){
   d=d||{};
@@ -33254,6 +33339,11 @@ function ltFillRules(d){
   if(b)b.textContent='🎫 BUY TICKET — '+eur(tick);
   var pick=document.getElementById('lt-pick-lbl');
   if(pick)pick.textContent='PICK '+pk+' NUMBERS (1-'+mx+')';
+  /* il numero VERO arriva da qui: si tiene e si rifa' la griglia. Senza
+     queste due righe l'etichetta diceva 1-99 e i bottoni erano 49. */
+  LT.maxNum=mx; LT.picks=(LT.picks||[]).filter(function(n){return n<=mx;});
+  if(typeof ltRicostruisciGriglia==='function')ltRicostruisciGriglia();
+  if(typeof ltRenderPicks==='function')ltRenderPicks();
   /* la probabilita' del jackpot, calcolata: combinazioni di mx su pk. Sta
      scritta perche' su un gioco a soldi veri il giocatore ha diritto di
      sapere contro cosa gioca. */
@@ -65951,6 +66041,291 @@ function obBSFire(i, el){
   }, {passive:true});
   applica();
 })();
+</script>
+<!-- ═══════════════════════════════════════════════════════════════════
+     TON CONNECT (07/08/2026) — DUE BLOCCHI SEPARATI, E NON PER ORDINE.
+     Il bundle e' es2019; questo file e' ES5 e contiene tutti i giochi.
+     Un errore di parse dentro il blocco grande li spegnerebbe TUTTI, non
+     solo il bottone. Quindi il bundle sta per conto suo, e la logica pure.
+     Se il bundle non arriva, la schermata lo dice e il resto non se ne
+     accorge.
+     ═══════════════════════════════════════════════════════════════════ -->
+<script src="tonconnect-ui.min.js"></script>
+<script>
+/* ES5 come il resto del file: var, function, niente frecce ne' template. */
+var TONUI = { ui:null, st:null, busy:false };
+
+function tonUiFmt(x){
+  var n = parseFloat(x||0);
+  if(!isFinite(n)) return '0';
+  var s = n.toFixed(9).replace(/0+$/,'').replace(/\.$/,'');
+  return s || '0';
+}
+function tonUiCorto(a){
+  a = String(a||'');
+  return a.length > 16 ? a.slice(0,8)+'\u2026'+a.slice(-6) : a;
+}
+function tonUiEsc(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                             .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* Il costruttore si crea UNA volta sola e solo quando serve: istanziarlo
+   all'avvio farebbe scaricare la lista dei wallet a chi non aprira' mai
+   questa schermata. */
+function tonUiApri(){
+  if(TONUI.ui) return TONUI.ui;
+  if(typeof TON_CONNECT_UI === 'undefined') return null;
+  try{
+    TONUI.ui = new TON_CONNECT_UI.TonConnectUI({
+      manifestUrl: location.origin + location.pathname.replace(/[^/]*$/,'')
+                   + 'tonconnect-manifest.json'
+    });
+  }catch(e){ TONUI.ui = null; }
+  return TONUI.ui;
+}
+
+function tonUiGo(){ go('ton'); tonUiLoad(); }
+
+function tonUiLoad(){
+  var b = document.getElementById('tonui-bal');
+  if(b) b.textContent = '\u2026';
+  return swapApi('/ton/state').then(function(res){
+    if(!res.ok){ tonUiErrore('Could not load your TON state.'); return; }
+    TONUI.st = res.data || {};
+    tonUiDisegna();
+  }).catch(function(){ tonUiErrore('Network unavailable.'); });
+}
+
+function tonUiErrore(t){
+  var w = document.getElementById('tonui-wbody');
+  if(w) w.innerHTML = '<div style="font-size:12px;color:var(--txt2);">'
+                    + tonUiEsc(t) + '</div>';
+}
+
+function tonUiDisegna(){
+  var s = TONUI.st || {};
+  var b = document.getElementById('tonui-bal');
+  if(b) b.textContent = tonUiFmt(s.balance) + ' TON';
+  var sub = document.getElementById('tonui-sub');
+  if(sub) sub.innerHTML = s.connected
+    ? 'to <span style="color:#7dd3fc;">' + tonUiEsc(tonUiCorto(s.address)) + '</span>'
+    : '&nbsp;';
+
+  /* ── il wallet ── */
+  var w = document.getElementById('tonui-wbody');
+  if(w){
+    if(typeof TON_CONNECT_UI === 'undefined'){
+      w.innerHTML = '<div style="font-size:12px;color:var(--txt2);line-height:1.55;">'
+        + 'Wallet connection is unavailable right now. Your balance is safe.'
+        + '</div>';
+    } else if(s.connected){
+      w.innerHTML =
+        '<div style="font-family:\'Orbitron\';font-size:11px;color:#7dd3fc;'
+        + 'word-break:break-all;padding:10px;background:rgba(0,0,0,.4);'
+        + 'border-radius:8px;">' + tonUiEsc(s.address) + '</div>'
+        + '<div style="display:flex;gap:8px;margin-top:8px;">'
+        + '<button class="action-btn" style="flex:1;" onclick="tonUiCopia()">'
+        + '\ud83d\udccb COPY</button>'
+        + '<button class="action-btn red" style="flex:1;" onclick="tonUiScollega()">'
+        + 'DISCONNECT</button></div>'
+        + '<div style="font-size:11px;color:var(--txt3);margin-top:8px;line-height:1.5;">'
+        + 'Withdrawals go to this address only. Nothing else can be entered '
+        + 'by hand \u2014 that is the point.</div>';
+    } else {
+      w.innerHTML =
+        '<div style="font-size:12px;color:var(--txt2);line-height:1.55;">'
+        + 'Connect your TON wallet to set where your withdrawals are sent. '
+        + 'No address to type, nothing to mistype.</div>'
+        + '<button class="action-btn gold" style="width:100%;margin-top:10px;" '
+        + 'onclick="tonUiCollega()" id="tonui-cbtn">\ud83d\udd17 CONNECT WALLET</button>';
+    }
+  }
+
+  /* ── il prelievo ── */
+  var wd = document.getElementById('tonui-wd');
+  var wb = document.getElementById('tonui-wdbody');
+  if(wd && wb){
+    wd.style.display = '';
+    if(!s.withdraw_enabled){
+      wb.innerHTML = '<div style="font-size:12px;color:var(--txt2);line-height:1.55;">'
+        + 'TON withdrawals are not open yet. Your balance stays where it is.'
+        + '</div>';
+    } else if(!s.connected){
+      wb.innerHTML = '<div style="font-size:12px;color:var(--txt2);line-height:1.55;">'
+        + 'Connect your wallet first: that is where the TON will be sent.'
+        + '</div>';
+    } else if(s.pending){
+      wb.innerHTML = '<div style="font-size:12px;color:var(--txt2);">'
+        + 'One withdrawal at a time.</div>';
+    } else {
+      var avviso = (parseFloat(s.auto_limit||0) <= 0)
+        ? '<div style="font-size:11px;color:var(--txt3);margin-top:8px;line-height:1.5;">'
+          + 'Every TON withdrawal is approved by an operator before it leaves. '
+          + 'That is normal while there are no TON deposits to draw an '
+          + 'allowance from \u2014 it is not a problem with your account.</div>'
+        : '';
+      wb.innerHTML =
+        '<div style="display:flex;gap:8px;">'
+        + '<input id="tonui-amt" type="text" inputmode="decimal" '
+        + 'placeholder="0.00" style="flex:1;padding:10px;border-radius:8px;'
+        + 'background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.15);'
+        + 'color:var(--txt);font-family:\'Orbitron\';font-size:14px;">'
+        + '<button class="action-btn" style="width:74px;" onclick="tonUiMax()">MAX</button>'
+        + '</div>'
+        + '<div style="font-size:11px;color:var(--txt3);margin-top:6px;">Minimum: '
+        + tonUiFmt(s.min_withdraw) + ' TON</div>'
+        + '<button class="action-btn gold" style="width:100%;margin-top:10px;" '
+        + 'id="tonui-wdbtn" onclick="tonUiPreleva()">\ud83d\udce4 WITHDRAW TO MY WALLET</button>'
+        + avviso;
+    }
+  }
+
+  /* ── quello in corso ── */
+  var p = document.getElementById('tonui-pend');
+  var pb = document.getElementById('tonui-pendbody');
+  if(p && pb){
+    if(s.pending){
+      var spiega = {
+        attesa_ok:'waiting for approval',
+        richiesto:'queued',
+        attesa_capienza:'waiting for the house wallet to be topped up',
+        prenotato:'about to leave',
+        in_volo:'in progress',
+        trasmesso:'sent \u2014 waiting for the chain to confirm'
+      }[s.pending.stato] || s.pending.stato;
+      p.style.display = '';
+      pb.innerHTML = '<div style="font-size:14px;color:#7dd3fc;">'
+        + tonUiFmt(s.pending.ton) + ' TON</div>'
+        + '<div style="font-size:12px;color:var(--txt2);margin-top:4px;">'
+        + tonUiEsc(spiega) + '</div>'
+        + '<div style="font-size:11px;color:var(--txt3);margin-top:6px;'
+        + 'word-break:break-all;">' + tonUiEsc(s.pending.dest||'') + '</div>';
+    } else { p.style.display = 'none'; }
+  }
+
+  /* ── lo storico ── */
+  var h = document.getElementById('tonui-hist');
+  if(h){
+    var rows = s.history || [];
+    if(!rows.length){
+      h.innerHTML = '<div class="gb-empty" style="min-height:120px;">'
+        + '<div class="gb-empty__ico">\ud83d\udc8e</div>'
+        + '<div class="gb-empty__ttl">No TON withdrawals yet</div></div>';
+    } else {
+      var out = '';
+      for(var i=0;i<rows.length;i++){
+        var r = rows[i] || {};
+        var d = new Date((parseInt(r.ts||r.timestamp||0,10))*1000);
+        out += '<div style="display:flex;justify-content:space-between;'
+             + 'padding:10px 0;border-bottom:1px solid rgba(255,255,255,.07);">'
+             + '<div style="font-size:12px;color:var(--txt2);">'
+             + tonUiEsc(isNaN(d.getTime())?'':d.toLocaleDateString()) + '</div>'
+             + '<div style="font-size:13px;color:#7dd3fc;">'
+             + tonUiFmt(r.amount) + ' TON</div></div>';
+      }
+      h.innerHTML = out;
+    }
+  }
+}
+
+function tonUiCopia(){
+  var s = TONUI.st || {};
+  if(!s.address) return;
+  try{
+    if(navigator.clipboard) navigator.clipboard.writeText(s.address);
+    if(typeof toast==='function') toast('Address copied','ok');
+  }catch(e){}
+}
+
+function tonUiMax(){
+  var i = document.getElementById('tonui-amt');
+  if(i && TONUI.st) i.value = tonUiFmt(TONUI.st.balance);
+}
+
+/* ── collegare: nonce dal server, prova dal wallet, verifica dal server ── */
+function tonUiCollega(){
+  var ui = tonUiApri();
+  if(!ui){ if(typeof toast==='function') toast('Wallet connection unavailable','err'); return; }
+  var btn = document.getElementById('tonui-cbtn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Connecting\u2026'; }
+  swapApi('/ton/connect/nonce').then(function(res){
+    if(!res.ok || !res.data || !res.data.nonce) throw new Error('nonce');
+    /* il nonce E' il legame con questo giocatore: senza, una prova
+       varrebbe per chiunque */
+    ui.setConnectRequestParameters({ state:'ready',
+      value:{ tonProof: res.data.nonce } });
+    return ui.connectWallet();
+  }).then(function(w){
+    if(!w || !w.connectItems || !w.connectItems.tonProof ||
+       !w.connectItems.tonProof.proof){
+      throw new Error('Your wallet did not provide a proof of ownership.');
+    }
+    return swapApi('/ton/connect/verify', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        account:{ address:w.account.address,
+                  walletStateInit:w.account.walletStateInit,
+                  publicKey:w.account.publicKey },
+        proof: w.connectItems.tonProof.proof
+      })
+    });
+  }).then(function(res){
+    if(!res || !res.ok || !res.data || !res.data.ok){
+      throw new Error((res&&res.data&&res.data.error) || 'verification failed');
+    }
+    if(typeof toast==='function') toast('Wallet connected','ok');
+    return tonUiLoad();
+  }).catch(function(e){
+    if(typeof toast==='function')
+      toast((e && e.message) ? String(e.message) : 'Could not connect','err');
+    var b2 = document.getElementById('tonui-cbtn');
+    if(b2){ b2.disabled = false; b2.textContent = '\ud83d\udd17 CONNECT WALLET'; }
+  });
+}
+
+function tonUiScollega(){
+  var ui = tonUiApri();
+  try{ if(ui) ui.disconnect(); }catch(e){}
+  /* Si scollega SOLO qui nel browser: l'indirizzo provato resta sul server
+     finche' non se ne collega un altro. Cancellarlo su un tocco vorrebbe
+     dire perdere l'unico indirizzo verificato che abbiamo, e costringere a
+     rifare la prova per un ripensamento. */
+  if(typeof toast==='function')
+    toast('Disconnected here. Connect another wallet to change the payout address.','ok');
+}
+
+/* ── prelevare: nessun indirizzo da scrivere, per costruzione ── */
+function tonUiPreleva(){
+  if(TONUI.busy) return;
+  var i = document.getElementById('tonui-amt');
+  var v = i ? String(i.value||'').trim() : '';
+  if(!v){ if(typeof toast==='function') toast('Enter an amount','err'); return; }
+  var btn = document.getElementById('tonui-wdbtn');
+  TONUI.busy = true;
+  if(btn){ btn.disabled = true; btn.textContent = 'Sending\u2026'; }
+  swapApi('/ton/withdraw', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ amount: v })
+  }).then(function(res){
+    TONUI.busy = false;
+    var d = res.data || {};
+    if(!res.ok || !d.ok){
+      if(typeof toast==='function') toast(d.error || 'Withdrawal refused','err');
+      if(btn){ btn.disabled=false; btn.textContent='\ud83d\udce4 WITHDRAW TO MY WALLET'; }
+      return;
+    }
+    if(typeof toast==='function')
+      toast(d.needs_approval
+        ? 'Requested. An operator will approve it shortly.'
+        : 'Requested. It leaves within a minute.', 'ok');
+    return tonUiLoad();
+  }).catch(function(){
+    TONUI.busy = false;
+    if(typeof toast==='function') toast('Network unavailable','err');
+    if(btn){ btn.disabled=false; btn.textContent='\ud83d\udce4 WITHDRAW TO MY WALLET'; }
+  });
+}
 </script>
 </body>
 </html>
