@@ -66091,11 +66091,31 @@ function tonUiLoad(){
   var b = document.getElementById('tonui-bal');
   if(b) b.textContent = '\u2026';
   return swapApi('/ton/state').then(function(res){
-    if(!res.ok){ tonUiErrore('Could not load your TON state.'); return; }
+    if(!res.ok){ tonUiNonPronto(); return; }
     TONUI.st = res.data || {};
     tonUiDisegna();
-  }).catch(function(){ tonUiErrore('Network unavailable.'); });
+  }).catch(function(){ tonUiNonPronto(); });
 }
+
+/* NON si dice "network unavailable". Finche' il backend non ha le rotte TON,
+   una 404 senza intestazioni CORS arriva al browser come "Failed to fetch",
+   cioe' IDENTICA a una rete caduta: dal client i due casi non si
+   distinguono. Dare la colpa alla rete manderebbe il giocatore a guardare il
+   wifi per una cosa che non dipende da lui. Si dice cio' che e' vero in
+   entrambi i casi, e si dice che i suoi soldi non c'entrano. */
+function tonUiNonPronto(){
+  var b = document.getElementById('tonui-bal');
+  if(b) b.textContent = '\u2014';
+  var s = document.getElementById('tonui-sub');
+  if(s) s.innerHTML = '&nbsp;';
+  tonUiErrore('TON is not available right now. Your balance is safe \u2014 '
+            + 'nothing here affects it.');
+  var wd = document.getElementById('tonui-wd');
+  if(wd) wd.style.display = 'none';
+  var p = document.getElementById('tonui-pend');
+  if(p) p.style.display = 'none';
+}
+
 
 function tonUiErrore(t){
   var w = document.getElementById('tonui-wbody');
