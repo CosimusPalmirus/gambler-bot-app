@@ -66302,10 +66302,22 @@ function tonUiDisegna(){
         + 'Withdrawals go to this address only. Nothing else can be entered '
         + 'by hand \u2014 that is the point.</div>';
     } else {
+      /* stato a META': la libreria ha una connessione viva ma il server non
+         ha nessun indirizzo provato. Succede a chi ha collegato prima che la
+         verifica funzionasse. Si dice, invece di far finta di niente: se no
+         il bottone sembra non fare effetto. */
+      var meta = false;
+      try{ meta = !!(TONUI.ui && (TONUI.ui.connected ||
+                    (TONUI.ui.account && TONUI.ui.account.address))); }catch(e){}
       w.innerHTML =
         '<div style="font-size:12px;color:var(--txt2);line-height:1.55;">'
-        + 'Connect your TON wallet to set where your withdrawals are sent. '
-        + 'No address to type, nothing to mistype.</div>'
+        + (meta
+           ? 'Your wallet is connected here, but it has not proved it is '
+             + 'yours yet. Tap below: it will reconnect and sign a short '
+             + 'message. Nothing leaves your wallet.'
+           : 'Connect your TON wallet to set where your withdrawals are sent. '
+             + 'No address to type, nothing to mistype.')
+        + '</div>'
         + '<button class="action-btn gold" style="width:100%;margin-top:10px;" '
         + 'onclick="tonUiCollega()" id="tonui-cbtn">\ud83d\udd17 CONNECT WALLET</button>'
         + '<div id="tonui-err" style="display:none;font-size:11.5px;'
@@ -66480,7 +66492,27 @@ function tonUiCollega(){
   /* `loading` mentre il nonce e' in volo: il modale mostra l'attesa invece
      di offrire una connessione SENZA prova. */
   try{ ui.setConnectRequestParameters({ state:'loading' }); }catch(e){}
-  swapApi('/ton/connect/nonce').then(function(res){
+  /* SE E' GIA' COLLEGATO, SI SCOLLEGA PRIMA.
+     Chi ha collegato il wallet quando la verifica non funzionava ancora ha
+     una connessione viva nel browser e nessun indirizzo provato sul server:
+     il modale solleverebbe "wallet already connected", e quell'eccezione
+     non passa da qui — finisce nella sonda, e da fuori sembra che non
+     succeda niente.
+     Non basta riusare la connessione vecchia: ci serve una prova NUOVA,
+     firmata sul nonce di ADESSO. Una connessione gia' aperta non ne ha una,
+     e non c'e' modo di chiedergliela senza rifare il collegamento.
+     Tocca solo il browser: l'indirizzo provato sul server resta dov'e'. */
+  var pronto;
+  try{
+    if(ui.connected || (ui.account && ui.account.address)){
+      tonUiDiario('gia-collegato', 'scollego per ottenere una prova nuova');
+      pronto = ui.disconnect();
+    }
+  }catch(e){}
+  if(!pronto || typeof pronto.then !== 'function') pronto = Promise.resolve();
+  pronto['catch'](function(){ return null; }).then(function(){
+    return swapApi('/ton/connect/nonce');
+  }).then(function(res){
     if(!res.ok || !res.data || !res.data.nonce) throw new Error('could not get a challenge from the server');
     /* il nonce E' il legame con questo giocatore: senza, una prova
        varrebbe per chiunque */
