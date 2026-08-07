@@ -66445,6 +66445,28 @@ function tonUiDisegna(){
         + 'border-radius:8px;margin-top:4px;">' + tonUiEsc(dep.memo) + '</div>'
         + '<button class="action-btn gold" style="width:100%;margin-top:6px;" '
         + 'onclick="tonUiCopiaDep(\'memo\')">\ud83d\udccb COPY MEMO</button>'
+        /* col wallet collegato non serve copiare NIENTE: la transazione la
+           prepara il server e il giocatore conferma e basta. */
+        + (s.connected
+           ? '<div style="border-top:1px solid rgba(255,255,255,.1);'
+             + 'margin:14px 0 10px;"></div>'
+             + '<div style="font-size:12px;color:var(--txt2);line-height:1.55;">'
+             + '<b>Or send it straight from your connected wallet</b> '
+             + '\u2014 nothing to copy, the memo is filled in for you.</div>'
+             + '<div style="display:flex;gap:8px;margin-top:8px;">'
+             + '<input id="tonui-depamt" type="text" inputmode="decimal" '
+             + 'placeholder="0.00" style="flex:1;padding:10px;border-radius:8px;'
+             + 'background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.15);'
+             + 'color:var(--txt);font-family:\'Orbitron\';font-size:14px;">'
+             + '</div>'
+             + '<button class="action-btn" style="width:100%;margin-top:8px;" '
+             + 'id="tonui-depbtn" onclick="tonUiDepositaDalWallet()">'
+             + '\ud83d\udcb8 SEND FROM MY WALLET</button>'
+             + '<div style="font-size:11px;color:var(--txt3);margin-top:8px;'
+             + 'line-height:1.5;">Your wallet will ask you to confirm. That '
+             + 'step cannot be skipped \u2014 it is what keeps your funds '
+             + 'yours.</div>'
+           : '')
         /* si dice la verita': senza memo NON si perde niente, diventa un
            deposito da assegnare a mano. Un avviso che minaccia perdite che
            non ci sono fa solo smettere di leggere gli avvisi. */
@@ -66497,6 +66519,61 @@ function tonUiCopia(){
     if(navigator.clipboard) navigator.clipboard.writeText(s.address);
     if(typeof toast==='function') toast('Address copied','ok');
   }catch(e){}
+}
+
+/* ── DEPOSITARE DAL WALLET COLLEGATO ────────────────────────────────────
+   Il giocatore non copia niente: indirizzo, importo e memo li prepara il
+   server (`/ton/deposit/prepare`), e qui si passano al wallet cosi' come
+   sono. L'unica cosa che resta e' la conferma dentro il wallet, e quella non
+   si puo' togliere: e' cio' che tiene i suoi soldi suoi.
+
+   E NON SI ACCREDITA NIENTE QUI. La risposta di `sendTransaction` e' un BOC:
+   vuol dire "ho firmato", non "e' arrivato". L'accredito lo fa il guardiano
+   quando vede la transazione sulla catena — la stessa regola per cui non ci
+   si fida del client sui soldi, e vale anche quando il client e' un wallet. */
+function tonUiDepositaDalWallet(){
+  var ui = tonUiApri();
+  if(!ui){ tonUiDici('Wallet connection is unavailable right now.'); return; }
+  var i = document.getElementById('tonui-depamt');
+  var v = i ? String(i.value||'').trim() : '';
+  if(!v){ tonUiDici('Enter how much you want to deposit.'); return; }
+  var btn = document.getElementById('tonui-depbtn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Preparing\u2026'; }
+  tonUiDici('');
+  swapApi('/ton/deposit/prepare', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ amount: v })
+  }).then(function(res){
+    var d = res.data || {};
+    if(!res.ok || !d.ok) throw new Error(d.error || 'could not prepare the transfer');
+    if(btn) btn.textContent = 'Confirm in your wallet\u2026';
+    return ui.sendTransaction({
+      validUntil: Math.floor(Date.now()/1000) + (d.valid_seconds || 300),
+      messages: [{ address: d.address, amount: d.amount_nano, payload: d.payload }]
+    });
+  }).then(function(){
+    tonUiDiario('deposito-firmato', '');
+    if(typeof toast==='function')
+      toast('Sent. It will be credited in a couple of minutes.','ok');
+    if(i) i.value = '';
+    /* si ricarica lo stato: il saldo NON sara' ancora salito, ed e' giusto —
+       lo alzera' il guardiano quando la catena conferma. */
+    return tonUiLoad();
+  })['catch'](function(e){
+    var m = (e && e.message) ? String(e.message) : 'could not send';
+    /* l'annullamento nel wallet non e' un guasto: non si urla */
+    if(m.indexOf('Reject') !== -1 || m.indexOf('cancel') !== -1 ||
+       m.indexOf('declined') !== -1){
+      tonUiDiario('deposito-annullato', m);
+      tonUiDici('');
+    } else {
+      tonUiDiario('deposito-fallito', m);
+      tonUiDici(m);
+    }
+  }).then(function(){
+    var b = document.getElementById('tonui-depbtn');
+    if(b){ b.disabled = false; b.textContent = '\ud83d\udcb8 SEND FROM MY WALLET'; }
+  });
 }
 
 function tonUiCopiaDep(quale){
