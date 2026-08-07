@@ -10711,16 +10711,7 @@ body.gb-nav-on .bnav{display:flex;}
     <!-- ═══ IL DEPOSITO, CHE NON C'E' ANCORA ═══ -->
     <div class="info-card">
       <div class="info-lbl">DEPOSIT TON</div>
-      <div style="font-size:12px;color:var(--txt2);line-height:1.55;margin-top:8px;">
-        Direct TON deposits are not enabled yet. For now you can convert TON
-        into your BTC balance &mdash; it lands on your deposit address
-        automatically.
-      </div>
-      <button class="action-btn" style="width:100%;margin-top:10px;
-              border-color:rgba(56,189,248,.5);color:#7dd3fc;"
-              onclick="go('deposit');if(typeof tonQuickStart==='function')tonQuickStart();">
-        &#128260; CONVERT TON &rarr; BTC
-      </button>
+      <div id="tonui-depbody" style="margin-top:8px;"></div>
     </div>
 
     <div>
@@ -66224,6 +66215,49 @@ function tonUiDisegna(){
     } else { p.style.display = 'none'; }
   }
 
+  /* ── il deposito ── */
+  var db = document.getElementById('tonui-depbody');
+  if(db){
+    var dep = s.deposit || {};
+    if(dep.enabled){
+      db.innerHTML =
+        '<div style="font-size:12px;color:var(--txt2);line-height:1.55;">'
+        + 'Send TON to this address, <b>with the memo below</b>. It is '
+        + 'credited automatically within a couple of minutes '
+        + '(5% deposit fee).</div>'
+        + '<div style="font-size:11px;color:var(--txt3);margin-top:10px;">ADDRESS</div>'
+        + '<div style="font-family:\'Orbitron\';font-size:11px;color:#7dd3fc;'
+        + 'word-break:break-all;padding:9px;background:rgba(0,0,0,.4);'
+        + 'border-radius:8px;margin-top:4px;">' + tonUiEsc(dep.address) + '</div>'
+        + '<button class="action-btn" style="width:100%;margin-top:6px;" '
+        + 'onclick="tonUiCopiaDep(\'address\')">\ud83d\udccb COPY ADDRESS</button>'
+        + '<div style="font-size:11px;color:var(--txt3);margin-top:12px;">'
+        + 'MEMO / COMMENT</div>'
+        + '<div style="font-family:\'Orbitron\';font-size:14px;color:var(--gold);'
+        + 'letter-spacing:1px;padding:9px;background:rgba(0,0,0,.4);'
+        + 'border-radius:8px;margin-top:4px;">' + tonUiEsc(dep.memo) + '</div>'
+        + '<button class="action-btn gold" style="width:100%;margin-top:6px;" '
+        + 'onclick="tonUiCopiaDep(\'memo\')">\ud83d\udccb COPY MEMO</button>'
+        /* si dice la verita': senza memo NON si perde niente, diventa un
+           deposito da assegnare a mano. Un avviso che minaccia perdite che
+           non ci sono fa solo smettere di leggere gli avvisi. */
+        + '<div style="font-size:11px;color:var(--txt3);margin-top:10px;'
+        + 'line-height:1.5;">Forgot the memo? Nothing is lost \u2014 it just '
+        + 'has to be matched by hand, which takes longer. Contact support '
+        + 'with the transaction hash.</div>';
+    } else {
+      db.innerHTML =
+        '<div style="font-size:12px;color:var(--txt2);line-height:1.55;">'
+        + 'Direct TON deposits are not enabled yet. For now you can convert '
+        + 'TON into your BTC balance \u2014 it lands on your deposit address '
+        + 'automatically.</div>'
+        + '<button class="action-btn" style="width:100%;margin-top:10px;'
+        + 'border-color:rgba(56,189,248,.5);color:#7dd3fc;" '
+        + 'onclick="go(\'deposit\');if(typeof tonQuickStart===\'function\')tonQuickStart();">'
+        + '\ud83d\udd04 CONVERT TON \u2192 BTC</button>';
+    }
+  }
+
   /* ── lo storico ── */
   var h = document.getElementById('tonui-hist');
   if(h){
@@ -66255,6 +66289,17 @@ function tonUiCopia(){
   try{
     if(navigator.clipboard) navigator.clipboard.writeText(s.address);
     if(typeof toast==='function') toast('Address copied','ok');
+  }catch(e){}
+}
+
+function tonUiCopiaDep(quale){
+  var dep = (TONUI.st || {}).deposit || {};
+  var v = quale === 'memo' ? dep.memo : dep.address;
+  if(!v) return;
+  try{
+    if(navigator.clipboard) navigator.clipboard.writeText(v);
+    if(typeof toast==='function')
+      toast(quale === 'memo' ? 'Memo copied' : 'Address copied', 'ok');
   }catch(e){}
 }
 
