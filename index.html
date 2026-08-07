@@ -66070,10 +66070,124 @@ function tonUiApri(){
   try{
     TONUI.ui = new TON_CONNECT_UI.TonConnectUI({
       manifestUrl: location.origin + location.pathname.replace(/[^/]*$/,'')
-                   + 'tonconnect-manifest.json'
+                   + 'tonconnect-manifest.json',
+      /* twaReturnUrl: dentro Telegram, aprire un wallet fa
+         `web_app_open_tg_link` e la mini app viene SOSTITUITA. Senza questo,
+         il wallet riceve solo `returnStrategy:"back"` e non ha un indirizzo
+         dove riportare il giocatore. */
+      actionsConfiguration: { twaReturnUrl: 'https://t.me/Master_Gambler_bot' }
     });
-  }catch(e){ TONUI.ui = null; }
+    tonUiAscolta(TONUI.ui);
+  }catch(e){
+    TONUI.ui = null;
+    /* l'errore vero non si perde piu': prima finiva qui dentro e il
+       giocatore vedeva solo "Wallet connection unavailable" */
+    tonUiDiario('istanza-fallita', (e && e.message) ? e.message : String(e));
+  }
   return TONUI.ui;
+}
+
+/* ── IL DIARIO ──────────────────────────────────────────────────────────
+   Non aspetta risposta e non rompe niente se fallisce: serve solo a non
+   restare al buio la prossima volta. */
+function tonUiDiario(passo, nota){
+  try{
+    swapApi('/ton/connect/log', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ passo: passo, nota: String(nota||'').slice(0,300) })
+    })['catch'](function(){});
+  }catch(e){}
+}
+
+/* ── IL TENTATIVO IN SOSPESO, CHE SOPRAVVIVE ALLA PAGINA ────────────────
+   Una variabile JS muore quando Telegram sostituisce la mini app per aprire
+   il wallet. localStorage no. Scade in 300 s come il nonce lato server: oltre
+   quel tempo la prova verrebbe rifiutata comunque, e tenere il flag acceso
+   farebbe solo partire una verifica destinata a fallire. */
+var TONUI_ATT = 'tonui_attesa';
+
+function tonUiAttesaApri(){
+  try{ localStorage.setItem(TONUI_ATT, String(Date.now())); }catch(e){}
+}
+function tonUiAttesaChiudi(){
+  try{ localStorage.removeItem(TONUI_ATT); }catch(e){}
+}
+function tonUiAttesaViva(){
+  try{
+    var t = parseInt(localStorage.getItem(TONUI_ATT) || '0', 10);
+    if(!t) return false;
+    if(Date.now() - t > 300000){ tonUiAttesaChiudi(); return false; }
+    return true;
+  }catch(e){ return false; }
+}
+
+function tonUiSbloccaBtn(){
+  var b = document.getElementById('tonui-cbtn');
+  if(b){ b.disabled = false; b.textContent = '\ud83d\udd17 CONNECT WALLET'; }
+}
+
+/* Una riga che RESTA sotto il bottone. Un toast dopo due secondi non c'e'
+   piu', e se il giocatore non stava guardando l'informazione e' persa. */
+function tonUiDici(t){
+  var e = document.getElementById('tonui-err');
+  if(e){ e.textContent = t || ''; e.style.display = t ? '' : 'none'; }
+  if(t && typeof toast==='function') toast(t, 'err');
+}
+
+/* ── IL CANALE CHE RACCOGLIE LA PROVA ───────────────────────────────────
+   Non si ASPETTA piu' il wallet: lo si ASCOLTA. `onStatusChange` e' il
+   canale del flusso ufficiale di ton_proof, ed esiste gia' quando la pagina
+   riparte — mentre la Promise di `connectWallet()` muore col contesto (e
+   nella 3.0.2, per un wallet esterno, puo' non risolversi mai: quel percorso
+   usa `ignoreErrors:true`, che non risolve E non rigetta). */
+function tonUiAscolta(ui){
+  if(TONUI.sub) return;
+  TONUI.sub = true;
+  ui.onStatusChange(function(w){
+    if(!w || !w.connectItems || !w.connectItems.tonProof) return;
+    /* si risponde SOLO a un tentativo che abbiamo avviato noi, e non
+       scaduto: se no una connessione ripristinata all'avvio spedirebbe una
+       verifica che nessuno ha chiesto */
+    if(!tonUiAttesaViva()) return;
+    tonUiAttesaChiudi();
+    var tp = w.connectItems.tonProof;
+    if(!tp.proof){
+      var m = (tp.error && tp.error.message) ? tp.error.message
+            : 'the wallet did not provide a proof of ownership';
+      tonUiDiario('prova-mancante', m);
+      tonUiDici('Your wallet did not prove it owns that address: ' + m);
+      tonUiSbloccaBtn();
+      return;
+    }
+    tonUiDiario('prova-arrivata', String((w.account && w.account.address) || ''));
+    swapApi('/ton/connect/verify', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        account:{ address:w.account.address,
+                  walletStateInit:w.account.walletStateInit,
+                  publicKey:w.account.publicKey },
+        proof: tp.proof
+      })
+    }).then(function(res){
+      if(!res || !res.ok || !res.data || !res.data.ok)
+        throw new Error((res&&res.data&&res.data.error) || 'verification failed');
+      tonUiDici('');
+      if(typeof toast==='function') toast('Wallet connected','ok');
+      return tonUiLoad();
+    })['catch'](function(e){
+      var m = (e && e.message) ? String(e.message) : 'could not verify';
+      tonUiDiario('verifica-fallita', m);
+      tonUiDici(m);
+    }).then(function(){ tonUiSbloccaBtn(); });
+  }, function(err){
+    /* il secondo argomento e' il canale d'ERRORE: la 3.0.2 lo ingoia nella
+       Promise di connectWallet, qui no. */
+    tonUiAttesaChiudi();
+    var m = (err && err.message) ? String(err.message) : 'connection failed';
+    tonUiDiario('errore-wallet', m);
+    tonUiDici(m);
+    tonUiSbloccaBtn();
+  });
 }
 
 function tonUiGo(){ go('ton'); tonUiLoad(); }
@@ -66149,7 +66263,9 @@ function tonUiDisegna(){
         + 'Connect your TON wallet to set where your withdrawals are sent. '
         + 'No address to type, nothing to mistype.</div>'
         + '<button class="action-btn gold" style="width:100%;margin-top:10px;" '
-        + 'onclick="tonUiCollega()" id="tonui-cbtn">\ud83d\udd17 CONNECT WALLET</button>';
+        + 'onclick="tonUiCollega()" id="tonui-cbtn">\ud83d\udd17 CONNECT WALLET</button>'
+        + '<div id="tonui-err" style="display:none;font-size:11.5px;'
+        + 'color:#fca5a5;margin-top:8px;line-height:1.5;"></div>';
     }
   }
 
@@ -66311,46 +66427,51 @@ function tonUiMax(){
 /* ── collegare: nonce dal server, prova dal wallet, verifica dal server ── */
 function tonUiCollega(){
   var ui = tonUiApri();
-  if(!ui){ if(typeof toast==='function') toast('Wallet connection unavailable','err'); return; }
+  if(!ui){ tonUiDici('Wallet connection is unavailable right now.'); return; }
   var btn = document.getElementById('tonui-cbtn');
   if(btn){ btn.disabled = true; btn.textContent = 'Connecting\u2026'; }
+  tonUiDici('');
+  tonUiDiario('inizio', '');
+  /* `loading` mentre il nonce e' in volo: il modale mostra l'attesa invece
+     di offrire una connessione SENZA prova. */
+  try{ ui.setConnectRequestParameters({ state:'loading' }); }catch(e){}
   swapApi('/ton/connect/nonce').then(function(res){
-    if(!res.ok || !res.data || !res.data.nonce) throw new Error('nonce');
+    if(!res.ok || !res.data || !res.data.nonce) throw new Error('could not get a challenge from the server');
     /* il nonce E' il legame con questo giocatore: senza, una prova
        varrebbe per chiunque */
     ui.setConnectRequestParameters({ state:'ready',
       value:{ tonProof: res.data.nonce } });
-    return ui.connectWallet();
-  }).then(function(w){
-    if(!w || !w.connectItems || !w.connectItems.tonProof ||
-       !w.connectItems.tonProof.proof){
-      throw new Error('Your wallet did not provide a proof of ownership.');
-    }
-    return swapApi('/ton/connect/verify', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        account:{ address:w.account.address,
-                  walletStateInit:w.account.walletStateInit,
-                  publicKey:w.account.publicKey },
-        proof: w.connectItems.tonProof.proof
-      })
-    });
-  }).then(function(res){
-    if(!res || !res.ok || !res.data || !res.data.ok){
-      throw new Error((res&&res.data&&res.data.error) || 'verification failed');
-    }
-    if(typeof toast==='function') toast('Wallet connected','ok');
-    return tonUiLoad();
-  }).catch(function(e){
-    if(typeof toast==='function')
-      toast((e && e.message) ? String(e.message) : 'Could not connect','err');
-    var b2 = document.getElementById('tonui-cbtn');
-    if(b2){ b2.disabled = false; b2.textContent = '\ud83d\udd17 CONNECT WALLET'; }
+    tonUiDiario('nonce-ok', '');
+    /* IL FLAG PRIMA DI APRIRE: se Telegram sostituisce la mini app un
+       istante dopo, al rientro dobbiamo sapere che un tentativo era in
+       corso. Scriverlo dopo sarebbe scriverlo mai. */
+    tonUiAttesaApri();
+    /* `openModal()` e non `connectWallet()`: quella e' deprecata nella 3.0.2
+       e, per un wallet esterno, la sua Promise puo' non risolversi MAI
+       (`ignoreErrors:true` non risolve e non rigetta). La prova la raccoglie
+       `onStatusChange`. */
+    return ui.openModal();
+  }).then(function(){
+    tonUiDiario('modale-aperta', '');
+    /* NON si sblocca il bottone qui: il tentativo e' in corso, e il
+       risultato arrivera' da `onStatusChange` — magari dopo un riavvio
+       della pagina. */
+  })['catch'](function(e){
+    tonUiAttesaChiudi();
+    try{ ui.setConnectRequestParameters(null); }catch(e2){}
+    var m = (e && e.message) ? String(e.message) : 'could not open the wallet list';
+    tonUiDiario('apertura-fallita', m);
+    tonUiDici(m);
+    tonUiSbloccaBtn();
   });
 }
 
 function tonUiScollega(){
   var ui = tonUiApri();
+  /* si annulla anche il tentativo in sospeso: se no un evento di
+     connessione in arrivo troverebbe il flag ancora acceso e spedirebbe una
+     verifica che il giocatore non ha chiesto. */
+  tonUiAttesaChiudi();
   try{ if(ui) ui.disconnect(); }catch(e){}
   /* Si scollega SOLO qui nel browser: l'indirizzo provato resta sul server
      finche' non se ne collega un altro. Cancellarlo su un tocco vorrebbe
@@ -66361,6 +66482,37 @@ function tonUiScollega(){
 }
 
 /* ── prelevare: nessun indirizzo da scrivere, per costruzione ── */
+/* ── LA RIPRESA, DOPO CHE TELEGRAM HA CHIUSO LA MINI APP ────────────────
+   Se il giocatore torna dal wallet, la pagina riparte dalla schermata
+   iniziale: `tonUiLoad()` non gira, l'istanza non nasce, e la
+   sottoscrizione non esiste — quindi l'evento con la prova non lo
+   raccoglierebbe nessuno. Qui si controlla se c'era un tentativo in sospeso
+   e, solo in quel caso, si crea subito l'istanza.
+   Solo in quel caso: il costruttore scarica la lista dei wallet, e non ha
+   senso farlo pagare a chi non aprira' mai questa schermata. */
+(function(){
+  function riprendi(){
+    if(!tonUiAttesaViva()) return;
+    tonUiDiario('ripresa', 'tentativo in sospeso');
+    var ui = tonUiApri();
+    if(!ui){ tonUiAttesaChiudi(); return; }
+    try{
+      if(typeof ui.connectionRestored === 'object' && ui.connectionRestored &&
+         typeof ui.connectionRestored.then === 'function'){
+        ui.connectionRestored.then(function(ok){
+          tonUiDiario('ripresa-esito', ok ? 'connessione ripristinata'
+                                          : 'nessuna connessione da ripristinare');
+        })['catch'](function(){});
+      }
+    }catch(e){}
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', riprendi);
+  } else {
+    setTimeout(riprendi, 0);
+  }
+})();
+
 function tonUiPreleva(){
   if(TONUI.busy) return;
   var i = document.getElementById('tonui-amt');
