@@ -66121,6 +66121,50 @@ function tonUiAttesaViva(){
   }catch(e){ return false; }
 }
 
+/* ── SONDA 1: che ambiente crede di essere ──────────────────────────────
+   Sono i tre valori da cui la libreria decide COME aprire il link del
+   wallet. Se sbaglia a riconoscere l'ambiente, prova la strada sbagliata e
+   non apre niente — che da fuori si vede come "non succede nulla". */
+function tonUiAmbiente(){
+  var p = '?', wa = null;
+  try{ wa = window.Telegram && window.Telegram.WebApp; }catch(e){}
+  try{ if(wa && wa.platform) p = String(wa.platform); }catch(e){}
+  var v = '?';
+  try{ if(wa && wa.version) v = String(wa.version); }catch(e){}
+  return 'platform=' + p
+       + ' ver=' + v
+       + ' proxy=' + (typeof window.TelegramWebviewProxy !== 'undefined')
+       + ' openLink=' + !!(wa && typeof wa.openLink === 'function')
+       + ' openTgLink=' + !!(wa && typeof wa.openTelegramLink === 'function')
+       + ' hash=' + (location.hash ? location.hash.slice(0, 24) : 'vuoto');
+}
+
+/* ── SONDA 2: gli errori che nessuno ascoltava ──────────────────────────
+   Il click su una riga del modale gira DENTRO la libreria. Se li' solleva,
+   l'eccezione non passa da nessun nostro `.catch()`: finisce qui, e prima
+   non c'era nessuno a raccoglierla.
+   Si ascolta SOLO mentre un tentativo e' in corso: se no ogni rumore di una
+   pagina da 4 MB finirebbe nel log del backend. */
+function tonUiSonda(){
+  if(TONUI.sonda) return;
+  TONUI.sonda = true;
+  window.addEventListener('error', function(ev){
+    if(!tonUiAttesaViva()) return;
+    var m = (ev && ev.message) ? ev.message : 'errore senza messaggio';
+    var d = (ev && ev.filename) ? (' @' + String(ev.filename).slice(-40)
+                                   + ':' + ev.lineno) : '';
+    tonUiDiario('errore-pagina', m + d);
+    tonUiDici(m);
+  });
+  window.addEventListener('unhandledrejection', function(ev){
+    if(!tonUiAttesaViva()) return;
+    var r = ev && ev.reason;
+    var m = (r && r.message) ? r.message : String(r);
+    tonUiDiario('promessa-caduta', m);
+    tonUiDici(m);
+  });
+}
+
 function tonUiSbloccaBtn(){
   var b = document.getElementById('tonui-cbtn');
   if(b){ b.disabled = false; b.textContent = '\ud83d\udd17 CONNECT WALLET'; }
@@ -66431,6 +66475,7 @@ function tonUiCollega(){
   var btn = document.getElementById('tonui-cbtn');
   if(btn){ btn.disabled = true; btn.textContent = 'Connecting\u2026'; }
   tonUiDici('');
+  tonUiSonda();
   tonUiDiario('inizio', '');
   /* `loading` mentre il nonce e' in volo: il modale mostra l'attesa invece
      di offrire una connessione SENZA prova. */
@@ -66452,7 +66497,9 @@ function tonUiCollega(){
        `onStatusChange`. */
     return ui.openModal();
   }).then(function(){
-    tonUiDiario('modale-aperta', '');
+    /* l'ambiente si registra QUI, non prima: e' il momento in cui la
+       libreria sta per decidere come aprire il link del wallet. */
+    tonUiDiario('modale-aperta', tonUiAmbiente());
     /* NON si sblocca il bottone qui: il tentativo e' in corso, e il
        risultato arrivera' da `onStatusChange` — magari dopo un riavvio
        della pagina. */
