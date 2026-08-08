@@ -9238,12 +9238,7 @@ body.gb-nav-on .bnav{display:flex;}
    pallino LIVE del tabellone, che pulsa in box-shadow — paint sul main
    thread, l'unico modo ammesso da quando il compositor si e' piantato su
    GrapheneOS/Vanadium. */
-#home .top-glow{ display:none; }                     /* alone oro da 340x220 */
-#home .hero-frame-outer-glow,
-#home .hero-frame-ring,
-#home .hero-frame-glow,
-#home .hero-sparkle{ display:none !important; }      /* 9 timeline in un colpo */
-#home .hero-img{ animation:none; filter:none; }
+#home .top-glow{ display:none; }
 #home .bal-card::after{ display:none; }              /* balSheen: animava `left` */
 #home .refer-badge{ animation:none; }
 #home .dm-arrow{ animation:none; }
@@ -9317,94 +9312,30 @@ body.gb-nav-on .bnav{display:flex;}
 #home .lvl-badge .lv-num{ font-family:var(--gb-f-num); font-weight:700;
   font-variant-numeric:tabular-nums; color:var(--gb-ed-val); }
 
-/* L'HERO A GRIGLIA — tre aree: ritratto, identita', numero.
-   Il numero prende una riga sua, allineata a destra, sotto una hairline:
-   e' la posizione, non il colore, a dirgli che comanda. Da ~336px a ~150. */
-#home .scroll > .home-hero{
-  display:grid;
-  grid-template-columns:auto 1fr;
-  grid-template-areas:"pic name" "pic tag" "bal bal";
-  align-items:center; column-gap:12px; row-gap:1px;
-  text-align:left; padding:10px 16px 12px;
-  background:var(--gb-ed-paper);
-  border-bottom:1px solid var(--gb-ed-rule);
-}
-#home .hero-frame{
-  grid-area:pic; width:72px; height:72px; margin:0;
-  box-shadow:0 0 0 1px rgba(255,215,0,.30), 0 6px 18px rgba(0,0,0,.6);
-}
-#home .hero-frame::before{ display:none; }   /* il vetrino bianco in cima */
-/* il nome perde il gradiente verde->oro->arancio e i due text-shadow: su
-   fondo piatto il bianco pieno e' piu' leggibile del gradiente, e il verde
-   acido torna a essere solo identita' (regola gia' scritta a riga 201). */
-#home .hero-name{
-  grid-area:name;
-  font-family:var(--gb-f-disp); font-weight:400;
-  font-size:20px; letter-spacing:1px; line-height:1.1; margin:0;
-  background:none; -webkit-text-fill-color:var(--gb-ed-ink);
-  color:var(--gb-ed-ink); text-shadow:none;
-}
-#home .hero-tag{
-  grid-area:tag;
-  font-family:var(--gb-f-txt); font-weight:400;
-  font-size:12px; letter-spacing:.2px; color:var(--gb-ed-ink-3); margin:0;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-}
-/* IL NUMERO. Uno per schermata, e in home e' il saldo. Orbitron 900
-   tabulare: le cifre non ballano quando il saldo cambia. Oro perche' nei
-   tre verbi l'oro E' il valore — ma senza alone: la dimensione basta. */
-#home .hero-bal{
-  grid-area:bal; width:100%; text-align:right;
-  margin-top:8px; padding-top:8px; border-top:1px solid var(--gb-ed-rule);
-}
-#home .hero-bal .bal-lbl{
-  font-family:var(--gb-f-txt); font-weight:700; font-size:11px;
-  letter-spacing:1.5px; text-transform:uppercase; color:var(--gb-ed-ink-3);
-  margin:0 0 2px;
-}
-#home .hero-bal .bal-num{
-  font-family:var(--gb-f-num); font-weight:900; font-size:34px;
-  letter-spacing:0; line-height:1; color:var(--gb-ed-val);
-  font-variant-numeric:tabular-nums; text-shadow:none;
-}
-#home .hero-bal .bal-sub{
-  font-family:var(--gb-f-num); font-weight:700; font-size:12px;
-  letter-spacing:.5px; color:var(--gb-ed-ink-3); margin-top:3px;
-  font-variant-numeric:tabular-nums;
-}
 
-/* STATO RACCOLTO — la riga da 56px adesso contiene un dato.
-   La regola di riga 440 mette display:flex e vince (1,3,0 > 1,2,0): le aree
-   della griglia diventano inerti da sole, non serve annullarle. Ordine dei
-   figli in flex: [cornice][nome][tagline a larghezza 0][saldo]. */
-#home.hero-min .scroll > .home-hero{ padding:8px 16px; background:var(--gb-ed-paper); }
-#home.hero-min .hero-frame{ width:40px; height:40px; flex:0 0 40px;
-  box-shadow:0 0 0 1px rgba(255,215,0,.35); }
-#home.hero-min .hero-name{ font-size:15px; letter-spacing:.8px; }
-#home.hero-min .hero-bal{
-  margin:0 0 0 auto; padding:0; border-top:0; width:auto; flex:0 0 auto;
-}
-#home.hero-min .hero-bal .bal-lbl,
-#home.hero-min .hero-bal .bal-sub{ display:none; }
-#home.hero-min .hero-bal .bal-num{ font-size:20px; }
-
-
-/* ══ 5. LA STRISCIA AZIONI — .bal-card senza piu' il saldo dentro ═════════
+/* ══ 5. LA CARTA DEL SALDO ═════════════════════════════════════════════════
    Il nome della classe NON cambia: setBalanceStatus() ci appende dentro
    #bal-status quando non lo trova (riga 34555), e se la rinominiamo la riga
-   di stato del backend sparisce in silenzio. Cambia solo il vestito: da
-   card blu-notte con gradiente 135deg e sheen a striscia piatta da 56px.
-   Lo stato sta a destra con `order` e non per posizione nel DOM: cosi'
-   funziona sia col nodo scritto a mano sia con quello ricreato in coda. */
+   di stato del backend sparisce in silenzio.
+
+   ERA una striscia orizzontale da 56px — DEPOSIT · WITHDRAW · stato su una
+   riga sola — e aveva senso finche' il saldo stava su nella masthead. Ma
+   l'hero e' tornato quello di prima (08/08) e il saldo e' rientrato qui
+   dentro: su una riga sola, a 375px, WITHDRAW si leggeva "WITH…" e lo stato
+   "NO USE…". Due parole tagliate su tre.
+   Quindi torna una CARTA: la cifra sopra, i due tasti sotto, larghi. Di
+   quella versione resta la parte che funzionava — la superficie piatta senza
+   gradiente, e i due tasti pieni verde/rosso, che sono i due verbi (in
+   entrata / in uscita) e si leggono col pollice a mezzo metro. */
 #home .scroll > .bal-card{
-  margin:0 0 var(--gb-sp-2); padding:8px 10px; min-height:56px;
+  margin:0 0 var(--gb-sp-2); padding:14px 16px;
   background:var(--gb-ed-surf);
   border:1px solid var(--gb-ed-rule) !important;
   border-radius:var(--gb-ed-r);
   box-shadow:var(--gb-ed-sh-2), var(--gb-ed-sh-1) !important;
-  display:flex; align-items:center; gap:10px; overflow:hidden;
+  display:flex; flex-direction:column; align-items:stretch; gap:12px;
 }
-#home .bal-card .bal-actions{ order:1; flex:1 1 auto; flex-direction:row; gap:8px; }
+#home .bal-card .bal-actions{ order:1; display:flex; flex-direction:row; gap:10px; }
 #home .bal-card .bal-btn{
   flex:1 1 0; min-height:40px; padding:0 10px; border-radius:var(--gb-ed-r-s);
   font-family:var(--gb-f-txt); font-size:12px; font-weight:700; letter-spacing:.8px;
@@ -9414,11 +9345,17 @@ body.gb-nav-on .bnav{display:flex;}
 /* verde = in entrata, rosso = in uscita: sono due dei tre verbi, piatti */
 #home .bal-card .bal-btn.dep{ background:var(--gb-ed-win); }
 #home .bal-card .bal-btn.wd { background:var(--gb-ed-live); color:#fff; }
+/* LO STATO NON SI TRONCA. Prima stava a destra con max-width:44% e
+   text-overflow:ellipsis, e i messaggi veri sono lunghi: "OFFLINE (backend
+   unreachable)" diventava "OFFLINE (b…", "NO USER (open from Telegram)"
+   diventava "NO USE…". Uno stato d'errore troncato e' peggio di nessuno
+   stato: dice che qualcosa non va e non dice cosa. Ora sta su una riga sua,
+   sotto i tasti, e puo' andare a capo. */
 #home .bal-card .bal-status{
-  order:9; margin-left:auto; flex:0 1 auto; max-width:44%;
-  font-family:var(--gb-f-txt); font-size:12px; font-weight:700;
-  letter-spacing:.3px; color:var(--gb-ed-ink-3); text-align:right;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  order:2; width:100%;
+  font-family:var(--gb-f-txt); font-size:11.5px; font-weight:700;
+  letter-spacing:.3px; color:var(--gb-ed-ink-3); text-align:left;
+  white-space:normal; overflow:visible;
 }
 #home .bal-card .bal-status.live{ color:var(--gb-ed-win); }
 #home .bal-card .bal-status.offline{ color:var(--gb-ed-live);
@@ -9888,15 +9825,10 @@ body.gb-nav-on .bnav{display:flex;}
 @media (max-width:340px){
   #home .scroll{ padding-left:12px; padding-right:12px; }
   #home .scroll > .home-topbar{ margin:0 -12px; padding:10px 12px 6px; }
-  #home .scroll > .home-hero{ margin-left:-12px; margin-right:-12px; padding:10px 12px 12px; }
-  #home .hero-bal .bal-num{ font-size:28px; }
-  #home .hero-frame{ width:60px; height:60px; }
   #home .duel-mega .dm-title{ font-size:22px; }
   #home .games-grid{ gap:10px; }
 }
 @media (max-height:700px){
-  #home .hero-bal .bal-num{ font-size:28px; }
-  #home .hero-frame{ width:64px; height:64px; }
 }
 
 /* ══ 14. MOVIMENTO RIDOTTO — l'ultimo blocco che va allargato, non il primo
@@ -9927,7 +9859,6 @@ body.gb-nav-on .bnav{display:flex;}
    3) UN SOLO segnale rosso "adesso":
       document.querySelectorAll('.screen.active .dm-tor.live, .screen.active .gb-badge--live').length <= 1
    ══════════════════════════════════════════════════════════════════════════ */
-
 
 /* ===== ZONA DUELS (solo #duel) — direzione TABELLONE ===== */
 /* ══════════════════════════════════════════════════════════════════════════
@@ -10609,23 +10540,19 @@ body.gb-nav-on .bnav{display:flex;}
     </div>
     <div class="hero-name">GAMBLER BOT</div>
     <div class="hero-tag">Bitcoin & TON Casino · Play & Earn</div>
-    <!-- IL NUMERO sale QUI, dentro l'hero sticky: nello stato raccolto — in cui
-         l'utente sta il 95% del tempo — la riga in cima finalmente contiene un
-         dato. Gli id home-bal e home-btc NON cambiano e NON si spostano fuori
-         dal DOM: refresh() (riga 26954) li legge senza guardia a ogni go(), e
-         un id mancante alza TypeError dentro go() spegnendo tutti gli init. -->
-    <div class="hero-bal">
-      <div class="bal-lbl">BALANCE</div>
-      <div class="bal-num" id="home-bal">€0.00</div>
-      <div class="bal-sub" id="home-btc">0.00000000 BTC</div>
-    </div>
   </div>
-  <!-- .bal-card RESTA .bal-card: setBalanceStatus (riga 34555) ci appende
-       dentro #bal-status quando non lo trova. Da card del saldo diventa la
-       striscia delle azioni: DEPOSIT · WITHDRAW · stato. Il div-contenitore
-       vuoto che avvolgeva le quattro righe sparisce con loro. -->
+  <!-- L'HERO TORNA COM'ERA (08/08/2026). Il proprietario: "l'hero mi piaceva
+       com'era prima, andava cambiato la ui dei tasti". Il saldo era stato
+       portato su nella barra sticky per averlo sempre a schermo: era una buona
+       ragione, ma non abbastanza per rimpicciolire il ritratto da 336 px a 150
+       e spegnere il nome. Il saldo torna nella sua carta. -->
   <div class="bal-card">
-      <div class="bal-status" id="bal-status">Loading...</div>
+      <div>
+        <div class="bal-lbl">BALANCE</div>
+        <div class="bal-num" id="home-bal">€0.00</div>
+        <div class="bal-sub" id="home-btc">0.00000000 BTC</div>
+        <div class="bal-status" id="bal-status">Loading...</div>
+      </div>
       <div class="bal-actions">
         <button class="bal-btn dep" onclick="go('deposit')">📥 DEPOSIT</button>
         <button class="bal-btn wd" onclick="go('withdraw')">📤 WITHDRAW</button>
@@ -39356,7 +39283,18 @@ function initTurf(){
   if(window.TWR_TICKET){TWR.pendingTicket=window.TWR_TICKET;window.TWR_TICKET=null;TWR.practice=!!window.TWR_PRACTICE;window.TWR_PRACTICE=false;}
   twrLookSync();
   twrConnect();
-  if(TWR.pendingTicket&&TWR.wsOk){twrSend({t:'join_ticket',ticket:TWR.pendingTicket});TWR.pendingTicket=null;twrShowSearch();}
+  // ── `iv:2` MANCAVA QUI, E SPEGNEVA MEZZO GIOCO (08/08/2026) ──────────────
+  // `iv` dice al server che questa pagina sa gestire i DUE SLOT: senza, il
+  // server mette cap_inv=False e cade nel ramo della "pagina vecchia", dove
+  // il bottino entra sempre e non c'e' ne' offerta ne' scambio. Compariva
+  // solo sui due `t:'join'` dalla lobby (39336 e 39418), mai sui due
+  // `join_ticket` — cioe' chi entra da TORNEO o da ALLENAMENTO giocava senza
+  // scambio d'arma e senza armi a terra, mentre i bot nella sua stessa
+  // stanza scambiavano regolarmente. Misurato: 0,00 offerte e 0,00 scambi su
+  // 120 partite e 1.200 giocatori entrati per ticket.
+  // Il server lo legge gia' su questo percorso (turfwar_rt_server.py:2564,
+  // verificato): non serve toccare niente di la'.
+  if(TWR.pendingTicket&&TWR.wsOk){twrSend({t:'join_ticket',ticket:TWR.pendingTicket,iv:2});TWR.pendingTicket=null;twrShowSearch();}
   else if(TWR.pendingTicket)twrShowSearch();
   else if(TWR.ui==='match'&&TWR.map)twrShowMatch();
   else twrShowLobby();
@@ -39401,7 +39339,10 @@ function twrOnMsg(m){
   var t=m.t;
   if(t==='hello_ok'){
     if(m.rate)TWR.rate=m.rate;
-    if(TWR.pendingTicket){twrSend({t:'join_ticket',ticket:TWR.pendingTicket});TWR.pendingTicket=null;twrShowSearch();return;}
+    // stesso `iv:2` dell'altro percorso a ticket: vedi il riquadro a ~39286.
+    // Questo e' il ramo che scatta quando la websocket si apre DOPO che il
+    // ticket e' gia' in mano — cioe' il caso normale entrando da un torneo.
+    if(TWR.pendingTicket){twrSend({t:'join_ticket',ticket:TWR.pendingTicket,iv:2});TWR.pendingTicket=null;twrShowSearch();return;}
     /* `iv` = cosa sa fare questa pagina. 2 = sa mostrare l'offerta di scambio
        e mandare il verbo `swap`. Il server serve chi NON lo manda come ha
        sempre fatto (raccolta automatica), cosi' una pagina vecchia in cache
@@ -52541,6 +52482,74 @@ function rcBlitVisibile(ctx,img,S,camx,camy,cell,w,hh){
   ctx.drawImage(img,sx,sy,sw,sh,dx,dy,dw,dh);
 }
 
+// ── LA PRUA LA DISEGNA IL DITO (08/08/2026) ───────────────────────────────
+// Richiesta del proprietario: "a volte street race risponde in ritardo la
+// sterzata". Non era un'impressione. Il conto, senza contare la rete:
+//     i comandi partono ogni 33 ms       →  +16 ms in media
+//     il server gira a 20 tick            →  +25 ms in media
+//     il client disegna 85 ms indietro    →  +85 ms FISSI
+// Fanno ~126 ms medi e ~168 nel caso peggiore, PIU' il viaggio di rete. E il
+// "a volte" viene dal fatto che 33 e 50 battono uno contro l'altro: lo stesso
+// gesto costa fra 110 e 170 ms a seconda di quando cade.
+//
+// COSA SI FA E COSA NON SI FA. Non si predice la POSIZIONE: quella resta del
+// server, e con lei urti, sorpassi, giri e classifica — un client che indovina
+// dove sta la propria auto e' un client che litiga col server su chi ha vinto.
+// Si predice solo l'ANGOLO DEL MUSO della TUA auto, che e' l'unica cosa che il
+// telefono sa gia' senza chiedere niente a nessuno: con lo stick "punta e vai"
+// la direzione che vuoi E' la direzione del dito.
+//
+// E si copia il modello del server invece di inventarne uno: stessa formula di
+// `rate` (TURN_RATE che cala con la velocita', TURN_DRIFT in derapata con
+// l'anti-trottola sotto DRIFT_AUTH), stesso inseguimento con lo stesso limite
+// per secondo. Cosi' il muso previsto e' dove il muso ARRIVERA' davvero, non
+// dove farebbe comodo: quando lo snapshot arriva, i due valori coincidono gia'
+// e non c'e' niente da correggere. Se il server la pensa diversamente — un
+// muro, un urto — la correzione rientra dolcemente in `RC_PRUA_RIENTRO`
+// secondi invece di scattare.
+var RC_TURN_RATE=3.2, RC_TURN_DRIFT=6.2, RC_UNDERSTEER=0.22,
+    RC_DRIFT_UNDER=0.30, RC_DRIFT_AUTH=4.5, RC_VMAX=13.5,
+    RC_ANTICIPO=0.13,          // s: il ritardo misurato, ed e' quanto si anticipa
+    RC_MORBIDO=0.06;           // s: entrata/uscita dalla previsione, per non scattare
+
+function rcPruaPrevista(r,an,dt,drift){
+  // NON e' un accumulatore. Il primo tentativo lo era — un angolo proprio che
+  // insegue il dito e intanto rientra verso il server — e non funzionava: il
+  // rientro lo ricacciava indietro a ogni frame e l'anticipo guadagnato era di
+  // TRE GRADI, con 19 gradi d'errore in mezzo alla curva. Un accumulatore con
+  // una briglia tende alla briglia, ed e' ovvio col senno di poi.
+  //
+  // Qui invece si risponde a una domanda sola, e senza memoria: "dov'e' il muso
+  // ADESSO, sapendo che lo snapshot che sto guardando ha RC_ANTICIPO secondi?"
+  // Si prende l'angolo del server e lo si fa girare verso il dito di quanto il
+  // server GIRERA' in quel tempo — mai oltre il dito, perche' oltre il dito il
+  // server non va. Se il dito sta fermo, i due valori convergono entrambi sulla
+  // direzione del dito e coincidono: errore zero. Se il dito si muove,
+  // l'anticipo e' esattamente il ritardo, che e' il punto.
+  var srv=r[3];
+  var c=(typeof rcComandi==='function')?rcComandi():null;
+  // `st` assente = dito SULLO stick = direzione assoluta. E' la stessa
+  // convenzione del server (`if st is None:` → insegue mx,my). Col dito
+  // staccato arriva `st:0`: li' non c'e' niente da predire, la prua e' del
+  // server e si lascia il posto a lui — azzerando lo stato, cosi' la prossima
+  // volta che tocchi si riparte da fermo e non da un angolo vecchio.
+  if(!c||c.st!=null){an.pa=null;return srv;}
+  var m=Math.sqrt(c.mx*c.mx+c.my*c.my);
+  if(!(m>0.02)){an.pa=null;return srv;}
+  var v=r[4]||0;
+  var rate=drift
+    ? RC_TURN_DRIFT*(1-RC_DRIFT_UNDER*Math.min(1,v/RC_VMAX))*Math.min(1,v/RC_DRIFT_AUTH)
+    : RC_TURN_RATE*(1-RC_UNDERSTEER*Math.min(1,v/RC_VMAX));
+  var d=(Math.atan2(c.my,c.mx)-srv+9.42477)%6.28318-3.14159;
+  var lim=rate*RC_ANTICIPO;
+  var meta=srv+Math.max(-lim,Math.min(lim,d));
+  // l'unico pezzo con memoria, e serve solo a non far scattare il muso nel
+  // fotogramma in cui appoggi il dito
+  if(an.pa==null){an.pa=meta;return meta;}
+  an.pa+=((meta-an.pa+9.42477)%6.28318-3.14159)*Math.min(1,dt/RC_MORBIDO);
+  return an.pa;
+}
+
 function rtdDrawRace(ctx,raw,lp,now,w,hh,dt){
   var SC=RTD._sc.trackSC||26;
   var VIEW=16.0;
@@ -52642,13 +52651,17 @@ function rtdDrawRace(ctx,raw,lp,now,w,hh,dt){
       }
       ctx.globalAlpha=1;
     }
+    // LA PRUA: per la MIA auto la disegna il dito (vedi rcPruaPrevista), per
+    // le altre resta quella che arriva dal server — di quelle non ho il dito,
+    // e indovinare l'angolo di un avversario e' solo un modo di sbagliarlo.
+    var ang=(isMe&&!RTD.spec)?rcPruaPrevista(r,an,dt,drift):r[3];
     ctx.save();
     ctx.translate(X(r[1]),Y(r[2]));
     if(off){
       ctx.fillStyle='rgba(160,140,90,.25)';
-      ctx.beginPath();ctx.arc(-Math.cos(r[3])*cell*0.5,-Math.sin(r[3])*cell*0.5,cell*0.3,0,6.283);ctx.fill();
+      ctx.beginPath();ctx.arc(-Math.cos(ang)*cell*0.5,-Math.sin(ang)*cell*0.5,cell*0.3,0,6.283);ctx.fill();
     }
-    ctx.rotate(r[3]);
+    ctx.rotate(ang);
     var L=cell*1.14,Wd=cell*0.58;
     // ── ombra a terra — IN VOLO SI STACCA: è tutta la lettura del salto.
     // x,y dello snapshot SONO la posizione a terra (il motore integra x,y anche
