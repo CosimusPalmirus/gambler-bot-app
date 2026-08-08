@@ -48579,8 +48579,28 @@ function pgBalls(plp,raw,sx,sy,MW,MH,flipP,out){
   return out;
 }
 
+// IL CUSCINETTO: 85 ms per tutti, 72 IN GARA (08/08/2026) ──────────────────
+// Si disegna sempre un po' indietro rispetto all'ultimo snapshot, cosi' un
+// pacchetto in ritardo non fa saltare l'immagine. A 20 tick gli snapshot
+// distano 50 ms: 85 ms sono un margine di 1,7 pacchetti, generoso.
+// In gara quel margine e' latenza pura sulla sterzata, ed e' la meta' buona
+// del problema che il proprietario sente. 72 ms tolgono 13 ms a TUTTO
+// INSIEME: muso, posizione e avversari si spostano dello stesso istante,
+// quindi nessuna incoerenza — che e' esattamente l'errore della previsione
+// tolta qui sopra, che ne anticipava uno solo.
+// PERCHE' 72 E NON 62. Misurato quanti fotogrammi restano senza dati (cioe'
+// scattano) al variare del cuscinetto e del jitter di rete:
+//        85 ms -> 0,0% / 0,0% / 0,0%   (jitter 10 / 25 / 40 ms)
+//        78 ms -> 0,0% / 0,0% / 0,3%
+//        72 ms -> 0,0% / 0,0% / 1,2%   <- qui
+//        62 ms -> 0,0% / 1,1% / 4,4%
+// A 62 si guadagnavano altri 10 ms pagandoli con quattro volte gli scatti su
+// rete ballerina, e gli scatti sono la cosa di cui il proprietario si era
+// gia' lamentato per primo. 72 e' il punto in cui il guadagno e' ancora
+// gratis.
+// Gli altri giochi restano a 85: li' 13 ms non si sentono.
 function rtdLerp(){
-  var t=performance.now()-85,s=RTD.snaps;
+  var t=performance.now()-(RTD.game==='race'?72:85),s=RTD.snaps;
   if(!s.length)return null;
   if(s.length===1||t<=s[0].rx)return {a:s[0],b:s[0],k:0};
   for(var i=s.length-1;i>0;i--){
@@ -52482,73 +52502,26 @@ function rcBlitVisibile(ctx,img,S,camx,camy,cell,w,hh){
   ctx.drawImage(img,sx,sy,sw,sh,dx,dy,dw,dh);
 }
 
-// ── LA PRUA LA DISEGNA IL DITO (08/08/2026) ───────────────────────────────
-// Richiesta del proprietario: "a volte street race risponde in ritardo la
-// sterzata". Non era un'impressione. Il conto, senza contare la rete:
-//     i comandi partono ogni 33 ms       →  +16 ms in media
-//     il server gira a 20 tick            →  +25 ms in media
-//     il client disegna 85 ms indietro    →  +85 ms FISSI
-// Fanno ~126 ms medi e ~168 nel caso peggiore, PIU' il viaggio di rete. E il
-// "a volte" viene dal fatto che 33 e 50 battono uno contro l'altro: lo stesso
-// gesto costa fra 110 e 170 ms a seconda di quando cade.
+// ── LA PRUA DAL DITO: PROVATA E TOLTA (08/08/2026) ─────────────────
+// Qui c'era una previsione: il muso della TUA auto disegnato dal dito invece
+// che aspettato dal server, per togliere i ~126 ms di ritardo sulla sterzata.
+// Sulla carta funzionava (−80% d'errore sull'angolo), in mano NO, e il
+// proprietario l'ha detto in tre parole: "a volte si muove di traverso".
 //
-// COSA SI FA E COSA NON SI FA. Non si predice la POSIZIONE: quella resta del
-// server, e con lei urti, sorpassi, giri e classifica — un client che indovina
-// dove sta la propria auto e' un client che litiga col server su chi ha vinto.
-// Si predice solo l'ANGOLO DEL MUSO della TUA auto, che e' l'unica cosa che il
-// telefono sa gia' senza chiedere niente a nessuno: con lo stick "punta e vai"
-// la direzione che vuoi E' la direzione del dito.
+// Il motivo, misurato dopo: a schermo la POSIZIONE e' quella interpolata,
+// vecchia di 126 ms. Portando il muso a ORA e lasciando la posizione a prima,
+// l'auto punta da una parte e viaggia dall'altra. Lo scarto fra muso e
+// traiettoria RADDOPPIA: 3,1° → 6,5° in guida normale, 5,7° → 11,9° in curva
+// lunga, 9,4° → 17,5° (punte di 25°) in chicane. Il granchio.
 //
-// E si copia il modello del server invece di inventarne uno: stessa formula di
-// `rate` (TURN_RATE che cala con la velocita', TURN_DRIFT in derapata con
-// l'anti-trottola sotto DRIFT_AUTH), stesso inseguimento con lo stesso limite
-// per secondo. Cosi' il muso previsto e' dove il muso ARRIVERA' davvero, non
-// dove farebbe comodo: quando lo snapshot arriva, i due valori coincidono gia'
-// e non c'e' niente da correggere. Se il server la pensa diversamente — un
-// muro, un urto — la correzione rientra dolcemente in `RC_PRUA_RIENTRO`
-// secondi invece di scattare.
-var RC_TURN_RATE=3.2, RC_TURN_DRIFT=6.2, RC_UNDERSTEER=0.22,
-    RC_DRIFT_UNDER=0.30, RC_DRIFT_AUTH=4.5, RC_VMAX=13.5,
-    RC_ANTICIPO=0.13,          // s: il ritardo misurato, ed e' quanto si anticipa
-    RC_MORBIDO=0.06;           // s: entrata/uscita dalla previsione, per non scattare
-
-function rcPruaPrevista(r,an,dt,drift){
-  // NON e' un accumulatore. Il primo tentativo lo era — un angolo proprio che
-  // insegue il dito e intanto rientra verso il server — e non funzionava: il
-  // rientro lo ricacciava indietro a ogni frame e l'anticipo guadagnato era di
-  // TRE GRADI, con 19 gradi d'errore in mezzo alla curva. Un accumulatore con
-  // una briglia tende alla briglia, ed e' ovvio col senno di poi.
-  //
-  // Qui invece si risponde a una domanda sola, e senza memoria: "dov'e' il muso
-  // ADESSO, sapendo che lo snapshot che sto guardando ha RC_ANTICIPO secondi?"
-  // Si prende l'angolo del server e lo si fa girare verso il dito di quanto il
-  // server GIRERA' in quel tempo — mai oltre il dito, perche' oltre il dito il
-  // server non va. Se il dito sta fermo, i due valori convergono entrambi sulla
-  // direzione del dito e coincidono: errore zero. Se il dito si muove,
-  // l'anticipo e' esattamente il ritardo, che e' il punto.
-  var srv=r[3];
-  var c=(typeof rcComandi==='function')?rcComandi():null;
-  // `st` assente = dito SULLO stick = direzione assoluta. E' la stessa
-  // convenzione del server (`if st is None:` → insegue mx,my). Col dito
-  // staccato arriva `st:0`: li' non c'e' niente da predire, la prua e' del
-  // server e si lascia il posto a lui — azzerando lo stato, cosi' la prossima
-  // volta che tocchi si riparte da fermo e non da un angolo vecchio.
-  if(!c||c.st!=null){an.pa=null;return srv;}
-  var m=Math.sqrt(c.mx*c.mx+c.my*c.my);
-  if(!(m>0.02)){an.pa=null;return srv;}
-  var v=r[4]||0;
-  var rate=drift
-    ? RC_TURN_DRIFT*(1-RC_DRIFT_UNDER*Math.min(1,v/RC_VMAX))*Math.min(1,v/RC_DRIFT_AUTH)
-    : RC_TURN_RATE*(1-RC_UNDERSTEER*Math.min(1,v/RC_VMAX));
-  var d=(Math.atan2(c.my,c.mx)-srv+9.42477)%6.28318-3.14159;
-  var lim=rate*RC_ANTICIPO;
-  var meta=srv+Math.max(-lim,Math.min(lim,d));
-  // l'unico pezzo con memoria, e serve solo a non far scattare il muso nel
-  // fotogramma in cui appoggi il dito
-  if(an.pa==null){an.pa=meta;return meta;}
-  an.pa+=((meta-an.pa+9.42477)%6.28318-3.14159)*Math.min(1,dt/RC_MORBIDO);
-  return an.pa;
-}
+// LA LEZIONE, perche' non ci ricaschi chi legge: muso e posizione devono
+// venire dallo STESSO istante. Anticiparne uno solo non e' mezza previsione,
+// e' un'incoerenza — e l'occhio la vede molto prima di quanto senta i 126 ms.
+// Chi volesse riprovarci deve predire anche la POSIZIONE, cioe' rigirare la
+// fisica sul client: molto piu' grande, e con il rischio del rimbalzo quando
+// il server non e' d'accordo.
+// Nel frattempo il ritardo si accorcia dove non costa coerenza: il cuscinetto
+// di interpolazione (vedi rtdLerp) porta indietro TUTTO insieme.
 
 function rtdDrawRace(ctx,raw,lp,now,w,hh,dt){
   var SC=RTD._sc.trackSC||26;
@@ -52651,10 +52624,7 @@ function rtdDrawRace(ctx,raw,lp,now,w,hh,dt){
       }
       ctx.globalAlpha=1;
     }
-    // LA PRUA: per la MIA auto la disegna il dito (vedi rcPruaPrevista), per
-    // le altre resta quella che arriva dal server — di quelle non ho il dito,
-    // e indovinare l'angolo di un avversario e' solo un modo di sbagliarlo.
-    var ang=(isMe&&!RTD.spec)?rcPruaPrevista(r,an,dt,drift):r[3];
+    var ang=r[3];
     ctx.save();
     ctx.translate(X(r[1]),Y(r[2]));
     if(off){
