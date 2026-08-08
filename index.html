@@ -8608,6 +8608,1947 @@ body.gb-nav-on .bnav{display:flex;}
 :root.tg-fs .tw-overlay{padding-bottom:max(env(safe-area-inset-bottom),var(--tg-bottom,0px));}
 /* le pastiglie fisse in cima (timer del torneo) scendono sotto i comandi */
 :root.tg-fs .trn-im-badge{top:calc(8px + max(env(safe-area-inset-top),var(--tg-top,0px)));}
+
+
+/* ===== ZONA TON — direzione TABELLONE ===== */
+/* ══════════════════════════════════════════════════════════════════════════
+   ZONA TON / WALLET — direzione TABELLONE                       (08/08/2026)
+
+   Da appendere in fondo al <style> esistente. Non cancella una riga di
+   nessuno: dove deve vincere, vince per specificita' (#ton + classe), e usa
+   !important SOLO nei tre punti in cui la regola vecchia ce l'ha gia' o dove
+   c'e' uno stile inline nel markup — sono segnalati uno per uno.
+
+   PERCHE' QUESTA SCHERMATA CAMBIA COSI'
+   Oggi #ton non ha una sola riga di CSS propria: quattro .info-card
+   identiche, l'hero oro copiato dal wallet, e tutta la tipografia scritta a
+   mano dentro le stringhe del JS (11px, 11.5px, 12px, 13px, 14px). Non e'
+   stata disegnata, e' stata assemblata. La direzione TABELLONE dice che la
+   gerarchia la fanno DIMENSIONE, POSIZIONE e LINEE, e che il colore torna a
+   essere un segnale: qui vuol dire un numero eroe in alto a destra, quattro
+   carte che si distinguono per una barra da 3px, e tre righe dato dove prima
+   c'erano tre paragrafi di prosa.
+
+   NAMESPACE: tutto sta sotto #ton, oppure sotto un nome che comincia per
+   `ton-`. Un grep su "ton-" dice esattamente cosa possiede questa zona, e
+   niente di quello che c'e' qui puo' finire dentro una schermata di gioco
+   (il divieto del commento 254-261: #slots ridefinisce --gb-gold/--gb-line).
+   Le uniche due regole che escono da #ton sono `.action-btn.ton-btn` (i
+   bottoni TON che stanno in #wallet e #deposit) e `#ton-hint`.
+
+   MOVIMENTO: zero animazioni nuove. Anzi, una in meno — balSheen (7615), che
+   e' perpetua e anima `left`, cioe' LAYOUT, viene spenta su questa schermata.
+   L'unico movimento e' la pressione del dito: una transizione a durata
+   finita, 90ms in discesa e 160ms in risalita.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── I TOKEN, TUTTI SCOPED SU #ton ─────────────────────────────────────────
+   Non ridefiniscono niente di esistente: sono nuovi nomi dichiarati DENTRO
+   la schermata, quindi non possono entrare per sbaglio in un gioco. Dove il
+   valore esiste gia' nel :root lo si aliasa invece di reinventarlo. */
+#ton{
+  /* la chiave TON: vive in 3px di barra e in un occhiello, mai in una frase */
+  --ton-key      : #22d3ee;
+  --ton-key-ink  : #67e8f9;   /* la stessa tinta schiarita: 3px di #38bdf8 su
+                                 #12151f, di sera, su un pannello economico,
+                                 sono 3px di niente */
+  --ton-key-wash : rgba(34,211,238,.09);
+
+  --ton-surf : var(--gb-surf-1, #12151f);  /* LA carta: una superficie, piatta */
+  --ton-sunk : #0b0d14;                    /* l'incasso: indirizzi, memo, input */
+  --ton-rule : rgba(255,255,255,.08);
+  --ton-rule2: rgba(255,255,255,.16);
+
+  /* #f2f4f8 e non #ffffff: 34px di bianco puro su AMOLED, al buio, con la
+     luminosita' automatica al minimo, sono una lampada. E' la condizione in
+     cui questa app viene aperta davvero. */
+  --ton-ink  : #f2f4f8;
+  --ton-ink2 : var(--txt2, #9ca3af);
+  --ton-ink3 : var(--txt3, #8b93a1);
+
+  --ton-sh    : 0 8px 24px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04);
+  --ton-inset : inset 0 2px 6px rgba(0,0,0,.6);
+
+  --ton-r   : 12px;   /* raggio unico delle carte */
+  --ton-r-s : 6px;    /* incassi, chip, pillole */
+  --ton-gut : 16px;   /* la colonna, decisa in un punto solo */
+
+  /* il numero eroe. 34 e non 38: qui la cifra si porta dietro " TON", cioe'
+     4 caratteri in piu' di un saldo in euro, e a 38px tabulare un
+     "1234.56 TON" non entra in 328px di schermo. */
+  --ton-hero: 34px;
+
+  --ton-tap-in  : 90ms;    /* giu' veloce  */
+  --ton-tap-out : 160ms;   /* su lento: e' l'asimmetria a farla sentire tattile */
+  --ton-tap-ease: cubic-bezier(.2,.8,.3,1);
+}
+/* LO SCALINO STA A 380, NON A 340. Gli schermi veri da coprire sono 360
+   (Android medio) e 375 (iPhone mini/SE): a 340 la query non si accendeva mai
+   dove serviva, ed e' li' che il saldo lungo sfondava. Il gutter piu' stretto
+   resta invece legato ai 340, che e' un caso di schermo diverso. */
+@media (max-width:380px){ #ton{ --ton-hero:26px; } }
+@media (max-width:340px){ #ton{ --ton-gut:12px; } }
+@media (max-height:700px){ #ton{ --ton-hero:28px; } }
+
+/* ── LA COLONNA ────────────────────────────────────────────────────────────
+   16px come tutte le altre schermate, e il fondo che rispetta la barra gesti.
+   #ton non ha (e non deve avere) la barra di navigazione: qui il padding di
+   sicurezza serve solo a non far finire l'ultima riga sotto il bordo curvo.
+   La dichiarazione lunga viene dopo quella corta: se env() non e' supportato
+   il browser tiene la prima e non resta senza padding. */
+#ton .game-content{
+  padding:var(--ton-gut);
+  gap:10px;
+  padding-bottom:calc(var(--ton-gut) + env(safe-area-inset-bottom));
+}
+
+/* l'intestazione: il rombo TON al posto dell'emoji, e la tinta della
+   schermata dichiarata una volta sola, sull'icona (stroke:currentColor) */
+#ton .game-title{ letter-spacing:1.5px; }
+#ton .game-title .gb-ic-t{ color:var(--ton-key-ink); }
+
+/* ══ PRIMO TEMPO — IL NUMERO ══════════════════════════════════════════════
+   Un solo numero a 34px per schermata, e qui non e' negoziabile quale: il
+   saldo TON. Mezzo: dimensione + posizione (in alto, allineato a destra).
+   La .bal-card smette di essere la carta oro del wallet — quella dice
+   "questi sono euro" — e diventa la testata della schermata TON. */
+
+/* la regola 392 (#wallet .game-content > .bal-card{margin:0 0 12px}) non
+   esiste per #ton: qui la carta teneva ancora il margin:14px 16px di 342 e
+   rientrava di 16px rispetto alle carte sotto. Si vedeva, ed era l'unico
+   disallineamento della schermata. */
+#ton .game-content > .bal-card{
+  margin:0;
+  padding:15px 16px 15px 19px;   /* 19 a sinistra: 16 di gronda + i 3 della barra */
+  border-radius:var(--ton-r);
+  background-color:var(--ton-surf);
+  /* il lavaggio d'angolo al 9%: da' materia alla carta senza rimettere ne'
+     un gradiente a 135 gradi ne' un alone. Sta su background-image apposta,
+     perche' ::before e ::after sono gia' occupati (barra e sheen). */
+  background-image:radial-gradient(115% 95% at 8% 0%, var(--ton-key-wash), transparent 62%);
+  /* i due !important battono i due gia' consolidati a 345-346 (bordo e
+     ombra della .bal-card). Non si tolgono di la': quella carta vive in
+     altri 25 punti dell'app. */
+  border:1px solid rgba(56,189,248,.30) !important;
+  box-shadow:var(--ton-sh),
+             0 0 0 1px rgba(56,189,248,.16),
+             0 0 18px rgba(56,189,248,.14) !important;
+}
+/* L'UNICO alone della schermata, ed e' qui. Se ne compare un secondo da
+   qualche altra parte, uno dei due e' sbagliato. */
+
+/* la barra della chiave TON. .bal-card e' gia' position:relative e
+   overflow:hidden (342-344), quindi non serve altro. */
+#ton .bal-card::before{
+  content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
+  background:var(--ton-key); border-radius:var(--ton-r) 0 0 var(--ton-r);
+}
+/* balSheen (7615): animazione PERPETUA che muove `left`, cioe' una proprieta'
+   di LAYOUT, su ogni bal-card dell'app. Su questa schermata si spegne: non
+   trasporta nessuna informazione e costa un ricalcolo ogni fotogramma per
+   7,5 secondi buoni. Altrove resta com'e' — non e' la mia zona. */
+#ton .bal-card::after{ display:none; }
+
+#ton .bal-card > div{ flex:1 1 auto; min-width:0; text-align:right; }
+
+/* l'occhiello: apre il blocco. 11px e' il corpo dell'occhiello, non del
+   testo — sotto i 12px, in questa direzione, non esiste testo che si legga
+   in orizzontale. Qui e' maiuscolo, tracciato e corto: e' segnaletica. */
+#ton .bal-lbl{
+  font-family:var(--gb-f-txt); font-size:11px; font-weight:700;
+  letter-spacing:1.5px; text-transform:uppercase;
+  color:var(--ton-ink3); margin-bottom:6px;
+}
+/* il numero eroe. Bianco, non oro: l'oro nell'app significa "euro del
+   casino". L'identita' TON la porta la barra e l'occhiello, non la cifra.
+   Batte per specificita' sia .bal-num (348) sia il text-shadow oro di 7617
+   sia il @media max-height:700 di 1765 — nessun !important. */
+#ton .bal-num{
+  font-size:var(--ton-hero); font-weight:900; line-height:1.05;
+  letter-spacing:0; color:var(--ton-ink); text-shadow:none;
+  /* IL SALDO NON SI TAGLIA MAI. `tonUiFmt` fa toFixed(9) e toglie solo gli
+     zeri finali: un saldo puo' arrivare a "1234.567890123 TON", diciannove
+     caratteri. A 34px, dentro i 291px che restano su uno schermo da 360, non
+     ci sta — e veniva TAGLIATO, cioe' l'utente leggeva una cifra sbagliata
+     al posto della sua. Fra un numero tagliato e un numero che va a capo si
+     sceglie sempre il secondo: `overflow-wrap` permette la rottura solo
+     quando serve davvero, e la riga in piu' non toglie senso a niente. */
+  overflow-wrap:anywhere;
+}
+/* il sottotitolo smette di essere il frammento orfano "to EQAb…x7f9" e
+   diventa una riga dato: etichetta a sinistra, valore a destra. */
+#ton .bal-sub{
+  display:flex; align-items:baseline; justify-content:flex-end; gap:8px;
+  min-height:15px; margin-top:9px;
+  font-family:var(--gb-f-txt); font-size:12px; color:var(--ton-ink2);
+}
+.ton-sub-k{
+  font-family:var(--gb-f-txt); font-size:11px; font-weight:700;
+  letter-spacing:1.5px; text-transform:uppercase; color:var(--ton-ink3,#8b93a1);
+}
+.ton-sub-v{
+  font-family:var(--gb-f-num); font-size:12px; font-variant-numeric:tabular-nums;
+  color:var(--ton-key-ink,#67e8f9); word-break:break-all;
+}
+
+/* ══ SECONDO TEMPO — LE TESTATE ═══════════════════════════════════════════
+   Quattro carte identiche non sono una gerarchia. Restano quattro carte —
+   il JS le riempie e le accende una per volta — ma ognuna prende una barra
+   da 3px che dice CHE COSA e', prima ancora che si legga l'occhiello:
+   ciano = il wallet (l'identita' della schermata), oro = valore (il
+   prelievo), rosso = adesso (quello in corso), verde = in entrata (il
+   deposito). Sono i tre verbi della direzione piu' la chiave TON. */
+#ton .info-card{
+  position:relative; overflow:hidden;
+  /* flex:none NON e' cosmetico. `.game-content` e' una colonna flex, e un
+     figlio con overflow diverso da visible ha, per specifica, min-height:auto
+     che NON lo protegge: le quattro carte si lasciavano schiacciare fino a
+     zero e il contenuto veniva tagliato (misurato: il wallet a 46px, il
+     prelievo a 226px, e nessuna barra di scorrimento perche' scrollHeight
+     restava uguale a clientHeight — cioe' il taglio era invisibile e
+     silenzioso, il modo peggiore). */
+  flex:none;
+  padding:13px var(--ton-gut) 15px 19px;
+  border:1px solid var(--ton-rule);
+  border-radius:var(--ton-r);
+  background-color:var(--ton-surf);
+  background-image:radial-gradient(115% 90% at 8% 0%, var(--ton-wash, transparent), transparent 62%);
+  box-shadow:var(--ton-sh);
+}
+#ton .info-card::before{
+  content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
+  background:var(--ton-key-row, var(--ton-rule2));
+  border-radius:var(--ton-r) 0 0 var(--ton-r);
+}
+
+/* LA CARTA CHIAVE: il wallet. E' l'unica con il bordo tinto, ed e' l'unica
+   il cui occhiello porta la tinta TON — il posto legale del colore di
+   identita' e' l'occhiello da 11px, dove non danneggia la lettura. */
+#ton #tonui-wcard{
+  --ton-key-row:var(--ton-key);
+  --ton-wash:var(--ton-key-wash);
+  border-color:rgba(56,189,248,.28);
+}
+#ton #tonui-wcard > .info-lbl{ color:var(--ton-key-ink); }
+
+/* il prelievo: oro, perche' e' la carta in cui si decide una cifra. Il rosso
+   NON si usa qui: e' riservato a "adesso", e su questa schermata l'adesso e'
+   il prelievo in corso. Un solo rosso per schermata, o non significa piu'
+   niente. */
+#ton #tonui-wd{ --ton-key-row:var(--gold); --ton-wash:rgba(255,215,0,.06); }
+
+/* quello in corso: rosso, ed e' l'unico rosso. I due !important battono lo
+   stile INLINE del markup (10708-10709: border-color e background ciano) —
+   contro un inline non basta la specificita', serve l'important, e resta
+   preferibile a chiedere di cancellare due dichiarazioni in un file che
+   stanno toccando in cinque. */
+#ton #tonui-pend{
+  --ton-key-row:var(--rd);
+  --ton-wash:rgba(239,68,68,.07);
+  background-color:var(--ton-surf) !important;
+  border-color:rgba(239,68,68,.40) !important;
+  /* lo stile inline e' una `background:` SHORTHAND: azzera anche
+     l'immagine, quindi il lavaggio d'angolo va rimesso con l'important suo */
+  background-image:radial-gradient(115% 90% at 8% 0%, var(--ton-wash), transparent 62%) !important;
+}
+
+/* il deposito: verde, che nell'app vuol dire "in entrata". E' l'unica carta
+   senza id, e la si prende per esclusione invece di aggiungerle un attributo
+   nel markup: una riga di HTML in meno da patchare su un file condiviso. */
+#ton .game-content > .info-card:not([id]){
+  --ton-key-row:var(--gn2);
+  --ton-wash:rgba(16,185,129,.07);
+}
+
+/* le quattro intestazioni erano .info-lbl a 9px: il testo piu' piccolo di
+   tutta l'app, usato per l'unica struttura della pagina. Portate a 11px
+   maiuscolo tracciato, che e' il ruolo occhiello.
+   Il margine sotto e' 2px e non 10: i quattro corpi delle carte
+   (#tonui-wbody, -wdbody, -pendbody, -depbody) portano gia' un
+   `margin-top:8px` inline nel markup, e sommandoli si aprivano 18px fra
+   l'occhiello e la roba che introduce. */
+#ton .info-lbl{
+  font-family:var(--gb-f-txt); font-size:11px; font-weight:700;
+  letter-spacing:1.5px; text-transform:uppercase;
+  color:var(--ton-ink3); margin:0 0 2px;
+}
+
+/* ══ TERZO TEMPO — IL TESTO E I DATI ══════════════════════════════════════
+   Il pavimento tipografico e' un DIVIETO, non una scala: sotto i 12px non
+   esiste testo in questa zona, e 11px vale solo per l'occhiello maiuscolo.
+   Erano 11 / 11.5 / 12 / 13 / 14 px scritti a mano dentro le stringhe JS,
+   con line-height 1.5 e 1.55 alternati. */
+.ton-p{
+  font-family:var(--gb-f-txt); font-size:13px; line-height:1.5;
+  color:var(--ton-ink2,#9ca3af); max-width:58ch;
+}
+.ton-p b{ color:var(--ton-ink,#f2f4f8); font-weight:700; }
+.ton-p--warn{ color:#ff9d9d; }
+
+.ton-note{
+  font-family:var(--gb-f-txt); font-size:12px; line-height:1.45;
+  color:var(--ton-ink3,#8b93a1); margin-top:10px; max-width:58ch;
+}
+.ton-note b{ color:var(--ton-ink2,#9ca3af); font-weight:700; }
+
+.ton-lbl{
+  font-family:var(--gb-f-txt); font-size:11px; font-weight:700;
+  letter-spacing:1.5px; text-transform:uppercase; color:var(--ton-ink3,#8b93a1);
+}
+.ton-lbl--sp{ display:block; margin-top:14px; }
+/* il ritmo verticale sta QUI e non negli attributi style delle stringhe JS:
+   e' l'unico modo perche' resti uguale in tutti e quattro gli stati */
+.ton-lbl + .ton-p{ margin-top:6px; }
+.ton-p + .ton-amt, .ton-note + .ton-amt{ margin-top:10px; }
+/* l'unica etichetta rossa della schermata, e se la merita: e' l'unico campo
+   la cui dimenticanza costa assistenza vera. */
+.ton-lbl--must{ color:#ff9d9d; }
+
+/* ── L'INCASSO ─────────────────────────────────────────────────────────────
+   Indirizzi e memo erano tre box identici (Orbitron 11px su rgba(0,0,0,.4)),
+   e il memo si distingueva solo perche' era oro. Adesso sono INCASSATI: un
+   elemento affondato in mezzo a carte sollevate si vede piu' di qualunque
+   bordo colorato, e costa un'ombra interna. */
+.ton-well{
+  margin-top:6px; padding:11px 12px;
+  border-radius:var(--ton-r-s,6px);
+  background:var(--ton-sunk,#0b0d14);
+  border:1px solid rgba(255,255,255,.06);
+  box-shadow:var(--ton-inset, inset 0 2px 6px rgba(0,0,0,.6));
+  font-family:var(--gb-f-num); font-size:12px; line-height:1.5;
+  letter-spacing:.3px; color:#dbe3ee; word-break:break-all;
+}
+/* l'indirizzo torna neutro: il ciano a 11px su nero era il colore giusto nel
+   posto sbagliato — un indirizzo si legge carattere per carattere. */
+.ton-well--addr{ color:#dbe3ee; }
+.ton-well--s{ font-size:12px; }
+/* IL MEMO: stesso incasso, piu' una MENSOLA rossa da 3px sul bordo basso.
+   E' la stessa grammatica delle barre delle carte (colore = 3px di linea),
+   applicata all'unico campo obbligatorio della schermata. */
+.ton-well--memo{
+  font-size:16px; font-weight:700; letter-spacing:2px;
+  color:var(--gold,#ffd700);
+  border-bottom:3px solid var(--rd,#ef4444);
+  border-radius:var(--ton-r-s,6px) var(--ton-r-s,6px) 2px 2px;
+}
+
+/* ── LE RIGHE DATO ─────────────────────────────────────────────────────────
+   R3: ogni carta espone un dato, allineato a destra, tabulare. Prima la
+   scheda del prelievo diceva solo "Minimum: 5 TON" in 11px grigio; adesso
+   sono due righe — quanto hai, quanto serve — e sono le stesse cifre che il
+   server manda gia' dentro /ton/state, senza una chiamata in piu'. */
+.ton-row{
+  display:flex; align-items:baseline; justify-content:space-between; gap:12px;
+  padding:9px 0; border-bottom:1px solid var(--ton-rule, rgba(255,255,255,.08));
+}
+.ton-amt + .ton-row{ margin-top:12px; border-top:1px solid var(--ton-rule, rgba(255,255,255,.08)); }
+.ton-row__k{
+  font-family:var(--gb-f-txt); font-size:11px; font-weight:700;
+  letter-spacing:1.5px; text-transform:uppercase; color:var(--ton-ink3,#8b93a1);
+}
+.ton-row__v{
+  font-family:var(--gb-f-num); font-weight:700; font-size:14px;
+  font-variant-numeric:tabular-nums; color:var(--ton-ink,#f2f4f8);
+  text-align:right; white-space:nowrap;
+}
+
+/* il prelievo in corso: lo stato a sinistra, la cifra a destra a 20px.
+   Era una cifra a 14px in ciano sopra due righe di testo. */
+.ton-pend{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
+.ton-pend__st{ font-family:var(--gb-f-txt); font-size:13px; line-height:1.4; color:var(--ton-ink2,#9ca3af); }
+.ton-num{
+  flex:none; font-family:var(--gb-f-num); font-weight:700; font-size:20px;
+  line-height:1.1; font-variant-numeric:tabular-nums; color:var(--ton-ink,#f2f4f8);
+}
+
+.ton-sep{ height:1px; background:var(--ton-rule, rgba(255,255,255,.08)); margin:16px 0 12px; }
+
+/* ── IL CAMPO IMPORTO ──────────────────────────────────────────────────────
+   16px non e' un vezzo: sotto i 16px iOS ZOOMA la pagina quando il campo
+   prende il fuoco, e in una webview di Telegram da quello zoom non si esce
+   piu' bene. Stesso incasso dei box indirizzo, cosi' si capisce che e' un
+   posto dove si scrive. */
+.ton-amt{ display:flex; gap:8px; align-items:stretch; }
+.ton-inp{
+  flex:1; min-width:0; min-height:var(--gb-tap,44px); padding:10px 12px;
+  border-radius:var(--ton-r-s,6px);
+  background:var(--ton-sunk,#0b0d14);
+  border:1px solid rgba(255,255,255,.14);
+  box-shadow:var(--ton-inset, inset 0 2px 6px rgba(0,0,0,.6));
+  color:var(--ton-ink,#f2f4f8);
+  font-family:var(--gb-f-num); font-size:16px; font-weight:700;
+  font-variant-numeric:tabular-nums;
+}
+.ton-inp:focus{ outline:none; border-color:rgba(56,189,248,.55); }
+.ton-inp::placeholder{ color:#5b6473; }
+
+/* ── I BOTTONI ─────────────────────────────────────────────────────────────
+   Dentro #ton spariscono i tre gradienti e le tre ombre COLORATE: un'ombra
+   colorata e' un alone, e di aloni ne e' ammesso uno per schermata (ed e'
+   gia' la testata). Restano tre livelli: neutro (secondario), oro (l'azione
+   principale della carta), rosso di contorno (distruttivo).
+
+   PRESSIONE, non scala. Lo scale(.98) di 753 rimpicciolisce il testo del
+   bottone proprio nell'istante in cui il dito lo copre e l'occhio lo sta
+   leggendo. La discesa di 2px lascia il corpo tipografico dov'e', e
+   l'asimmetria giu'-veloce / su-lento e' l'unico segnale tattile credibile
+   su un vetro. Niente will-change: e' una transizione, non un layer. */
+#ton .action-btn{
+  min-height:var(--gb-tap,44px); padding:12px 14px;
+  border-radius:var(--ton-r);
+  border:1px solid var(--ton-rule2);
+  background:var(--gb-surf-2,#1a1f2e);
+  color:var(--ton-ink);
+  font-family:var(--gb-f-disp,'Russo One'); font-size:14px; letter-spacing:1px;
+  box-shadow:none;
+  transition:transform var(--ton-tap-out) var(--ton-tap-ease),
+             border-color 140ms linear;
+}
+#ton .action-btn:active{
+  transform:translateY(2px);
+  transition-duration:var(--ton-tap-in);
+}
+/* i quattro !important battono la .action-btn.gold ridichiarata a 1485-1488,
+   che ne ha quattro sui. font-weight:400 e' voluto: 'Russo One' ha UN solo
+   peso disegnato, e il 900 di quella regola e' un grassetto finto — e' la
+   ragione per cui i titoli oro dell'app sono sbavati. */
+#ton .action-btn.gold{
+  background:var(--gold,#ffd700) !important;
+  color:#0a0a0a !important;
+  border-color:#ffe14d;
+  box-shadow:none !important;
+  font-weight:400 !important;
+}
+/* DISCONNECT non e' l'azione principale di niente: e' un contorno rosso, non
+   un pieno rosso. Cosi' il rosso resta leggibile come segnale. */
+#ton .action-btn.red{
+  background:transparent;
+  border-color:rgba(239,68,68,.45);
+  color:#ff9d9d;
+  box-shadow:none;
+}
+#ton .action-btn:disabled{ opacity:.45; transform:none; }
+
+.ton-w{ display:block; width:100%; margin-top:10px; }
+.ton-cta{ margin-top:14px; }              /* l'azione principale prende aria */
+.ton-acts{ display:flex; gap:8px; margin-top:10px; }
+.ton-acts > .action-btn{ flex:1; min-width:0; }
+#ton .ton-max{ flex:none; width:88px; padding:12px 6px; letter-spacing:.5px; }
+
+/* la riga d'errore sotto CONNECT: resta un id, resta con display inline
+   (tonUiDici lo accende e lo spegne di la'), qui cambia solo il vestito. */
+.ton-err{
+  font-family:var(--gb-f-txt); font-size:12px; line-height:1.45;
+  color:#ff9d9d; margin-top:10px;
+  padding-left:10px; border-left:3px solid rgba(239,68,68,.5);
+}
+
+/* ── IL BOTTONE TON FUORI DALLA SCHERMATA ──────────────────────────────────
+   Il difetto piu' concreto della zona: i quattro ingressi TON (10545, 10597,
+   10611, 10648 e quello generato a 66562) portano inline
+   `border-color:rgba(56,189,248,.5);color:#7dd3fc`, ma .action-btn ha
+   `border:none` (749). Il bordo non esiste: quello che si vede e' il
+   gradiente VERDE smeraldo di default con sopra del testo azzurrino —
+   contrasto scarso e semantica rovesciata, visto che nell'app il verde vuol
+   dire "denaro in entrata".
+   Qui il bordo esiste per davvero. Il selettore e' doppio perche' dentro
+   #ton la regola `#ton .action-btn` (id) vincerebbe su `.ton-btn`. */
+.action-btn.ton-btn,
+#ton .action-btn.ton-btn{
+  min-height:var(--gb-tap,44px); padding:12px 14px;
+  border-radius:12px;
+  background:rgba(56,189,248,.10);
+  border:1px solid rgba(56,189,248,.45);
+  color:#a8e6f7;
+  box-shadow:none;
+  font-family:'Russo One'; font-size:13px; letter-spacing:1px;
+  transition:transform 160ms cubic-bezier(.2,.8,.3,1), border-color 140ms linear;
+}
+.action-btn.ton-btn:active,
+#ton .action-btn.ton-btn:active{
+  transform:translateY(2px); transition-duration:90ms;
+  border-color:rgba(56,189,248,.75);
+}
+
+/* ── LO STORICO ────────────────────────────────────────────────────────────
+   Erano div flex fatti a mano con un border-bottom: il registro TON non
+   somigliava al registro del wallet, pur essendo la stessa cosa. Adesso usa
+   .tx-item/.tx-info/.tx-amt come tutto il resto dell'app, con il ritocco
+   minimo che serve al pavimento dei 12px e alla cifra tabulare a destra. */
+#ton .section-ttl{
+  margin-top:6px; padding:0; gap:10px;
+  font-size:11px; color:var(--ton-ink3);
+}
+/* la barretta oro di 7613 e' orizzontale, 14x2, con un alone. Qui diventa la
+   barra verticale della direzione: stesso posto, stesso significato, ma e'
+   una linea e non una luce. */
+#ton .section-ttl::before{
+  width:3px; height:14px; border-radius:2px;
+  background:var(--gold); box-shadow:none;
+}
+#ton .tx-list{ gap:6px; margin-top:10px; }
+#ton .tx-item{
+  padding:11px 14px; border-radius:var(--ton-r);
+  background:var(--ton-surf); border:1px solid var(--ton-rule);
+}
+#ton .tx-type{ font-family:var(--gb-f-txt); font-size:13px; font-weight:600; color:var(--ton-ink2); }
+#ton .tx-time{ font-size:12px; color:var(--ton-ink3); margin-top:2px; }
+/* la cifra di un prelievo passato NON e' rossa: il rosso in questa direzione
+   vuol dire "adesso", e dieci righe rosse in fila non dicono piu' niente. Lo
+   dice il segno meno, che e' un'informazione e non un colore. */
+#ton .tx-amt{
+  font-family:var(--gb-f-num); font-weight:700; font-size:14px;
+  font-variant-numeric:tabular-nums; color:var(--ton-ink);
+}
+/* lo stato vuoto era dimezzato (120px, senza testo e senza richiamo). 180 e'
+   il compromesso: e' in fondo a una schermata che scorre, non al centro. */
+#ton .gb-empty{ min-height:180px; }
+#ton .gb-empty__txt{ color:var(--ton-ink3); }
+
+/* ── IL PANNELLO @wallet DENTRO #deposit ───────────────────────────────────
+   Non e' in #ton, ma e' lo stesso oggetto: la porta TON dentro il deposito.
+   Gli !important battono lo stile inline del markup (10606), che qui non si
+   tocca perche' e' anche il posto in cui il JS accende e spegne il pannello
+   (33623 scrive style.display). Si cambia solo il vestito, mai il display. */
+#ton-hint{
+  padding:12px !important;
+  border-radius:10px !important;
+  border-color:rgba(56,189,248,.28) !important;
+  background:rgba(56,189,248,.06) !important;
+  font-size:12.5px !important;
+  line-height:1.5 !important;
+}
+
+/* ── ACCESSIBILITA' DEL MOVIMENTO ──────────────────────────────────────────
+   Il file lo fa gia' in cinque punti: questo e' il sesto. Qui dentro non c'e'
+   nessuna animazione perpetua da spegnere (l'unica, balSheen, e' gia' spenta
+   sopra), ma la pressione dei bottoni e' pur sempre movimento. */
+@media (prefers-reduced-motion:reduce){
+  #ton *, #ton *::before, #ton *::after,
+  .action-btn.ton-btn{
+    animation:none !important;
+    transition:none !important;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TRE CONTE DA FARE PRIMA DI IMPACCHETTARE (in console, con #ton aperta).
+   Sono le regole della direzione tradotte in numeri, perche' una regola che
+   si verifica in una riga viene rispettata e una regola scritta in un
+   documento no.
+
+   1) UN SOLO alone:
+      document.querySelectorAll('#ton .bal-card').length            // 1
+   2) UN SOLO corpo >= 20px:  il saldo. La cifra del prelievo in corso sta a
+      20px ed e' il secondo sguardo, non il primo — se ne compare un terzo,
+      e' di troppo.
+      document.querySelectorAll('#ton .ton-num, #ton .bal-num').length  // <= 2
+   3) UN SOLO segnale rosso "adesso":
+      document.querySelectorAll('#ton #tonui-pend:not([style*="none"])').length  // <= 1
+
+   E le due regole di rilascio che valgono comunque per questo file:
+   `node --check` su ogni blocco di codice inline (un apostrofo dentro una stringa CSS
+   in apici singoli spegne TUTTI i giochi) e diff contro la pagina LIVE.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+
+/* ===== ZONA MENU — direzione TABELLONE ===== */
+/* ══════════════════════════════════════════════════════════════════════════
+   ZONA "MENU PRINCIPALE / NAVIGAZIONE" — direzione TABELLONE
+   Da APPENDERE in fondo al <style> che chiude a riga 8611. Niente qui
+   cancella una riga altrui: dove serve vincere si vince per specificita'.
+
+   PERIMETRO, e lo dichiaro perche' sul file lavorano piu' agenti:
+   ogni selettore di questo blocco parte da #home, da .bnav o da :root.
+   NIENTE tocca #duel, le .tw-mega, le lobby o le schermate di gioco: se
+   domani un altro agente rifa' le cartucce multiplayer, i due lavori non
+   si incontrano mai. L'unica eccezione dichiarata e' @keyframes gbPulse,
+   che si RISCRIVE apposta (vedi piu' sotto: e' un componente del design
+   system e il suo modo di pulsare e' un bug di prestazione, non un gusto).
+
+   LA TESI IN UNA RIGA: la home non e' una vetrina, e' un tabellone. La
+   gerarchia la fanno dimensione, posizione e linee; il colore torna a
+   essere un segnale con tre soli verbi; ogni blocco espone un dato vero.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+
+/* ══ 1. TOKEN — namespace --gb-ed-*, puramente additivo ═══════════════════
+   Non ridefinisce NIENTE di esistente, quindi non puo' entrare nei giochi
+   per sbaglio (la collisione nota di #slots su --gb-gold/--gb-line resta
+   dov'e'). Dove il valore esiste gia' lo si ALIASA, non lo si reinventa:
+   un grep su "--gb-ed-" dice esattamente cosa possiede questa direzione. */
+:root{
+  /* CARTA — una sola superficie, zero gradienti. Il fondo pagina scende a
+     #05070b: sotto una masthead opaca, su AMOLED, stacca meglio del
+     #08090d e non costa niente. */
+  --gb-ed-paper : #05070b;
+  --gb-ed-surf  : var(--gb-surf-1);   /* #12151f — LA carta, unica */
+  --gb-ed-surf-2: var(--gb-surf-2);
+  --gb-ed-well  : #0b0d14;            /* incasso: finestre d'arte, box dati */
+
+  /* LINEE — qui vive la gerarchia. Tre spessori e basta. */
+  --gb-ed-rule  : rgba(255,255,255,.08);
+  --gb-ed-rule-2: rgba(255,255,255,.16);
+  --gb-ed-bar   : 3px;
+
+  /* INCHIOSTRO — il bianco NON e' #fff: un blocco di bianco puro a 34px,
+     di sera, con la luminosita' automatica al minimo, e' una lampada.
+     #f2f4f8 si legge identico e non abbaglia. */
+  --gb-ed-ink   : #f2f4f8;
+  --gb-ed-ink-2 : var(--gb-txt-2);    /* #9ca3af */
+  --gb-ed-ink-3 : var(--gb-txt-3);    /* #8b93a1 — pavimento 5,6:1 */
+
+  /* SEGNALE — tre verbi, non tre gusti. Ogni altra tinta e' vietata come
+     colore di testo o di bordo dentro questa zona. */
+  --gb-ed-val  : var(--gb-gold);      /* valore: saldo, quota, premio */
+  --gb-ed-win  : var(--gb-money);     /* in entrata: deposito, vinto */
+  --gb-ed-live : var(--gb-danger);    /* adesso: live, prelievo, perso */
+  --gb-ed-live-bg: rgba(239,68,68,.12);
+  --gb-ed-val-bg : rgba(255,215,0,.10);
+
+  /* LUCE — UNA. Un solo elemento illuminato per schermata: nella home e'
+     il tabellone duelli+tornei. Se compare un secondo uso di questo token
+     si vede nel diff, ed e' il punto. */
+  --gb-ed-glow: 0 0 0 1px rgba(255,215,0,.28), 0 0 18px rgba(255,215,0,.20);
+
+  /* OMBRE — due, nere e basse. Niente ombre colorate: sono loro a fare il
+     "tutto grida" (oggi in home ce ne sono di rosse, ambra, oro). */
+  --gb-ed-sh-1: inset 0 1px 0 rgba(255,255,255,.04);
+  --gb-ed-sh-2: 0 8px 24px rgba(0,0,0,.55);
+
+  /* GEOMETRIA — una colonna, un raggio. */
+  --gb-ed-gut : 16px;
+  --gb-ed-r   : 12px;
+  --gb-ed-r-s : 6px;
+
+  /* MOVIMENTO — la pressione, non la scala (vedi blocco 11). */
+  --gb-ed-down: 90ms;
+  --gb-ed-up  : 160ms;
+  --gb-ed-ease: cubic-bezier(.2,.8,.3,1);
+}
+
+
+/* ══ 2. SPEGNIMENTO — le timeline sempre attive della home ════════════════
+   Contate nel file: heroOuterPulse, heroRing (rotate infinito), heroInnerGlow,
+   heroFloat, sparkle x6, balSheen (che anima `left`, cioe' LAYOUT), dmSway,
+   dmSpark, dmGleam, dmArrow, grmSpin (conic in rotazione), grmFloat,
+   referBadgePop, trnFlagP/trnGlowR (su filter). Nessuna trasporta
+   un'informazione: sono ~55 timeline che dicono tutte "guarda qui".
+   Restano accese DUE cose: le monete di sfondo (ridotte, blocco 3) e il
+   pallino LIVE del tabellone, che pulsa in box-shadow — paint sul main
+   thread, l'unico modo ammesso da quando il compositor si e' piantato su
+   GrapheneOS/Vanadium. */
+#home .top-glow{ display:none; }                     /* alone oro da 340x220 */
+#home .hero-frame-outer-glow,
+#home .hero-frame-ring,
+#home .hero-frame-glow,
+#home .hero-sparkle{ display:none !important; }      /* 9 timeline in un colpo */
+#home .hero-img{ animation:none; filter:none; }
+#home .bal-card::after{ display:none; }              /* balSheen: animava `left` */
+#home .refer-badge{ animation:none; }
+#home .dm-arrow{ animation:none; }
+#home .grm-rays{ display:none; }                     /* grmSpin */
+#home .grm-char{ animation:none; }
+#home .dm-tor.live,
+#home .dm-tor.open .dm-tor-flag{ animation:none; }   /* trnGlowR anima filter */
+
+/* Il pallino di .gb-badge--pulse: RISCRITTO in box-shadow.
+   E' l'unico selettore fuori dal perimetro #home, ed e' voluto: .gb-badge
+   e' un componente del guscio e puo' finire in una lobby accanto a un
+   canvas — che e' il caso letale, non quello comodo. Stesso effetto a
+   occhio, zero lavoro per il compositor. Uso unico verificato: il badge
+   LIVE PvP del tabellone (riga 8709), sempre rosso. */
+@keyframes gbPulse{
+  0%,100%{ box-shadow:0 0 0 0 rgba(239,68,68,.50); }
+  50%    { box-shadow:0 0 8px 2px rgba(239,68,68,.28); }
+}
+
+
+/* ══ 3. SFONDO — le monete restano, ma quattordici ════════════════════════
+   spawnBTC crea ~40 nodi .bp con bpfall (transform+opacity, infinito).
+   Non si tocca il JS: quattordici il compositor li assorbe mentre il
+   pollice scorre, quaranta no. Il nodo #btc-bg resta intatto perche'
+   spawnBTC ci fa innerHTML='' e ci scrive dentro. */
+#home #btc-bg{ opacity:.35; }
+#home #btc-bg .bp:nth-child(n+15){ display:none; }
+
+
+/* ══ 4. MASTHEAD — il saldo sale in cima e non scorre piu' via ════════════
+   E' il difetto peggiore di oggi: nello stato raccolto, in cui l'utente sta
+   il 95% del tempo, la riga in cima non contiene NESSUN dato. L'hero e' gia'
+   sticky: basta portarci dentro il saldo (un solo blocco di markup) e la
+   cifra piu' importante dell'app e' sempre a schermo.
+   Il ritmo della colonna (16px) e le transizioni .28s su transform/opacity
+   restano quelli del passo 7/8: qui non si aggiunge nessuna transizione su
+   proprieta' di layout. */
+#home{ background:var(--gb-ed-paper); }
+
+/* ── IL DIFETTO CHE SI VEDE SOLO QUANDO LA MASTHEAD DIVENTA OPACA ────────
+   L'hero sticky ha z-index:2 (riga 946), ma .dm-content, .dm-tor e
+   .grm-content dichiarano 2 e 3 — e i loro contenitori NON creano nessun
+   contesto di impilamento (position:relative con z-index:auto non ne crea
+   uno). Quei 3 finivano quindi a competere direttamente col 2 dell'hero, e
+   il banner scorreva SOPRA la barra in cima. E' un difetto che c'e' gia'
+   oggi: si notava meno solo perche' la barra raccolta passava sopra roba
+   scura e senza dati. Un z-index:0 su ogni blocco della colonna li richiude
+   ciascuno nel proprio contesto, e la masthead torna a essere il tetto. */
+#home .scroll > .duel-mega,
+#home .scroll > .lotto-banner,
+#home .scroll > .grun-mega,
+#home .scroll > .bal-card,
+#home .scroll > .section-ttl{ position:relative; z-index:0; }
+#home .scroll > .games-grid{ position:relative; z-index:0; }
+
+/* la topbar smette di essere un secondo titolo: due pastiglie basse */
+#home .scroll > .home-topbar{ padding:10px 16px 6px; }
+#home .home-refer-btn{ min-height:38px; padding:0 12px; border-radius:var(--gb-ed-r-s);
+  background:none; border:1px solid var(--gb-ed-rule-2); color:var(--gb-ed-ink-2); }
+#home .home-refer-btn .refer-text-main{ font-size:12px; font-weight:700; letter-spacing:.6px; }
+#home .home-refer-btn .refer-text-sub{ display:none; }   /* "& EARN" era 7,5px */
+#home .home-refer-btn .refer-arrow{ font-size:12px; color:var(--gb-ed-ink-3); }
+/* il pallino dei referral stava a left:-7px su un bottone attaccato al
+   bordo sinistro dello schermo: meta' pallino finiva fuori. Passa a destra,
+   dove c'e' la gronda. loadBalance gli scrive `display` inline (flex/none)
+   e continua a comandare lui: qui non si tocca il display. */
+#home .refer-badge{ left:auto; right:-6px; top:-6px; }
+#home .lvl-badge{ padding:6px 10px; border-radius:var(--gb-ed-r-s);
+  background:none; border:1px solid var(--gb-ed-rule); box-shadow:none;
+  font-size:12px; color:var(--gb-ed-ink-2); }
+#home .lvl-badge .lv-num{ font-family:var(--gb-f-num); font-weight:700;
+  font-variant-numeric:tabular-nums; color:var(--gb-ed-val); }
+
+/* L'HERO A GRIGLIA — tre aree: ritratto, identita', numero.
+   Il numero prende una riga sua, allineata a destra, sotto una hairline:
+   e' la posizione, non il colore, a dirgli che comanda. Da ~336px a ~150. */
+#home .scroll > .home-hero{
+  display:grid;
+  grid-template-columns:auto 1fr;
+  grid-template-areas:"pic name" "pic tag" "bal bal";
+  align-items:center; column-gap:12px; row-gap:1px;
+  text-align:left; padding:10px 16px 12px;
+  background:var(--gb-ed-paper);
+  border-bottom:1px solid var(--gb-ed-rule);
+}
+#home .hero-frame{
+  grid-area:pic; width:72px; height:72px; margin:0;
+  box-shadow:0 0 0 1px rgba(255,215,0,.30), 0 6px 18px rgba(0,0,0,.6);
+}
+#home .hero-frame::before{ display:none; }   /* il vetrino bianco in cima */
+/* il nome perde il gradiente verde->oro->arancio e i due text-shadow: su
+   fondo piatto il bianco pieno e' piu' leggibile del gradiente, e il verde
+   acido torna a essere solo identita' (regola gia' scritta a riga 201). */
+#home .hero-name{
+  grid-area:name;
+  font-family:var(--gb-f-disp); font-weight:400;
+  font-size:20px; letter-spacing:1px; line-height:1.1; margin:0;
+  background:none; -webkit-text-fill-color:var(--gb-ed-ink);
+  color:var(--gb-ed-ink); text-shadow:none;
+}
+#home .hero-tag{
+  grid-area:tag;
+  font-family:var(--gb-f-txt); font-weight:400;
+  font-size:12px; letter-spacing:.2px; color:var(--gb-ed-ink-3); margin:0;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+/* IL NUMERO. Uno per schermata, e in home e' il saldo. Orbitron 900
+   tabulare: le cifre non ballano quando il saldo cambia. Oro perche' nei
+   tre verbi l'oro E' il valore — ma senza alone: la dimensione basta. */
+#home .hero-bal{
+  grid-area:bal; width:100%; text-align:right;
+  margin-top:8px; padding-top:8px; border-top:1px solid var(--gb-ed-rule);
+}
+#home .hero-bal .bal-lbl{
+  font-family:var(--gb-f-txt); font-weight:700; font-size:11px;
+  letter-spacing:1.5px; text-transform:uppercase; color:var(--gb-ed-ink-3);
+  margin:0 0 2px;
+}
+#home .hero-bal .bal-num{
+  font-family:var(--gb-f-num); font-weight:900; font-size:34px;
+  letter-spacing:0; line-height:1; color:var(--gb-ed-val);
+  font-variant-numeric:tabular-nums; text-shadow:none;
+}
+#home .hero-bal .bal-sub{
+  font-family:var(--gb-f-num); font-weight:700; font-size:12px;
+  letter-spacing:.5px; color:var(--gb-ed-ink-3); margin-top:3px;
+  font-variant-numeric:tabular-nums;
+}
+
+/* STATO RACCOLTO — la riga da 56px adesso contiene un dato.
+   La regola di riga 440 mette display:flex e vince (1,3,0 > 1,2,0): le aree
+   della griglia diventano inerti da sole, non serve annullarle. Ordine dei
+   figli in flex: [cornice][nome][tagline a larghezza 0][saldo]. */
+#home.hero-min .scroll > .home-hero{ padding:8px 16px; background:var(--gb-ed-paper); }
+#home.hero-min .hero-frame{ width:40px; height:40px; flex:0 0 40px;
+  box-shadow:0 0 0 1px rgba(255,215,0,.35); }
+#home.hero-min .hero-name{ font-size:15px; letter-spacing:.8px; }
+#home.hero-min .hero-bal{
+  margin:0 0 0 auto; padding:0; border-top:0; width:auto; flex:0 0 auto;
+}
+#home.hero-min .hero-bal .bal-lbl,
+#home.hero-min .hero-bal .bal-sub{ display:none; }
+#home.hero-min .hero-bal .bal-num{ font-size:20px; }
+
+
+/* ══ 5. LA STRISCIA AZIONI — .bal-card senza piu' il saldo dentro ═════════
+   Il nome della classe NON cambia: setBalanceStatus() ci appende dentro
+   #bal-status quando non lo trova (riga 34555), e se la rinominiamo la riga
+   di stato del backend sparisce in silenzio. Cambia solo il vestito: da
+   card blu-notte con gradiente 135deg e sheen a striscia piatta da 56px.
+   Lo stato sta a destra con `order` e non per posizione nel DOM: cosi'
+   funziona sia col nodo scritto a mano sia con quello ricreato in coda. */
+#home .scroll > .bal-card{
+  margin:0 0 var(--gb-sp-2); padding:8px 10px; min-height:56px;
+  background:var(--gb-ed-surf);
+  border:1px solid var(--gb-ed-rule) !important;
+  border-radius:var(--gb-ed-r);
+  box-shadow:var(--gb-ed-sh-2), var(--gb-ed-sh-1) !important;
+  display:flex; align-items:center; gap:10px; overflow:hidden;
+}
+#home .bal-card .bal-actions{ order:1; flex:1 1 auto; flex-direction:row; gap:8px; }
+#home .bal-card .bal-btn{
+  flex:1 1 0; min-height:40px; padding:0 10px; border-radius:var(--gb-ed-r-s);
+  font-family:var(--gb-f-txt); font-size:12px; font-weight:700; letter-spacing:.8px;
+  text-transform:uppercase; color:#05070b;
+  box-shadow:none !important; background:var(--gb-ed-ink-2);
+}
+/* verde = in entrata, rosso = in uscita: sono due dei tre verbi, piatti */
+#home .bal-card .bal-btn.dep{ background:var(--gb-ed-win); }
+#home .bal-card .bal-btn.wd { background:var(--gb-ed-live); color:#fff; }
+#home .bal-card .bal-status{
+  order:9; margin-left:auto; flex:0 1 auto; max-width:44%;
+  font-family:var(--gb-f-txt); font-size:12px; font-weight:700;
+  letter-spacing:.3px; color:var(--gb-ed-ink-3); text-align:right;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+#home .bal-card .bal-status.live{ color:var(--gb-ed-win); }
+#home .bal-card .bal-status.offline{ color:var(--gb-ed-live);
+  background:var(--gb-ed-live-bg); border-color:rgba(239,68,68,.35); }
+
+
+/* ══ 6. TESTATA DI SEZIONE — la barra oro che esiste gia' ═════════════════
+   Nessuna struttura nuova: si ristila .section-ttl e il suo ::before, che
+   oggi e' un trattino da 14x2 con un alone. Diventa la barra verticale da
+   3px alta quanto il titolo, il titolo sale a 17px Russo One e la linea
+   CHIUDE il blocco invece di accompagnarlo (il ::after di riga 1575
+   diventava un trattino sospeso a mezz'aria: qui si spegne e la hairline
+   passa sotto). Oggi questi titoli pesano MENO delle scritte dentro le
+   card che dovrebbero introdurre: invertito. */
+#home .scroll > .section-ttl{
+  margin:22px 0 10px; padding:0 0 8px;
+  gap:10px; justify-content:flex-start;
+  border-bottom:1px solid var(--gb-ed-rule);
+  font-family:var(--gb-f-disp); font-weight:400;
+  font-size:17px; letter-spacing:.8px; text-transform:uppercase;
+  color:var(--gb-ed-ink);
+}
+#home .scroll > .section-ttl::before{
+  width:var(--gb-ed-bar); height:18px; border-radius:1px;
+  background:var(--gb-ed-val); box-shadow:none;
+}
+#home .scroll > .section-ttl::after{ display:none; }
+#home .scroll > .section-ttl .gb-ic-t{ color:var(--gb-ed-ink-3); margin-right:0;
+  width:15px; height:15px; }
+
+
+/* ══ 7. IL TABELLONE — duelli + tornei, il pezzo piu' alto della pagina ═══
+   "Piu' importanza" NON si ottiene alzando il volume: qui e' gia' tutto al
+   massimo e infatti la faccia TORNEI spenta sparisce (lo dice il commento a
+   riga 205-209). Si ottiene dando piu' SPAZIO e abbassando tutto il resto.
+   Da due facce affiancate (i tornei nel 38% di 328px, con line-clamp:2 che
+   taglia quasi sempre il nome del torneo a meta') a DUE RIGHE piene: la
+   riga tornei diventa larga 2,4 volte tanto e il nome ci sta tutto.
+   Le quattro regole accoppiate 62/38 (8303/8304/8305/8310) vengono
+   ribaltate INSIEME, come vanno cambiate.
+   Questo e' anche l'unico elemento illuminato della schermata. */
+#home .scroll > .duel-mega.due-facce{
+  display:flex; flex-direction:column; align-items:stretch;
+  height:auto; min-height:150px; margin:0 0 var(--gb-sp-2); padding:0;
+  border:1px solid rgba(255,215,0,.35); border-radius:var(--gb-ed-r);
+  background:var(--gb-ed-surf); overflow:hidden;
+  box-shadow:var(--gb-ed-sh-2), var(--gb-ed-glow);
+}
+/* le spade a 340x132 non sopravvivono a un layout in colonna, e i loro id
+   sono GLOBALI (dmSwd/dmBlade/dmGold/dmShadow): meglio spente che
+   duplicate. Con .dm-card se ne vanno anche dmGleam e il bordo rosso. */
+#home .duel-mega.due-facce .dm-sv,
+#home .duel-mega.due-facce .dm-card{ display:none; }
+
+/* RIGA 1 — L'ARENA, come un titolo di apertura */
+#home .duel-mega.due-facce .dm-content{
+  position:relative; z-index:2; width:100%; display:block;
+  padding:14px 16px 12px; text-align:left;
+}
+#home .duel-mega .dm-badge-slot{
+  display:inline-flex; height:auto; padding:0; margin-bottom:6px;
+  background:none; border:0; border-radius:0;
+  font-family:var(--gb-f-txt); font-weight:700; font-size:11px;
+  letter-spacing:1.5px; text-transform:uppercase; color:var(--gb-ed-live);
+}
+#home .duel-mega .dm-title{
+  font-family:var(--gb-f-disp); font-weight:400;
+  font-size:26px; letter-spacing:1px; line-height:1.05;
+  background:none; -webkit-text-fill-color:var(--gb-ed-ink);
+  color:var(--gb-ed-ink); filter:none; text-shadow:none;
+}
+#home .duel-mega .dm-sub{
+  font-family:var(--gb-f-txt); font-size:12px; line-height:1.35;
+  color:var(--gb-ed-ink-2); margin-top:4px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+#home .duel-mega .dm-cta{
+  margin-top:8px; font-family:var(--gb-f-txt); font-weight:700;
+  font-size:11px; letter-spacing:1.5px; text-transform:uppercase;
+  color:var(--gb-ed-val);
+}
+
+/* RIGA 2 — I TORNEI. Le classi trn-card / trn-flag / trn-next-txt restano
+   ESATTAMENTE dove sono (contratto con dlTrnLight/dlTrnScrivi, che lavorano
+   per querySelectorAll e alimentano anche la copia dentro #duel), e resta
+   l'event.stopPropagation() sull'onclick. Cambia solo il vestito.
+   Ogni regola parte da #home apposta: appena l'utente visita i tornei,
+   trnInjectCSS (riga 43223) inietta un `.trn-card{...}` globale con fondo,
+   bordo e raggio propri. Con l'id davanti non ci arriva neanche vicino.
+   La griglia mette il testo a sinistra e la CELLA DATI a destra: la
+   pastiglia .trn-flag, che il JS riempie gia' con ISCRIZIONI APERTE /
+   🔴 LIVE, smette di essere una bandierina da 7px sotto la coppa e diventa
+   la colonna di destra della riga. Quando e' vuota, :empty la toglie (riga
+   8318) e il testo si prende tutto. */
+#home .duel-mega .dm-tor{
+  position:relative; z-index:3; width:100%; flex:0 0 auto;
+  display:grid; grid-template-columns:auto 1fr auto;
+  /* la pastiglia di stato sta sulla riga dell'OCCHIELLO, non su quella del
+     nome: "ISCRIZIONI APERTE" e' larga ~150px e, messa a fianco del nome,
+     lo tagliava a "COLOSSEO CUP…" — cioe' esattamente il difetto del
+     line-clamp:2 di prima, spostato di dieci pixel. Cosi' il nome del
+     torneo si prende tutta la larghezza della riga. */
+  grid-template-areas:"cup ttl dat" "cup sub sub";
+  align-items:center; column-gap:12px; row-gap:1px;
+  min-height:64px; padding:12px 16px 12px 19px; text-align:left;
+  background:none; border-left:0;
+  border-top:1px solid var(--gb-ed-rule); box-shadow:none;
+  /* ── E QUESTE QUATTRO NON SONO RIDONDANTI ────────────────────────────────
+     `.dm-tor` porta anche la classe `.trn-card`, e il foglio di `trnInjectCSS`
+     non sta nel documento: viene INIETTATO a runtime, la prima volta che si
+     apre la schermata 🏆 TORNEI. Da quel momento in poi arriva
+     `.trn-card{border:1px solid …;border-radius:14px;margin:10px 0}` e la riga
+     dei tornei si stacca dalla carta dell'arena, con un margine e due angoli
+     tondi che qui non c'entrano niente.
+     Il difetto e' cattivo perche' NON si vede provando la home: si vede solo
+     a chi e' passato dai tornei almeno una volta, cioe' esattamente il
+     giocatore che ai tornei tiene. Le si dichiarano qui, con la stessa
+     specificita' del resto della regola. */
+  margin:0; border-radius:0; border-right:0; border-bottom:0;
+}
+#home .duel-mega .dm-tor::before{
+  content:''; position:absolute; left:0; top:0; bottom:0;
+  width:var(--gb-ed-bar); background:var(--gb-ed-rule-2);
+}
+#home .duel-mega .dm-tor-cup{ grid-area:cup; font-size:20px; filter:none; }
+#home .duel-mega .dm-tor-t{
+  grid-area:ttl; margin:0; min-width:0;
+  font-family:var(--gb-f-txt); font-weight:700; font-size:11px;
+  letter-spacing:1.5px; text-transform:uppercase; color:var(--gb-ed-ink-3);
+}
+/* il clamp a due righe se ne va: la riga adesso e' larga tutto lo schermo e
+   il nome del torneo ci sta. display:block e non -webkit-box perche' dentro
+   una griglia il box flessibile di WebKit viene "blockificato" e il clamp
+   smetterebbe di funzionare in silenzio; una riga sola con l'ellissi fa la
+   stessa cosa ed e' prevedibile. Il min-width:0 serve o la colonna 1fr si
+   allarga oltre lo schermo invece di tagliare. */
+#home .duel-mega .dm-tor-s{
+  grid-area:sub; margin:0; min-width:0;
+  display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  font-family:var(--gb-f-txt); font-size:13px; line-height:1.35;
+  color:var(--gb-ed-ink-2);
+}
+#home .duel-mega .dm-tor-flag{
+  grid-area:dat; margin:0; justify-self:end; align-self:center;
+  font-family:var(--gb-f-txt); font-weight:700; font-size:11px;
+  letter-spacing:1px; padding:4px 8px; border-radius:var(--gb-ed-r-s);
+  border:1px solid var(--gb-ed-rule-2); background:none; color:var(--gb-ed-ink-2);
+  white-space:nowrap;
+}
+/* la freccia "ENTRA ▸" diceva una cosa che la riga intera gia' dice:
+   toglierla libera ~14px e la zona di tocco resta tutta la riga da 64px. */
+#home .duel-mega .dm-tor-go{ display:none; }
+
+/* i due stati. Il colore entra dalla barra da 3px, non dal fondo pieno. */
+#home .duel-mega .dm-tor.open{ background:var(--gb-ed-val-bg); }
+#home .duel-mega .dm-tor.open::before{ background:var(--gb-ed-val); }
+#home .duel-mega .dm-tor.open .dm-tor-t{ color:var(--gb-ed-val); }
+#home .duel-mega .dm-tor.open .dm-tor-s{ color:var(--gb-ed-ink); }
+#home .duel-mega .dm-tor.open .dm-tor-flag{
+  display:inline-block; color:var(--gb-ed-val);
+  border-color:rgba(255,215,0,.45); background:var(--gb-ed-val-bg); }
+#home .duel-mega .dm-tor.live{ background:var(--gb-ed-live-bg); }
+#home .duel-mega .dm-tor.live::before{ background:var(--gb-ed-live); }
+#home .duel-mega .dm-tor.live .dm-tor-t{ color:var(--gb-ed-live); }
+#home .duel-mega .dm-tor.live .dm-tor-s{ color:var(--gb-ed-ink); }
+#home .duel-mega .dm-tor.live .dm-tor-flag{
+  display:inline-block; color:#fff; border-color:transparent;
+  background:var(--gb-ed-live); box-shadow:none;
+  animation:edLive 1.6s ease-in-out infinite;
+}
+/* il nome del torneo arriva con <b style="color:#ffd76b"> scritto a mano
+   dal JS (riga 37038): l'inline vince, e senza !important resta fuori
+   sistema. E' l'unico !important di colore di questo foglio. */
+#home .duel-mega .dm-tor .trn-next-txt b{
+  color:var(--gb-ed-val) !important;
+  font-family:var(--gb-f-txt); font-weight:700;
+}
+/* L'UNICO movimento perpetuo ammesso: pulsa in box-shadow (paint), mai in
+   transform/opacity/filter. Un solo elemento per schermata, e solo se
+   significa "adesso". */
+@keyframes edLive{
+  0%,100%{ box-shadow:0 0 0 0 rgba(239,68,68,.45); }
+  50%    { box-shadow:0 0 10px 2px rgba(239,68,68,.22); }
+}
+
+
+/* ══ 8. LOTTO E GAMBLER'S RUN — due righe-tabellone da 72px ═══════════════
+   Erano due banner illuminati da 96-104px con gradiente, raggi conici in
+   rotazione e un personaggio da 74px. Perdono la luce, guadagnano la stessa
+   struttura del tabellone: barra da 3px, occhiello, nome, e — dove il dato
+   esiste davvero — una cella numerica a destra.
+   Gli occhielli sono in ::before: sono l'unica etichetta che questa zona
+   aggiunge, e farli in CSS evita due nodi nuovi in un file condiviso. */
+/* il !important sul padding non e' pigrizia: .lotto-banner.big lo dichiara
+   gia' con !important (riga 2599), e senza qui la riga resterebbe alta 96px
+   con la vecchia gronda. Stessa storia per fondo e bordo. */
+#home .scroll > .lotto-banner,
+#home .scroll > .grun-mega{
+  position:relative; overflow:hidden;
+  margin:0 0 var(--gb-sp-2); padding:12px 14px 12px 19px !important;
+  min-height:72px; display:flex; align-items:center; gap:12px;
+  background:var(--gb-ed-surf) !important;
+  border:1px solid var(--gb-ed-rule) !important;
+  border-radius:var(--gb-ed-r);
+  box-shadow:var(--gb-ed-sh-2), var(--gb-ed-sh-1) !important;
+}
+/* `inset:0 auto 0 0` invece di left/top/bottom: .lotto-banner.big::before
+   esiste gia' (riga 2605) con inset:0, e la cascata va per PROPRIETA' — se
+   non riscrivessi anche `right`, la barra da 3px si stenderebbe su tutta la
+   card ereditando il right:0 di quella regola. */
+#home .scroll > .lotto-banner::before,
+#home .scroll > .grun-mega::before{
+  content:''; position:absolute; inset:0 auto 0 0;
+  width:var(--gb-ed-bar); background:var(--ed-key,var(--gb-ed-val));
+}
+#home .scroll > .grun-mega{ --ed-key:#f59e0b; }
+
+/* — lotto — */
+#home .lotto-banner .lotto-icon{ font-size:24px; filter:none; flex:none; }
+#home .lotto-banner .lotto-info{ flex:1; min-width:0; }
+#home .lotto-banner .lotto-info::before{
+  content:'LOTTERY'; display:block;
+  font-family:var(--gb-f-txt); font-weight:700; font-size:11px;
+  letter-spacing:1.5px; color:var(--gb-ed-ink-3); margin-bottom:2px;
+}
+#home .lotto-banner .lotto-title{
+  font-family:var(--gb-f-disp); font-weight:400; font-size:15px;
+  letter-spacing:.5px; color:var(--gb-ed-ink);
+}
+#home .lotto-banner .lotto-sub{
+  font-family:var(--gb-f-txt); font-size:12px; line-height:1.35;
+  color:var(--gb-ed-ink-2); margin-top:2px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+/* la cella dati: il numero convince piu' dell'invito "PLAY →" */
+#home .lotto-banner .lotto-go{
+  flex:none; text-align:right; font-size:0; letter-spacing:0;
+}
+#home .lotto-banner .lotto-go b{
+  display:block; font-family:var(--gb-f-num); font-weight:700; font-size:20px;
+  line-height:1.1; color:var(--gb-ed-val); font-variant-numeric:tabular-nums;
+}
+#home .lotto-banner .lotto-go span{
+  display:block; font-family:var(--gb-f-txt); font-weight:700; font-size:11px;
+  letter-spacing:1.5px; color:var(--gb-ed-ink-3); margin-top:2px;
+}
+
+/* — Gambler's Run — non ha un numero vero da esporre, e va bene: senza dato
+   non e' una carta, e' una riga di lista. Il cilindro resta come SILHOUETTE
+   ritagliata dal bordo (non e' colore ne' luce: e' forma), non piu' come
+   sticker da 74px con l'ombra colorata. */
+#home .grun-mega .grm-scrim{ display:none; }
+#home .grun-mega .grm-badge-slot{ display:none; }
+#home .grun-mega .grm-char{
+  position:absolute; right:-6px; bottom:-10px; font-size:56px;
+  opacity:.16; filter:none; z-index:1;
+}
+#home .grun-mega .grm-content{ position:relative; z-index:3; padding:0; flex:1; min-width:0; }
+#home .grun-mega .grm-content::before{
+  content:'HOUSE FLAGSHIP'; display:block;
+  font-family:var(--gb-f-txt); font-weight:700; font-size:11px;
+  letter-spacing:1.5px; color:var(--gb-ed-ink-3); margin-bottom:2px;
+}
+#home .grun-mega .grm-title{
+  font-family:var(--gb-f-disp); font-weight:400; font-size:15px;
+  letter-spacing:.5px; line-height:1.2;
+  background:none; -webkit-text-fill-color:var(--gb-ed-ink);
+  color:var(--gb-ed-ink); filter:none;
+}
+#home .grun-mega .grm-sub{
+  font-family:var(--gb-f-txt); font-size:12px; line-height:1.35;
+  color:var(--gb-ed-ink-2); margin-top:2px; max-width:100%;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+/* la CTA sparisce come sulla riga tornei: diceva quello che la riga intera
+   gia' dice, e costava la quarta riga di testo in un blocco da 72px. La
+   zona di tocco resta tutta la riga. */
+#home .grun-mega .grm-cta{ display:none; }
+
+
+/* ══ 9. LA GRIGLIA CASINO — undici finestre d'arte ════════════════════════
+   Il problema vero della griglia non e' il colore: e' che meta' del suo
+   contenuto lo disegna il sistema operativo (le emoji cambiano faccia fra
+   Android e iOS, non ereditano il colore, non si allineano). Non si risolve
+   spegnendo gli aloni: si risolve mettendo tutte le emoji dentro la STESSA
+   piastra incassata da 44px, cosi' l'occhio confronta piastre identiche
+   invece di glifi disegnati da qualcun altro. La tinta del gioco si sposta
+   dai (undici) aloni colorati alla MENSOLA da 3px sotto la finestra, dove e'
+   piu' concentrata e piu' deliberata.
+   Gli SVG veri si faranno dopo, gioco per gioco, senza toccare il layout. */
+/* il gap va scritto sul figlio DIRETTO come fa il passo 7 (riga 389), o
+   quella regola resta piu' specifica e vince lei. */
+#home .scroll > .games-grid{ gap:12px; }
+#home .gb-tile{
+  min-height:112px; padding:12px 10px;
+  background:var(--gb-ed-surf);
+  border:1px solid var(--gb-ed-rule);
+  border-radius:var(--gb-ed-r);
+  box-shadow:var(--gb-ed-sh-2), var(--gb-ed-sh-1);
+}
+/* i due bordi colorati (oro "house", verde "new") tornano hairline: un
+   bordo intero colorato e' esattamente il volume che questa direzione
+   toglie. Lo stato lo dice il badge, non la cornice. */
+#home .gb-tile--house, #home .gb-tile--new{ border-color:var(--gb-ed-rule); }
+
+/* il velo pieno al 18% diventa un LAVAGGIO D'ANGOLO al 10%: la tinta resta
+   riconoscibile ma non si legge piu' come una card colorata. Si riusa il
+   ::after che c'e' gia' (su .gb-tile e' libero; sulle .tw-mega no, ed e' il
+   motivo per cui questa direzione non le tocca). */
+#home .gb-tile::after{
+  background:radial-gradient(115% 95% at 8% 0%, var(--gb-tint-1,transparent) 0%, transparent 62%);
+  opacity:.10;
+}
+/* LA FINESTRA D'ARTE: incasso + mensola. Lo slot era gia' un box fisso da
+   44px (riga 508), quindi l'allineamento della griglia non si muove. */
+#home .gb-tile__ico{
+  width:44px; height:44px; flex:none; margin:2px auto var(--gb-sp-2);
+  border-radius:8px; overflow:hidden;
+  background:var(--gb-ed-well);
+  border-bottom:var(--gb-ed-bar) solid var(--gb-tint-ink,var(--gb-ed-rule-2));
+  box-shadow:inset 0 2px 6px rgba(0,0,0,.6), inset 0 0 0 1px rgba(255,255,255,.04);
+  font-size:24px; filter:none;
+}
+#home .gb-tile__ico svg{ width:28px; height:28px; }
+/* LA ROULETTE CHE GIRA PER SEMPRE. `.roulette-svg-icon` porta
+   `animation:rouletteIdleSpin 14s linear infinite` (righe 3173-3180): e'
+   un'animazione PERPETUA su `transform`, cioe' sul compositor, dentro la
+   griglia della home. E' la regola pagata cara: su GrapheneOS/Vanadium un
+   compositor che deve giocolare un'animazione infinita sopra una pagina viva
+   si pianta, ed e' cosi' che il derby si congelava. Qui la ruota non dice
+   niente che l'icona ferma non dica gia'. */
+#home .gb-tile .roulette-svg-icon{ animation:none; }
+#home .gb-tile__name{
+  font-family:var(--gb-f-disp); font-weight:400; font-size:15px;
+  letter-spacing:.5px; color:var(--gb-ed-ink); min-height:24px;
+}
+#home .gb-tile__info{
+  font-family:var(--gb-f-txt); font-size:12px; line-height:1.3;
+  color:var(--gb-ed-ink-3); padding-top:4px;
+}
+/* IL BADGE E' SEMPRE UN NUMERO (o il pallino LIVE). Non e' un consiglio:
+   e' la regola, e sta scritta qui perche' sopravviva al prossimo che
+   patcha il file. Oggi ci sono sette badge su undici — HOT, NEW, SPIN,
+   5000×, x21, x10 — che si annullano a vicenda perche' dicono sei cose
+   diverse nello stesso posto. Da adesso:
+     · un badge o e' un moltiplicatore in Orbitron tabulare, formato UNICO
+       ×2.5 / ×21 / ×5000 (mai "x2.5", mai "5000×"),
+     · oppure e' NEW, che scade dopo due settimane e vale su DUE card al
+       massimo (oggi: CRASH e TREASURE),
+     · oppure e' il pallino LIVE. Nient'altro. */
+#home .gb-tile .gb-badge{
+  top:8px; right:8px; height:auto; padding:0; gap:0;
+  background:none; border:0; border-radius:0;
+  font-family:var(--gb-f-num); font-weight:700; font-size:12px;
+  letter-spacing:.5px; font-variant-numeric:tabular-nums;
+  color:var(--gb-ed-val);
+}
+#home .gb-tile .gb-badge--new{
+  font-family:var(--gb-f-txt); font-weight:700; font-size:11px;
+  letter-spacing:1.5px; color:var(--gb-ed-ink-3);
+}
+
+/* LA TAVOLA DELLE TINTE — un terzo valore per gioco: --gb-tint-ink.
+   Tre pixel di #3b82f6 su fondo #12151f, su uno schermo economico con la
+   luminosita' bassa, sono tre pixel di nulla: e' il segnale che distingue i
+   giochi ed e' il primo a sparire. Le versioni schiarite tengono la stessa
+   semantica con quattro volte il contrasto. Se in mano non si vede lo
+   stesso, la mensola sale a 4px PRIMA di cambiare colore.
+   Comprende t-botrr e t-vault, le due piastrelle che finora non avevano
+   nessuna classe di tinta ed erano l'unica incoerenza visibile della
+   griglia (markup 8820 e 8826). */
+#home .gb-tile.t-bj     { --gb-tint-ink:#ff9d9d; }
+#home .gb-tile.t-slots  { --gb-tint-ink:#fcd34d; }
+#home .gb-tile.t-roul   { --gb-tint-ink:#6ee7b7; }
+#home .gb-tile.t-dice   { --gb-tint-ink:#93c5fd; }
+#home .gb-tile.t-poker  { --gb-tint-ink:#d8b4fe; }
+#home .gb-tile.t-scratch{ --gb-tint-ink:#fdba74; }
+#home .gb-tile.t-crash  { --gb-tint-ink:#67e8f9; }
+#home .gb-tile.t-plinko { --gb-tint-ink:#c4b5fd; }
+#home .gb-tile.t-wheel  { --gb-tint-ink:#fcd34d; }
+#home .gb-tile.t-botrr  { --gb-tint-1:#64748b; --gb-tint-2:#1e293b; --gb-tint-ink:#cbd5e1; }
+#home .gb-tile.t-vault  { --gb-tint-1:#0ea5e9; --gb-tint-2:#0c4a6e; --gb-tint-ink:#7dd3fc; }
+
+
+/* ══ 10. LA BARRA — l'elemento piu' bersagliato dal pollice ═══════════════
+   Era Orbitron 9px, cioe' l'unico posto dove la regola "Orbitron = solo
+   cifre" veniva rotta cinque volte per sessione, per giunta sotto il
+   pavimento di 11px. Passa a Inter 700 11px e prende un indicatore vero:
+   la stessa barra da 3px del resto della direzione, sul bordo alto.
+   L'ALTEZZA NON CAMBIA (~53px + safe-area): il padding-bottom da 72px delle
+   quattro radici, il nuovo padding della home e il bottom:78px del bottone
+   musica sono tarati su questa misura e restano validi. */
+/* fondo OPACO e via il backdrop-filter: dietro uno sfondo pieno una
+   sfocatura da 10px non arriva all'occhio, ma il compositore la calcola
+   comunque a ogni fotogramma su tutta la larghezza dello schermo. E' lo
+   stesso ragionamento gia' fatto il 05/08 sull'hero sticky. */
+.bnav{ background:var(--gb-ed-paper); border-top:1px solid var(--gb-ed-rule);
+  backdrop-filter:none; -webkit-backdrop-filter:none; }
+.bnav .bnav-btn{
+  position:relative; padding:9px 4px 10px; gap:3px;
+  font-family:var(--gb-f-txt); font-weight:700; font-size:11px;
+  letter-spacing:.5px; color:var(--gb-ed-ink-3);
+  transition:color var(--gb-ed-up) var(--gb-ed-ease),
+             transform var(--gb-ed-up) var(--gb-ed-ease);
+}
+.bnav .bnav-btn .ic{ font-size:0; line-height:0; }
+.bnav .bnav-btn .gb-ic{ width:22px; height:22px; }
+.bnav .bnav-btn.on{ color:var(--gb-ed-val); }
+/* l'alone sull'icona attiva sparisce: l'indicatore e' una linea, non una
+   luce (era l'unico modo che aveva la scheda attiva per farsi vedere). */
+.bnav .bnav-btn.on .gb-ic{ filter:none; }
+.bnav .bnav-btn.on::before{
+  content:''; position:absolute; top:0; left:50%; margin-left:-14px;
+  width:28px; height:var(--gb-ed-bar); border-radius:0 0 2px 2px;
+  background:var(--gb-ed-val);
+}
+
+
+/* ══ 11. LA PRESSIONE al posto della scala ════════════════════════════════
+   Sostituisce lo scale(.97) delle piastrelle e lo scale(.985) dei banner.
+   Non e' gusto, e' usabilita': la scala rimpicciolisce il testo della card
+   PROPRIO nell'istante in cui il dito la copre e l'occhio la sta leggendo,
+   e su una riga larga tutto lo schermo un 3% non si vede nemmeno. Una
+   discesa di 2px si sente, lascia il corpo tipografico invariato, e
+   l'asimmetria giu'-veloce / su-lento e' l'unico segnale tattile credibile
+   su un vetro. E' una transition a durata finita: conforme per costruzione.
+   NIENTE will-change:transform su questi sedici elementi: promuoverebbe
+   sedici layer permanenti per un movimento da 90ms. */
+#home .gb-tile,
+#home .scroll > .duel-mega.due-facce,
+#home .duel-mega .dm-tor,
+#home .scroll > .lotto-banner,
+#home .scroll > .grun-mega,
+#home .bal-card .bal-btn,
+#home .home-refer-btn{
+  transition:transform var(--gb-ed-up) var(--gb-ed-ease),
+             border-color var(--gb-ed-up) var(--gb-ed-ease);
+}
+#home .gb-tile:active,
+#home .scroll > .duel-mega.due-facce:active,
+#home .duel-mega .dm-tor:active,
+#home .scroll > .lotto-banner:active,
+#home .scroll > .grun-mega:active,
+#home .bal-card .bal-btn:active,
+#home .home-refer-btn:active,
+.bnav .bnav-btn:active{
+  transform:translateY(2px);
+  transition-duration:var(--gb-ed-down);
+}
+#home .gb-tile:active{ border-color:var(--gb-ed-rule-2); }
+#home .dm-tor:active{ filter:none; }   /* era brightness(1.18) */
+
+
+/* ══ 12. LO SPAZIO PER LA BARRA — via lo spacer scritto a mano ════════════
+   La home era l'unico punto dell'app che ignorava la safe-area: un
+   <div style="height:80px"> in fondo (riga 8846) invece del calc che usano
+   le altre quattro radici (8589-8592). Su un telefono con la barra gesti
+   restava corta o lunga a caso. Questa regola arriva DOPO le due che
+   dichiarano il padding di #home .scroll (383 e 412) e a parita' di
+   specificita' vince: le altre due restano intatte. */
+#home .scroll{ padding-bottom:calc(72px + env(safe-area-inset-bottom,0px)); }
+
+
+/* ══ 13. TELEFONI STRETTI E BASSI ═════════════════════════════════════════
+   Sotto i 360px oggi la home non ha NESSUN adattamento: 16px di colonna e
+   118px di piastrella restano fissi. Un solo scalino, non una scala nuova. */
+@media (max-width:340px){
+  #home .scroll{ padding-left:12px; padding-right:12px; }
+  #home .scroll > .home-topbar{ margin:0 -12px; padding:10px 12px 6px; }
+  #home .scroll > .home-hero{ margin-left:-12px; margin-right:-12px; padding:10px 12px 12px; }
+  #home .hero-bal .bal-num{ font-size:28px; }
+  #home .hero-frame{ width:60px; height:60px; }
+  #home .duel-mega .dm-title{ font-size:22px; }
+  #home .games-grid{ gap:10px; }
+}
+@media (max-height:700px){
+  #home .hero-bal .bal-num{ font-size:28px; }
+  #home .hero-frame{ width:64px; height:64px; }
+}
+
+/* ══ 14. MOVIMENTO RIDOTTO — l'ultimo blocco che va allargato, non il primo
+   che si dimentica. Il file lo fa gia' in sei punti; qui si chiude anche
+   sui due movimenti che questa direzione lascia vivi. */
+@media (prefers-reduced-motion:reduce){
+  #home .duel-mega .dm-tor.live .dm-tor-flag,
+  #home .gb-badge--pulse::before,
+  #home #btc-bg .bp{ animation:none !important; }
+  #home .gb-tile, #home .duel-mega, #home .dm-tor,
+  #home .lotto-banner, #home .grun-mega,
+  #home .bal-btn, .bnav .bnav-btn{ transition:none; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TRE CONTE DA FARE IN CONSOLE PRIMA DI IMPACCHETTARE (accanto alle due
+   regole di rilascio gia' in vigore: `node --check` su ogni blocco script e
+   diff contro la pagina LIVE). Una regola che si verifica in una riga viene
+   rispettata; una regola che sta in un documento no.
+
+   1) UN SOLO alone per schermata:
+      getComputedStyle(document.querySelector('#home .duel-mega')).boxShadow
+      deve essere l'unico che contiene "255, 215, 0".
+   2) UN SOLO corpo display >= 20px per schermata:
+      [].filter.call(document.querySelectorAll('.screen.active *'),
+        function(e){return parseFloat(getComputedStyle(e).fontSize)>=20;}).length
+      <= 3   (saldo, titolo tabellone, testata di sezione visibile)
+   3) UN SOLO segnale rosso "adesso":
+      document.querySelectorAll('.screen.active .dm-tor.live, .screen.active .gb-badge--live').length <= 1
+   ══════════════════════════════════════════════════════════════════════════ */
+
+
+/* ===== ZONA DUELS (solo #duel) — direzione TABELLONE ===== */
+/* ══════════════════════════════════════════════════════════════════════════
+   TABELLONE — zona "PVP DUELS + stendardo TORNEI"                 (08/08/2026)
+   Da APPENDERE in fondo allo <style> del <head> (finisce a riga 8611).
+   Deve stare LI' e non altrove per due motivi che si pagano subito:
+     · dentro quello <style> vinco per ORDINE su tutto il CSS inline che c'e'
+       gia' (7611-7701, 8291-8352): niente !important dove basta l'ordine;
+     · contro il CSS che il JS inietta DOPO (#pvp-css a 34709, #trn-css a
+       43219) l'ordine non basta mai — li' vinco per SPECIFICITA', ed e' il
+       motivo per cui qui sotto quasi tutto e' prefissato con #duel o #home.
+       Regola operativa: MAI una regola a 0,1,0 su un selettore .pvp-* — la
+       mangia dlInjectCSS al primo ingresso nei duelli.
+
+   Cosa fa, in una riga: il banner di home diventa DUE RIGHE (arena sopra,
+   tornei sotto, ognuna con un numero vero a destra), i cinque manifesti
+   multiplayer diventano cinque righe-tabellone da 88px, e ~90 animazioni
+   perpetue si spengono. La gerarchia la fanno dimensione, posizione e linee.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── TOKEN EDITORIALI ──────────────────────────────────────────────────────
+   Namespace --gb-ed-*: non ridefinisce NIENTE di esistente, quindi non puo'
+   entrare per sbaglio dentro #slots (la collisione documentata a 250-260).
+   Dove il valore esiste gia' lo si ALIASA, non lo si reinventa.
+   NOTA AL COORDINATORE: se un'altra zona ha gia' appeso questo stesso blocco,
+   questo e' identico — tenerne UNA copia sola, in cima a tutte le zone. */
+:root{
+  /* CARTA: una sola superficie, zero gradienti */
+  --gb-ed-paper : var(--gb-bg, #08090d);
+  --gb-ed-surf  : var(--gb-surf-1, #12151f);
+  --gb-ed-surf-2: var(--gb-surf-2, #1a1f2e);
+  --gb-ed-well  : #0b0d14;
+
+  /* LINEE: qui vive la gerarchia. Tre spessori e basta. */
+  --gb-ed-rule  : rgba(255,255,255,.08);
+  --gb-ed-rule-2: rgba(255,255,255,.16);
+  --gb-ed-bar   : 3px;
+  --gb-ed-bar-w : 2px;
+
+  /* INCHIOSTRO — il bianco NON e' #fff: su AMOLED, al buio, un titolo di
+     bianco pieno e' una lampada. #f2f4f8 si legge uguale e non abbaglia. */
+  --gb-ed-ink   : #f2f4f8;
+  --gb-ed-ink-2 : var(--gb-txt-2, #9ca3af);
+  --gb-ed-ink-3 : var(--gb-txt-3, #8b93a1);
+
+  /* SEGNALE: tre verbi, non tre gusti */
+  --gb-ed-val  : var(--gb-gold, #ffd700);     /* valore: saldo, premio, quota */
+  --gb-ed-win  : var(--gb-money, #10b981);    /* in entrata                    */
+  --gb-ed-live : var(--gb-danger, #ef4444);   /* adesso / perso / prelievo     */
+  --gb-ed-val-bg : rgba(255,215,0,.10);
+  --gb-ed-win-bg : rgba(16,185,129,.12);
+  --gb-ed-live-bg: rgba(239,68,68,.12);
+
+  /* LUCE: UNA per schermata. Essendo un token solo, un doppione si vede nel diff. */
+  --gb-ed-glow: 0 0 0 1px rgba(255,215,0,.28), 0 0 18px rgba(255,215,0,.22);
+
+  /* OMBRE: due, nere e basse. Nessuna ombra colorata. */
+  --gb-ed-sh-1: inset 0 1px 0 rgba(255,255,255,.04);
+  --gb-ed-sh-2: 0 8px 24px rgba(0,0,0,.55);
+
+  /* GEOMETRIA */
+  --gb-ed-gut: 16px;
+  --gb-ed-r  : 12px;
+  --gb-ed-r-s: 6px;
+
+  /* MOVIMENTO — la PRESSIONE, non la scala: giu' veloce, su lento. */
+  --gb-ed-t-giu : 90ms;
+  --gb-ed-t-su  : 160ms;
+  --gb-ed-ease  : cubic-bezier(.2,.8,.3,1);
+}
+@media (max-width:340px){ :root{ --gb-ed-gut:12px; } }
+
+/* L'UNICO movimento perpetuo ammesso: pulsa in box-shadow (paint, main thread),
+   mai transform/opacity/filter. E' la regola pagata su GrapheneOS/Vanadium. */
+@keyframes edLive{
+  0%,100%{ box-shadow:0 0 0 0 rgba(239,68,68,.45); }
+  50%    { box-shadow:0 0 10px 2px rgba(239,68,68,.22); }
+}
+/* gbPulse riscritta: oggi anima OPACITY su un pallino di 5px. In home e'
+   innocuo, ma .gb-badge--pulse e' un componente del design system e puo'
+   finire in una lobby accanto a un canvas — quello e' il caso letale.
+   Stesso effetto, box-shadow. (Se un'altra zona la riscrive uguale, tenerne una.) */
+@keyframes gbPulse{
+  0%,100%{ box-shadow:0 0 0 0 currentColor; }
+  50%    { box-shadow:0 0 7px 1px currentColor; }
+}
+
+
+
+/* ── IL BLOCCO DEL BANNER DI HOME E' STATO TOLTO (08/08/2026) ──────────
+   200 righe che rifacevano `.duel-mega.due-facce` nella home. Quel banner
+   e' gia' stato rifatto dalla zona menu, ed e' la versione che il
+   proprietario ha scelto mettendo le due a confronto. I selettori di
+   qui (1,3,0) battevano quelli di la' (1,2,0): appenderli avrebbe
+   cancellato la scelta senza dirlo a nessuno.
+   Restano solo le tre regole senza prefisso, che di home non hanno
+   niente: vestono la cella dati dello stendardo dentro #duel e
+   spengono la freccia che ballava nelle CTA delle cinque schede. */
+.trn-dat b{
+  display:block;
+  font-family:var(--gb-f-num); font-weight:700; font-size:20px; line-height:1.1;
+  font-variant-numeric:tabular-nums; color:var(--gb-ed-ink);
+}
+.trn-dat span{
+  display:block; margin-top:3px;
+  font-family:var(--gb-f-txt); font-weight:700; font-size:11px;
+  letter-spacing:1.5px; text-transform:uppercase; color:var(--gb-ed-ink-3);
+}
+.dm-arrow{ animation:none; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   2 · #duel — LA HERO A DIETA
+   ═══════════════════════════════════════════════════════════════════════════
+   Oggi: due <video> in crossfade + un conic-gradient in rotazione infinita con
+   blur 6px + un alone in blur 22px che pulsa + un lampo in mix-blend-mode sul
+   titolo. Il fondo diventa indistinto e il titolo deve difendersi con due
+   drop-shadow. Si tolgono i tre strati e resta il filmato, che e' l'unica cosa
+   che vale davvero. */
+#duel .pvp-hero{
+  /* flex:none — LO STESSO DIFETTO DELLE CARTE DI #ton, e nasce da qui.
+     `.game-content` e' una colonna flex con overflow:auto. La hero dichiara
+     `min-height:150px` (regola vecchia) e, appena lo stendardo dei tornei si
+     alza per fare posto alla cella dati nuova, il contenuto chiede 191px: il
+     flex la RIPORTA al suo min-height e i 41px che avanzano escono dal fondo,
+     finendo sopra la riga "in linea adesso". Misurato: stendardo 196→273,
+     riga sotto a 243, trenta pixel di sovrapposizione. Con flex:none la hero
+     diventa alta 206 e contiene tutto.
+     Non e' `min-height` a proteggere un figlio flex: e' `flex-shrink:0`. */
+  flex:none;
+  padding:16px 14px 14px;
+  border-radius:var(--gb-ed-r);
+  border:1px solid var(--gb-ed-rule);
+  /* batte l'alone rosso di riga 7625, che e' !important: qui serve
+     !important + un id, non l'ordine */
+  box-shadow:var(--gb-ed-sh-2) !important;
+}
+#duel .pvp-hero-glow{ display:none; }
+/* IL VELO SOTTO IL TITOLO (08/08/2026) ─────────────────────────────────────
+   La direzione toglie i raggi rotanti, l'alone e il lampo, e fa bene: erano
+   tre strati di luce che rendevano il fondo indistinto. Ma toglierli lascia
+   il titolo appoggiato di netto sull'illustrazione dell'arena — e li' dietro
+   "PvP ARENA" passa una spada color argento chiaro. Testo chiaro su metallo
+   chiaro: l'ombra sul testo, da sola, contro un fondo cosi' mosso non basta.
+   (Il difetto c'era anche PRIMA di questa patch: il titolo qui non si e' mai
+   letto bene. Qui peggiorava, perche' il corpo sale a 26px e ne copre di
+   piu'.)
+   Invece di aggiungere un elemento si RIUSA quello dei raggi, che ormai e'
+   spento: stessa posizione, stesso z-index (1, cioe' sotto il testo che sta a
+   3), ma al posto del gradiente conico che ruotava c'e' un velo piatto che
+   scurisce da sinistra e si dissolve a destra. Nessun markup nuovo, nessuna
+   animazione, e l'illustrazione resta in chiaro dove il testo non c'e'. */
+#duel .pvp-hero{ position:relative; }
+#duel .pvp-hero-rays{
+  display:block; animation:none; filter:none; opacity:1; transform:none;
+  position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+  z-index:1;
+  background:linear-gradient(100deg,
+      rgba(8,10,16,.93) 0%, rgba(8,10,16,.80) 44%,
+      rgba(8,10,16,.32) 72%, rgba(8,10,16,0) 100%);
+}
+/* E IL TESTO VA SOLLEVATO SOPRA IL VELO, ALTRIMENTI CI FINISCE SOTTO.
+   Il titolo dichiarava gia' `z-index:3`, ma su un elemento NON posizionato
+   lo z-index non vale niente: e' una proprieta' che si applica solo a chi ha
+   una `position` diversa da static. Il velo invece e' `absolute`, quindi
+   nell'ordine di disegno passava davanti a tutto il testo in flusso e
+   "PvP ARENA" si e' visto peggio di prima. Basta dare una position al testo
+   perche' quel 3 cominci a contare.
+   Il video e il velo restano fuori dalla regola: sono loro il fondo. */
+#duel .pvp-hero > *:not(.pvp-hero-vid):not(.pvp-hero-rays){
+  position:relative; z-index:3;
+}
+#duel .pvp-hero-title::after{ display:none; }   /* pvpLampo, mix-blend-mode:overlay */
+#duel .pvp-hero-ico{ animation:none; filter:none; }
+/* il titolo torna un titolo: 26px, bianco pieno, una sola ombra — e quella
+   resta perche' sotto c'e' un VIDEO che si muove, non un fondo piatto */
+#duel .pvp-hero-title{
+  font-family:var(--gb-f-disp); font-weight:400; font-size:26px;
+  letter-spacing:2px; line-height:1.05; margin-top:6px;
+  background:none; -webkit-background-clip:border-box; background-clip:border-box;
+  color:var(--gb-ed-ink); -webkit-text-fill-color:var(--gb-ed-ink);
+  filter:none; text-shadow:0 2px 10px rgba(0,0,0,.75);
+}
+#duel .pvp-hero-kick{
+  background:none; border:0; padding:0; margin-bottom:6px; border-radius:0;
+  font-family:var(--gb-f-txt); font-weight:700; font-size:11px;
+  letter-spacing:1.5px; text-transform:uppercase; color:var(--gb-ed-ink-2);
+  text-shadow:0 1px 4px rgba(0,0,0,.85);
+}
+#duel .pvp-hero-sub{
+  font-family:var(--gb-f-txt); font-size:12px; line-height:1.4; margin-top:5px;
+  color:var(--gb-ed-ink-2); text-shadow:0 1px 4px rgba(0,0,0,.85);
+}
+#duel .pvp-fee{ color:var(--gb-ed-val); font-weight:700; }
+/* le quattro grappe restano (sono ferme e incorniciano il filmato), ma
+   smettono di essere ambra accesa: sono una linea, non un segnale */
+#duel .pvp-cor{ border-color:var(--gb-ed-rule-2); }
+
+/* ── LO STENDARDO TORNEI dentro la hero ────────────────────────────────────
+   Due copie che dicono la stessa cosa devono dirla nello stesso modo: prende
+   la forma della riga tornei della home. La bandiera (clip-path) qui era gia'
+   annullata da clip-path:none (35038), quindi non si perde niente — e con
+   clip-path:none la luce puo' tornare a essere box-shadow senza venire tagliata.
+   Specificita' 1,4,0: deve battere `.pvp-hero .trn-ribbon.pvp-trn` iniettata. */
+#duel .pvp-hero .trn-ribbon.pvp-trn{
+  display:grid; grid-template-columns:auto 1fr auto;
+  align-items:center; column-gap:var(--gb-sp-3); row-gap:2px;
+  margin:12px 0 0; padding:12px 14px; min-height:64px;
+  border-radius:var(--gb-ed-r); clip-path:none; text-align:left;
+  background:var(--gb-ed-surf); border:1px solid var(--gb-ed-rule);
+  border-left:var(--gb-ed-bar) solid var(--gb-ed-rule-2);
+  box-shadow:none; animation:none;
+  transition:transform var(--gb-ed-t-su) var(--gb-ed-ease);
+}
+#duel .pvp-hero .trn-ribbon.pvp-trn:active{ transform:translateY(2px); transition-duration:var(--gb-ed-t-giu); }
+#duel .pvp-hero .trn-ribbon.pvp-trn::before{ display:none; }  /* la trama diagonale */
+#duel .pvp-hero .trn-ribbon.pvp-trn .trn-rb-shine{ display:none; }  /* trnShine anima `left` = LAYOUT */
+#duel .pvp-hero .trn-ribbon.pvp-trn .trn-rb-cup{
+  grid-column:1; grid-row:1 / span 2; font-size:20px; filter:none;
+}
+#duel .pvp-hero .trn-ribbon.pvp-trn .trn-rb-tx{ grid-column:2; grid-row:1 / span 2; min-width:0; }
+#duel .pvp-hero .trn-ribbon.pvp-trn .trn-rb-title{
+  font-family:var(--gb-f-txt); font-weight:700; font-size:11px;
+  letter-spacing:1.5px; text-transform:uppercase; color:var(--gb-ed-ink-3);
+  text-shadow:none; gap:8px;
+}
+#duel .pvp-hero .trn-ribbon.pvp-trn .trn-rb-flag{
+  font-family:var(--gb-f-txt); font-weight:700; font-size:11px; letter-spacing:.5px;
+  padding:3px 8px; border-radius:var(--gb-ed-r-s);
+  border:1px solid rgba(255,215,0,.45); background:var(--gb-ed-val-bg);
+  color:var(--gb-ed-val); animation:none;
+}
+#duel .pvp-hero .trn-ribbon.pvp-trn .trn-rb-sub{
+  margin-top:3px; font-family:var(--gb-f-txt); font-size:13px; line-height:1.35;
+  color:var(--gb-ed-ink-2);
+  /* era nowrap+ellipsis: il testo e' "NOME · data · 🏆 premio" e su schermo
+     stretto spariva proprio il premio. Due righe, e ci sta tutto. */
+  white-space:normal; display:-webkit-box; -webkit-line-clamp:2;
+  -webkit-box-orient:vertical; overflow:hidden; text-overflow:clip;
+}
+#duel .pvp-hero .trn-ribbon.pvp-trn .trn-rb-sub b{
+  color:var(--gb-ed-val) !important; font-family:var(--gb-f-txt); font-weight:700;
+}
+#duel .pvp-hero .trn-ribbon.pvp-trn .trn-dat{ grid-column:3; grid-row:1 / span 2; text-align:right; }
+/* la freccia sta nella cella dati, non su una colonna sua */
+#duel .pvp-hero .trn-ribbon.pvp-trn .trn-rb-arrow{ display:none; }
+/* stati: barra + fondo al 10-12%, mai un drop-shadow che pulsa */
+#duel .pvp-hero .trn-ribbon.pvp-trn.open{
+  background:var(--gb-ed-val-bg); border-color:var(--gb-ed-rule);
+  border-left-color:var(--gb-ed-val); animation:none;
+}
+#duel .pvp-hero .trn-ribbon.pvp-trn.open::after{ display:none; }
+#duel .pvp-hero .trn-ribbon.pvp-trn.live{
+  background:var(--gb-ed-live-bg); border-color:var(--gb-ed-rule);
+  border-left-color:var(--gb-ed-live); animation:none;
+}
+#duel .pvp-hero .trn-ribbon.pvp-trn.live .trn-dat b{ color:var(--gb-ed-live); }
+#duel .pvp-hero .trn-ribbon.pvp-trn.live .trn-rb-flag{
+  border-color:rgba(239,68,68,.5); background:var(--gb-ed-live-bg); color:#ff9d9d; animation:none;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   3 · "CHI C'E' ADESSO" — la riga viva, e l'UNICO segnale rosso di #duel
+   ═══════════════════════════════════════════════════════════════════════════ */
+#duel .pvp-live{
+  margin:0 0 var(--gb-sp-2); padding:12px 14px;
+  border-radius:var(--gb-ed-r);
+  background:var(--gb-ed-surf);
+  border:1px solid var(--gb-ed-rule);
+  border-left:var(--gb-ed-bar) solid var(--gb-ed-live);
+  box-shadow:var(--gb-ed-sh-2), var(--gb-ed-sh-1);
+}
+#duel .pvp-live.aperta{ border-color:var(--gb-ed-rule-2); border-left-color:var(--gb-ed-live); }
+#duel .pvp-live.muto{ border-left-color:var(--gb-ed-rule-2); box-shadow:var(--gb-ed-sh-2); }
+#duel .pvp-live-bar{ gap:10px; }
+/* il pallino: e' l'unico elemento che significa "adesso" in questa schermata,
+   quindi e' l'unico che ha il diritto di muoversi per sempre — in box-shadow */
+#duel .pvp-live-dot{
+  width:8px; height:8px; background:var(--gb-ed-live); box-shadow:none;
+  animation:edLive 1.6s ease-in-out infinite;
+}
+#duel .pvp-live.muto .pvp-live-dot{ background:#7b8794; animation:none; box-shadow:none; }
+#duel .pvp-live-n{
+  font-family:var(--gb-f-num); font-weight:700; font-size:20px; line-height:1.1;
+  font-variant-numeric:tabular-nums; color:var(--gb-ed-ink);
+}
+#duel .pvp-live.muto .pvp-live-n{ color:var(--gb-ed-ink-3); }
+#duel .pvp-live-lbl{
+  font-family:var(--gb-f-txt); font-weight:700; font-size:11px;
+  letter-spacing:1.5px; text-transform:uppercase; color:var(--gb-ed-ink-3);
+}
+/* la pillola ambra diventa quello che e': una meta di riga, a destra */
+#duel .pvp-live-q{
+  margin-left:auto; padding:0; border:0; background:none; border-radius:0;
+  font-family:var(--gb-f-txt); font-size:12px; color:var(--gb-ed-ink-2);
+}
+#duel .pvp-live-arr{ font-size:12px; color:var(--gb-ed-ink-3); margin-left:10px; }
+#duel .pvp-live-det{ border-top:1px solid var(--gb-ed-rule); }
+#duel .pvp-live-riga{ font-family:var(--gb-f-txt); font-size:13px; }
+#duel .pvp-live-riga .e{ background:none; padding:0; color:var(--gb-ed-val); font-size:12px; }
+#duel .pvp-live-riga .n{
+  font-family:var(--gb-f-num); font-weight:700; font-size:13px;
+  font-variant-numeric:tabular-nums; color:var(--gb-ed-ink);
+}
+#duel .pvp-live-vuoto,
+#duel .pvp-live-nota{ font-family:var(--gb-f-txt); font-size:12px; color:var(--gb-ed-ink-3); opacity:1; }
+
+/* le tre statistiche: stessa carta, i numeri in tabulare, le etichette sopra
+   il pavimento dei 12px (erano a 9px) */
+#duel .pvp-stat{
+  background:var(--gb-ed-surf); border:1px solid var(--gb-ed-rule);
+  border-radius:var(--gb-ed-r); padding:12px 6px;
+  box-shadow:var(--gb-ed-sh-2), var(--gb-ed-sh-1);
+}
+#duel .pvp-stat-val{
+  font-family:var(--gb-f-num); font-weight:700; font-size:20px; margin-top:4px;
+  font-variant-numeric:tabular-nums; color:var(--gb-ed-ink);
+}
+#duel .pvp-stat-val.win { color:var(--gb-ed-ink); text-shadow:none; }   /* il verde acido resta al logo */
+#duel .pvp-stat-val.lose{ color:var(--gb-ed-ink-3); }
+#duel .pvp-stat-val.gold{ color:var(--gb-ed-val); text-shadow:none; }
+#duel .pvp-stat-lbl{
+  font-family:var(--gb-f-txt); font-weight:700; font-size:11px;
+  letter-spacing:1.5px; color:var(--gb-ed-ink-3); margin-top:4px;
+}
+/* la sfida in arrivo: resta la carta piu' importante quando c'e', ma senza
+   pulsare in opacity (pvpPulse) — il rosso lampeggiante e' gia' preso */
+#duel .pvp-incoming{
+  background:var(--gb-ed-surf) !important;
+  border:1px solid var(--gb-ed-rule) !important;
+  border-left:var(--gb-ed-bar) solid var(--gb-ed-val) !important;
+  border-radius:var(--gb-ed-r); animation:none !important;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   4 · LE CINQUE .tw-mega — da manifesti a SCHEDE PARTITA da 88px
+   ═══════════════════════════════════════════════════════════════════════════
+   Oggi sono cinque banner da ~130px con griglia al neon, scena animata e
+   titolo in text-shadow 18px: cinque manifesti in fila fra chi entra da
+   "PLAYER DUELS" e i duelli 1v1 per cui la schermata esiste (~4 scroll).
+   Diventano cinque righe leggibili tutte insieme, e la sezione DUELLI 1v1
+   risale di circa 200px.
+   Le SCENE non si toccano nella loro geometria (sono absolute con tre sistemi
+   di coordinate diversi: 8037 / 8063+8353 / 8091 / 8417): si abbassano e si
+   fanno ritagliare dal bordo, cosi' da sticker diventano silhouette. */
+#duel .tw-mega{
+  position:relative; overflow:hidden; cursor:pointer;
+  display:grid; grid-template-columns:1fr auto; align-items:center;
+  column-gap:var(--gb-sp-3);
+  min-height:88px; margin:0 0 var(--gb-sp-2);
+  /* 28px a destra sono l'incavo della freccia */
+  padding:var(--gb-sp-3) 28px var(--gb-sp-3) var(--gb-sp-4);
+  border-radius:var(--gb-ed-r);
+  /* !important perche' DERBY (8954) e DEAD PEAK (8969) portano border-color e
+     box-shadow INLINE: senza, restano due card con un bordo diverso da tutte */
+  border:1px solid var(--gb-ed-rule) !important;
+  border-left:var(--gb-ed-bar) solid var(--ed-key,var(--gb-ed-val)) !important;
+  box-shadow:var(--gb-ed-sh-2), var(--gb-ed-sh-1) !important;
+  /* !important obbligatorio: .gl-mega (8033) e .scl-mega (8089) dichiarano il
+     loro `background` con !important, e senza questo COLOSSEO resta un campo
+     ambra e DEAD PEAK un campo viola — le due righe che oggi si vedono da
+     lontano proprio perche' sono due manifesti. */
+  background-color:var(--gb-ed-surf) !important;
+  /* IL LAVAGGIO D'ANGOLO: sta su background-image e NON su un pseudo-elemento,
+     perche' qui ::before e' gia' la griglia al neon e ::after e' la freccia.
+     All'8-10% non e' un velo: e' quanto basta perche' cinque righe lisce non
+     diventino cinque rettangoli grigi. */
+  background-image:radial-gradient(115% 95% at 10% 0%, var(--ed-wash,rgba(255,215,0,.10)), transparent 62%) !important;
+  transition:transform var(--gb-ed-t-su) var(--gb-ed-ease);
+}
+#duel .tw-mega:active{ transform:translateY(2px); transition-duration:var(--gb-ed-t-giu); }
+/* la griglia al neon non si butta: si porta a .035 e si maschera sull'angolo
+   illuminato. Da carta millimetrata a riflesso su asfalto. */
+#duel .tw-mega::before{
+  opacity:.035;
+  -webkit-mask-image:radial-gradient(120% 100% at 8% 0%, #000 0, transparent 66%);
+  mask-image:radial-gradient(120% 100% at 8% 0%, #000 0, transparent 66%);
+}
+/* la freccia: colonna 4, ferma, 14px */
+#duel .tw-mega::after{
+  content:'▸'; position:absolute; right:9px; top:50%; transform:translateY(-50%);
+  font-size:14px; line-height:1; color:var(--gb-ed-ink-3); pointer-events:none;
+}
+/* il contenitore del testo e' l'UNICO figlio diretto senza classe (le cinque
+   scene ce l'hanno tutte): cosi' non serve toccare il markup per agganciarlo */
+#duel .tw-mega > div:not([class]){ grid-column:1; min-width:0; position:relative; z-index:2; }
+
+/* colonna 2 — l'occhiello. Era una pillola rossa che pulsava su TUTTE e
+   cinque le card: cinque "LIVE" contemporanei non sono cinque diretta. */
+#duel .tw-mega-badge{
+  display:block; padding:0 !important; border:0 !important;
+  background:none !important; border-radius:0;
+  font-family:var(--gb-f-txt); font-weight:700; font-size:11px;
+  letter-spacing:1.5px; text-transform:uppercase;
+  /* la tinta del gioco vive QUI e nei 3px di barra: mai come velo, mai come
+     bordo intero. Le versioni schiarite hanno quattro volte il contrasto
+     delle sature su fondo #12151f. */
+  color:var(--ed-ink,var(--gb-ed-ink-3)) !important;
+  animation:none !important; box-shadow:none !important;
+}
+#duel .tw-mega-title{
+  margin-top:2px;
+  font-family:var(--gb-f-disp); font-weight:400; font-size:20px;
+  letter-spacing:.5px; line-height:1.15;
+  color:var(--gb-ed-ink) !important; text-shadow:none !important;
+}
+#duel .tw-mega-sub{
+  margin-top:3px; max-width:100%;
+  font-family:var(--gb-f-txt); font-size:12px; line-height:1.35; color:var(--gb-ed-ink-2);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+/* "GIOCA ▸" era un invito; un numero convince di piu', e la freccia e' ::after */
+#duel .tw-mega-cta{ display:none; }
+
+/* colonna 3 — LA COLONNA DATI, il pezzo che oggi non esiste.
+   Contenuto: quanti stanno in coda o in partita su QUEL gioco. Il dato arriva
+   gia' da /duel/presence (campi queues[].game e playing[].game): finora
+   finiva solo dentro il pannello "chi c'e' adesso", che sta chiuso.
+   Quando non c'e' nessuno, la cella non mente: torna al numero di posti. */
+#duel .tw-dat{
+  grid-column:2; position:relative; z-index:2; text-align:right; line-height:1;
+}
+#duel .tw-dat b{
+  display:block;
+  font-family:var(--gb-f-num); font-weight:700; font-size:20px; line-height:1.1;
+  font-variant-numeric:tabular-nums; color:var(--gb-ed-ink);
+}
+#duel .tw-dat span{
+  display:block; margin-top:3px;
+  font-family:var(--gb-f-txt); font-weight:700; font-size:11px;
+  letter-spacing:1.5px; text-transform:uppercase; color:var(--gb-ed-ink-3);
+}
+/* c'e' gente adesso: il numero passa alla tinta del gioco (non al rosso — il
+   rosso di questa schermata e' gia' il pallino di "chi c'e' adesso") */
+#duel .tw-dat.vivo b{ color:var(--ed-ink,var(--gb-ed-ink)); }
+
+/* LE SCENE — restano, ma smettono di essere il soggetto: piu' basse, ritagliate
+   dal bordo, e soprattutto FERME. Le loro animazioni infinite (i proiettili di
+   Turf War, le spade del Colosseo, la conic in rotazione di .dpk-rays a 8096)
+   erano ~40 timeline sempre attive dentro una lobby. */
+#duel .tw-mega .twb-scene,
+#duel .tw-mega .blg-scene{
+  right:-16px; bottom:-8px; opacity:.32;
+  transform:scale(.62); transform-origin:right bottom;
+}
+#duel .tw-mega .gl-scene,
+#duel .tw-mega .dpk-scene{ width:112px; opacity:.32; }
+#duel .tw-mega .rc-scene { opacity:.20; }
+#duel .tw-mega .twb-scene,#duel .tw-mega .twb-scene *,
+#duel .tw-mega .rc-scene, #duel .tw-mega .rc-scene *,
+#duel .tw-mega .gl-scene, #duel .tw-mega .gl-scene *,
+#duel .tw-mega .blg-scene,#duel .tw-mega .blg-scene *,
+#duel .tw-mega .dpk-scene,#duel .tw-mega .dpk-scene *{ animation:none !important; }
+/* E ANCHE GLI PSEUDO-ELEMENTI (08/08/2026). La riga qui sopra copre gli
+   elementi e i discendenti, ma `*` NON raggiunge un ::before: non e' un
+   discendente, e' un figlio generato. Sopravvivevano otto animazioni
+   PERPETUE su transform/opacity dentro le cinque scene (.rcb-sky::before
+   e compagnia) — cioe' proprio la classe di difetto per cui il derby si
+   congelava su GrapheneOS, lasciata accesa dalla regola che doveva
+   spegnerla. */
+#duel .tw-mega .twb-scene::before,#duel .tw-mega .twb-scene::after,
+#duel .tw-mega .twb-scene *::before,#duel .tw-mega .twb-scene *::after,
+#duel .tw-mega .rc-scene::before,#duel .tw-mega .rc-scene::after,
+#duel .tw-mega .rc-scene *::before,#duel .tw-mega .rc-scene *::after,
+#duel .tw-mega .gl-scene::before,#duel .tw-mega .gl-scene::after,
+#duel .tw-mega .gl-scene *::before,#duel .tw-mega .gl-scene *::after,
+#duel .tw-mega .blg-scene::before,#duel .tw-mega .blg-scene::after,
+#duel .tw-mega .blg-scene *::before,#duel .tw-mega .blg-scene *::after,
+#duel .tw-mega .dpk-scene::before,#duel .tw-mega .dpk-scene::after,
+#duel .tw-mega .dpk-scene *::before,#duel .tw-mega .dpk-scene *::after{ animation:none !important; }
+/* l'insegna emoji a 46px non e' un'informazione */
+#duel .tw-mega-skyline{ display:none; }
+
+/* LA CHIAVE PER GIOCO — una riga per gioco, al posto dei border-color inline.
+   Le tinte sono le versioni SCHIARITE: tre pixel di #3b82f6 su #12151f, su uno
+   schermo economico con la luminosita' bassa, sono tre pixel di niente.
+   Se in mano non si vedesse comunque, la barra sale a 4px PRIMA di cambiare colore. */
+#duel .tw-mega          { --ed-key:#67e8f9; --ed-ink:#67e8f9; --ed-wash:rgba(34,211,238,.10); }  /* TURF WAR   */
+#duel .tw-mega.rc-mega  { --ed-key:#fca5a5; --ed-ink:#fca5a5; --ed-wash:rgba(248,113,113,.10); } /* STREET RACE*/
+#duel .tw-mega.gl-mega  { --ed-key:#fcd34d; --ed-ink:#fcd34d; --ed-wash:rgba(224,165,42,.10); }  /* COLOSSEO   */
+#duel .tw-mega.blg-mega { --ed-key:#6ee7b7; --ed-ink:#6ee7b7; --ed-wash:rgba(34,197,94,.10); }   /* DERBY      */
+#duel .tw-mega.scl-mega { --ed-key:#d8b4fe; --ed-ink:#d8b4fe; --ed-wash:rgba(167,139,250,.10); } /* DEAD PEAK  */
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   5 · LE TESTATE DI SEZIONE — .pvp-sec-lbl ristilata, zero markup nuovo
+   ═══════════════════════════════════════════════════════════════════════════
+   Oggi la sezione principale della schermata e' introdotta dall'elemento
+   tipografico piu' debole della pagina: 11px in --txt2. Prende la barra d'oro
+   (la stessa idea di .section-ttl::before a 7613) e sale sopra il pavimento.
+   text-transform NON tocca il nodo di testo, quindi le chiavi i18n reggono. */
+#duel .pvp-sec-lbl{
+  margin:var(--gb-sp-5) 0 var(--gb-sp-3); padding-left:var(--gb-sp-3);
+  border-left:var(--gb-ed-bar) solid var(--gb-ed-val);
+  font-family:var(--gb-f-txt); font-weight:700; font-size:13px;
+  letter-spacing:1.5px; line-height:1.25; text-transform:uppercase;
+  color:var(--gb-ed-ink);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   6 · LE 22 PIASTRELLE 1v1 — il colore lascia il bordo intero e va nei 3px
+   ═══════════════════════════════════════════════════════════════════════════
+   Il border-color e' scritto INLINE su 22 elementi (8992-9013) e non si puo'
+   ritoccare senza editarli a mano. Non serve: si spengono per !important i
+   tre lati (sopra/destra/sotto) e si lascia vivo SOLO il sinistro, portato a
+   3px. Il valore inline resta esattamente dov'e' ed e' diventato la barra.
+   Nessun edit di markup, 22 tinte salvate. */
+#duel .pvp-grid{ gap:var(--gb-sp-2); }
+#duel .pvp-tile{
+  border-top-color:var(--gb-ed-rule) !important;
+  border-right-color:var(--gb-ed-rule) !important;
+  border-bottom-color:var(--gb-ed-rule) !important;
+  border-left-width:var(--gb-ed-bar);
+  border-radius:var(--gb-ed-r);
+  background:var(--gb-ed-surf);
+  box-shadow:var(--gb-ed-sh-2), var(--gb-ed-sh-1) !important;   /* batte il !important di 7622 */
+  padding:14px 12px 12px;
+  transition:transform var(--gb-ed-t-su) var(--gb-ed-ease);
+}
+#duel .pvp-tile:active{ transform:translateY(2px); transition-duration:var(--gb-ed-t-giu); }
+/* pvpShine anima `left`: e' LAYOUT, su 22 nodi, per sempre */
+#duel .pvp-tile-shine{ display:none; }
+/* gcFloat faceva galleggiare 22 icone insieme, in transform, all'infinito */
+#duel .pvp-tile-ico{
+  height:44px; display:flex; align-items:center; justify-content:center;
+  font-size:34px; filter:none; animation:none;
+}
+#duel .pvp-tile-ico svg{ filter:none !important; }
+/* IL BADGE — la legge, scritta qui perche' sopravviva al prossimo che patcha:
+   un badge o e' un NUMERO, o e' il pallino rosso del LIVE. Non e' una parola.
+   Oggi ce ne sono quindici che dicono "NEW" e si annullano a vicenda; "NEW"
+   scade dopo due settimane e vale su DUE card al massimo. Finche' restano
+   parole, sono occhielli grigi: non competono con il dato. */
+#duel .pvp-badge{
+  top:10px; left:12px; right:auto;
+  padding:0 !important; border:0 !important; background:none !important;
+  font-family:var(--gb-f-txt); font-weight:700; font-size:11px; letter-spacing:1.5px;
+  color:var(--gb-ed-ink-3) !important;
+}
+/* IL DATO della piastrella: la durata, che e' l'unica cifra vera che ha.
+   Sempre in alto a destra, sempre Orbitron tabulare, uguale per tutte e 22. */
+#duel .pvp-tile-dur{
+  top:10px; right:12px; left:auto;
+  padding:0; border:0; background:none;
+  font-family:var(--gb-f-num); font-weight:700; font-size:12px; letter-spacing:.5px;
+  font-variant-numeric:tabular-nums; color:var(--gb-ed-ink-2);
+}
+#duel .pvp-tile-name{
+  margin-top:8px;
+  font-family:var(--gb-f-disp); font-weight:400; font-size:15px;
+  letter-spacing:.5px; line-height:1.2; color:var(--gb-ed-ink);
+}
+#duel .pvp-tile-sub{
+  margin-top:3px; min-height:34px;
+  font-family:var(--gb-f-txt); font-size:12px; line-height:1.35; color:var(--gb-ed-ink-2);
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+}
+/* 22 "PLAY ▸" identici sotto 22 piastrelle interamente toccabili */
+#duel .pvp-tile-cta{ display:none; }
+
+/* RANDOM MATCH — la ruota resta (e' l'idea del blocco), ma smette di girare
+   per sempre: e' un conic-gradient in rotazione infinita */
+#duel .pvp-random{
+  margin:0; padding:12px 14px; border-radius:var(--gb-ed-r);
+  background:var(--gb-ed-surf); border:1px solid var(--gb-ed-rule);
+  border-left:var(--gb-ed-bar) solid var(--gb-ed-val);
+  box-shadow:var(--gb-ed-sh-2), var(--gb-ed-sh-1);
+  transition:transform var(--gb-ed-t-su) var(--gb-ed-ease);
+}
+#duel .pvp-random:active{ transform:translateY(2px); transition-duration:var(--gb-ed-t-giu); }
+#duel .pvp-rand-wheel{ animation:none; box-shadow:0 0 0 2px rgba(255,255,255,.10), inset 0 0 12px rgba(0,0,0,.55); }
+#duel .pvp-rand-orb{ width:44px; height:44px; }
+#duel .pvp-rand-name{
+  font-family:var(--gb-f-disp); font-weight:400; font-size:15px;
+  letter-spacing:.5px; color:var(--gb-ed-ink);
+}
+#duel .pvp-rand-sub{ font-family:var(--gb-f-txt); font-size:12px; color:var(--gb-ed-ink-2); }
+#duel .pvp-rand-go{
+  font-family:var(--gb-f-txt); font-weight:700; font-size:11px;
+  letter-spacing:1.5px; color:var(--gb-ed-val);
+}
+
+/* SFIDA UN AMICO e OPPONENTI RECENTI: stessa carta, stesso raggio, stesso bordo */
+#duel .pvp-challenge{
+  background:var(--gb-ed-surf); border:1px solid var(--gb-ed-rule);
+  border-radius:var(--gb-ed-r); padding:14px;
+}
+#duel .pvp-input,#duel .pvp-select{
+  background:var(--gb-ed-well); border:1px solid var(--gb-ed-rule);
+  border-radius:var(--gb-ed-r-s); font-family:var(--gb-f-txt); font-size:13px;
+}
+#duel .pvp-input:focus,#duel .pvp-select:focus{ border-color:var(--gb-ed-val); }
+#duel .pvp-rc-chip{
+  background:var(--gb-ed-surf); border:1px solid var(--gb-ed-rule);
+  border-radius:var(--gb-ed-r);
+  transition:transform var(--gb-ed-t-su) var(--gb-ed-ease);
+}
+#duel .pvp-rc-chip:active{ transform:translateY(2px); transition-duration:var(--gb-ed-t-giu); }
+#duel .pvp-rc-nm  { font-family:var(--gb-f-txt); font-weight:700; font-size:12px; }
+#duel .pvp-rc-meta{ font-family:var(--gb-f-txt); font-size:11px; color:var(--gb-ed-ink-3); }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   7 · MOVIMENTO RIDOTTO — l'ultimo blocco che si allarga, non il primo che
+       si dimentica. Il file lo fa gia' in cinque punti (473, 565, 624, 5384,
+       7002, 8335): qui si copre tutto quello che questa zona lascia vivo.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion:reduce){
+  #duel .pvp-live-dot,
+  #home .duel-mega.due-facce .dm-badge-slot::before,
+  .gb-badge--pulse::before{ animation:none !important; }
+  #home .duel-mega.due-facce,
+  #home .duel-mega.due-facce .dm-tor,
+  #duel .pvp-hero .trn-ribbon.pvp-trn,
+  #duel .tw-mega,
+  #duel .pvp-tile,
+  #duel .pvp-random,
+  #duel .pvp-rc-chip{ transition:none !important; }
+}
 </style>
 </head>
 <body class="gb-nav-on">
@@ -8668,21 +10609,30 @@ body.gb-nav-on .bnav{display:flex;}
     </div>
     <div class="hero-name">GAMBLER BOT</div>
     <div class="hero-tag">Bitcoin & TON Casino · Play & Earn</div>
+    <!-- IL NUMERO sale QUI, dentro l'hero sticky: nello stato raccolto — in cui
+         l'utente sta il 95% del tempo — la riga in cima finalmente contiene un
+         dato. Gli id home-bal e home-btc NON cambiano e NON si spostano fuori
+         dal DOM: refresh() (riga 26954) li legge senza guardia a ogni go(), e
+         un id mancante alza TypeError dentro go() spegnendo tutti gli init. -->
+    <div class="hero-bal">
+      <div class="bal-lbl">BALANCE</div>
+      <div class="bal-num" id="home-bal">€0.00</div>
+      <div class="bal-sub" id="home-btc">0.00000000 BTC</div>
+    </div>
   </div>
+  <!-- .bal-card RESTA .bal-card: setBalanceStatus (riga 34555) ci appende
+       dentro #bal-status quando non lo trova. Da card del saldo diventa la
+       striscia delle azioni: DEPOSIT · WITHDRAW · stato. Il div-contenitore
+       vuoto che avvolgeva le quattro righe sparisce con loro. -->
   <div class="bal-card">
-      <div>
-        <div class="bal-lbl">BALANCE</div>
-        <div class="bal-num" id="home-bal">€0.00</div>
-        <div class="bal-sub" id="home-btc">0.00000000 BTC</div>
-        <div class="bal-status" id="bal-status">Loading...</div>
-      </div>
+      <div class="bal-status" id="bal-status">Loading...</div>
       <div class="bal-actions">
         <button class="bal-btn dep" onclick="go('deposit')">📥 DEPOSIT</button>
         <button class="bal-btn wd" onclick="go('withdraw')">📤 WITHDRAW</button>
       </div>
     </div>
 
-    <div class="section-ttl"><svg class="gb-ic-t" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.6l2.5 5.2 5.7.8-4.1 4 1 5.7-5.1-2.7-5.1 2.7 1-5.7-4.1-4 5.7-.8L12 3.6Z"/></svg>Featured Modes</div>
+    <div class="section-ttl"><svg class="gb-ic-t" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.6l2.5 5.2 5.7.8-4.1 4 1 5.7-5.1-2.7-5.1 2.7 1-5.7-4.1-4 5.7-.8L12 3.6Z"/></svg>LIVE NOW</div>
     <div class="duel-mega due-facce" onclick="go('duel')">
       <svg class="dm-sv" viewBox="0 0 340 132" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
         <defs>
@@ -8722,7 +10672,7 @@ body.gb-nav-on .bnav{display:flex;}
         <div class="dm-tor-cup">🏆</div>
         <div class="dm-tor-t">TORNEI</div>
         <span class="dm-tor-flag trn-flag"></span>
-        <div class="dm-tor-s trn-next-txt">Prossimamente…</div>
+        <div class="dm-tor-s trn-next-txt">Prossimamente… tieni d'occhio questa card</div>
         <div class="dm-tor-go">ENTRA <span class="dm-arrow">▸</span></div>
       </div>
     </div>
@@ -8731,13 +10681,16 @@ body.gb-nav-on .bnav{display:flex;}
       <div class="lotto-icon">🎫</div>
       <div class="lotto-info">
         <div class="lotto-title">CRYPTO LOTTO</div>
-        <div class="lotto-sub">Biglietto €2 · jackpot min €50 · mar &amp; ven 20:00</div>
-        <div class="lotto-sub" style="opacity:.7;font-size:9px;margin-top:2px;">3 numeri = €16 · 4 = €120 · 5 = €1.200 · 6 = JACKPOT</div>
+        <!-- la tabella dei premi stava a 9px, sotto il pavimento di 12px, e la
+             ripete per intero la schermata del lotto: qui restano due voci. -->
+        <div class="lotto-sub">Biglietto €2 · mar &amp; ven 20:00</div>
       </div>
-      <div class="lotto-go">PLAY →</div>
+      <!-- LA CELLA DATI. Il montepremi minimo era gia' scritto qui dentro come
+           terza voce di un elenco: diventa il numero della riga, a destra,
+           tabulare. Un numero convince piu' di un invito ("PLAY →"). -->
+      <div class="lotto-go"><b>€50</b><span>JACKPOT</span></div>
     </div>
 
-    <div class="section-ttl"><svg class="gb-ic-t" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4.5h8V15H8z"/><path d="M3.5 15h17"/><path d="M8 11.5h8"/></svg>House Flagship</div>
     <div class="grun-mega" onclick="go('grun')">
       <div class="grm-scrim"></div>
       <div class="grm-rays"></div>
@@ -8745,7 +10698,7 @@ body.gb-nav-on .bnav{display:flex;}
       <div class="grm-char">🎩</div>
       <div class="grm-content">
         <div class="grm-title">GAMBLER'S RUN</div>
-        <div class="grm-sub">Roguelike · descend the map, compound your pot, collect charms &amp; beat THE HOUSE</div>
+        <div class="grm-sub">Roguelike · descend &amp; beat THE HOUSE</div>
         <div class="grm-cta">START YOUR RUN <span class="dm-arrow">▸</span></div>
       </div>
     </div>
@@ -8753,18 +10706,19 @@ body.gb-nav-on .bnav{display:flex;}
     <div class="section-ttl"><svg class="gb-ic-t" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="7" width="19" height="10" rx="4.5"/><path d="M7 10.5v3"/><path d="M5.5 12h3"/><circle cx="16.2" cy="11" r="1"/><circle cx="18.4" cy="13.4" r="1"/></svg>Casino Games</div>
     <div class="games-grid">
       <div class="gb-tile t-bj gb-tile--house" onclick="go('bj')">
-        <span class="gb-badge gb-badge--live gb-badge--pin">HOT</span>
+        <span class="gb-badge gb-badge--gold gb-badge--pin">×2.5</span>
         <div class="gb-tile__ico">🃏</div>
         <div class="gb-tile__name">BLACKJACK</div>
-        <div class="gb-tile__info">Beat dealer • x2.5</div>
+        <div class="gb-tile__info">Beat dealer</div>
       </div>
       <div class="gb-tile t-slots gb-tile--house" onclick="go('slots')">
-        <span class="gb-badge gb-badge--gold gb-badge--pin">5000×</span>
+        <span class="gb-badge gb-badge--gold gb-badge--pin">×5000</span>
         <div class="gb-tile__ico">🎰</div>
         <div class="gb-tile__name">GAMBLER SLOTS</div>
-        <div class="gb-tile__info">Wilds • Free Spins • Wheel • Vault</div>
+        <div class="gb-tile__info">Wilds · Free Spins</div>
       </div>
       <div class="gb-tile t-roul gb-tile--house" onclick="go('roulette')">
+        <span class="gb-badge gb-badge--gold gb-badge--pin">×36</span>
         <div class="gb-tile__ico">
           <svg viewBox="0 0 100 100" width="44" height="44" class="roulette-svg-icon">
             <defs>
@@ -8792,15 +10746,16 @@ body.gb-nav-on .bnav{display:flex;}
           </svg>
         </div>
         <div class="gb-tile__name">ROULETTE</div>
-        <div class="gb-tile__info">Multi-bet • x36</div>
+        <div class="gb-tile__info">Multi-bet</div>
       </div>
       <div class="gb-tile t-dice gb-tile--house" onclick="go('dice')">
+        <span class="gb-badge gb-badge--gold gb-badge--pin">×6</span>
         <div class="gb-tile__ico">🎲</div>
         <div class="gb-tile__name">DICE</div>
-        <div class="gb-tile__info">Roll to win • x6</div>
+        <div class="gb-tile__info">Roll to win</div>
       </div>
       <div class="gb-tile t-poker gb-tile--house" onclick="go('poker')">
-        <span class="gb-badge gb-badge--gold gb-badge--pin">x21</span>
+        <span class="gb-badge gb-badge--gold gb-badge--pin">×21</span>
         <div class="gb-tile__ico">♠️</div>
         <div class="gb-tile__name">POKER</div>
         <div class="gb-tile__info">Hold'em vs House</div>
@@ -8809,7 +10764,7 @@ body.gb-nav-on .bnav{display:flex;}
         <span class="gb-badge gb-badge--new gb-badge--pin">NEW</span>
         <div class="gb-tile__ico">💣</div>
         <div class="gb-tile__name">TREASURE</div>
-        <div class="gb-tile__info">Find prizes • Avoid bombs</div>
+        <div class="gb-tile__info">Find prizes · avoid bombs</div>
       </div>
       <div class="gb-tile t-crash gb-tile--new" onclick="go('crash')">
         <span class="gb-badge gb-badge--new gb-badge--pin">NEW</span>
@@ -8817,33 +10772,32 @@ body.gb-nav-on .bnav{display:flex;}
         <div class="gb-tile__name">CRASH</div>
         <div class="gb-tile__info">Cash out before crash</div>
       </div>
-      <div class="gb-tile gb-tile--new" onclick="go('botrr')">
-        <span class="gb-badge gb-badge--new gb-badge--pin">NEW</span>
+      <div class="gb-tile t-botrr gb-tile--new" onclick="go('botrr')">
+        <span class="gb-badge gb-badge--gold gb-badge--pin">×5.7</span>
         <div class="gb-tile__ico">🔫</div>
         <div class="gb-tile__name">BOT ROULETTE</div>
-        <div class="gb-tile__info">Survive the chamber • x5.7</div>
+        <div class="gb-tile__info">Survive the chamber</div>
       </div>
-      <div class="gb-tile gb-tile--new" onclick="go('vault')">
-        <span class="gb-badge gb-badge--new gb-badge--pin">NEW</span>
+      <div class="gb-tile t-vault gb-tile--new" onclick="go('vault')">
+        <span class="gb-badge gb-badge--gold gb-badge--pin">×238</span>
         <div class="gb-tile__ico">🔐</div>
         <div class="gb-tile__name">VAULT CRACKER</div>
-        <div class="gb-tile__info">Crack the safe • x238</div>
+        <div class="gb-tile__info">Crack the safe</div>
       </div>
       <div class="gb-tile t-plinko" onclick="go('plinko')">
-        <span class="gb-badge gb-badge--gold gb-badge--pin">x10</span>
+        <span class="gb-badge gb-badge--gold gb-badge--pin">×10</span>
         <div class="gb-tile__ico">🪙</div>
         <div class="gb-tile__name">PLINKO</div>
-        <div class="gb-tile__info">Drop the ball • Jackpot</div>
+        <div class="gb-tile__info">Drop the ball · jackpot</div>
       </div>
       <div class="gb-tile t-wheel" onclick="go('wheel')">
-        <span class="gb-badge gb-badge--live gb-badge--pin">SPIN</span>
+        <span class="gb-badge gb-badge--gold gb-badge--pin">×50</span>
         <div class="gb-tile__ico">🎡</div>
         <div class="gb-tile__name">WHEEL</div>
-        <div class="gb-tile__info">Wheel of Fortune • x50</div>
+        <div class="gb-tile__info">Wheel of Fortune</div>
       </div>
     </div>
 
-    <div style="height:80px;"></div>
   </div>
 </div>
 
@@ -8874,8 +10828,9 @@ body.gb-nav-on .bnav{display:flex;}
         <div class="trn-rb-cup">🏆</div>
         <div class="trn-rb-tx">
           <div class="trn-rb-title">TORNEI <span class="trn-rb-flag trn-flag" id="trn-rb-flag"></span></div>
-          <div class="trn-rb-sub trn-next-txt" id="trn-mega-next">Prossimamente… tieni d'occhio questa card</div>
+          <div class="trn-rb-sub trn-next-txt" id="trn-mega-next" data-vuoto="Ogni giovedì · 22:00 · 🏆 montepremi in palio">Ogni giovedì · 22:00 · 🏆 montepremi in palio</div>
         </div>
+        <div class="trn-dat"><b>22:00</b><span>GIOVEDÌ</span></div>
         <div class="trn-rb-arrow">▸</div>
       </div>
     </div>
@@ -8918,6 +10873,7 @@ body.gb-nav-on .bnav{display:flex;}
         <div class="tw-mega-sub">Battle royale in tempo reale · 2–10 gambler · armi, auto, covi &amp; zona che brucia</div>
         <div class="tw-mega-cta">SCENDI IN STRADA <span class="dm-arrow">▸</span></div>
       </div>
+      <div class="tw-dat" data-g="turf" data-d="2-10" data-l="GIOCATORI"><b>2-10</b><span>GIOCATORI</span></div>
     </div>
 
     <div class="tw-mega rc-mega" onclick="window.RTD_GAME='race';go('arc')">
@@ -8934,6 +10890,7 @@ body.gb-nav-on .bnav{display:flex;}
         <div class="tw-mega-sub">Piste procedurali sempre nuove · derapate, boost &amp; scie · personalizza la tua auto</div>
         <div class="tw-mega-cta">ACCENDI IL MOTORE <span class="dm-arrow">▸</span></div>
       </div>
+      <div class="tw-dat" data-g="race" data-d="2-10" data-l="GIOCATORI"><b>2-10</b><span>GIOCATORI</span></div>
     </div>
 
     <div class="tw-mega gl-mega" onclick="go('glad')">
@@ -8949,6 +10906,7 @@ body.gb-nav-on .bnav{display:flex;}
         <div class="tw-mega-sub">Tutti contro tutti nell'arena · spada, scudo &amp; parry · l'ultimo in piedi prende il piatto</div>
         <div class="tw-mega-cta">ENTRA NELL'ARENA <span class="dm-arrow">▸</span></div>
       </div>
+      <div class="tw-dat" data-g="glad" data-d="2-8" data-l="GIOCATORI"><b>2-8</b><span>GIOCATORI</span></div>
     </div>
 
     <div class="tw-mega blg-mega" onclick="window.RTD_GAME='calcio';go('arc')" style="border-color:rgba(34,197,94,.4);box-shadow:0 10px 30px rgba(0,0,0,.5),0 0 26px rgba(34,197,94,.14);">
@@ -8964,6 +10922,7 @@ body.gb-nav-on .bnav{display:flex;}
         <div class="tw-mega-sub">Calcio top-down a squadre · passaggi, bolidi, cross e scivolate · il team vincente si divide il piatto</div>
         <div class="tw-mega-cta">SCENDI IN CAMPO <span class="dm-arrow">▸</span></div>
       </div>
+      <div class="tw-dat" data-g="calcio" data-d="4-8" data-l="GIOCATORI"><b>4-8</b><span>GIOCATORI</span></div>
     </div>
 
     <div class="tw-mega scl-mega" onclick="window.RTD_GAME='scalata';go('arc')" style="border-color:rgba(167,139,250,.5);box-shadow:0 10px 30px rgba(0,0,0,.5),0 0 26px rgba(139,92,246,.22);">
@@ -8985,6 +10944,7 @@ body.gb-nav-on .bnav{display:flex;}
         <div class="tw-mega-sub">Race verticale splatter 2-10 · trappole a ritmo, spinte e lava · il primo in vetta piglia tutto</div>
         <div class="tw-mega-cta">SCALA LA TORRE <span class="dm-arrow">▸</span></div>
       </div>
+      <div class="tw-dat" data-g="scalata" data-d="2-10" data-l="GIOCATORI"><b>2-10</b><span>GIOCATORI</span></div>
     </div>
 
     <div class="pvp-sec-lbl">⚔️ DUELLI 1v1 · scegli il gioco</div>
@@ -10540,8 +12500,7 @@ body.gb-nav-on .bnav{display:flex;}
       <button class="action-btn" style="flex:1;" onclick="go('deposit')">📥 DEPOSIT</button>
       <button class="action-btn red" style="flex:1;" onclick="go('withdraw')">📤 WITHDRAW</button>
     </div>
-    <button class="action-btn" style="width:100%;margin-top:8px;
-            border-color:rgba(56,189,248,.5);color:#7dd3fc;"
+    <button class="action-btn ton-btn ton-w"
             onclick="tonUiGo()">&#128142; TON WALLET</button>
     <div>
       <div class="section-ttl" style="padding:0;"><svg class="gb-ic-t" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-2-1.3-2 1.3-2-1.3-2 1.3-2-1.3L6 21V3Z"/><path d="M9 8h6"/><path d="M9 12h6"/></svg>RECENT TRANSACTIONS</div>
@@ -10594,7 +12553,7 @@ body.gb-nav-on .bnav{display:flex;}
     </div>
 
     <!-- ═══ TON via @wallet: scorciatoia che preseleziona TON nello swap ═══ -->
-    <button class="action-btn" style="width:100%;margin-top:8px;border-color:rgba(56,189,248,.5);color:#7dd3fc;" onclick="tonQuickStart()" id="ton-open-btn">💎 DEPOSITA CON TON (@wallet)</button>
+    <button class="action-btn ton-btn ton-w" onclick="tonQuickStart()" id="ton-open-btn">💎 DEPOSITA CON TON (@wallet)</button>
 
     <!-- ═══ INSTANT-SWAP: hai altre crypto? convertile in BTC ═══ -->
     <button class="action-btn gold" style="width:100%;margin-top:8px;" onclick="swapToggle()" id="swap-open-btn">🔄 CONVERTI E DEPOSITA</button>
@@ -10608,7 +12567,7 @@ body.gb-nav-on .bnav{display:flex;}
         1️⃣ Scegli l'importo TON qui sotto e premi CONVERTI IN BTC<br>
         2️⃣ Apri @wallet → Invia → TON → incolla l'<strong>indirizzo</strong> e il <strong style="color:var(--gold);">MEMO (obbligatorio!)</strong> che ti diamo<br>
         3️⃣ I BTC arrivano da soli sul tuo saldo
-        <button class="action-btn" style="width:100%;margin-top:8px;padding:8px;border-color:rgba(56,189,248,.5);color:#7dd3fc;" onclick="tonOpenWallet()">💎 APRI @wallet</button>
+        <button class="action-btn ton-btn ton-w" onclick="tonOpenWallet()">💎 APRI @wallet</button>
       </div>
 
       <div id="swap-form">
@@ -10645,7 +12604,7 @@ body.gb-nav-on .bnav{display:flex;}
           <button class="action-btn" style="width:100%;margin-top:6px;" onclick="swapCopy('swap-r-memo')">📋 COPIA MEMO</button>
         </div>
 
-        <button class="action-btn" id="swap-r-wallet-btn" style="display:none;width:100%;margin-top:10px;border-color:rgba(56,189,248,.5);color:#7dd3fc;" onclick="tonOpenWallet()">💎 APRI @wallet E INVIA</button>
+        <button class="action-btn ton-btn ton-w" id="swap-r-wallet-btn" style="display:none;" onclick="tonOpenWallet()">💎 APRI @wallet E INVIA</button>
 
         <div style="font-size:11px;color:var(--txt3);margin-top:10px;line-height:1.4;text-align:center;">Invia <strong>esattamente</strong> l'importo indicato, dalla rete corretta. I BTC arriveranno nel tuo saldo dopo le conferme di rete.</div>
 
@@ -10669,7 +12628,7 @@ body.gb-nav-on .bnav{display:flex;}
 <div id="ton" class="screen">
   <div class="game-hdr">
     <button class="back-btn" onclick="go('wallet')">&larr;</button>
-    <div class="game-title">&#128142; TON</div>
+    <div class="game-title"><svg class="gb-ic-t" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7h17L12 20.5 3.5 7Z"/><path d="M12 7v13.5"/></svg>TON</div>
   </div>
   <div class="game-content">
 
@@ -10692,9 +12651,7 @@ body.gb-nav-on .bnav{display:flex;}
     <div class="info-card" id="tonui-wcard">
       <div class="info-lbl">YOUR TON WALLET</div>
       <div id="tonui-wbody" style="margin-top:8px;">
-        <div style="font-size:12px;color:var(--txt2);line-height:1.55;">
-          Loading&hellip;
-        </div>
+        <div class="ton-p">Loading&hellip;</div>
       </div>
     </div>
 
@@ -12649,6 +14606,7 @@ body.gb-nav-on .bnav{display:flex;}
     "da annunciare":"to be announced",
     "Il prossimo torneo sarà annunciato dal bot — tieni d'occhio le notifiche!":"The next tournament will be announced by the bot — keep an eye on notifications!",
     "ISCRIZIONI APERTE":"REGISTRATION OPEN",
+    "Biglietto €2 · mar & ven 20:00":"Ticket €2 · Tue & Fri 20:00",
     "Prossimamente… tieni d'occhio questa card":"Coming soon… keep an eye on this card",
     "· LIVE ORA — guarda i match!":"· LIVE NOW — watch the matches!",
     "🕸 LA RETE DEL TORNEO":"🕸 THE TOURNAMENT BRACKET",
@@ -13129,6 +15087,14 @@ body.gb-nav-on .bnav{display:flex;}
     "−5% commissione":"−5% fee",
     /* ── CHI C'E' ADESSO (31/07) ── */
     "in linea adesso":"online right now",
+    /* ── TABELLONE (08/08) — le celle dati di banner e schede partita ── */
+    "IN LINEA":"ONLINE",
+    "GIOCATORI":"PLAYERS",
+    "IN CODA":"IN QUEUE",
+    "ISCRITTI":"REGISTERED",
+    "GIOVEDÌ":"THURSDAY",
+    "ADESSO":"NOW",
+    "Ogni giovedì · 22:00 · 🏆 montepremi in palio":"Every Thursday · 22:00 · 🏆 prize pool up for grabs",
     "in corso":"live",
     "Conteggio non disponibile in questo momento.":"Count unavailable right now.",
     "Nessuno in coda adesso. Scegli un gioco: il primo che entra apre la coda.":"Nobody is queuing right now. Pick a game: whoever goes in first opens the queue.",
@@ -35227,6 +37193,34 @@ function dlLiveNome(codice,fallback){
   return {ic:'',nome:s};
 }
 
+// ── TABELLONE (08/08): due celle dati che il server riempie GIA' e che finora
+//    restavano chiuse dentro il pannello "chi c'e' adesso", che sta chiuso. ──
+// 1) i giocatori in linea, ripetuti sul banner di home (per classe: domani una
+//    terza copia del banner non fa toccare questa riga)
+function dlLiveEco(v){
+  var l=document.querySelectorAll('.dm-live-n'),i;
+  for(i=0;i<l.length;i++) if(l[i].textContent!==v) l[i].textContent=v;
+}
+// 2) quanti stanno in coda o in partita su OGNI gioco multiplayer. Il codice
+//    del gioco e' quello di /duel/presence (turf/race/glad/calcio/scalata) e
+//    sta nel markup come data-g. Quando non c'e' nessuno la cella torna ai
+//    posti del tavolo (data-d/data-l): uno zero grande scoraggia e basta.
+function dlTwDat(d){
+  var m={},l,i,el,b,s,n,k;
+  ((d&&d.queues)||[]).forEach(function(c){ if(c&&c.game) m[c.game]=(m[c.game]||0)+(c.n||0); });
+  ((d&&d.playing)||[]).forEach(function(p){ if(p&&p.game) m[p.game]=(m[p.game]||0)+(p.n||0); });
+  l=document.querySelectorAll('.tw-dat');
+  for(i=0;i<l.length;i++){
+    el=l[i]; b=el.querySelector('b'); s=el.querySelector('span');
+    if(!b||!s) continue;
+    n=m[el.getAttribute('data-g')||'']||0;
+    k=String(n);
+    if(el.getAttribute('data-st')===k) continue;   // niente riscritture inutili
+    if(n>0){ b.textContent=k; s.textContent='IN CODA'; el.className='tw-dat vivo'; }
+    else   { b.textContent=el.getAttribute('data-d')||''; s.textContent=el.getAttribute('data-l')||''; el.className='tw-dat'; }
+    el.setAttribute('data-st',k);
+  }
+}
 function dlLiveRender(){
   var box=document.getElementById('dl-live');
   if(!box) return;
@@ -35239,11 +37233,13 @@ function dlLiveRender(){
   box.classList.toggle('muto',!!muto);
   if(muto){
     if(n) n.textContent='·';
+    dlLiveEco('·'); dlTwDat(null);
     if(q) q.textContent='';
     if(det) det.innerHTML='<div class="pvp-live-vuoto">Conteggio non disponibile in questo momento.</div>';
     return;
   }
   if(n) n.textContent=String(d.online||0);
+  dlLiveEco(String(d.online||0)); dlTwDat(d);
   var inCoda=d.in_queue||0, inPartita=d.in_match||0;
   if(q){
     var pezzi=[];
@@ -37015,32 +39011,61 @@ function dlTrnLight(st){
 }
 function dlTrnScrivi(h){
   // una sola verita' scritta su tutte le copie dello stendardo (menu + duelli)
-  document.querySelectorAll('.trn-next-txt').forEach(function(e){e.innerHTML=h;});
+  // 08/08: h VUOTO non azzera la riga — rimette il testo di ripiego scritto nel
+  // markup (data-vuoto). Cosi' lo stato spento e' un contenuto vero ("ogni
+  // giovedi, 22:00") e non una stringa nascosta dentro dlTrnBanner.
+  // data-st evita di riscrivere il nodo a ogni giro: senza, per gli utenti EN
+  // il motore i18n ritradurrebbe la riga a ogni passaggio da home.
+  document.querySelectorAll('.trn-next-txt').forEach(function(e){
+    if(h){ e.innerHTML=h; e.setAttribute('data-st','pieno'); return; }
+    var v=e.getAttribute('data-vuoto');
+    if(v!==null && e.getAttribute('data-st')!=='vuoto'){
+      e.innerHTML=v; e.setAttribute('data-st','vuoto');
+    }
+  });
+}
+// LA CELLA DATI dello stendardo: iscritti aperti, LIVE, o la ricorrenza.
+// Si va per CLASSE come tutto il resto (menu + duelli, e la terza copia di
+// domani). Il colore lo decide il CSS dallo stato del genitore .trn-card.
+function dlTrnDato(v,l){
+  var k=String(v==null?'':v)+'|'+String(l==null?'':l);
+  document.querySelectorAll('.trn-dat').forEach(function(d){
+    if(d.getAttribute('data-st')===k) return;      // niente riscritture inutili
+    var b=d.querySelector('b'), s=d.querySelector('span');
+    if(b) b.textContent=(v==null?'':v);
+    if(s) s.textContent=(l==null?'':l);
+    d.setAttribute('data-st',k);
+  });
 }
 function dlTrnBanner(){
   var el=document.querySelector('.trn-next-txt');
   if(!el)return;
-  if(DLTRN.txt&&(Date.now()-DLTRN.at)<60000){dlTrnScrivi(DLTRN.txt);dlTrnLight(DLTRN.st);return;}
+  if(DLTRN.at&&(Date.now()-DLTRN.at)<60000){dlTrnScrivi(DLTRN.txt);dlTrnLight(DLTRN.st);dlTrnDato(DLTRN.dv,DLTRN.dl);return;}
   fetch(BACKEND+'/tournament/state?user_id='+encodeURIComponent(S.userId||''))
     .then(function(r){return r.json();})
     .then(function(d){
       if(!d||d.error)return;
       // ordinato per data: con due tornei aperti annunciava quello fra due
       // settimane mentre un altro partiva stasera
-      var t=(typeof trnUpSort==='function'?trnUpSort(d.upcoming)[0]:(d.upcoming&&d.upcoming[0]))||null,h,st='';
+      var t=(typeof trnUpSort==='function'?trnUpSort(d.upcoming)[0]:(d.upcoming&&d.upcoming[0]))||null,h,st='',
+      // stato spento: la RICORRENZA, che e' un'informazione vera, non un vuoto
+          dv='22:00',dl='GIOVEDÌ';
       // PRESENZE APERTE: ha la precedenza su tutto — sono 3 minuti e chi non
       // conferma resta fuori dal tabellone (niente cache: si aggiorna subito)
       if(d.active&&d.status==='checkin'){
         h='⏱ <b style="color:#ffd76b;">'+trnEsc(d.name||'Torneo')+'</b> · '
          +(d.registered?(d.checked_in?'✅ PRESENZA CONFERMATA — entra':'⚠️ CONFERMA LA PRESENZA ORA'):'sta iniziando — guarda da spettatore');
-        st='live';
+        st='live'; dv='LIVE'; dl='ADESSO';
       }
-      else if(t){h='<b style="color:#ffd76b;">'+trnEsc(t.name||'Torneo')+'</b> · '+trnEsc(t.starts_at_text||'da annunciare')+(t.prize_text?' · 🏆 '+trnEsc(t.prize_text):'');st='open';}
-      else if(d.active&&d.status==='live'){h='<b style="color:#ffd76b;">'+trnEsc(d.name||'Torneo')+'</b> · LIVE ORA — guarda i match!';st='live';}
-      else h='Prossimamente… tieni d\'occhio questa card';
-      DLTRN.at=(d.active&&d.status==='checkin')?0:Date.now();DLTRN.txt=h;DLTRN.st=st;
+      else if(t){h='<b style="color:#ffd76b;">'+trnEsc(t.name||'Torneo')+'</b> · '+trnEsc(t.starts_at_text||'da annunciare')+(t.prize_text?' · 🏆 '+trnEsc(t.prize_text):'');st='open';
+        dv=(t.players_count||0)+'/'+(t.max_players||0); dl='ISCRITTI';}
+      else if(d.active&&d.status==='live'){h='<b style="color:#ffd76b;">'+trnEsc(d.name||'Torneo')+'</b> · LIVE ORA — guarda i match!';st='live';dv='LIVE';dl='ADESSO';}
+      // niente torneo: il ramo tace e vince il testo di ripiego del markup
+      else h='';
+      DLTRN.at=(d.active&&d.status==='checkin')?0:Date.now();DLTRN.txt=h;DLTRN.st=st;DLTRN.dv=dv;DLTRN.dl=dl;
       dlTrnScrivi(h);
       dlTrnLight(st);
+      dlTrnDato(dv,dl);
     }).catch(function(){});
 }
 function initDuel(){
@@ -47048,21 +49073,21 @@ function rtdFeedEvent(e){
     case 'out':TWS.play('lose',0.3);break;
     case 'go':break;
     case 'mt1':if(e.who===me)TWS.play('mtpop',0.9);break;
-    case 'mt2':if(e.who===me){TWS.play('mtpop2',1);rtdStamp('TURBO PRONTO!','#38bdf8');}break;
+    case 'mt2':if(e.who===me){TWS.play('mtpop2',1);rtdStamp('TURBO PRONTO!','#38bdf8',g==='race');}break;
     /* IL TERZO LIVELLO (08/08/2026). Senza questa riga una derapata tenuta
        fino in fondo suonava e si leggeva IDENTICA a una mezza derapata: il
        premio saliva ma il giocatore non poteva saperlo, e un premio che non si
        vede non insegna niente. */
-    case 'mt3':if(e.who===me){TWS.play('mtpop2',1);rtdStamp('TIENILA!','#a78bfa');}break;
+    case 'mt3':if(e.who===me){TWS.play('mtpop2',1);rtdStamp('TIENILA!','#a78bfa',g==='race');}break;
     case 'turbo':
       if(e.who===me){TWS.play('turbo',1);
         rtdStamp(e.lv>=3?'SUPER TURBO!':(e.lv>=2?'MEGA TURBO!':'MINI TURBO!'),
-                 e.lv>=3?'#a78bfa':(e.lv>=2?'#38bdf8':'#ffd700'));
+                 e.lv>=3?'#a78bfa':(e.lv>=2?'#38bdf8':'#ffd700'),g==='race');
         RTD.shake=Math.min(9,RTD.shake+(e.lv>=3?6:4));}
       else TWS.play('turbo',g==='race'?rcDvol(e.who):0.35);
       break;
     case 'lap':
-      if(e.who===me){TWS.play('lap');rtdStamp('GIRO '+(e.lap+1),'#ffd700');}
+      if(e.who===me){TWS.play('lap');rtdStamp('GIRO '+(e.lap+1),'#ffd700',g==='race');}
       break;
     case 'finish':
       if(e.who===me){TWS.play(e.pos===1?'rcFanfare':(e.pos<=3?'rcPodium':'finish'),1);rtdStamp(e.pos===1?'🏆 1° POSTO!':(e.pos+'° POSTO'),e.pos===1?'#ffd700':'#e2e8f0');}
@@ -47100,8 +49125,24 @@ function rtdFeed(txt){
   var el=document.getElementById('arc-feed');
   if(el)el.innerHTML=RTD.feedRows.map(function(r){return '<div class="twr-feedrow">'+r.txt+'</div>';}).join('');
 }
-function rtdStamp(txt,col){
-  RTD.stampQ.push({txt:txt,t0:performance.now(),dur:900,col:col||'#ffd700'});
+// ── LE SCRITTE NON STANNO SOPRA L'AUTO (08/08/2026) ────────────────────────
+// Richiesta del proprietario, alla lettera: "le scritte mentre giochi non
+// devono coprire la macchina, mettile meno invasive".
+// La scritta grossa nasce al CENTRO dello schermo (w/2, hh*0.4) con un corpo
+// del 13% della larghezza. In gara l'auto sta esattamente li' in mezzo, e in
+// gara queste scritte non sono rare: MINI/MEGA/SUPER TURBO parte a OGNI
+// derapata chiusa, piu' TURBO PRONTO e TIENILA mentre la carica sale. Cioe'
+// la cosa che devi guardare — la tua macchina in curva — te la copriva
+// proprio il premio per aver fatto bene quella curva.
+// Il terzo argomento `alta` sposta la scritta in ALTO, sotto i chip dell'HUD,
+// e la rimpicciolisce: si legge con la coda dell'occhio senza togliere un
+// pixel all'auto. La usano solo le scritte che escono MENTRE si guida; il
+// conto alla rovescia (che nasce gia' dentro RTD.stampQ) e il piazzamento
+// finale restano grossi e al centro, perche' li' l'auto o e' ferma o ha
+// finito.
+function rtdStamp(txt,col,alta){
+  RTD.stampQ.push({txt:txt,t0:performance.now(),dur:alta?680:900,
+                   col:col||'#ffd700',alta:!!alta});
 }
 function rtdFx(tp,x,y,dur){
   RTD.fxq.push({tp:tp,x:x,y:y,t0:performance.now(),dur:dur||600});
@@ -47840,7 +49881,18 @@ function rtdStartRaf(){
     // (fetch keepalive) non passa dalla ws: se i [BLGHB] continuano ad arrivare
     // nei log del backend MENTRE i beacon ws 'blghb' si fermano, è la prova che
     // il JS è VIVO e l'UPLINK ws è MORTO (half-open) — non un loop né il render.
-    if((RTD._rafN%15)===0){
+    // ── SOLO IL DERBY (08/08/2026) ────────────────────────────────────────
+    // Questo battito e' nato per una diagnosi precisa: capire se, quando il
+    // derby si congela su GrapheneOS, il thread JS sia vivo e a morire sia
+    // l'uplink. Serviva li'. Ma la condizione era solo `%15`, cioe' girava in
+    // OGNI gioco: a 60 fps sono quattro fetch HTTP al secondo — piu' un
+    // beacon sulla websocket — nel bel mezzo della partita, su una webview di
+    // telefono. In gara, dove il canvas e' gia' il pezzo piu' caro del frame,
+    // e' proprio la roba che fa "strappare".
+    // Il proprietario riferisce Street Race che scatta e va rallentata: qui il
+    // battito torna a fare solo il mestiere per cui era stato scritto. Il
+    // derby non perde niente della sua diagnosi.
+    if(RTD.game==='calcio'&&(RTD._rafN%15)===0){
       try{fetch(BACKEND+'/blghb?u='+(S.userId||'')+'&rf='+RTD._rafN+'&t='+Date.now(),{keepalive:true}).catch(function(){});}catch(_hb){}
       try{blgBeaconStep('blghb',{rf:RTD._rafN});}catch(_hb2){}
     }
@@ -48853,10 +50905,27 @@ function rtdFrame(){
       ctx.textAlign='center';ctx.textBaseline='middle';
       var sc=kk<0.2?(0.4+kk*3):(1+kk*0.12);
       ctx.globalAlpha=kk>0.7?(1-(kk-0.7)/0.3):1;
-      ctx.font='bold '+(w*0.13*sc)+'px Russo One, sans-serif';
-      ctx.fillStyle=s0.col||'#ffd700';
-      ctx.shadowColor=s0.col||'#ffd700';ctx.shadowBlur=20;
-      ctx.fillText(s0.txt,w/2,hh*0.4);
+      if(s0.alta){
+        // ALTA E PICCOLA: sotto i chip dell'HUD, fuori dal quadrato dell'auto
+        // (che sta a hh/2). Meta' corpo, meno opaca, e sale di un filo
+        // mentre sfuma — si legge di sguardo e non chiede il centro dello
+        // schermo. Niente shadowBlur: e' un'ombra vera calcolata a ogni
+        // frame, e queste scritte in gara escono a raffica; l'alone e' una
+        // seconda scritta piatta dietro, come si fa gia' per il glifo ⚡ del
+        // tachimetro.
+        var ay=hh*0.155-kk*6;
+        ctx.font='bold '+(w*0.066*(kk<0.2?(0.7+kk*1.5):1))+'px Russo One, sans-serif';
+        ctx.globalAlpha*=0.34;
+        ctx.fillStyle=s0.col||'#ffd700';
+        ctx.fillText(s0.txt,w/2+1,ay+1);
+        ctx.globalAlpha=(kk>0.7?(1-(kk-0.7)/0.3):1)*0.92;
+        ctx.fillText(s0.txt,w/2,ay);
+      }else{
+        ctx.font='bold '+(w*0.13*sc)+'px Russo One, sans-serif';
+        ctx.fillStyle=s0.col||'#ffd700';
+        ctx.shadowColor=s0.col||'#ffd700';ctx.shadowBlur=20;
+        ctx.fillText(s0.txt,w/2,hh*0.4);
+      }
       ctx.restore();
     });
     RTD.stampQ=keepS;
@@ -50433,6 +52502,45 @@ function rcSparks(id,n0){
           t0:t,dur:400,col:(i&1)?'#ffe066':'#ffb347'});
   }
 }
+// ── SI DIPINGE SOLO QUELLO CHE SI VEDE (08/08/2026) ───────────────────────
+// Il proprietario riferisce Street Race che scatta e va rallentata. Questa e'
+// la ragione piu' cara del frame, ed era in piena vista.
+//
+// La pista sta su una tela cotta una volta sola, grande 64 unita' di mondo per
+// 26 pixel l'una: 1664 x 1664, cioe' 2,7 MILIONI di pixel. La camera pero' ne
+// inquadra 16 di unita' su 64 — un sedicesimo di superficie. Il disegno era:
+//   translate → scale → translate → drawImage(pista, 0, 0)
+// cioe' "prendi tutta la tela, riscalala di un fattore non intero, e mettila
+// li'". Il ritaglio poi lo fa il canvas, ma DOPO: il lavoro di ricampionare
+// una tela da 2,7 milioni di pixel il telefono lo fa lo stesso, sessanta volte
+// al secondo, e lo fa due volte perche' lo stesso identico giro lo faceva il
+// livello dei segni di gomma (832 x 832).
+//
+// Qui si passa alla forma di `drawImage` con il RETTANGOLO SORGENTE: si
+// calcola quale finestra della tela e' davvero inquadrata e si blitta solo
+// quella. Stessa immagine identica a schermo — cambia solo quanti pixel il
+// telefono deve toccare per ottenerla: da ~2,7 milioni a ~200 mila.
+//
+// Il ritaglio ai bordi si fa a mano invece di lasciarlo al canvas: quando la
+// camera e' contro il bordo della mappa la finestra esce dalla tela, e le
+// implementazioni non sono d'accordo su cosa fare in quel caso. Ritagliando
+// sorgente e destinazione con lo STESSO fattore, la pista non scorre mai di
+// un pixel rispetto alle auto — che e' l'unico modo in cui questa ottimizzazione
+// potrebbe rovinare la gara invece di salvarla.
+function rcBlitVisibile(ctx,img,S,camx,camy,cell,w,hh){
+  var k=cell/S;                       // pixel di schermo per pixel di tela
+  if(!(k>0))return;
+  var sx=camx*S-(w/2)/k, sy=camy*S-(hh/2)/k;
+  var sw=w/k,            sh=hh/k;
+  var dx=0,dy=0,dw=w,dh=hh,ex,ey;
+  if(sx<0){dx=-sx*k;dw+=sx*k;sw+=sx;sx=0;}
+  if(sy<0){dy=-sy*k;dh+=sy*k;sh+=sy;sy=0;}
+  if(sx+sw>img.width ){ex=sx+sw-img.width; sw-=ex;dw-=ex*k;}
+  if(sy+sh>img.height){ey=sy+sh-img.height;sh-=ey;dh-=ey*k;}
+  if(sw<=0||sh<=0||dw<=0||dh<=0)return;
+  ctx.drawImage(img,sx,sy,sw,sh,dx,dy,dw,dh);
+}
+
 function rtdDrawRace(ctx,raw,lp,now,w,hh,dt){
   var SC=RTD._sc.trackSC||26;
   var VIEW=16.0;
@@ -50452,15 +52560,7 @@ function rtdDrawRace(ctx,raw,lp,now,w,hh,dt){
   RTD._sc.fxMap=function(x,y){return [X(x),Y(y)];};
   RTD._sc.fxCell=cell;
   ctx.fillStyle='#070d09';ctx.fillRect(0,0,w,hh);
-  if(RTD.st){
-    var scale=cell/SC;
-    ctx.save();
-    ctx.translate(w/2,hh/2);
-    ctx.scale(scale,scale);
-    ctx.translate(-RTD.cam.x*SC,-RTD.cam.y*SC);
-    ctx.drawImage(RTD.st,0,0);
-    ctx.restore();
-  }
+  if(RTD.st)rcBlitVisibile(ctx,RTD.st,SC,RTD.cam.x,RTD.cam.y,cell,w,hh);
   // ── SKIDMARK persistenti: un solo drawImage del layer offscreen ──
   // (le tracce si accumulano su RTD.skidCv a eventi; fade lento ogni 5s)
   if(RTD.skidCv){
@@ -50473,12 +52573,7 @@ function rtdDrawRace(ctx,raw,lp,now,w,hh,dt){
       kx.fillRect(0,0,832,832);
       kx.globalAlpha=1;kx.globalCompositeOperation='source-over';
     }
-    ctx.save();
-    ctx.translate(w/2,hh/2);
-    ctx.scale(cell/skS,cell/skS);
-    ctx.translate(-RTD.cam.x*skS,-RTD.cam.y*skS);
-    ctx.drawImage(RTD.skidCv,0,0);
-    ctx.restore();
+    rcBlitVisibile(ctx,RTD.skidCv,skS,RTD.cam.x,RTD.cam.y,cell,w,hh);
   }
   ctx.globalAlpha=1;
   Object.keys(P).forEach(function(id){
@@ -66301,7 +68396,7 @@ function tonUiNonPronto(){
 
 function tonUiErrore(t){
   var w = document.getElementById('tonui-wbody');
-  if(w) w.innerHTML = '<div style="font-size:12px;color:var(--txt2);">'
+  if(w) w.innerHTML = '<div class="ton-p ton-p--warn">'
                     + tonUiEsc(t) + '</div>';
 }
 
@@ -66311,27 +68406,27 @@ function tonUiDisegna(){
   if(b) b.textContent = tonUiFmt(s.balance) + ' TON';
   var sub = document.getElementById('tonui-sub');
   if(sub) sub.innerHTML = s.connected
-    ? 'to <span style="color:#7dd3fc;">' + tonUiEsc(tonUiCorto(s.address)) + '</span>'
-    : '&nbsp;';
+    ? '<span class="ton-sub-k">WITHDRAWALS TO</span>'
+      + '<span class="ton-sub-v">' + tonUiEsc(tonUiCorto(s.address)) + '</span>'
+    : '<span class="ton-sub-k">WALLET NOT CONNECTED</span>';
 
   /* ── il wallet ── */
   var w = document.getElementById('tonui-wbody');
   if(w){
     if(typeof TON_CONNECT_UI === 'undefined'){
-      w.innerHTML = '<div style="font-size:12px;color:var(--txt2);line-height:1.55;">'
+      w.innerHTML = '<div class="ton-p">'
         + 'Wallet connection is unavailable right now. Your balance is safe.'
         + '</div>';
     } else if(s.connected){
       w.innerHTML =
-        '<div style="font-family:\'Orbitron\';font-size:11px;color:#7dd3fc;'
-        + 'word-break:break-all;padding:10px;background:rgba(0,0,0,.4);'
-        + 'border-radius:8px;">' + tonUiEsc(s.address) + '</div>'
-        + '<div style="display:flex;gap:8px;margin-top:8px;">'
-        + '<button class="action-btn" style="flex:1;" onclick="tonUiCopia()">'
+        '<div class="ton-lbl">CONNECTED ADDRESS</div>'
+        + '<div class="ton-well ton-well--addr">' + tonUiEsc(s.address) + '</div>'
+        + '<div class="ton-acts">'
+        + '<button class="action-btn" onclick="tonUiCopia()">'
         + '\ud83d\udccb COPY</button>'
-        + '<button class="action-btn red" style="flex:1;" onclick="tonUiScollega()">'
+        + '<button class="action-btn red" onclick="tonUiScollega()">'
         + 'DISCONNECT</button></div>'
-        + '<div style="font-size:11px;color:var(--txt3);margin-top:8px;line-height:1.5;">'
+        + '<div class="ton-note">'
         + 'Withdrawals go to this address only. Nothing else can be entered '
         + 'by hand \u2014 that is the point.</div>';
     } else {
@@ -66343,7 +68438,7 @@ function tonUiDisegna(){
       try{ meta = !!(TONUI.ui && (TONUI.ui.connected ||
                     (TONUI.ui.account && TONUI.ui.account.address))); }catch(e){}
       w.innerHTML =
-        '<div style="font-size:12px;color:var(--txt2);line-height:1.55;">'
+        '<div class="ton-p">'
         + (meta
            ? 'Your wallet is connected here, but it has not proved it is '
              + 'yours yet. Tap below: it will reconnect and sign a short '
@@ -66352,19 +68447,18 @@ function tonUiDisegna(){
              + 'withdrawals</b>. No address to type, nothing to mistype.')
         + '</div>'
         /* la distinzione che vale soldi in entrambe le direzioni */
-        + '<div style="font-size:11px;color:var(--txt3);margin-top:8px;'
-        + 'line-height:1.5;">Connecting does <b>not</b> move any TON. '
+        + '<div class="ton-note">'
+        + 'Connecting does <b>not</b> move any TON. '
         + 'The TON in your wallet stay in your wallet \u2014 we cannot see '
         + 'them or touch them. The balance above is what you hold '
         + '<b>inside the casino</b>, and it only grows with a deposit.</div>'
         + (meta
-           ? '<button class="action-btn red" style="width:100%;margin-top:8px;" '
+           ? '<button class="action-btn red ton-w" '
              + 'onclick="tonUiScollega()">DISCONNECT</button>'
            : '')
-        + '<button class="action-btn gold" style="width:100%;margin-top:10px;" '
+        + '<button class="action-btn gold ton-w ton-cta" '
         + 'onclick="tonUiCollega()" id="tonui-cbtn">\ud83d\udd17 CONNECT WALLET</button>'
-        + '<div id="tonui-err" style="display:none;font-size:11.5px;'
-        + 'color:#fca5a5;margin-top:8px;line-height:1.5;"></div>';
+        + '<div id="tonui-err" class="ton-err" style="display:none;"></div>';
     }
   }
 
@@ -66374,34 +68468,36 @@ function tonUiDisegna(){
   if(wd && wb){
     wd.style.display = '';
     if(!s.withdraw_enabled){
-      wb.innerHTML = '<div style="font-size:12px;color:var(--txt2);line-height:1.55;">'
+      wb.innerHTML = '<div class="ton-p">'
         + 'TON withdrawals are not open yet. Your balance stays where it is.'
         + '</div>';
     } else if(!s.connected){
-      wb.innerHTML = '<div style="font-size:12px;color:var(--txt2);line-height:1.55;">'
+      wb.innerHTML = '<div class="ton-p">'
         + 'Connect your wallet first: that is where the TON will be sent.'
         + '</div>';
     } else if(s.pending){
-      wb.innerHTML = '<div style="font-size:12px;color:var(--txt2);">'
+      wb.innerHTML = '<div class="ton-p">'
         + 'One withdrawal at a time.</div>';
     } else {
       var avviso = (parseFloat(s.auto_limit||0) <= 0)
-        ? '<div style="font-size:11px;color:var(--txt3);margin-top:8px;line-height:1.5;">'
+        ? '<div class="ton-note">'
           + 'Every TON withdrawal is approved by an operator before it leaves. '
           + 'That is normal while there are no TON deposits to draw an '
           + 'allowance from \u2014 it is not a problem with your account.</div>'
         : '';
       wb.innerHTML =
-        '<div style="display:flex;gap:8px;">'
-        + '<input id="tonui-amt" type="text" inputmode="decimal" '
-        + 'placeholder="0.00" style="flex:1;padding:10px;border-radius:8px;'
-        + 'background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.15);'
-        + 'color:var(--txt);font-family:\'Orbitron\';font-size:14px;">'
-        + '<button class="action-btn" style="width:74px;" onclick="tonUiMax()">MAX</button>'
+        '<div class="ton-amt">'
+        + '<input id="tonui-amt" class="ton-inp" type="text" inputmode="decimal" '
+        + 'placeholder="0.00">'
+        + '<button class="action-btn ton-max" onclick="tonUiMax()">MAX</button>'
         + '</div>'
-        + '<div style="font-size:11px;color:var(--txt3);margin-top:6px;">Minimum: '
-        + tonUiFmt(s.min_withdraw) + ' TON</div>'
-        + '<button class="action-btn gold" style="width:100%;margin-top:10px;" '
+        /* R3: la carta espone i suoi due numeri invece di una riga di prosa.
+           Sono gli stessi che /ton/state manda gia': nessuna chiamata in piu'. */
+        + '<div class="ton-row"><span class="ton-row__k">AVAILABLE</span>'
+        + '<span class="ton-row__v">' + tonUiFmt(s.balance) + ' TON</span></div>'
+        + '<div class="ton-row"><span class="ton-row__k">MINIMUM</span>'
+        + '<span class="ton-row__v">' + tonUiFmt(s.min_withdraw) + ' TON</span></div>'
+        + '<button class="action-btn gold ton-w ton-cta" '
         + 'id="tonui-wdbtn" onclick="tonUiPreleva()">\ud83d\udce4 WITHDRAW TO MY WALLET</button>'
         + avviso;
     }
@@ -66421,12 +68517,13 @@ function tonUiDisegna(){
         trasmesso:'sent \u2014 waiting for the chain to confirm'
       }[s.pending.stato] || s.pending.stato;
       p.style.display = '';
-      pb.innerHTML = '<div style="font-size:14px;color:#7dd3fc;">'
-        + tonUiFmt(s.pending.ton) + ' TON</div>'
-        + '<div style="font-size:12px;color:var(--txt2);margin-top:4px;">'
-        + tonUiEsc(spiega) + '</div>'
-        + '<div style="font-size:11px;color:var(--txt3);margin-top:6px;'
-        + 'word-break:break-all;">' + tonUiEsc(s.pending.dest||'') + '</div>';
+      pb.innerHTML = '<div class="ton-pend">'
+        + '<div class="ton-pend__st">' + tonUiEsc(spiega) + '</div>'
+        + '<div class="ton-num">' + tonUiFmt(s.pending.ton) + ' TON</div>'
+        + '</div>'
+        + '<div class="ton-lbl ton-lbl--sp">TO</div>'
+        + '<div class="ton-well ton-well--addr ton-well--s">'
+        + tonUiEsc(s.pending.dest||'') + '</div>';
     } else { p.style.display = 'none'; }
   }
 
@@ -66436,60 +68533,52 @@ function tonUiDisegna(){
     var dep = s.deposit || {};
     if(dep.enabled){
       db.innerHTML =
-        '<div style="font-size:12px;color:var(--txt2);line-height:1.55;">'
+        '<div class="ton-p">'
         + 'Send TON to this address, <b>with the memo below</b>. It is '
         + 'credited automatically within a couple of minutes '
         + '(5% deposit fee).</div>'
-        + '<div style="font-size:11px;color:var(--txt3);margin-top:10px;">ADDRESS</div>'
-        + '<div style="font-family:\'Orbitron\';font-size:11px;color:#7dd3fc;'
-        + 'word-break:break-all;padding:9px;background:rgba(0,0,0,.4);'
-        + 'border-radius:8px;margin-top:4px;">' + tonUiEsc(dep.address) + '</div>'
-        + '<button class="action-btn" style="width:100%;margin-top:6px;" '
+        + '<div class="ton-lbl ton-lbl--sp">ADDRESS</div>'
+        + '<div class="ton-well ton-well--addr">' + tonUiEsc(dep.address) + '</div>'
+        + '<button class="action-btn ton-w" '
         + 'onclick="tonUiCopiaDep(\'address\')">\ud83d\udccb COPY ADDRESS</button>'
-        + '<div style="font-size:11px;color:var(--txt3);margin-top:12px;">'
-        + 'MEMO / COMMENT</div>'
-        + '<div style="font-family:\'Orbitron\';font-size:14px;color:var(--gold);'
-        + 'letter-spacing:1px;padding:9px;background:rgba(0,0,0,.4);'
-        + 'border-radius:8px;margin-top:4px;">' + tonUiEsc(dep.memo) + '</div>'
-        + '<button class="action-btn gold" style="width:100%;margin-top:6px;" '
+        + '<div class="ton-lbl ton-lbl--sp ton-lbl--must">'
+        + 'MEMO / COMMENT \u00b7 REQUIRED</div>'
+        + '<div class="ton-well ton-well--memo">' + tonUiEsc(dep.memo) + '</div>'
+        + '<button class="action-btn gold ton-w" '
         + 'onclick="tonUiCopiaDep(\'memo\')">\ud83d\udccb COPY MEMO</button>'
         /* col wallet collegato non serve copiare NIENTE: la transazione la
            prepara il server e il giocatore conferma e basta. */
         + (s.connected
-           ? '<div style="border-top:1px solid rgba(255,255,255,.1);'
-             + 'margin:14px 0 10px;"></div>'
-             + '<div style="font-size:12px;color:var(--txt2);line-height:1.55;">'
+           ? '<div class="ton-sep"></div>'
+             + '<div class="ton-lbl">FROM YOUR WALLET</div>'
+             + '<div class="ton-p">'
              + '<b>Or send it straight from your connected wallet</b> '
              + '\u2014 nothing to copy, the memo is filled in for you.</div>'
-             + '<div style="display:flex;gap:8px;margin-top:8px;">'
-             + '<input id="tonui-depamt" type="text" inputmode="decimal" '
-             + 'placeholder="0.00" style="flex:1;padding:10px;border-radius:8px;'
-             + 'background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.15);'
-             + 'color:var(--txt);font-family:\'Orbitron\';font-size:14px;">'
+             + '<div class="ton-amt">'
+             + '<input id="tonui-depamt" class="ton-inp" type="text" '
+             + 'inputmode="decimal" placeholder="0.00">'
              + '</div>'
-             + '<button class="action-btn" style="width:100%;margin-top:8px;" '
+             + '<button class="action-btn ton-w" '
              + 'id="tonui-depbtn" onclick="tonUiDepositaDalWallet()">'
              + '\ud83d\udcb8 SEND FROM MY WALLET</button>'
-             + '<div style="font-size:11px;color:var(--txt3);margin-top:8px;'
-             + 'line-height:1.5;">Your wallet will ask you to confirm. That '
+             + '<div class="ton-note">Your wallet will ask you to confirm. That '
              + 'step cannot be skipped \u2014 it is what keeps your funds '
              + 'yours.</div>'
            : '')
         /* si dice la verita': senza memo NON si perde niente, diventa un
            deposito da assegnare a mano. Un avviso che minaccia perdite che
            non ci sono fa solo smettere di leggere gli avvisi. */
-        + '<div style="font-size:11px;color:var(--txt3);margin-top:10px;'
-        + 'line-height:1.5;">Forgot the memo? Nothing is lost \u2014 it just '
+        + '<div class="ton-note">'
+        + 'Forgot the memo? Nothing is lost \u2014 it just '
         + 'has to be matched by hand, which takes longer. Contact support '
         + 'with the transaction hash.</div>';
     } else {
       db.innerHTML =
-        '<div style="font-size:12px;color:var(--txt2);line-height:1.55;">'
+        '<div class="ton-p">'
         + 'Direct TON deposits are not enabled yet. For now you can convert '
         + 'TON into your BTC balance \u2014 it lands on your deposit address '
         + 'automatically.</div>'
-        + '<button class="action-btn" style="width:100%;margin-top:10px;'
-        + 'border-color:rgba(56,189,248,.5);color:#7dd3fc;" '
+        + '<button class="action-btn ton-btn ton-w" '
         + 'onclick="go(\'deposit\');if(typeof tonQuickStart===\'function\')tonQuickStart();">'
         + '\ud83d\udd04 CONVERT TON \u2192 BTC</button>';
     }
@@ -66500,20 +68589,22 @@ function tonUiDisegna(){
   if(h){
     var rows = s.history || [];
     if(!rows.length){
-      h.innerHTML = '<div class="gb-empty" style="min-height:120px;">'
+      h.innerHTML = '<div class="gb-empty">'
         + '<div class="gb-empty__ico">\ud83d\udc8e</div>'
-        + '<div class="gb-empty__ttl">No TON withdrawals yet</div></div>';
+        + '<div class="gb-empty__ttl">No TON withdrawals yet</div>'
+        + '<div class="gb-empty__txt">Withdrawals to your connected wallet '
+        + 'show up here, newest first.</div></div>';
     } else {
       var out = '';
       for(var i=0;i<rows.length;i++){
         var r = rows[i] || {};
         var d = new Date((parseInt(r.ts||r.timestamp||0,10))*1000);
-        out += '<div style="display:flex;justify-content:space-between;'
-             + 'padding:10px 0;border-bottom:1px solid rgba(255,255,255,.07);">'
-             + '<div style="font-size:12px;color:var(--txt2);">'
-             + tonUiEsc(isNaN(d.getTime())?'':d.toLocaleDateString()) + '</div>'
-             + '<div style="font-size:13px;color:#7dd3fc;">'
-             + tonUiFmt(r.amount) + ' TON</div></div>';
+        out += '<div class="tx-item">'
+             + '<div class="tx-info"><div class="tx-type">TON withdrawal</div>'
+             + '<div class="tx-time">'
+             + tonUiEsc(isNaN(d.getTime())?'':d.toLocaleDateString()) + '</div></div>'
+             + '<div class="tx-amt">\u2212' + tonUiFmt(r.amount)
+             + ' TON</div></div>';
       }
       h.innerHTML = out;
     }
