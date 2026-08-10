@@ -39813,8 +39813,18 @@ function dlRrGunSVG(){
   // rotates 180° to aim at YOU. Far more convincing than the old vector drawing.
   return '<img class="dlrr2-gun" id="dlrr-gun" src="rr_revolver.png" alt="revolver" draggable="false">';
 }
+// LA CHAT DENTRO IL TAVOLO DELLA ROULETTE (11/08). Il tabellone ce l'ha da
+// sempre, il match no: chi giocava era l'unico a non poter leggere il tifo
+// rivolto a lui. Si riusa la chat del torneo cosi' com'e' — stesso canale,
+// stessa socket, nessun protocollo nuovo — e si aggiunge solo l'unica cosa che
+// serviva davvero: appenderla qui sotto.
+function dlRrChatMonta(){
+  try{ if(typeof gldConnect==='function')gldConnect(); }catch(e){}
+  try{ trnChatSub(); trnChatPaint(); }catch(e){}
+}
 function dlRrBoard(d){
   DLRR.seat=(d.seat!=null)?d.seat:DLRR.seat;
+  DLRR.tour=!!d.tour;             // lo legge trnTeardown per non chiudere la chat
   var playing=(d.status!=='done'&&d.state!=='done'&&!d.over);
   var pot=((d.bet_eur||0)*2);
   var yourTurn=!!d.your_turn;
@@ -39881,7 +39891,10 @@ function dlRrBoard(d){
         : '<button class="pvp-m-btn gold" onclick="dlRrStart('+(DLRR.bet||0)+')">'+LBL_AGAIN+'</button>')+
       '<button class="pvp-m-btn" onclick="dlCloseOverlay()">CLOSE</button>';
   }
+  // SOLO LETTURA: chi e' al tavolo legge il tifo, non lo scrive
+  if(d.tour)html+='<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>';
   dlModalHTML(html);
+  if(d.tour)dlRrChatMonta();
   if(playing&&yourTurn){ DLRR.deadline=d.deadline_ms||0; dlRrStartTick(); } else { dlRrStopTick(); }
 }
 // ── IL SUONO DELLA ROULETTE RUSSA ──────────────────────────────────────────
@@ -47657,7 +47670,16 @@ function trnTeardown(){
   // riapre la pagina del torneo da cui si era partiti. La si chiude solo dal
   // suo back (trnBack → trnDetClose).
   if(TRN.detTick){clearInterval(TRN.detTick);TRN.detTick=null;}
-  if(GLD.ui!=='match'&&GLD.ui!=='search'&&GLD.ui!=='over'){
+  // LA SOCKET NON SI CHIUDE SE SI STA ENTRANDO IN UN DUELLO DI TORNEO (11/08).
+  // Il match della roulette non e' una partita del server real-time, quindi
+  // GLD.ui resta vuoto e questo teardown chiudeva la socket: i due che stanno
+  // giocando restavano fuori dalla chat mentre tutti gli altri commentavano.
+  // La condizione guarda CUR, cioe' la schermata di ADESSO: appena si va
+  // altrove il giro dopo chiude la socket come sempre, senza bandierine da
+  // ricordarsi di spegnere.
+  var inDuelloTorneo=(typeof CUR!=='undefined'&&CUR==='duel'
+                      &&typeof DLRR!=='undefined'&&DLRR&&DLRR.tour);
+  if(!inDuelloTorneo&&GLD.ui!=='match'&&GLD.ui!=='search'&&GLD.ui!=='over'){
     GLD.spec=false;GLD.specRid=null;GLD.tour=false;
     if(GLD.ws){GLD.closedByUs=true;try{GLD.ws.close();}catch(e){}GLD.ws=null;GLD.wsOk=false;}
   }
@@ -48774,7 +48796,7 @@ function trnChatSub(){
   try{s.send({t:'chat_sub',tid:ch});}catch(e){}
 }
 function trnChatSend(){
-  var i=document.getElementById('trn-chat-in');
+  var i=trnChatInput();
   if(!i)return;
   var v=String(i.value||'').trim();
   if(!v)return;
@@ -48819,27 +48841,58 @@ function trnChatRowHTML(c){
     +(c.g?'✈️ ':'')+trnEsc(String(c.n||'?'))
     +(c.p?' ⚔️':'')+'</b> '+trnEsc(String(c.x||''))+'</div>';
 }
+// TUTTE le copie del registro, non la prima (11/08). Da quando la chat sta
+// anche dentro il tavolo della roulette, in pagina possono essercene due:
+// getElementById restituisce quella che incontra prima nel documento, e se
+// quella era la copia nascosta del tabellone i messaggi finivano dove nessuno
+// li legge. L'id resta per compatibilita', ma qui si va per classe.
 function trnChatPaint(){
-  var box=document.getElementById('trn-chat-log');
-  if(!box)return;
-  if(!TRN.chat.length){
-    box.innerHTML='<div class="trn-ch-empty">Ancora nessun messaggio — apri tu le danze 🎙</div>';
-    return;
-  }
-  box.innerHTML=TRN.chat.map(trnChatRowHTML).join('');
-  box.scrollTop=box.scrollHeight;
+  var box=document.querySelectorAll('.trn-ch-log');
+  if(!box.length)return;
+  var righe=TRN.chat.length?TRN.chat.map(trnChatRowHTML).join(''):'';
+  [].forEach.call(box,function(b){
+    // a chat vuota il tabellone invita a scrivere, il tavolo no: a chi sta
+    // giocando "apri tu le danze" sarebbe un invito a fare una cosa che non
+    // puo' fare.
+    b.innerHTML=righe||('<div class="trn-ch-empty">'
+      +(b.closest&&b.closest('.trn-ch-duel')
+        ? 'Ancora nessun commento dagli spettatori'
+        : 'Ancora nessun messaggio — apri tu le danze 🎙')
+      +'</div>');
+    b.scrollTop=b.scrollHeight;
+  });
 }
-function trnChatHTML(){
+// …e la casella dove si scrive e' SEMPRE quella del tabellone: la copia del
+// tavolo e' in sola lettura e la barra non ce l'ha proprio. Il `:not` non e'
+// quindi una scelta fra due caselle — e' una rete: se un domani qualcuno
+// rimettesse una casella dentro al tavolo, si continuerebbe a scrivere da dove
+// e' giusto invece di scoprirlo da un messaggio finito nel posto sbagliato.
+function trnChatInput(){
+  return document.querySelector('.trn-ch-in:not(.trn-ch-duel .trn-ch-in)')
+      || document.querySelector('.trn-ch-in');
+}
+// `soloLettura` = la chat SENZA la barra per scrivere (11/08). La usa il tavolo
+// di un match di torneo: chi sta giocando legge il tifo, ma non partecipa —
+// scrivono gli spettatori. E' la stessa regola che il Colosseo applica da
+// sempre (in partita si vede il ticker di lato, non la casella), qui portata
+// sulla roulette; togliere la barra e' anche l'unico modo onesto di dirlo,
+// perche' una casella che c'e' ma non deve essere usata la usa qualcuno.
+function trnChatHTML(soloLettura){
   return '<div class="section-ttl">💬 CHAT SPETTATORI</div>'
    +'<div class="trn-chat">'
    +'<div class="trn-ch-log" id="trn-chat-log"><div class="trn-ch-empty">Connessione alla chat…</div></div>'
-   +'<div class="trn-ch-bar">'
-   // placeholder = ATTRIBUTO: non passa dal motore i18n (l'observer vede solo i
-   // text node) → ramo manuale GB_LANG, come depositCta
-   +'<input id="trn-chat-in" class="trn-ch-in" maxlength="140" placeholder="'+((window.GB_LANG==='en')?'Comment the tournament…':'Commenta il torneo…')+'" onkeydown="trnChatKey(event)">'
-   +'<button class="trn-ch-btn" onclick="trnChatSend()">INVIA</button>'
+   +(soloLettura?'':
+     '<div class="trn-ch-bar">'
+     // placeholder = ATTRIBUTO: non passa dal motore i18n (l'observer vede solo i
+     // text node) → ramo manuale GB_LANG, come depositCta
+     +'<input id="trn-chat-in" class="trn-ch-in" maxlength="140" placeholder="'+((window.GB_LANG==='en')?'Comment the tournament…':'Commenta il torneo…')+'" onkeydown="trnChatKey(event)">'
+     +'<button class="trn-ch-btn" onclick="trnChatSend()">INVIA</button>'
+     +'</div>')
+   +'<div class="trn-ch-note">'
+   +(soloLettura
+     ? 'Sei in partita: qui si legge il tifo, scrivono gli spettatori · ✈️ = dai gruppi Telegram'
+     : 'Visibile a tutti gli spettatori · chi sta giocando la legge e basta · ✈️ = scritto dai gruppi Telegram')
    +'</div>'
-   +'<div class="trn-ch-note">Visibile a tutti gli spettatori · i gladiatori in gara la vedono di lato · ✈️ = scritto dai gruppi Telegram</div>'
    +'</div>';
 }
 // TICKER IN PARTITA: gli ultimi 3 messaggi in un angolo, testo piccolo, mai
