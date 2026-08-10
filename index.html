@@ -39817,7 +39817,12 @@ function dlRrBoard(d){
           '<div class="dlrr2-lives" id="dlrr2-opp-lives">'+dlRrHearts(d.opp_lives,2)+'</div></div>'+
         (oppTurn?'<div class="dlrr2-tag opp">AIMING…</div>':'')+'</div>'+
       '<div class="dlrr2-stage" id="dlrr2-stage">'+
-        '<div class="dlrr2-pot">POT <b>€'+pot.toFixed(2)+'</b></div>'+
+        // in un match di torneo il piatto non c'e': scrivere "POT €0.00"
+        // sopra la testa dei due sembra un premio da zero euro. Al suo posto
+        // va detto cosa si sta giocando davvero, cioe' il turno.
+        (d.tour
+          ? '<div class="dlrr2-pot">🏆 TORNEO · TURNO <b>'+(d.tour_round||1)+'</b></div>'
+          : '<div class="dlrr2-pot">POT <b>€'+pot.toFixed(2)+'</b></div>')+
         dlRrGunSVG()+
         '<div class="dlrr2-flash" id="dlrr2-flash"></div>'+
         '<div class="dlrr2-muzfx" id="dlrr2-muzfx"></div>'+
@@ -39846,12 +39851,24 @@ function dlRrBoard(d){
       '<button class="pvp-m-btn" onclick="dlRrCancel(false)">LEAVE (forfeit)</button>';
   } else {
     var win=d.you_win;
-    var amt=win?('+€'+(((d.prize_eur||0)-(d.bet_eur||0))).toFixed(2)):('−€'+(d.bet_eur||0).toFixed(2));
     var res=win?'🏆 YOU SURVIVE':'💀 YOU\'RE OUT';
     var col=win?'#39ff14':'#ff5b5b';
+    // IL MATCH DI TORNEO FINISCE DIVERSO, e non e' un dettaglio grafico:
+    //  · la cifra non esiste (la posta e' zero: "+€0.00" sarebbe una bugia
+    //    con l'aria di un premio);
+    //  · la RIVINCITA non deve esserci. Il bottone chiama dlRrStart(posta), e
+    //    qui la posta e' 0: nel migliore dei casi un errore, nel peggiore un
+    //    invito a rigiocare una partita che nel tabellone e' gia' agli atti.
+    // Al loro posto: com'e' andata nel torneo, e la strada per tornarci.
+    var amt=d.tour
+      ? (win?'PASSI AL TURNO SUCCESSIVO':'ELIMINATO DAL TORNEO')
+      : (win?('+€'+(((d.prize_eur||0)-(d.bet_eur||0))).toFixed(2))
+            :('−€'+(d.bet_eur||0).toFixed(2)));
     html+='<div class="pvp-result '+(win?'win':'lose')+'" style="color:'+col+';">'+res+'</div>'+
       '<div style="text-align:center;font-weight:800;margin-top:4px;color:'+col+';">'+amt+'</div>'+
-      '<button class="pvp-m-btn gold" onclick="dlRrStart('+(DLRR.bet||0)+')">'+LBL_AGAIN+'</button>'+
+      (d.tour
+        ? '<button class="pvp-m-btn gold" onclick="dlCloseOverlay();go(\'torneo\')">🏆 TORNA AL TORNEO</button>'
+        : '<button class="pvp-m-btn gold" onclick="dlRrStart('+(DLRR.bet||0)+')">'+LBL_AGAIN+'</button>')+
       '<button class="pvp-m-btn" onclick="dlCloseOverlay()">CLOSE</button>';
   }
   dlModalHTML(html);
@@ -47400,6 +47417,13 @@ function trnGC(g){
   if(g==='glad')return {icon:'🏛️',watch:true};
   if(g==='turf')return {icon:'🌆',watch:false,turf:true};
   if(g==='tank')return {icon:'🚛',watch:false,tank:true};
+  // ROULETTE RUSSA (10/08/2026): l'unico gioco del torneo che NON sta sul
+  // server real-time. `duel:true` dice a trnEnterMatch di non cercare una
+  // stanza da aprire ma di riscattare il biglietto qui e mettersi al tavolo.
+  // watch:false non e' una dimenticanza: lo spettatore vive nel server RT, e
+  // qui non c'e' — vedere le due vite e la camera altrui sarebbe un lavoro a
+  // parte, non una spunta.
+  if(g==='rr')return {icon:'🔫',watch:false,duel:true};
   var m=(typeof RTD_G!=='undefined')&&RTD_G[g];
   if(m)return {icon:m.title.split(' ')[0],watch:(g==='calcio'||g==='scalata'||g==='race'),rtd:true};
   return null;
@@ -48609,6 +48633,7 @@ function trnEnterMatch(){
   if(!c){toast('Gioco non ancora supportato — aggiorna l\'app','err',2600);return;}
   try{TWS.init();TWS.res();}catch(e){}
   grHaptic('enter');
+  if(c.duel){ trnEntraDuello(g); return; }
   if(c.rtd){
     window.RTD_TICKET=mm.ticket;window.RTD_TICKET_GAME=g;window.RTD_GAME=g;
     window.RTD_PRACTICE=false;window.RTD_TOUR=true;
@@ -48623,6 +48648,58 @@ function trnEnterMatch(){
     window.GLD_TICKET=mm.ticket;window.GLD_PRACTICE=false;window.GLD_TOUR=true;
     go('glad');
   }
+}
+// ══ TORNEO: ENTRARE IN UN MATCH CHE SI GIOCA QUI DENTRO ═══════════════════
+// Per gli altri giochi il biglietto lo porta il client dentro una stanza del
+// server real-time. Qui no: il biglietto si riscatta con una chiamata, e il
+// tavolo e' la stessa roulette russa dei duelli, con la posta a zero.
+//
+// Il primo dei due che arriva NON trova la partita: la apre il secondo. Quindi
+// questa funzione sa aspettare, e lo dice — un'attesa muta su una schermata
+// vuota fa chiudere l'app, e chi chiude l'app perde il match a tavolino.
+var TRN_DUELLO={fermo:false,timer:0};
+function trnDuelloStop(){
+  TRN_DUELLO.fermo=true;
+  if(TRN_DUELLO.timer){clearTimeout(TRN_DUELLO.timer);TRN_DUELLO.timer=0;}
+}
+function trnEntraDuello(g){
+  if(g!=='rr'){toast('Gioco non ancora supportato — aggiorna l\'app','err',2600);return;}
+  TRN_DUELLO.fermo=false;
+  trnDuelloBussa(1);
+}
+function trnDuelloBussa(giro){
+  if(TRN_DUELLO.fermo)return;
+  fetch(BACKEND+'/duel/rr_tour_enter',{method:'POST',headers:dlBjHdr(),
+        body:JSON.stringify({user_id:S.userId})})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(TRN_DUELLO.fermo)return;
+      if(!d||d.error){
+        toast('⚠️ '+((d&&d.error)||'errore'),'err',2600);
+        return;
+      }
+      if(d.status==='playing'){
+        trnDuelloStop();
+        DLRR.bet=0;                       // niente rivincita a soldi in coda
+        go('duel');
+        dlRrEnter(d);
+        return;
+      }
+      // in attesa dell'altro: si ribussa piano finche' non arriva o finche'
+      // non scade la sua finestra di presentazione
+      var restano=Math.max(0,parseInt(d.wait_secs||0,10));
+      toast('In attesa di '+(d.opp_name||'avversario')+'… '+restano+'s',
+            'warn',1800);
+      if(restano<=0){
+        toast('L\'avversario non si e\' presentato','warn',2600);
+        return;
+      }
+      TRN_DUELLO.timer=setTimeout(function(){trnDuelloBussa(giro+1);},2000);
+    })
+    .catch(function(){
+      if(TRN_DUELLO.fermo)return;
+      TRN_DUELLO.timer=setTimeout(function(){trnDuelloBussa(giro+1);},3000);
+    });
 }
 function trnWatch(rid){
   if(!rid)return;
