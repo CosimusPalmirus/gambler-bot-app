@@ -39682,7 +39682,13 @@ function dlTourRiga(d){
 function dlTourAncora(store,d){
   if(!d||!d.tour)return false;
   if(d.tour_rigioca){ if(!store.tourAtt)store.tourAtt=Date.now(); return true; }
-  if(!d.push)return false;
+  // `push` e' il nome che il pareggio ha nel blackjack e nel poker; la morra,
+  // la navale e gli scacchi (entrati l'11/08) non hanno quel campo e dicono la
+  // stessa cosa con `tour_pari`, che e' il campo del BINARIO ed esiste in tutti
+  // e sei. Si guardano tutti e due: fermarsi al solo `push` lascerebbe tre
+  // tavoli a guardare il risultato della partita precedente mentre la
+  // rivincita e' gia' aperta sul server, cioe' a perdere il match da fermi.
+  if(!d.push&&!d.tour_pari)return false;
   if((d.tour_gara||1)>=(d.tour_gare||1)&&!d.tour_final)return false;
   if(!store.tourAtt)store.tourAtt=Date.now();
   return (Date.now()-store.tourAtt)<15000;
@@ -39704,9 +39710,18 @@ function dlTourEsito(d,ancora){
             sub:(ancora?('Si rigioca: '+(g>gx?('mano '+g):(g+' di '+gx)))
                        :'Il verdetto del match e\' sul tabellone del torneo')};
   }
+  // IL PRESIDIO DEI DUE MINUTI, quando e' lui a chiudere: dirlo non e' cortesia.
+  // Un verdetto che arriva senza che l'avversario abbia mosso sembra un guasto,
+  // e chi lo subisce non ha nessun modo di sapere che il tempo per rientrare
+  // era finito. La frase e' la stessa in tutti e sei i giochi perche' la regola
+  // e' del binario, non del gioco.
+  var perche=d.tour_abbandono
+    ? (d.you_win?'L\'avversario non e\' rientrato entro 2 minuti'
+                :'Sei rimasto fuori dal tavolo per piu\' di 2 minuti')
+    : '';
   return d.you_win
-    ? {res:'🏆 PASSI AL TURNO SUCCESSIVO',col:'#39ff14',sub:''}
-    : {res:'💀 ELIMINATO DAL TORNEO',col:'#ff5b5b',sub:''};
+    ? {res:'🏆 PASSI AL TURNO SUCCESSIVO',col:'#39ff14',sub:perche}
+    : {res:'💀 ELIMINATO DAL TORNEO',col:'#ff5b5b',sub:perche};
 }
 // il finale di un tavolo di torneo: niente cifre, niente rivincita a soldi,
 // e una sola strada — tornare dove il match conta qualcosa
@@ -39717,6 +39732,49 @@ function dlTourFineHTML(d,ancora){
     +(ancora?'':'<button class="pvp-m-btn gold" onclick="dlCloseOverlay();go(\'torneo\')">🏆 TORNA AL TORNEO</button>'
               +'<button class="pvp-m-btn" onclick="dlCloseOverlay()">CLOSE</button>');
 }
+
+// 5. L'AVVISO DEI DUE MINUTI (11/08/2026, con morra, navale e scacchi).
+//    Regola del proprietario: in un match di torneo chi esce dalla mini app ha
+//    120 secondi per rientrare, poi e' eliminato e passa l'avversario. Il conto
+//    lo tiene il server (il poll di ogni tavolo E' il segnale di presenza: si
+//    ferma da solo appena si lascia la schermata) e lo racconta nella vista con
+//    `tour_opp_muto` / `tour_opp_secs` / `tour_eri_fuori`.
+//    QUI SERVE SOLO DIRLO, ed e' obbligatorio dirlo: chi resta al tavolo vede
+//    l'avversario che non muove e senza una riga non sa se e' rotto il gioco o
+//    se sta per passare il turno. E' informazione, non decorazione — per
+//    questo il numero e' un conto alla rovescia vero, non un "attendi…".
+function dlTourMMSS(s){
+  s=Math.max(0,parseInt(s,10)||0);
+  var m=Math.floor(s/60), r=s%60;
+  return m+':'+(r<10?'0':'')+r;
+}
+// il pezzo di FIRMA che tiene vivo il conto alla rovescia. Ogni tavolo
+// ridisegna solo quando la sua firma cambia (e' la guardia anti-sfarfallio):
+// senza questo pezzo l'avviso resterebbe congelato sul primo numero e i due
+// minuti sembrerebbero fermi. Fuori dal torneo, e finche' l'avversario e' al
+// tavolo, e' la stringa vuota — cioe' nessun ridisegno in piu' di ieri.
+function dlTourSigP(d){
+  return (d&&d.tour_opp_muto)?('|P'+(d.tour_opp_secs==null?'?':d.tour_opp_secs)):'';
+}
+function dlTourPresidio(d){
+  // fuori dal torneo non esiste, e a match gia' chiuso dal presidio lo spiega
+  // il verdetto (dlTourEsito): due frasi sulla stessa cosa sarebbero rumore
+  if(!d||!d.tour||d.tour_abbandono)return '';
+  if(d.tour_opp_muto&&d.tour_opp_secs!=null)
+    return '<div class="dl-tour-pres" style="margin:6px 0;padding:7px 10px;border-radius:10px;'
+      +'background:rgba(255,90,80,.10);border:1px solid rgba(255,90,80,.45);'
+      +'font-size:11px;font-weight:800;color:#ffb3ab;text-align:center;">'
+      +'⏳ L\'avversario e\' uscito dal tavolo — <b>'+dlTourMMSS(d.tour_opp_secs)
+      +'</b> per rientrare, poi passi tu</div>';
+  // a chi RIENTRA: si e' accorto da solo che il tavolo e' andato avanti senza
+  // di lui, non del perche'. E soprattutto va detto che e' ancora in tempo.
+  if(d.tour_eri_fuori)
+    return '<div class="dl-tour-pres" style="margin:6px 0;padding:7px 10px;border-radius:10px;'
+      +'background:rgba(255,200,60,.10);border:1px solid rgba(255,200,60,.45);'
+      +'font-size:11px;font-weight:800;color:#ffd76b;text-align:center;">'
+      +'⚠️ Eri fuori dal tavolo — sei rientrato in tempo, il match continua</div>';
+  return '';
+}
 // ════════ LIVE PvP BLACKJACK DUEL (interactive, turn-based) ════════
 var DLBJ={poll:null,ticker:false,deadline:0,bet:0,busy:false,shown:false,sig:'',tour:false,tourAtt:0};
 function dlBjSig(d){
@@ -39726,7 +39784,7 @@ function dlBjSig(d){
   // vedrebbe uguali, non ridisegnerebbe, e "PARI — si rigioca" non
   // comparirebbe mai.
   return (d.state||'')+'|'+(d.your_turn?1:0)+'|Y'+ps(d.you)+'|O'+ps(d.opp)
-    +'|T'+(d.tour_gara||0)+(d.tour_rigioca?'R':'');
+    +'|T'+(d.tour_gara||0)+(d.tour_rigioca?'R':'')+dlTourSigP(d);
 }
 function dlBjHdr(){ return {'Content-Type':'application/json','ngrok-skip-browser-warning':'1'}; }
 function dlBjStopPoll(){ if(DLBJ.poll){ clearInterval(DLBJ.poll); DLBJ.poll=null; } }
@@ -39831,6 +39889,7 @@ function dlBjBoard(d,ancora){
   var html='<div class="pvp-m-title" style="color:#ff5b5b;">🂡 BLACKJACK DUEL</div>'+
     // in torneo il piatto non c'e': al suo posto il turno e la mano (§3.8)
     '<div class="dlbj-pot">'+(d.tour?dlTourRiga(d):('POT €'+pot.toFixed(2)+' · winner takes 95%'))+'</div>'+
+    dlTourPresidio(d)+
     dlBjSide(opp,(d.opp_name||'Opponent')+(opp.hidden?' · 🂠 hidden':''),false,(playing&&!d.your_turn))+
     '<div class="dlbj-mid">'+(playing?(d.your_turn?
         '<span class="dlbj-turn-you">● YOUR TURN</span> <span class="dlbj-timer" id="dlbj-timer"></span>':
@@ -39956,7 +40015,7 @@ function dlRrStartPoll(){
       .then(function(r){return r.json();}).then(function(d){
         if(!d||d.error||d.status==='none') return;
         // only touch the DOM when something actually CHANGED (kills flicker on each poll)
-        var sig=(d.evseq||0)+'|'+(d.your_turn?1:0)+'|'+d.you_lives+'|'+d.opp_lives+'|'+d.loaded+'|'+(d.status||d.state||'');
+        var sig=(d.evseq||0)+'|'+(d.your_turn?1:0)+'|'+d.you_lives+'|'+d.opp_lives+'|'+d.loaded+'|'+(d.status||d.state||'')+dlTourSigP(d);
         if(sig===DLRR.sig) return;
         var prevSeq=DLRR.lastSeq||0; DLRR.sig=sig; DLRR.lastSeq=Math.max(prevSeq,d.evseq||0);
         var ev=d.last, oppActed=ev&&(d.evseq||0)>prevSeq&&ev.shooter!=null&&ev.shooter!==d.seat;
@@ -40121,7 +40180,10 @@ function dlRrBoard(d){
         '<div class="dlrr2-meta"><div class="dlrr2-nm">TU</div>'+
           '<div class="dlrr2-lives" id="dlrr2-you-lives">'+dlRrHearts(d.you_lives,2)+'</div></div>'+
         (yourTurn?'<div class="dlrr2-tag you">● TOCCA A TE <span class="dlbj-timer" id="dlrr-timer"></span></div>':'')+'</div>'+
-    '</div>';
+    '</div>'+
+    // l'avviso dei due minuti sta FUORI dalla scena (dlrr2-stage e' una colonna
+    // centrata attorno alla pistola): qui prende tutta la larghezza e si legge
+    dlTourPresidio(d);
   if(playing){
     // UN SOLO TASTO, e dice dove punta l arma. Il bersaglio non e' piu una
     // scelta separata dalla mira: e' la mira. Le scritte le riempie
@@ -40669,14 +40731,27 @@ function dlRrCancel(silent){
     }).catch(function(){ dlCloseOverlay(); });
 }
 // ════════ ROCK-PAPER-SCISSORS — live best-of-3 (simultaneous pick) ════════
-var DLRPS={poll:null,ticker:false,deadline:0,bet:0,busy:false,shown:false};
+// TORNEO (11/08): `tour` lo legge trnTeardown per non chiudere la socket della
+// chat, `tourAtt` e' l'attesa della rivincita fra una partita e l'altra, `sig`
+// e' la guardia anti-sfarfallio — la morra ridisegnava a ogni poll, e con la
+// chat montata dentro il tavolo quel ridisegno le azzerava il registro sotto
+// gli occhi di chi legge.
+var DLRPS={poll:null,ticker:false,deadline:0,bet:0,busy:false,shown:false,
+  sig:'',tour:false,tourAtt:0};
 var RPS_EMO={rock:'✊',paper:'✋',scissors:'✌️'};
+function dlRpsSig(d){
+  return (d.status||d.state||'')+'|'+(d.your_pick||'')+'|'+(d.opp_locked?1:0)
+    +'|'+(d.you_score||0)+'-'+(d.opp_score||0)+'|'+(d.round||0)
+    +'|'+((d.last_round&&((d.last_round.round||0)+':'+(d.last_round.result||'')))||'')
+    +'|'+(d.deadline_ms||0)
+    +'|T'+(d.tour_gara||0)+(d.tour_rigioca?'R':'')+dlTourSigP(d);
+}
 function dlRpsStopPoll(){ if(DLRPS.poll){ clearInterval(DLRPS.poll); DLRPS.poll=null; } }
 function dlRpsStopTick(){ if(DLRPS.ticker){ clearInterval(DLRPS.ticker); DLRPS.ticker=null; } }
 function dlRpsStart(eur){
   if(!S.userId){ toast('Open in Telegram to play','err'); return; }
   if((S.btc*S.rate)<eur){ toast('Insufficient balance','err'); return; }
-  DLRPS.bet=eur; DLRPS.shown=false; DLRPS.vsShown=false;
+  DLRPS.bet=eur; DLRPS.shown=false; DLRPS.vsShown=false; DLRPS.sig='';
   dlSearchView('rps',eur);
   fetch(BACKEND+'/duel/rps_join',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId,bet_btc:eurToBtc(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
     .then(function(r){return r.json();}).then(function(d){
@@ -40698,7 +40773,18 @@ function dlRpsMatchPoll(){
   },1400);
 }
 function dlRpsEnter(d){ dlRpsStopPoll();
-  if(d.status==='done'||d.state==='done'){ dlRpsBoard(d); dlRpsAfterDone(d); return; }
+  // TORNEO: al tavolo SUBITO, senza il cartello "MATCH FOUND" — quel cartello
+  // porta scritto "STAKE €0.00" (qui la posta non esiste, ed e' il punto) e
+  // costa tre secondi su una partita che ne ha sessanta in tutto.
+  if(d&&d.tour){ DLRPS.vsShown=true; DLRPS.bet=0; DLRPS.shown=false; DLRPS.sig=''; dlTourAncoraReset(DLRPS); }
+  if(d.status==='done'||d.state==='done'){
+    // una partita finita PARI non chiude il match: ne arriva un'altra, e il
+    // poll e' l'unica cosa che sa trovarla
+    var anc=dlTourAncora(DLRPS,d);
+    dlRpsBoard(d,anc);
+    if(anc)dlRpsStartPoll(); else dlRpsAfterDone(d);
+    return;
+  }
   dlVsGate(DLRPS,'rps',d,function(){ dlRpsBoard(d); dlRpsStartPoll(); });
 }
 function dlRpsStartPoll(){
@@ -40708,8 +40794,14 @@ function dlRpsStartPoll(){
     fetch(BACKEND+'/duel/rps_state',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId})})
       .then(function(r){return r.json();}).then(function(d){
         if(!d||d.error||d.status==='none') return;
-        dlRpsBoard(d);
-        if(d.status==='done'||d.state==='done'){ dlRpsStopPoll(); dlRpsAfterDone(d); }
+        var fine=(d.status==='done'||d.state==='done');
+        // `ancora` entra anche nella firma: quando l'attesa della rivincita
+        // scade lo stato del server non cambia di una virgola, e senza questo
+        // pezzo resterebbe in pagina "si rigioca" e nessun bottone per uscirne.
+        var ancora=fine&&dlTourAncora(DLRPS,d);
+        if(dlRpsSig(d)+(ancora?'|A':'')===DLRPS.sig) return;
+        dlRpsBoard(d,ancora);
+        if(fine&&!ancora){ dlRpsStopPoll(); dlRpsAfterDone(d); }
       }).catch(function(){});
   },1200);
 }
@@ -40721,20 +40813,29 @@ function dlRpsStartTick(){
     el.textContent=rem+'s'; if(rem<=5){ el.style.color='#ff5b5b'; }
   },300);
 }
-function dlRpsBoard(d){
+function dlRpsBoard(d,ancora){
+  DLRPS.sig=dlRpsSig(d)+(ancora?'|A':'');
+  DLRPS.tour=!!d.tour;              // lo legge trnTeardown per non chiudere la chat
   var playing=(d.status!=='done'&&d.state!=='done');
+  if(playing)dlTourAncoraReset(DLRPS);          // partita nuova, attesa nuova
   var pot=((d.bet_eur||0)*2);
   var picked=!!d.your_pick;
   var lr=d.last_round;
   var html='<div class="pvp-m-title" style="color:#5fc7ff;">✊ ROCK · PAPER · SCISSORS</div>'+
-    '<div class="dlbj-pot">POT €'+pot.toFixed(2)+' · best of 3 · winner takes 95%</div>'+
+    // in torneo il piatto non c'e': al suo posto il turno e la partita (§3.8)
+    '<div class="dlbj-pot">'+(d.tour?dlTourRiga(d):('POT €'+pot.toFixed(2)+' · best of 3 · winner takes 95%'))+'</div>'+
+    dlTourPresidio(d)+
     '<div class="dlrps-score"><span class="dlrps-sc you">YOU '+(d.you_score||0)+'</span><span class="dlrps-vs">—</span><span class="dlrps-sc opp">'+(d.opp_score||0)+' '+dlEsc(d.opp_name||'Opp')+'</span></div>';
   if(lr){
     var rc=lr.result==='win'?'#39ff14':(lr.result==='tie'?'#ffd700':'#ff5b5b');
     var rt=lr.result==='win'?'ROUND WON':(lr.result==='tie'?'TIE — replay':'ROUND LOST');
-    html+='<div class="dlrps-reveal"><span class="dlrps-throw">'+(RPS_EMO[lr.you]||'?')+'</span>'+
+    // ⏳ e non '?': in TORNEO il server non tira piu' una mossa a caso per chi
+    // non sceglie, quindi un round puo' chiudersi con una casella VUOTA — e'
+    // chi ha lasciato scadere i 12 secondi. Un punto interrogativo li' si
+    // legge come un guasto, la clessidra si legge come "non ha scelto".
+    html+='<div class="dlrps-reveal"><span class="dlrps-throw">'+(RPS_EMO[lr.you]||'⏳')+'</span>'+
       '<span class="dlrps-rt" style="color:'+rc+';">'+rt+'</span>'+
-      '<span class="dlrps-throw">'+(RPS_EMO[lr.opp]||'?')+'</span></div>';
+      '<span class="dlrps-throw">'+(RPS_EMO[lr.opp]||'⏳')+'</span></div>';
   }
   if(playing){
     html+='<div class="dlrps-mid">'+(picked?
@@ -40748,7 +40849,15 @@ function dlRpsBoard(d){
     } else {
       html+='<div class="dlrps-waiting">'+(d.opp_locked?'Revealing…':'Opponent is choosing…')+'</div>';
     }
-    html+='<button class="pvp-m-btn" onclick="dlRpsCancel(false)">LEAVE (forfeit)</button>';
+    // in torneo non si abbandona una posta, si abbandona il proprio turno:
+    // l'etichetta lo dice, perche' "forfeit" fa pensare a dei soldi persi
+    html+='<button class="pvp-m-btn" onclick="dlRpsCancel(false)">'
+      +(d.tour?'ABBANDONA IL MATCH (perdi il turno)':'LEAVE (forfeit)')+'</button>';
+  } else if(d.tour){
+    // TORNEO: nessuna cifra (la posta e' zero e ogni euro scritto qui sarebbe
+    // una bugia) e nessuna rivincita — quella partita e' gia' agli atti del
+    // tabellone. Una strada sola: tornarci.
+    html+=dlTourFineHTML(d,ancora);
   } else {
     var win=d.you_win;
     var amt=win?('+€'+(((d.prize_eur||0)-(d.bet_eur||0))).toFixed(2)):('−€'+(d.bet_eur||0).toFixed(2));
@@ -40759,7 +40868,10 @@ function dlRpsBoard(d){
       '<button class="pvp-m-btn gold" onclick="dlRpsStart('+(DLRPS.bet||0)+')">'+LBL_AGAIN+'</button>'+
       '<button class="pvp-m-btn" onclick="dlCloseOverlay()">CLOSE</button>';
   }
+  // SOLO LETTURA: chi e' al tavolo legge il tifo, non lo scrive
+  if(d.tour)html+='<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>';
   dlModalHTML(html);
+  if(d.tour)dlDuelChatMonta();
   if(playing&&!picked){ DLRPS.deadline=d.deadline_ms||0; dlRpsStartTick(); } else { dlRpsStopTick(); }
 }
 function dlRpsAfterDone(d){
@@ -40780,8 +40892,12 @@ function dlRpsPick(choice){
     .then(function(r){return r.json();}).then(function(d){
       DLRPS.busy=false;
       if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); return; }
-      dlRpsBoard(d);
-      if(d.status==='done'||d.state==='done'){ dlRpsAfterDone(d); }
+      // TORNEO: se la partita si e' chiusa PARI il match non e' finito, e
+      // `dlRpsAfterDone` fermerebbe il poll — cioe' l'unica cosa che sa
+      // trovare la partita successiva.
+      var fine=(d.status==='done'||d.state==='done'), anc=fine&&dlTourAncora(DLRPS,d);
+      dlRpsBoard(d,anc);
+      if(fine&&!anc){ dlRpsAfterDone(d); }
     }).catch(function(){ DLRPS.busy=false; toast('Network error','err'); });
 }
 function dlRpsCancel(silent){
@@ -40810,7 +40926,7 @@ function dlPkdBacks(){ var s=''; for(var i=0;i<5;i++)s+='<div class="dlpkd-card 
 // mano nella firma il poll le vedrebbe uguali, non ridisegnerebbe, e la mano
 // nuova non comparirebbe mai sullo schermo di chi sta aspettando.
 function dlPkdSig(d){ return (d.state||'')+'|'+(d.you_drawn?1:0)+'|'+(d.opp_drawn?1:0)+'|'+((d.you_hand||[]).map(function(c){return c.r+c.s;}).join(''))
-  +'|T'+(d.tour_gara||0)+(d.tour_rigioca?'R':''); }
+  +'|T'+(d.tour_gara||0)+(d.tour_rigioca?'R':'')+dlTourSigP(d); }
 // ════════ RANDOM MATCH (interactive) — matchmake 2 players, server rolls a game, enter it for real ════════
 var DLRND={poll:null,bet:0};
 function dlRndStopPoll(){ if(DLRND.poll){ clearInterval(DLRND.poll); DLRND.poll=null; } }
@@ -40905,9 +41021,9 @@ function dlRndEnter(game, info){
     if(game==='cards'){ DLPKD.bet=DLRND.bet; DLPKD.shown=false; DLPKD.vsShown=true; DLPKD.held=[false,false,false,false,false]; DLPKD.sig=''; dlRndFetchEnter('/duel/pkd_state', dlPkdEnter); }
     else if(game==='bj'){ DLBJ.bet=DLRND.bet; DLBJ.shown=false; DLBJ.vsShown=true; DLBJ.sig=''; dlRndFetchEnter('/duel/bjl_state', dlBjEnter); }
     else if(game==='rr'){ DLRR.bet=DLRND.bet; DLRR.shown=false; DLRR.vsShown=true; DLRR.sig=''; DLRR.lastSeq=0; dlRndFetchEnter('/duel/rr_state', dlRrEnter); }
-    else if(game==='bs'){ DLBS.bet=DLRND.bet; DLBS.shown=false; DLBS.vsShown=true; DLBS.sig=''; DLBS.lastSeq=0; DLBS.ships=[]; DLBS.horiz=true; DLBS.ui=''; dlRndFetchEnter('/duel/bs_state', dlBsEnter); }
+    else if(game==='bs'){ DLBS.bet=DLRND.bet; DLBS.shown=false; DLBS.vsShown=true; DLBS.sig=''; DLBS.lastSeq=0; DLBS.ships=[]; DLBS.horiz=true; DLBS.ui=''; DLBS.gara=''; dlRndFetchEnter('/duel/bs_state', dlBsEnter); }
     else if(game==='chess'){ DLCH.bet=DLRND.bet; DLCH.shown=false; DLCH.vsShown=true; DLCH.sig=''; DLCH.sel=-1; DLCH.promo=null; dlRndFetchEnter('/duel/ch_state', dlChEnter); }
-    else if(game==='rps'){ DLRPS.bet=DLRND.bet; DLRPS.shown=false; DLRPS.vsShown=true; dlRndFetchEnter('/duel/rps_state', dlRpsEnter); }
+    else if(game==='rps'){ DLRPS.bet=DLRND.bet; DLRPS.shown=false; DLRPS.vsShown=true; DLRPS.sig=''; dlRndFetchEnter('/duel/rps_state', dlRpsEnter); }
     else { dlCloseOverlay(); }
   }
   // EVERY duel opens with the dramatic VS reveal (avatars + level + duel record + stake + flames + music).
@@ -40934,8 +41050,11 @@ function dlRndFetchEnter(stateUrl, enterFn){
 }
 // ════════ CHESS DUEL (live, server-authoritative, full rules + blitz clock) ════════
 var CH_SOLID={K:'♚',Q:'♛',R:'♜',B:'♝',N:'♞',P:'♟'};
+// TORNEO (11/08): `tour` lo legge trnTeardown per non chiudere la socket della
+// chat, `tourAtt` e' l'attesa della rivincita fra una partita e l'altra.
 var DLCH={poll:null,ticker:false,bet:0,busy:false,shown:false,sig:'',color:'w',sel:-1,view:null,
-  clkYou:0,clkOpp:0,clkBaseTs:0,clkTurnMine:false,clkRunning:false,promo:null};
+  clkYou:0,clkOpp:0,clkBaseTs:0,clkTurnMine:false,clkRunning:false,promo:null,
+  tour:false,tourAtt:0};
 function dlChStopPoll(){ if(DLCH.poll){ clearInterval(DLCH.poll); DLCH.poll=null; } }
 function dlChStopTick(){ if(DLCH.ticker){ clearInterval(DLCH.ticker); DLCH.ticker=null; } }
 function chGlyph(p){ return CH_SOLID[p.toUpperCase()]||''; }
@@ -40986,10 +41105,26 @@ function dlChMatchPoll(){
 }
 function dlChEnter(d){
   dlChStopPoll(); DLCH.color=d.your_color||'w'; DLCH.view=d; DLCH.sel=-1;
-  if(d.status==='done'||d.result){ dlChBoard(d); dlChAfterDone(d); return; }
+  // TORNEO: alla scacchiera SUBITO, senza il cartello "MATCH FOUND" — quel
+  // cartello porta scritto "STAKE €0.00" (qui la posta non esiste) e mangia
+  // tre secondi dell'orologio da torneo, che e' corto apposta.
+  if(d&&d.tour){ DLCH.vsShown=true; DLCH.bet=0; DLCH.shown=false; DLCH.sig=''; dlTourAncoraReset(DLCH); }
+  if(d.status==='done'||d.result){
+    // una PATTA non chiude il match: si rigioca (fino a tre), e il poll e'
+    // l'unica cosa che sa trovare la partita successiva
+    var anc=dlTourAncora(DLCH,d);
+    dlChBoard(d,anc);
+    if(anc)dlChStartPoll(); else dlChAfterDone(d);
+    return;
+  }
   dlVsGate(DLCH,'chess',d,function(){ dlChBoard(d); dlChStartPoll(); });
 }
-function dlChSig(d){ return (d.board||'')+'|'+(d.turn||'')+'|'+(d.result||'')+'|'+(d.your_turn?1:0)+'|'+(d.check?1:0); }
+// TORNEO: due partite di seguito partono dalla STESSA posizione iniziale, e una
+// patta e' proprio il caso in cui si rigioca. Senza il numero della partita
+// nella firma il poll le vedrebbe uguali, non ridisegnerebbe, e la scacchiera
+// nuova non comparirebbe mai a chi sta aspettando.
+function dlChSig(d){ return (d.board||'')+'|'+(d.turn||'')+'|'+(d.result||'')+'|'+(d.your_turn?1:0)+'|'+(d.check?1:0)
+  +'|T'+(d.tour_gara||0)+(d.tour_rigioca?'R':'')+dlTourSigP(d); }
 function dlChStartPoll(){
   dlChStopPoll();
   DLCH.poll=setInterval(function(){
@@ -40999,12 +41134,17 @@ function dlChStartPoll(){
       .then(function(r){return r.json();}).then(function(d){
         if(!d||d.error||d.status==='none') return;
         dlChSyncClocks(d);
-        if(dlChSig(d)===DLCH.sig){ DLCH.view=d; dlChRenderClocks(); return; }
+        var fine=(d.status==='done'||!!d.result);
+        // `ancora` entra anche nella firma: quando l'attesa della rivincita
+        // scade lo stato del server non cambia di una virgola, e senza questo
+        // pezzo resterebbe in pagina "si rigioca" e nessun bottone per uscirne.
+        var ancora=fine&&dlTourAncora(DLCH,d);
+        if(dlChSig(d)+(ancora?'|A':'')===DLCH.sig){ DLCH.view=d; dlChRenderClocks(); return; }
         var prevBoard=(DLCH.view||{}).board||'';
-        DLCH.view=d; DLCH.sel=-1; dlChBoard(d);
+        DLCH.view=d; DLCH.sel=-1; dlChBoard(d,ancora);
         var mv=d.last;
         if(mv){ var cap=prevBoard&&prevBoard.charAt(mv.to)!=='.'; dlChAnimateSlide(mv); dlChFlashMove(mv); dlChSfx(d.result?'end':(d.check?'check':(cap?'capture':'move'))); }
-        if(d.status==='done'||d.result){ dlChStopPoll(); dlChAfterDone(d); }
+        if(fine&&!ancora){ dlChStopPoll(); dlChAfterDone(d); }
       }).catch(function(){});
   },1200);
 }
@@ -41046,20 +41186,43 @@ function dlChRender(){
   var tmp=document.createElement('div'); tmp.innerHTML=dlChBoardHTML(d);
   var nw=tmp.firstChild; old.parentNode.replaceChild(nw,old); dlChBindBoard(nw);
 }
-function dlChBoard(d){
-  DLCH.view=d; DLCH.sig=dlChSig(d); dlChSyncClocks(d);
+function dlChBoard(d,ancora){
+  DLCH.view=d; DLCH.sig=dlChSig(d)+(ancora?'|A':''); dlChSyncClocks(d);
+  DLCH.tour=!!d.tour;              // lo legge trnTeardown per non chiudere la chat
   var playing=!d.result, pot=((d.bet_eur||0)*2);
+  if(playing)dlTourAncoraReset(DLCH);            // partita nuova, attesa nuova
   var myCol=(DLCH.color==='w')?'white':'black', opCol=(DLCH.color==='w')?'black':'white';
   var cap=dlChCaptured(d.board||''), youEdge=(DLCH.color==='w')?cap.mat:-cap.mat;
   var youCap=(DLCH.color==='w')?cap.capByWhite:cap.capByBlack, oppCap=(DLCH.color==='w')?cap.capByBlack:cap.capByWhite;
   var turnTxt=d.result?'':(d.your_turn?'<span class="ch-turn-you">● your move'+(d.check?' — CHECK!':'')+'</span>':'<span class="ch-turn-opp">opponent thinking…'+(d.check?' (check given)':'')+'</span>');
   var html='<div id="ch-wrap"><div class="pvp-m-title" style="color:#cbb18b;">♟️ CHESS DUEL</div>'+
-    '<div class="dlbs-pot">POT €'+pot.toFixed(2)+' · checkmate wins 95% · draw refunds</div>'+
+    // in torneo il piatto non c'e': al suo posto il turno e la partita (§3.8)
+    '<div class="dlbs-pot">'+(d.tour?dlTourRiga(d):('POT €'+pot.toFixed(2)+' · checkmate wins 95% · draw refunds'))+'</div>'+
+    dlTourPresidio(d)+
     '<div class="ch-pl opp"><div class="ch-pl-info"><span class="ch-pl-nm">'+dlEsc(d.opp_name||'Opponent')+' <i>('+opCol+')</i></span><span class="ch-cap">'+dlChCapStrip(oppCap,-youEdge)+'</span></div><span class="ch-clk" id="ch-clk-opp">'+dlChFmtClock(d.clock_opp_ms)+'</span></div>'+
     dlChBoardHTML(d)+
     '<div class="ch-pl you"><div class="ch-pl-info"><span class="ch-pl-nm">YOU <i>('+myCol+')</i></span><span class="ch-cap">'+dlChCapStrip(youCap,youEdge)+'</span></div><span class="ch-clk" id="ch-clk-you">'+dlChFmtClock(d.clock_you_ms)+'</span></div>'+
     '<div class="ch-status">'+turnTxt+'</div>';
-  if(playing){ html+='<button class="pvp-m-btn" onclick="dlChResign()">🏳️ RESIGN</button>'; }
+  // in torneo non si abbandona una posta, si abbandona il proprio turno:
+  // l'etichetta lo dice, perche' "resign" fa pensare a dei soldi persi
+  if(playing){ html+='<button class="pvp-m-btn" onclick="dlChResign()">'
+      +(d.tour?'🏳️ ABBANDONA IL MATCH (perdi il turno)':'🏳️ RESIGN')+'</button>'; }
+  else if(d.tour){
+    // TORNEO: nessuna cifra (la posta e' zero e ogni euro scritto qui sarebbe
+    // una bugia) e nessuna rivincita — quella partita e' gia' agli atti del
+    // tabellone. Una strada sola: tornarci.
+    // IL MATERIALE si dice SEMPRE, a partita patta: e' il conto che decide il
+    // match dopo tre patte (9 donna, 5 torre, 3 alfiere e cavallo, 1 pedone,
+    // sommato sulle tre partite). Senza vederlo, chi pareggia non sa se sta
+    // passando o uscendo, e la regola che toglie il guadagno a chi pareggia
+    // apposta funziona solo se la si vede mentre si gioca.
+    var mt=d.tour_materiale;
+    if((d.tour_pari||d.draw)&&mt&&mt.you!=null&&mt.opp!=null)
+      html+='<div style="text-align:center;font-size:11px;font-weight:800;margin-top:6px;color:#ffd76b;">'
+        +'⚖️ Materiale: <b>'+mt.you+'</b> a <b>'+mt.opp+'</b>'
+        +' — dopo tre patte passa chi ha il totale piu\' alto</div>';
+    html+=dlTourFineHTML(d,ancora);
+  }
   else {
     var win=d.you_win, draw=d.draw;
     var res=draw?('🤝 DRAW — '+dlChResultName(d.result)):(win?'🏆 YOU WIN':('💀 '+(d.result==='timeout'?'YOU FLAGGED':(d.result==='resign'?'YOU RESIGNED':'CHECKMATED'))));
@@ -41071,7 +41234,10 @@ function dlChBoard(d){
       '<button class="pvp-m-btn" onclick="dlCloseOverlay()">CLOSE</button>';
   }
   html+='</div>';
+  // SOLO LETTURA: chi e' al tavolo legge il tifo, non lo scrive
+  if(d.tour)html+='<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>';
   dlModalHTML(html);
+  if(d.tour)dlDuelChatMonta();
   dlChBindBoard(document.getElementById('ch-board'));
   if(playing) dlChStartTick(); else dlChStopTick();
 }
@@ -41113,10 +41279,14 @@ function dlChDoMove(from,to,promo){
       DLCH.view=d; DLCH.sig='';
       var mv=d.last, cap=prevBoard&&mv&&prevBoard.charAt(mv.to)!=='.';
       var special=(mv&&(mv.special==='O-O'||mv.special==='O-O-O'));
-      dlChBoard(d);
+      // TORNEO: se la partita si e' chiusa PATTA il match non e' finito, e
+      // `dlChAfterDone` fermerebbe il poll — cioe' l'unica cosa che sa trovare
+      // la partita successiva.
+      var fine=(d.status==='done'||!!d.result), anc=fine&&dlTourAncora(DLCH,d);
+      dlChBoard(d,anc);
       if(mv){ dlChAnimateSlide(mv); dlChFlashMove(mv); }
       dlChSfx(d.result?'win':(d.check?'check':(special?'castle':(cap||(mv&&mv.special==='ep'))?'capture':'move')));
-      if(d.status==='done'||d.result){ dlChStopPoll(); dlChAfterDone(d); }
+      if(fine&&!anc){ dlChStopPoll(); dlChAfterDone(d); }
     }).catch(function(){ DLCH.busy=false; toast('Network error','err'); dlChRender(); });
 }
 function dlChFlashMove(mv){
@@ -41138,7 +41308,10 @@ function dlChAnimateSlide(mv){
   }catch(e){}
 }
 function dlChResign(){
-  if(!confirm('Resign this game? Your opponent wins the pot.')) return;
+  // in torneo non c'e' nessun piatto da regalare: si regala il TURNO, ed e'
+  // molto peggio. La domanda deve dire quello che succede davvero.
+  if(!confirm(DLCH.tour?'Abbandoni la partita? Passa l\'avversario e sei eliminato dal torneo.'
+                       :'Resign this game? Your opponent wins the pot.')) return;
   dlChStopTick();
   fetch(BACKEND+'/duel/ch_resign',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId})})
     .then(function(r){return r.json();}).then(function(d){ if(d&&d.board){ DLCH.view=d; DLCH.sig=''; dlChStopPoll(); dlChBoard(d); dlChAfterDone(d); } }).catch(function(){});
@@ -41177,14 +41350,33 @@ function dlChSfx(type){
 // ════════ BATTLESHIP DUEL (live, server-authoritative naval battle) ════════
 var BS_FLEET=[{name:'Carrier',size:4},{name:'Battleship',size:3},{name:'Submarine',size:3},{name:'Destroyer',size:2}];
 var BS_N=8;
+// TORNEO (11/08): `tour` lo legge trnTeardown per non chiudere la socket della
+// chat, `tourAtt` e' l'attesa della rivincita, `gara` serve a riconoscere la
+// battaglia NUOVA (vedi dlBsNuovaGara).
 var DLBS={poll:null,ticker:false,deadline:0,bet:0,busy:false,shown:false,sig:'',lastSeq:0,seat:null,
-  ships:[],horiz:true,lastView:null,ui:''};
+  ships:[],horiz:true,lastView:null,ui:'',tour:false,tourAtt:0,gara:''};
+// TORNEO: battaglia nuova, flotta nuova. `DLBS.ships` e' lo schieramento che il
+// giocatore ha disegnato col dito e sopravvive apposta ai ridisegni; alla
+// rivincita pero' e' lo schieramento della battaglia PRECEDENTE, e ritrovarsi
+// la griglia gia' piena col tasto DEPLOY pronto vuol dire rimandare in mare la
+// stessa flotta che l'avversario ha appena finito di affondare — nelle stesse
+// caselle. Si azzera anche il contatore degli eventi: i colpi della battaglia
+// vecchia non devono far sobbalzare quella nuova.
+function dlBsNuovaGara(d){
+  if(!d||!d.tour)return;
+  // la chiave e' TURNO + battaglia, non la sola battaglia: due match diversi
+  // dello stesso torneo cominciano tutti e due dalla battaglia 1, e con la
+  // sola battaglia il match del turno 2 si ritroverebbe in mare la flotta del
+  // turno 1 — quella che l'avversario precedente ha gia' visto affondare.
+  var g=(d.tour_round||1)+'-'+(d.tour_gara||1);
+  if(g!==DLBS.gara){ DLBS.gara=g; DLBS.ships=[]; DLBS.lastSeq=0; }
+}
 function dlBsStopPoll(){ if(DLBS.poll){ clearInterval(DLBS.poll); DLBS.poll=null; } }
 function dlBsStopTick(){ if(DLBS.ticker){ clearInterval(DLBS.ticker); DLBS.ticker=null; } }
 function dlBsStart(eur){
   if(!S.userId){ toast('Open in Telegram to play','err'); return; }
   if((S.btc*S.rate)<eur){ toast('Insufficient balance','err'); return; }
-  DLBS.bet=eur; DLBS.shown=false; DLBS.vsShown=false; DLBS.sig=''; DLBS.lastSeq=0; DLBS.ships=[]; DLBS.horiz=true;
+  DLBS.bet=eur; DLBS.shown=false; DLBS.vsShown=false; DLBS.sig=''; DLBS.lastSeq=0; DLBS.ships=[]; DLBS.horiz=true; DLBS.gara='';
   dlSearchView('bs',eur);
   fetch(BACKEND+'/duel/bs_join',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId,bet_btc:eurToBtc(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
     .then(function(r){return r.json();}).then(function(d){
@@ -41206,7 +41398,19 @@ function dlBsMatchPoll(){
 function dlBsEnter(d){
   dlBsStopPoll();
   DLBS.seat=(d.seat!=null)?d.seat:DLBS.seat; DLBS.lastView=d;
-  if(d.over||d.status==='done'){ dlBsBoard(d); dlBsAfterDone(d); return; }
+  // TORNEO: in mare SUBITO, senza il cartello "MATCH FOUND" — quel cartello
+  // porta scritto "STAKE €0.00" (qui la posta non esiste) e ruba tre secondi
+  // alla finestra per schierare la flotta.
+  if(d&&d.tour){ DLBS.vsShown=true; DLBS.bet=0; DLBS.shown=false; DLBS.sig=''; dlTourAncoraReset(DLBS); }
+  dlBsNuovaGara(d);
+  if(d.over||d.status==='done'){
+    // la navale non pareggia mai, ma un match puo' chiudersi con una rivincita
+    // in arrivo (deserto, tetto): il poll e' l'unica cosa che sa trovarla
+    var anc=dlTourAncora(DLBS,d);
+    dlBsBoard(d,anc);
+    if(anc)dlBsStartPoll(); else dlBsAfterDone(d);
+    return;
+  }
   dlVsGate(DLBS,'bs',d,function(){
     if(d.phase==='placing' && !d.you_ready){ dlBsPlacement(d); }
     else if(d.phase==='placing'){ dlBsWaiting(d); }
@@ -41223,20 +41427,25 @@ function dlBsStartPoll(){
       .then(function(r){return r.json();}).then(function(d){
         if(!d||d.error||d.status==='none') return;
         DLBS.lastView=d;
+        dlBsNuovaGara(d);                       // rivincita: flotta da rischierare
         var done=(d.status==='done'||d.over);
+        // TORNEO: `ancora` entra nella firma perche' quando l'attesa della
+        // rivincita scade lo stato del server non cambia di una virgola, e
+        // senza questo pezzo il tavolo resterebbe senza vie d'uscita.
+        var ancora=done&&dlTourAncora(DLBS,d);
         // PHASE-DRIVEN: decide which screen SHOULD be shown, and force it whenever it differs from
         // what's currently up — so the wait→battle hand-off can never get stuck (was: only started
         // at the placement timer because a sig-only guard occasionally skipped the transition).
         var wantUi=done?'done':(d.phase==='placing'?(d.you_ready?'wait':'place'):'battle');
-        var sig=dlBsSig(d);
+        var sig=dlBsSig(d)+(ancora?'|A':'');
         if(wantUi===DLBS.ui && sig===DLBS.sig) return;   // truly nothing changed
         var ev=d.last, oppShot=ev&&ev.shooter!=null&&ev.shooter!==DLBS.seat&&(d.evseq||0)>DLBS.lastSeq;
         DLBS.lastSeq=Math.max(DLBS.lastSeq,d.evseq||0);
         if(wantUi==='wait'){ dlBsWaiting(d); return; }
         if(wantUi==='place'){ if(!document.getElementById('dlbs-place')) dlBsPlacement(d); return; }   // deploying — don't clobber; but re-mount if the modal was lost (never strand)
-        dlBsBoard(d);                                     // battle or done
+        dlBsBoard(d,ancora);                              // battle or done
         if(oppShot){ var oc=document.getElementById('dlbs-own-'+ev.r+'-'+ev.c); if(oc){ oc.classList.add(ev.hit?'boom':'splash'); } dlBsSfx(ev.hit?'boom':'splash'); if(ev.hit)dlBsShake(); if(ev.sunk){ dlBsSunkBanner(ev.sunk,true); dlBsSfx('sunk'); } }
-        if(done){ dlBsStopPoll(); dlBsAfterDone(d); }
+        if(done&&!ancora){ dlBsStopPoll(); dlBsAfterDone(d); }
       }).catch(function(){});
   },1000);
 }
@@ -41244,7 +41453,11 @@ function dlBsStartTick(){
   dlBsStopTick();
   DLBS.ticker=setInterval(function(){ var el=document.getElementById('dlbs-timer'); if(!el)return; var rem=Math.max(0,Math.ceil((DLBS.deadline-Date.now())/1000)); el.textContent=rem+'s'; if(rem<=8)el.style.color='#ff5b5b'; },300);
 }
-function dlBsSig(d){ return (d.phase||'')+'|'+(d.over?1:0)+'|'+(d.your_turn?1:0)+'|'+(d.you_ready?1:0)+'|'+((d.my_shots||[]).length)+'|'+((d.incoming||[]).length)+'|'+((d.sunk_enemy||[]).length)+'|'+((d.my_ships||[]).filter(function(s){return s.sunk;}).length); }
+function dlBsSig(d){ return (d.phase||'')+'|'+(d.over?1:0)+'|'+(d.your_turn?1:0)+'|'+(d.you_ready?1:0)+'|'+((d.my_shots||[]).length)+'|'+((d.incoming||[]).length)+'|'+((d.sunk_enemy||[]).length)+'|'+((d.my_ships||[]).filter(function(s){return s.sunk;}).length)
+  // TORNEO: due battaglie dello stesso match cominciano identiche (mare vuoto,
+  // nessun colpo): senza il numero della battaglia nella firma il poll le
+  // vedrebbe uguali e la rivincita non comparirebbe mai sullo schermo.
+  +'|T'+(d.tour_gara||0)+(d.tour_rigioca?'R':'')+dlTourSigP(d); }
 // ── grid HTML + cell helpers ──
 function dlBsGridHTML(prefix){
   var h='<div class="dlbs-grid" id="'+prefix+'">';
@@ -41297,10 +41510,13 @@ function dlBsTryPlace(r,c){
   grSound('chip'); dlBsPlacement(DLBS.lastView);
 }
 function dlBsPlacement(d){
-  DLBS.lastView=d; DLBS.sig=dlBsSig(d); DLBS.ui='place'; dlBsStopTick();
+  dlBsNuovaGara(d);                 // rivincita: la flotta si rischiera da capo
+  DLBS.lastView=d; DLBS.sig=dlBsSig(d); DLBS.ui='place'; DLBS.tour=!!(d&&d.tour); dlBsStopTick();
   var placed=DLBS.ships.length, total=BS_FLEET.length, allP=placed>=total, next=allP?null:BS_FLEET[placed];
   var html='<div id="dlbs-wrap"><div class="pvp-m-title" style="color:#38bdf8;">🚢 BATTLESHIP · DEPLOY YOUR FLEET</div>'+
-    '<div class="dlbs-pot">POT €'+(((d&&d.bet_eur)||0)*2).toFixed(2)+' · sink the enemy fleet, take 95%</div>'+
+    // in torneo il piatto non c'e': al suo posto il turno e la battaglia (§3.8)
+    '<div class="dlbs-pot">'+((d&&d.tour)?dlTourRiga(d):('POT €'+(((d&&d.bet_eur)||0)*2).toFixed(2)+' · sink the enemy fleet, take 95%'))+'</div>'+
+    dlTourPresidio(d)+
     '<div class="dlbs-hint">'+(allP?'<span style="color:#39ff14;">Fleet ready — DEPLOY! ⚓</span>':('Place your <b>'+next.name+'</b> ('+next.size+' cells) — tap a cell, '+(DLBS.horiz?'goes →':'goes ↓')))+'</div>'+
     dlBsGridHTML('dlbs-place')+
     '<div class="dlbs-tray">'+BS_FLEET.map(function(f,i){ return '<span class="dlbs-chip'+(i<placed?' done':'')+(i===placed?' next':'')+'">'+dlBsShipIcon(f.size)+' '+f.name+' <i>'+f.size+'</i></span>'; }).join('')+'</div>'+
@@ -41310,8 +41526,13 @@ function dlBsPlacement(d){
       '<button class="pvp-m-btn" onclick="dlBsReset()">↺ RESET</button></div>'+
     (allP?'<button class="pvp-m-btn gold" onclick="dlBsDeploy()">⚓ DEPLOY FLEET ▸ <span class="dlbj-timer" id="dlbs-timer"></span></button>'
         :'<div class="dlbs-deadline">deploy before <span class="dlbj-timer" id="dlbs-timer"></span></div>')+
-    '<button class="pvp-m-btn" onclick="dlBsCancel(false)">LEAVE (forfeit)</button></div>';
+    // in torneo non si abbandona una posta, si abbandona il proprio turno
+    '<button class="pvp-m-btn" onclick="dlBsCancel(false)">'
+    +((d&&d.tour)?'ABBANDONA IL MATCH (perdi il turno)':'LEAVE (forfeit)')+'</button></div>';
+  // SOLO LETTURA: chi e' al tavolo legge il tifo, non lo scrive
+  if(d&&d.tour)html+='<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>';
   dlModalHTML(html);
+  if(d&&d.tour)dlDuelChatMonta();
   // paint placed ships + wire tap-to-place
   DLBS.ships.forEach(function(s){ dlBsPaintShip('dlbs-place', dlBsCells(s), s.horiz, false); });
   for(var r=0;r<BS_N;r++)for(var c=0;c<BS_N;c++){ (function(r,c){ var el=document.getElementById('dlbs-place-'+r+'-'+c); if(!el)return; el.onclick=function(){ dlBsTryPlace(r,c); }; })(r,c); }
@@ -41329,26 +41550,45 @@ function dlBsDeploy(){
     }).catch(function(){ DLBS.busy=false; toast('Network error','err'); });
 }
 function dlBsWaiting(d){
-  DLBS.lastView=d; DLBS.sig=dlBsSig(d); DLBS.ui='wait'; dlBsStopTick();
+  DLBS.lastView=d; DLBS.sig=dlBsSig(d); DLBS.ui='wait'; DLBS.tour=!!(d&&d.tour); dlBsStopTick();
   dlModalHTML('<div class="pvp-m-title" style="color:#38bdf8;">⚓ FLEET DEPLOYED</div>'+
-    '<div class="dlbs-pot">POT €'+(((d&&d.bet_eur)||0)*2).toFixed(2)+'</div>'+
+    '<div class="dlbs-pot">'+((d&&d.tour)?dlTourRiga(d):('POT €'+(((d&&d.bet_eur)||0)*2).toFixed(2)))+'</div>'+
+    dlTourPresidio(d)+
     '<div class="pvp-search"><div class="pvp-search-ring"></div><div class="pvp-search-ring r2"></div><div class="pvp-search-core">🚢</div></div>'+
     '<div class="pvp-search-dots"><span></span><span></span><span></span></div>'+
     '<div style="text-align:center;font-size:12px;color:var(--txt2);">Waiting for '+dlEsc((d&&d.opp_name)||'the enemy')+' to deploy…</div>'+
-    '<button class="pvp-m-btn" onclick="dlBsCancel(false)">LEAVE (forfeit)</button>');
+    // in torneo non si abbandona una posta, si abbandona il proprio turno
+    '<button class="pvp-m-btn" onclick="dlBsCancel(false)">'
+    +((d&&d.tour)?'ABBANDONA IL MATCH (perdi il turno)':'LEAVE (forfeit)')+'</button>'+
+    // SOLO LETTURA: e' l'attesa piu' lunga del gioco (l'altro sta ancora
+    // schierando), ed e' proprio li' che chi gioca vuole leggere il tifo
+    ((d&&d.tour)?'<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>':''));
+  if(d&&d.tour)dlDuelChatMonta();
 }
 // ── BATTLE phase ──
-function dlBsBoard(d){
-  DLBS.lastView=d; DLBS.sig=dlBsSig(d); DLBS.ui=d.over?'done':'battle';
+function dlBsBoard(d,ancora){
+  DLBS.lastView=d; DLBS.sig=dlBsSig(d)+(ancora?'|A':''); DLBS.ui=d.over?'done':'battle';
+  DLBS.tour=!!d.tour;              // lo legge trnTeardown per non chiudere la chat
   var playing=!d.over, yourTurn=!!d.your_turn, pot=((d.bet_eur||0)*2);
+  if(playing)dlTourAncoraReset(DLBS);           // battaglia nuova, attesa nuova
   var html='<div id="dlbs-wrap"><div class="pvp-m-title" style="color:#38bdf8;">🚢 BATTLESHIP DUEL</div>'+
-    '<div class="dlbs-pot">POT €'+pot.toFixed(2)+' · winner takes 95%</div>'+
+    // in torneo il piatto non c'e': al suo posto il turno e la battaglia (§3.8)
+    '<div class="dlbs-pot">'+(d.tour?dlTourRiga(d):('POT €'+pot.toFixed(2)+' · winner takes 95%'))+'</div>'+
+    dlTourPresidio(d)+
     '<div class="dlbs-side-lbl"><span>🎯 ENEMY WATERS</span><span class="dlbs-fleet-pips">'+dlBsShipPips(d.enemy_ships_left)+'</span></div>'+
     dlBsGridHTML('dlbs-fire')+
     '<div class="dlbs-mid">'+(playing?(yourTurn?'<span class="dlbj-turn-you">● FIRE — your turn</span> <span class="dlbj-timer" id="dlbs-timer"></span>':'<span class="dlbj-turn-opp">⏳ enemy is taking aim…</span>'):'')+'</div>'+
     '<div class="dlbs-side-lbl"><span>⚓ YOUR FLEET</span><span class="dlbs-fleet-pips">'+dlBsShipPips(d.my_ships_left)+'</span></div>'+
     dlBsGridHTML('dlbs-own');
-  if(playing){ html+='<button class="pvp-m-btn" onclick="dlBsCancel(false)">LEAVE (forfeit)</button>'; }
+  // in torneo non si abbandona una posta, si abbandona il proprio turno
+  if(playing){ html+='<button class="pvp-m-btn" onclick="dlBsCancel(false)">'
+      +(d.tour?'ABBANDONA IL MATCH (perdi il turno)':'LEAVE (forfeit)')+'</button>'; }
+  else if(d.tour){
+    // TORNEO: nessuna cifra (la posta e' zero e ogni euro scritto qui sarebbe
+    // una bugia) e nessuna rivincita — quella battaglia e' gia' agli atti del
+    // tabellone. Una strada sola: tornarci.
+    html+=dlTourFineHTML(d,ancora);
+  }
   else {
     var win=d.you_win;
     html+='<div class="pvp-result '+(win?'win':'lose')+'" style="color:'+(win?'#39ff14':'#ff5b5b')+';">'+(win?'🏆 VICTORY AT SEA':'💀 FLEET DESTROYED')+'</div>'+
@@ -41357,7 +41597,10 @@ function dlBsBoard(d){
       '<button class="pvp-m-btn" onclick="dlCloseOverlay()">CLOSE</button>';
   }
   html+='</div>';
+  // SOLO LETTURA: chi e' al tavolo legge il tifo, non lo scrive
+  if(d.tour)html+='<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>';
   dlModalHTML(html);
+  if(d.tour)dlDuelChatMonta();
   dlBsRenderFireGrid(d, playing&&yourTurn);
   dlBsRenderOwnGrid(d);
   if(playing&&yourTurn){ DLBS.deadline=d.deadline_ms||0; dlBsStartTick(); } else dlBsStopTick();
@@ -41406,7 +41649,12 @@ function dlBsFire(r,c){
         dlBsSfx(ev.hit?'boom':'splash');
         if(ev.hit) dlBsShake();
         if(ev.sunk){ dlBsSunkBanner(ev.sunk,false); dlBsSfx('sunk'); }
-        setTimeout(function(){ DLBS.sig=''; dlBsBoard(d); if(d.status==='done'){ dlBsStopPoll(); dlBsAfterDone(d); } }, ev.sunk?920:540);
+        // TORNEO: se il match non e' chiuso (rivincita in arrivo) il poll non
+        // si ferma — e' l'unica cosa che sa trovare la battaglia successiva
+        setTimeout(function(){ DLBS.sig='';
+          var fine=(d.status==='done'||d.over), anc=fine&&dlTourAncora(DLBS,d);
+          dlBsBoard(d,anc);
+          if(fine&&!anc){ dlBsStopPoll(); dlBsAfterDone(d); } }, ev.sunk?920:540);
       }, 230);
     }).catch(function(){ DLBS.busy=false; if(cell)cell.classList.remove('firing'); toast('Network error','err'); });
 }
@@ -41550,6 +41798,7 @@ function dlPkdBoard(d, holdResult, ancora){
   var html='<div class="pvp-m-title" style="color:#c084fc;">♠ POKER DUEL · 5-CARD DRAW</div>'+
     // in torneo il piatto non c'e': al suo posto il turno e la mano (§3.8)
     '<div class="dlbj-pot">'+(d.tour?dlTourRiga(d):('POT €'+pot.toFixed(2)+' · best hand wins 95%'))+'</div>'+
+    dlTourPresidio(d)+
     '<div class="dlpkd-side opp"><div class="dlpkd-nm">'+dlEsc(d.opp_name||'Opponent')+(d.opp_drawn?' <span style="color:#39ff14;">✓ drawn</span>':(playing?' · thinking…':(revealing?' · 🂠 hidden':'')))+(!oppHidden&&d.opp_rank?' · <b>'+dlEsc(d.opp_rank)+'</b>':'')+'</div>'+
       '<div class="dlpkd-hand">'+(oppHidden?dlPkdBacks():((d.opp_hand||[]).map(function(c){return dlPkdCard(c,false);}).join('')))+'</div></div>'+
     '<div class="dlpkd-mid">'+(playing?(youDrawn?'<span class="dlbj-turn-opp">✓ You drew — waiting for opponent…</span>':'<span class="dlbj-turn-you">Tap cards to KEEP, then DRAW</span> <span class="dlbj-timer" id="dlpkd-timer"></span>'):(revealing?'<span class="dlbj-turn-you">Your hand'+(d.you_rank?': <b>'+dlEsc(d.you_rank)+'</b>':'')+' — revealing opponent…</span>':''))+'</div>'+
@@ -48045,6 +48294,19 @@ function trnGC(g){
   // sarebbe per giunta il modo piu' rapido di truccare un torneo.
   if(g==='bjl')return {icon:'🂡',watch:false,duel:true};
   if(g==='pkd')return {icon:'🃏',watch:false,duel:true};
+  // MORRA CINESE, BATTAGLIA NAVALE e SCACCHI (11/08/2026): stesso binario dei
+  // tre di sopra. Entrano oggi perche' e' arrivata la regola che li rendeva
+  // possibili — il PRESIDIO DEI DUE MINUTI: chi esce dalla mini app durante un
+  // match ha 120s per rientrare, poi passa l'avversario. Prima di quella regola
+  // il server giocava al posto dell'assente (mossa a caso nella morra, tiro a
+  // caso nella navale) e un giocatore che aveva chiuso l'app poteva perfino
+  // vincere un match di torneo: in un tabellone e' inaccettabile.
+  // watch:false come gli altri: lo spettatore vive nel server real-time, e qui
+  // non c'e'; per la navale e gli scacchi mostrare la vista di uno all'altro
+  // sarebbe per giunta il modo piu' rapido di truccare un torneo.
+  if(g==='rps')return {icon:'✊',watch:false,duel:true};
+  if(g==='bs')return {icon:'🚢',watch:false,duel:true};
+  if(g==='ch')return {icon:'♟️',watch:false,duel:true};
   var m=(typeof RTD_G!=='undefined')&&RTD_G[g];
   if(m)return {icon:m.title.split(' ')[0],watch:(g==='calcio'||g==='scalata'||g==='race'),rtd:true};
   return null;
@@ -48265,8 +48527,8 @@ function trnTeardown(){
   // La condizione guarda CUR, cioe' la schermata di ADESSO: appena si va
   // altrove il giro dopo chiude la socket come sempre, senza bandierine da
   // ricordarsi di spegnere.
-  // 11/08: i tavoli sul binario dei duelli sono tre, non piu' uno solo. Basta
-  // che UNO dei tre sia in un match di torneo perche' la socket debba restare
+  // 11/08: i tavoli sul binario dei duelli sono SEI, non piu' uno solo. Basta
+  // che UNO dei sei sia in un match di torneo perche' la socket debba restare
   // viva: sono tavoli che si escludono a vicenda (un giocatore sta in una
   // partita sola), quindi l'oppure non e' una scorciatoia — e' la domanda
   // giusta.
@@ -48274,7 +48536,10 @@ function trnTeardown(){
   var inDuelloTorneo=(typeof CUR!=='undefined'&&CUR==='duel'
                       &&(_tour(typeof DLRR!=='undefined'?DLRR:null)
                         ||_tour(typeof DLBJ!=='undefined'?DLBJ:null)
-                        ||_tour(typeof DLPKD!=='undefined'?DLPKD:null)));
+                        ||_tour(typeof DLPKD!=='undefined'?DLPKD:null)
+                        ||_tour(typeof DLRPS!=='undefined'?DLRPS:null)
+                        ||_tour(typeof DLBS!=='undefined'?DLBS:null)
+                        ||_tour(typeof DLCH!=='undefined'?DLCH:null)));
   if(!inDuelloTorneo&&GLD.ui!=='match'&&GLD.ui!=='search'&&GLD.ui!=='over'){
     GLD.spec=false;GLD.specRid=null;GLD.tour=false;
     if(GLD.ws){GLD.closedByUs=true;try{GLD.ws.close();}catch(e){}GLD.ws=null;GLD.wsOk=false;}
@@ -49304,7 +49569,16 @@ var TRN_DUELLO={fermo:false,timer:0,game:''};
 var TRN_DUEL_CLIENT={
   rr: {store:function(){return DLRR;},  enter:function(d){dlRrEnter(d);}},
   bjl:{store:function(){return DLBJ;},  enter:function(d){dlBjEnter(d);}},
-  pkd:{store:function(){return DLPKD;}, enter:function(d){dlPkdEnter(d);}}
+  pkd:{store:function(){return DLPKD;}, enter:function(d){dlPkdEnter(d);}},
+  // 11/08/2026: i tre giochi nuovi. La navale entra dalla stessa porta anche se
+  // la sua prima schermata non e' il tavolo ma lo schieramento della flotta:
+  // `dlBsEnter` sceglie da solo la schermata guardando `phase`, ed e' giusto
+  // che la scelga lui — il tabellone non deve sapere come e' fatto un gioco.
+  rps:{store:function(){return DLRPS;}, enter:function(d){DLRPS.sig='';dlRpsEnter(d);}},
+  // match nuovo, mare vuoto: la flotta disegnata col dito nel match precedente
+  // non deve ritrovarsi gia' schierata qui (vedi dlBsNuovaGara)
+  bs: {store:function(){return DLBS;},  enter:function(d){DLBS.gara='';DLBS.ships=[];DLBS.sig='';dlBsEnter(d);}},
+  ch: {store:function(){return DLCH;},  enter:function(d){DLCH.sig='';dlChEnter(d);}}
 };
 function trnDuelloStop(){
   TRN_DUELLO.fermo=true;
