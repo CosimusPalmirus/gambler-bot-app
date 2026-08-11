@@ -40158,11 +40158,25 @@ function dlRrBurst(vivo){
 //
 // I due scarti (−20 in su, −42 in giu) non sono a caso: tengono la vampa dove
 // era gia stata approvata puntando in su, e mettono l altra specchiata.
+// IL MARGINE E' UN DATO DELL'IMMAGINE, NON UN GUSTO (11/08/2026).
+// rr_revolver.png e' 848x1264 ma il revolver NON tocca i bordi: la prima riga
+// disegnata dall'alto e' la 167 e l'ultima dal basso la 1094, cioe' c'e' il
+// 13,2% di trasparente da ogni lato. Prima qui c'erano due numeri scelti a
+// occhio (alto-20 / basso-42) che mettevano la vampa a 11 px dal bordo della
+// SCATOLA, mentre la bocca vera sta a 17,4: si vedeva il fuoco staccato
+// dall'arma di 6-7 px, in tutte e due le direzioni di tiro.
+// Adesso il margine si ricava dall'immagine. Se un domani si ridisegna il
+// revolver, questa frazione va RIMISURATA (basta guardare da che riga comincia
+// il disegno): e' l'unico numero qui dentro che dipende dal file .png.
+var DLRR_MARGINE_BOCCA = 167/1264;      // trasparente sopra la bocca, misurato
 function dlRrPortaFuocoAllaBocca(stage, gun, verso_giu){
   if(!stage||!gun) return;
   try{
     var alto=gun.offsetTop, basso=alto+gun.offsetHeight;
-    stage.style.setProperty('--muz', (verso_giu ? basso-42 : alto-20)+'px');
+    var m=gun.offsetHeight*DLRR_MARGINE_BOCCA;      // ~17,4 px su 132
+    var bocca=verso_giu ? (basso-m) : (alto+m);
+    // la vampa e' alta 62: si centra sulla bocca togliendone la meta'
+    stage.style.setProperty('--muz', Math.round(bocca-31)+'px');
   }catch(e){}
 }
 // Graphic action animation: aim the revolver at the target, then fire (flash) or click (blank).
@@ -40208,11 +40222,18 @@ function dlRrAnimate(ev, onDone, view){
       dlRrDryClick();
       try{ tg.HapticFeedback&&tg.HapticFeedback.impactOccurred('rigid'); }catch(e){}
     }
+    // SE TE LA SEI PUNTATA ADDOSSO, L'ARMA CI RESTA (11/08/2026). Prima il
+    // tempo era uno solo — 1300 ms e l'arma tornava su — e il colpo su di se'
+    // finiva con l'arma che si rigirava subito, buttando via l'unico momento
+    // della partita che merita una pausa.
+    // L'attesa si allunga PRIMA di onDone e non dopo, di proposito: onDone fa
+    // ridisegnare il tavolo, e il ridisegno ricrea l'arma dritta — una posa
+    // tenuta dopo verrebbe cancellata dal ridisegno stesso.
     setTimeout(function(){
       if(fx)fx.className='dlrr2-fx';
       if(gun){ gun.style.transform=''; gun.style.removeProperty('--rot'); }
       onDone();
-    }, 1300);
+    }, targetIsMe ? 2800 : 1300);
   }, 560);
 }
 function dlRrAfterDone(d){
