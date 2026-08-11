@@ -39531,11 +39531,96 @@ function dlReveal(d){
     dealNext();
   } else { finish(); }
 }
+// ══ IL TAVOLO DI UN MATCH DI TORNEO — le tre cose uguali per tutti i giochi ══
+// Blackjack e poker duello sono entrati nei tornei l'11/08/2026 sullo stesso
+// binario della roulette russa. Questi tre aiutanti stanno qui, in un posto
+// solo, perche' non hanno NIENTE di specifico del gioco: copiarli in ogni
+// tavolo vorrebbe dire tre posti dove correggere lo stesso sbaglio.
+
+// 1. LA CHAT NEL TAVOLO. Il tabellone ce l'ha da sempre, il match no: chi
+//    giocava era l'unico a non poter leggere il tifo rivolto a lui. Si riusa
+//    la chat del torneo com'e' — stesso canale, stessa socket, nessun
+//    protocollo nuovo — e si aggiunge solo l'unica cosa che serviva: montarla.
+function dlDuelChatMonta(){
+  try{ if(typeof gldConnect==='function')gldConnect(); }catch(e){}
+  try{ trnChatSub(); trnChatPaint(); }catch(e){}
+}
+
+// 2. LA RIGA IN CIMA AL TAVOLO, al posto del "POT €": in un match di torneo il
+//    piatto non esiste, e scrivere "POT €0.00" sopra la testa dei due sembra
+//    un premio da zero euro. Al suo posto si dice cosa si sta giocando
+//    davvero: il turno, e — quando il gioco ne prevede piu' d'una — la mano.
+function dlTourRiga(d){
+  var n=d.tour_round||1, g=d.tour_gara||1, gx=d.tour_gare||1;
+  // IN FINALE SI VA A OLTRANZA: dalla mano successiva all'ultima prevista non
+  // c'e' piu' un "di 3" da scrivere, e scriverlo sarebbe una bugia (la mano 4
+  // di 3 non esiste). Lo si dice com'e'.
+  if(g>gx)return '🏆 FINALE · A OLTRANZA · MANO <b>'+g+'</b>';
+  if(gx>1)return '🏆 TORNEO · TURNO <b>'+n+'</b> · MANO <b>'+g+'</b> di <b>'+gx+'</b>';
+  return '🏆 TORNEO · TURNO <b>'+n+'</b>';
+}
+
+// 3. IL POLL CHE NON SI FERMA FRA UNA MANO E L'ALTRA.
+//    Una mano pari si rigioca, ma la rivincita non nasce insieme al verdetto:
+//    la apre la cassetta del server, cioe' fino a otto secondi DOPO. In quella
+//    finestra la vista dice `done` e `tour_rigioca` e' ancora falso: un client
+//    che smettesse di chiedere adesso resterebbe fermo a guardare il risultato
+//    della prima mano e perderebbe il match senza accorgersene. Quindi si
+//    continua a chiedere per un tratto corto e dichiarato — appena il server
+//    ripunta il giocatore sulla mano nuova, la rotta di stato la restituisce
+//    da sola e il tavolo si ridisegna.
+//    Si aspetta SOLO quando una rivincita e' davvero possibile:
+//      · una mano VINTA chiude il match (regola §3.1): non si aspetta niente;
+//      · finite le mani previste non si rigioca... tranne in FINALE, dove si
+//        va a oltranza perche' il torneo deve avere un campione.
+function dlTourAncora(store,d){
+  if(!d||!d.tour)return false;
+  if(d.tour_rigioca){ if(!store.tourAtt)store.tourAtt=Date.now(); return true; }
+  if(!d.push)return false;
+  if((d.tour_gara||1)>=(d.tour_gare||1)&&!d.tour_final)return false;
+  if(!store.tourAtt)store.tourAtt=Date.now();
+  return (Date.now()-store.tourAtt)<15000;
+}
+// il tratto d'attesa riparte da capo a ogni mano nuova: e' un'attesa per
+// mano, non per match
+function dlTourAncoraReset(store){ store.tourAtt=0; }
+
+// 4. COM'E' FINITA, senza mai una cifra. Ritorna {res,col,sub}: la riga
+//    grande, il suo colore e la riga sotto. Le cifre in euro qui sarebbero
+//    tutte bugie (la posta e' zero) e il tabellone, non il tavolo, e' il posto
+//    dove si legge il verdetto del match.
+function dlTourEsito(d,ancora){
+  if(d.tour_pari||d.push){
+    var g=(d.tour_gara||1)+1, gx=d.tour_gare||1;
+    return {res:'🤝 PARI — NESSUNO PASSA',col:'#ffd700',
+            // il numero della mano che arriva: in finale, a oltranza, il "di N"
+            // non c'e' piu'
+            sub:(ancora?('Si rigioca: '+(g>gx?('mano '+g):(g+' di '+gx)))
+                       :'Il verdetto del match e\' sul tabellone del torneo')};
+  }
+  return d.you_win
+    ? {res:'🏆 PASSI AL TURNO SUCCESSIVO',col:'#39ff14',sub:''}
+    : {res:'💀 ELIMINATO DAL TORNEO',col:'#ff5b5b',sub:''};
+}
+// il finale di un tavolo di torneo: niente cifre, niente rivincita a soldi,
+// e una sola strada — tornare dove il match conta qualcosa
+function dlTourFineHTML(d,ancora){
+  var e=dlTourEsito(d,ancora);
+  return '<div class="pvp-result '+(e.col==='#39ff14'?'win':(e.col==='#ff5b5b'?'lose':''))+'" style="color:'+e.col+';">'+e.res+'</div>'
+    +(e.sub?'<div style="text-align:center;font-weight:800;margin-top:4px;color:'+e.col+';">'+e.sub+'</div>':'')
+    +(ancora?'':'<button class="pvp-m-btn gold" onclick="dlCloseOverlay();go(\'torneo\')">🏆 TORNA AL TORNEO</button>'
+              +'<button class="pvp-m-btn" onclick="dlCloseOverlay()">CLOSE</button>');
+}
 // ════════ LIVE PvP BLACKJACK DUEL (interactive, turn-based) ════════
-var DLBJ={poll:null,ticker:false,deadline:0,bet:0,busy:false,shown:false,sig:''};
+var DLBJ={poll:null,ticker:false,deadline:0,bet:0,busy:false,shown:false,sig:'',tour:false,tourAtt:0};
 function dlBjSig(d){
   function ps(side){ return ((side&&side.piles)||[]).map(function(p){ return p.hidden?('h'+(p.count||0)):(((p.cards||[]).length)+':'+p.total+(p.bust?'B':'')+(p.done?'D':'')); }).join(','); }
-  return (d.state||'')+'|'+(d.your_turn?1:0)+'|Y'+ps(d.you)+'|O'+ps(d.opp);
+  // TORNEO: la mano appena finita e la stessa mano con la rivincita gia'
+  // aperta hanno le stesse identiche carte. Senza questi due pezzi il poll le
+  // vedrebbe uguali, non ridisegnerebbe, e "PARI — si rigioca" non
+  // comparirebbe mai.
+  return (d.state||'')+'|'+(d.your_turn?1:0)+'|Y'+ps(d.you)+'|O'+ps(d.opp)
+    +'|T'+(d.tour_gara||0)+(d.tour_rigioca?'R':'');
 }
 function dlBjHdr(){ return {'Content-Type':'application/json','ngrok-skip-browser-warning':'1'}; }
 function dlBjStopPoll(){ if(DLBJ.poll){ clearInterval(DLBJ.poll); DLBJ.poll=null; } }
@@ -39567,7 +39652,17 @@ function dlBjMatchPoll(){
 }
 function dlBjEnter(d){
   dlBjStopPoll();
-  if(d.state==='done'){ dlBjBoard(d); dlBjAfterDone(d); return; }
+  // TORNEO: si va al tavolo SUBITO, senza il cartello "MATCH FOUND". Quel
+  // cartello ha una barra "STAKE €0.00" (qui la posta non esiste, ed e' il
+  // punto) e costa quasi tre secondi su una mano che ne ha cento in tutto:
+  // sono secondi tolti a chi deve decidere carta o resto.
+  if(d&&d.tour){ DLBJ.vsShown=true; DLBJ.bet=0; DLBJ.shown=false; dlTourAncoraReset(DLBJ); }
+  if(d.state==='done'){
+    var anc=dlTourAncora(DLBJ,d);
+    dlBjBoard(d,anc);
+    if(anc)dlBjStartPoll(); else dlBjAfterDone(d);
+    return;
+  }
   dlVsGate(DLBJ,'bj',d,function(){ dlBjBoard(d); dlBjStartPoll(); });
 }
 function dlBjStartPoll(){
@@ -39578,9 +39673,15 @@ function dlBjStartPoll(){
     fetch(BACKEND+'/duel/bjl_state',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId})})
       .then(function(r){return r.json();}).then(function(d){
         if(!d||d.error||d.status==='none') return;
-        if(dlBjSig(d)===DLBJ.sig) return;   // nothing visible changed → don't rebuild (no flicker)
-        dlBjBoard(d);
-        if(d.state==='done'){ dlBjStopPoll(); dlBjAfterDone(d); }
+        // TORNEO: una mano finita PARI non chiude il tavolo — ne arriva
+        // un'altra, e il poll e' l'unica cosa che la trovera'. `ancora` entra
+        // anche nella firma perche' quando l'attesa scade lo stato non cambia
+        // di una virgola: senza, resterebbe in pagina "si rigioca" e nessun
+        // bottone per uscirne.
+        var fine=(d.state==='done'), ancora=fine&&dlTourAncora(DLBJ,d);
+        if(dlBjSig(d)+(ancora?'|A':'')===DLBJ.sig) return;   // nothing visible changed → don't rebuild (no flicker)
+        dlBjBoard(d,ancora);
+        if(fine&&!ancora){ dlBjStopPoll(); dlBjAfterDone(d); }
       }).catch(function(){});
   },1300);
 }
@@ -39608,8 +39709,10 @@ function dlBjSide(side,label,isYou,activeTurn){
     '<div class="dlbj-name">'+dlEsc(label)+'</div>'+
     (side.piles||[]).map(dlBjPile).join('')+'</div>';
 }
-function dlBjBoard(d){
-  DLBJ.sig=dlBjSig(d);
+function dlBjBoard(d,ancora){
+  DLBJ.sig=dlBjSig(d)+(ancora?'|A':'');
+  DLBJ.tour=!!d.tour;              // lo legge trnTeardown per non chiudere la chat
+  if(d.state!=='done')dlTourAncoraReset(DLBJ);   // mano nuova, attesa nuova
   var playing=(d.state!=='done');
   var you=d.you||{piles:[]}, opp=d.opp||{piles:[]};
   // deal sound when a new card has appeared since the last render
@@ -39620,7 +39723,8 @@ function dlBjBoard(d){
   }catch(e){}
   var pot=((d.bet_eur||0)*2);
   var html='<div class="pvp-m-title" style="color:#ff5b5b;">🂡 BLACKJACK DUEL</div>'+
-    '<div class="dlbj-pot">POT €'+pot.toFixed(2)+' · winner takes 95%</div>'+
+    // in torneo il piatto non c'e': al suo posto il turno e la mano (§3.8)
+    '<div class="dlbj-pot">'+(d.tour?dlTourRiga(d):('POT €'+pot.toFixed(2)+' · winner takes 95%'))+'</div>'+
     dlBjSide(opp,(d.opp_name||'Opponent')+(opp.hidden?' · 🂠 hidden':''),false,(playing&&!d.your_turn))+
     '<div class="dlbj-mid">'+(playing?(d.your_turn?
         '<span class="dlbj-turn-you">● YOUR TURN</span> <span class="dlbj-timer" id="dlbj-timer"></span>':
@@ -39636,7 +39740,15 @@ function dlBjBoard(d){
       if(d.can_split) html+='<button class="action-btn" style="flex:1;background:linear-gradient(135deg,#3b82f6,#1d4ed8);" onclick="dlBjAction(\'split\')">✂ SPLIT</button>';
       html+='</div>';
     }
-    html+='</div><button class="pvp-m-btn" onclick="dlBjCancel(false)">LEAVE (forfeit)</button>';
+    // in torneo non si abbandona una posta, si abbandona il proprio turno:
+    // l'etichetta lo dice, perche' "forfeit" fa pensare a dei soldi persi
+    html+='</div><button class="pvp-m-btn" onclick="dlBjCancel(false)">'
+      +(d.tour?'ABBANDONA IL MATCH (perdi il turno)':'LEAVE (forfeit)')+'</button>';
+  } else if(d.tour){
+    // TORNEO: nessuna cifra (la posta e' zero e ogni euro scritto qui sarebbe
+    // una bugia) e nessuna rivincita — quella mano e' gia' agli atti del
+    // tabellone. Una strada sola: tornarci.
+    html+=dlTourFineHTML(d,ancora);
   } else {
     var push=d.push, win=d.you_win;
     var amt=push?('€'+(d.bet_eur||0).toFixed(2)+' returned'):(win?('+€'+(((d.prize_eur||0)-(d.bet_eur||0))).toFixed(2)):('−€'+(d.bet_eur||0).toFixed(2)));
@@ -39647,7 +39759,10 @@ function dlBjBoard(d){
       '<button class="pvp-m-btn gold" onclick="dlBjStart('+(DLBJ.bet||0)+')">'+LBL_AGAIN+'</button>'+
       '<button class="pvp-m-btn" onclick="dlCloseOverlay()">CLOSE</button>';
   }
+  // SOLO LETTURA: chi e' al tavolo legge il tifo, non lo scrive
+  if(d.tour)html+='<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>';
   dlModalHTML(html);
+  if(d.tour)dlDuelChatMonta();
   if(playing&&d.your_turn){ DLBJ.deadline=d.deadline_ms||0; dlBjStartTick(); } else { dlBjStopTick(); }
 }
 function dlBjAfterDone(d){
@@ -39669,8 +39784,13 @@ function dlBjAction(act){
       DLBJ.busy=false;
       var row=document.getElementById('dlbj-actions'); if(row) row.style.opacity='';
       if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); return; } // poll restores state
-      DLBJ._last=d; dlBjBoard(d);
-      if(d.state==='done'){ dlBjAfterDone(d); }
+      DLBJ._last=d;
+      // TORNEO: se la mano si e' chiusa PARI il match non e' finito, e
+      // `dlBjAfterDone` fermerebbe il poll — cioe' l'unica cosa che sa
+      // trovare la mano successiva.
+      var fine=(d.state==='done'), anc=fine&&dlTourAncora(DLBJ,d);
+      dlBjBoard(d,anc);
+      if(fine&&!anc){ dlBjAfterDone(d); }
     }).catch(function(){ DLBJ.busy=false; toast('Network error','err'); });
 }
 function dlBjCancel(silent){
@@ -40276,7 +40396,7 @@ function dlRpsCancel(silent){
     }).catch(function(){ dlCloseOverlay(); });
 }
 // ════════ POKER DUEL — interactive 5-CARD DRAW ════════
-var DLPKD={poll:null,ticker:false,deadline:0,bet:0,busy:false,shown:false,held:[false,false,false,false,false],sig:''};
+var DLPKD={poll:null,ticker:false,deadline:0,bet:0,busy:false,shown:false,held:[false,false,false,false,false],sig:'',tour:false,tourAtt:0,gara:0};
 function dlPkdStopPoll(){ if(DLPKD.poll){ clearInterval(DLPKD.poll); DLPKD.poll=null; } }
 function dlPkdStopTick(){ if(DLPKD.ticker){ clearInterval(DLPKD.ticker); DLPKD.ticker=null; } }
 function dlPkdCard(c, tog, i, dealMs){
@@ -40286,7 +40406,12 @@ function dlPkdCard(c, tog, i, dealMs){
   return '<div class="dlpkd-card'+(red?' red':'')+(tog?' tog':'')+deal+'"'+attr+'><div class="dlpkd-r">'+c.r+'</div><div class="dlpkd-s">'+c.s+'</div>'+(tog?'<div class="dlpkd-keep">KEEP</div>':'')+'</div>';
 }
 function dlPkdBacks(){ var s=''; for(var i=0;i<5;i++)s+='<div class="dlpkd-card back"></div>'; return s; }
-function dlPkdSig(d){ return (d.state||'')+'|'+(d.you_drawn?1:0)+'|'+(d.opp_drawn?1:0)+'|'+((d.you_hand||[]).map(function(c){return c.r+c.s;}).join('')); }
+// TORNEO: due mani PARI di seguito possono avere le stesse identiche carte (e
+// una mano pari e' proprio il caso in cui si rigioca). Senza il numero della
+// mano nella firma il poll le vedrebbe uguali, non ridisegnerebbe, e la mano
+// nuova non comparirebbe mai sullo schermo di chi sta aspettando.
+function dlPkdSig(d){ return (d.state||'')+'|'+(d.you_drawn?1:0)+'|'+(d.opp_drawn?1:0)+'|'+((d.you_hand||[]).map(function(c){return c.r+c.s;}).join(''))
+  +'|T'+(d.tour_gara||0)+(d.tour_rigioca?'R':''); }
 // ════════ RANDOM MATCH (interactive) — matchmake 2 players, server rolls a game, enter it for real ════════
 var DLRND={poll:null,bet:0};
 function dlRndStopPoll(){ if(DLRND.poll){ clearInterval(DLRND.poll); DLRND.poll=null; } }
@@ -40961,7 +41086,19 @@ function dlPkdMatchPoll(){
   },1400);
 }
 function dlPkdEnter(d){ dlPkdStopPoll();
-  if(d.status==='done'||d.state==='done'){ dlPkdBoard(d); dlPkdAfterDone(d); return; }
+  // TORNEO: al tavolo SUBITO, senza il cartello "MATCH FOUND". Quel cartello
+  // porta scritto "STAKE €0.00" (qui la posta non esiste, ed e' il punto) e
+  // costa quasi tre secondi su una mano che ne ha trentacinque in tutto per
+  // decidere quali carte cambiare.
+  if(d&&d.tour){ DLPKD.vsShown=true; DLPKD.bet=0; DLPKD.shown=false; dlTourAncoraReset(DLPKD); }
+  if(d.status==='done'||d.state==='done'){
+    // se la mano si e' chiusa PARI il match NON e' finito: ne arriva un'altra,
+    // e il poll e' l'unica cosa che sa trovarla
+    var anc=dlTourAncora(DLPKD,d);
+    dlPkdBoard(d,false,anc);
+    if(anc)dlPkdStartPoll(); else dlPkdAfterDone(d);
+    return;
+  }
   dlVsGate(DLPKD,'cards',d,function(){ dlPkdBoard(d); dlPkdStartPoll(); });
 }
 function dlPkdStartPoll(){
@@ -40972,9 +41109,20 @@ function dlPkdStartPoll(){
     fetch(BACKEND+'/duel/pkd_state',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId})})
       .then(function(r){return r.json();}).then(function(d){
         if(!d||d.error||d.status==='none') return;
-        if(dlPkdSig(d)===DLPKD.sig) return;
-        if(d.status==='done'||d.state==='done'){ dlPkdStopPoll(); dlPkdRevealThenDone(d); }   // opponent just finished → showdown beat
-        else dlPkdBoard(d);
+        var fine=(d.status==='done'||d.state==='done');
+        // `ancora` entra anche nella firma: quando l'attesa della rivincita
+        // scade, lo stato del server non cambia di una virgola — senza questo
+        // pezzo resterebbe in pagina "si rigioca" e nessun bottone per uscirne.
+        var ancora=fine&&dlTourAncora(DLPKD,d);
+        var firma=dlPkdSig(d)+(ancora?'|A':'');
+        if(firma===DLPKD.sig) return;
+        // LO SHOWDOWN SI GUARDA UNA VOLTA SOLA. Se la firma di adesso e' gia'
+        // in cima a quella dipinta, questa mano l'abbiamo gia' scoperta e sta
+        // cambiando solo l'attesa: rifare la posa da 1,7s vorrebbe dire
+        // riscoprire le carte a ripetizione finche' non arriva la mano nuova.
+        if(fine&&DLPKD.sig.indexOf(dlPkdSig(d))!==0){ dlPkdStopPoll(); dlPkdRevealThenDone(d); return; }   // opponent just finished → showdown beat
+        if(fine){ dlPkdBoard(d,false,ancora); if(!ancora){ dlPkdStopPoll(); dlPkdAfterDone(d); } return; }
+        dlPkdBoard(d);
       }).catch(function(){});
   },1300);
 }
@@ -40983,9 +41131,17 @@ function dlPkdStartTick(){
   DLPKD.ticker=setInterval(function(){ var el=document.getElementById('dlpkd-timer'); if(!el)return; var rem=Math.max(0,Math.ceil((DLPKD.deadline-Date.now())/1000)); el.textContent=rem+'s'; if(rem<=6)el.style.color='#ff5b5b'; },300);
 }
 function dlPkdToggle(i){ DLPKD.held[i]=!DLPKD.held[i]; var el=document.getElementById('dlpkd-c'+i); if(el)el.classList.toggle('held',DLPKD.held[i]); grSound('chip'); }
-function dlPkdBoard(d, holdResult){
-  DLPKD.sig=dlPkdSig(d);
+function dlPkdBoard(d, holdResult, ancora){
+  DLPKD.sig=dlPkdSig(d)+(ancora?'|A':'');
+  DLPKD.tour=!!d.tour;              // lo legge trnTeardown per non chiudere la chat
   var playing=(d.status!=='done'&&d.state!=='done');
+  if(playing)dlTourAncoraReset(DLPKD);            // mano nuova, attesa nuova
+  // TORNEO: mano nuova, scarti nuovi. `held` sopravvive apposta al ridisegno
+  // (serve all'animazione dello showdown), ma alla mano successiva quelle
+  // spunte sono di carte che non ci sono piu': senza questo azzeramento il
+  // giocatore si troverebbe tre carte gia' segnate "tengo" senza averle
+  // toccate, e con un cambio solo a disposizione e' il match.
+  if(d.tour&&(d.tour_gara||1)!==DLPKD.gara){ DLPKD.gara=(d.tour_gara||1); DLPKD.held=[false,false,false,false,false]; }
   var revealing=(!playing && holdResult);    // showdown done, but hold back the opponent + result for a beat
   var youDrawn=d.you_drawn, pot=((d.bet_eur||0)*2);
   // during the "see your hand" beat, the freshly-drawn (non-held) cards fly in, staggered
@@ -40993,7 +41149,8 @@ function dlPkdBoard(d, holdResult){
   function youCard(c,i){ var dm=(revealing && !DLPKD.held[i])?(dn++*130):null; return dlPkdCard(c,(playing&&!youDrawn),i,dm); }
   var oppHidden=(playing||revealing);
   var html='<div class="pvp-m-title" style="color:#c084fc;">♠ POKER DUEL · 5-CARD DRAW</div>'+
-    '<div class="dlbj-pot">POT €'+pot.toFixed(2)+' · best hand wins 95%</div>'+
+    // in torneo il piatto non c'e': al suo posto il turno e la mano (§3.8)
+    '<div class="dlbj-pot">'+(d.tour?dlTourRiga(d):('POT €'+pot.toFixed(2)+' · best hand wins 95%'))+'</div>'+
     '<div class="dlpkd-side opp"><div class="dlpkd-nm">'+dlEsc(d.opp_name||'Opponent')+(d.opp_drawn?' <span style="color:#39ff14;">✓ drawn</span>':(playing?' · thinking…':(revealing?' · 🂠 hidden':'')))+(!oppHidden&&d.opp_rank?' · <b>'+dlEsc(d.opp_rank)+'</b>':'')+'</div>'+
       '<div class="dlpkd-hand">'+(oppHidden?dlPkdBacks():((d.opp_hand||[]).map(function(c){return dlPkdCard(c,false);}).join('')))+'</div></div>'+
     '<div class="dlpkd-mid">'+(playing?(youDrawn?'<span class="dlbj-turn-opp">✓ You drew — waiting for opponent…</span>':'<span class="dlbj-turn-you">Tap cards to KEEP, then DRAW</span> <span class="dlbj-timer" id="dlpkd-timer"></span>'):(revealing?'<span class="dlbj-turn-you">Your hand'+(d.you_rank?': <b>'+dlEsc(d.you_rank)+'</b>':'')+' — revealing opponent…</span>':''))+'</div>'+
@@ -41002,10 +41159,19 @@ function dlPkdBoard(d, holdResult){
   if(revealing){
     /* no buttons during the reveal beat — the result + Play Again come after */
   } else if(playing&&!youDrawn){
+    // in torneo non si abbandona una posta, si abbandona il proprio turno:
+    // l'etichetta lo dice, perche' "forfeit" fa pensare a dei soldi persi
     html+='<button class="pvp-m-btn gold" onclick="dlPkdDraw()">🔄 DRAW · swap the cards you didn\'t keep</button>'+
-      '<button class="pvp-m-btn" onclick="dlPkdCancel(false)">LEAVE (forfeit)</button>';
+      '<button class="pvp-m-btn" onclick="dlPkdCancel(false)">'
+      +(d.tour?'ABBANDONA IL MATCH (perdi il turno)':'LEAVE (forfeit)')+'</button>';
   } else if(playing){
-    html+='<button class="pvp-m-btn" onclick="dlPkdCancel(false)">LEAVE (forfeit)</button>';
+    html+='<button class="pvp-m-btn" onclick="dlPkdCancel(false)">'
+      +(d.tour?'ABBANDONA IL MATCH (perdi il turno)':'LEAVE (forfeit)')+'</button>';
+  } else if(d.tour){
+    // TORNEO: nessuna cifra (la posta e' zero e ogni euro scritto qui sarebbe
+    // una bugia) e nessuna rivincita — quella mano e' gia' agli atti del
+    // tabellone. Una strada sola: tornarci.
+    html+=dlTourFineHTML(d,ancora);
   } else {
     var win=d.you_win, push=d.push;
     var amt=push?('€'+(d.bet_eur||0).toFixed(2)+' returned'):(win?('+€'+(((d.prize_eur||0)-(d.bet_eur||0))).toFixed(2)):('−€'+(d.bet_eur||0).toFixed(2)));
@@ -41015,7 +41181,13 @@ function dlPkdBoard(d, holdResult){
       '<button class="pvp-m-btn gold" onclick="dlPkdStart('+(DLPKD.bet||0)+')">'+LBL_AGAIN+'</button>'+
       '<button class="pvp-m-btn" onclick="dlCloseOverlay()">CLOSE</button>';
   }
+  // SOLO LETTURA: chi e' al tavolo legge il tifo, non lo scrive
+  if(d.tour)html+='<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>';
   dlModalHTML(html);
+  // il montaggio sta QUI e non nel chiamante di proposito: `dlPkdRevealThenDone`
+  // ridisegna il tavolo due volte a 1,7s di distanza, e la chat va riagganciata
+  // dopo ENTRAMBE le volte.
+  if(d.tour)dlDuelChatMonta();
   if(playing&&!youDrawn){ for(var i=0;i<5;i++){ if(DLPKD.held[i]){ var el=document.getElementById('dlpkd-c'+i); if(el)el.classList.add('held'); } } DLPKD.deadline=d.deadline_ms||0; dlPkdStartTick(); } else dlPkdStopTick();
 }
 function dlPkdDraw(){
@@ -41035,7 +41207,15 @@ function dlPkdRevealThenDone(d){
   dlPkdStopPoll(); dlPkdStopTick();
   dlPkdBoard(d, true);
   try{ var n=0; for(var i=0;i<5;i++){ if(!DLPKD.held[i]){ (function(k){ setTimeout(function(){ grSound('chip'); }, 60+k*130); })(n++); } } }catch(e){}
-  setTimeout(function(){ DLPKD.sig=''; dlPkdBoard(d); dlPkdAfterDone(d); }, 1700);
+  setTimeout(function(){
+    DLPKD.sig='';
+    // TORNEO: se la mano si e' chiusa PARI il match non e' finito, e
+    // `dlPkdAfterDone` fermerebbe il poll — cioe' l'unica cosa che sa trovare
+    // la mano successiva.
+    var anc=dlTourAncora(DLPKD,d);
+    dlPkdBoard(d,false,anc);
+    if(anc)dlPkdStartPoll(); else dlPkdAfterDone(d);
+  }, 1700);
 }
 function dlPkdAfterDone(d){
   dlPkdStopPoll(); dlPkdStopTick();
@@ -47457,6 +47637,15 @@ function trnGC(g){
   // qui non c'e' — vedere le due vite e la camera altrui sarebbe un lavoro a
   // parte, non una spunta.
   if(g==='rr')return {icon:'🔫',watch:false,duel:true};
+  // BLACKJACK DUELLO e POKER DUELLO (11/08/2026): stesso binario della
+  // roulette — si giocano QUI DENTRO, non in una stanza del server real-time.
+  // `duel:true` dice a trnEnterMatch di riscattare il biglietto con
+  // /duel/tour_enter e di aprire il tavolo del gioco con la posta a zero.
+  // watch:false per la stessa ragione della roulette: lo spettatore vive nel
+  // server RT e qui non c'e' — mostrare le carte coperte dell'uno all'altro
+  // sarebbe per giunta il modo piu' rapido di truccare un torneo.
+  if(g==='bjl')return {icon:'🂡',watch:false,duel:true};
+  if(g==='pkd')return {icon:'🃏',watch:false,duel:true};
   var m=(typeof RTD_G!=='undefined')&&RTD_G[g];
   if(m)return {icon:m.title.split(' ')[0],watch:(g==='calcio'||g==='scalata'||g==='race'),rtd:true};
   return null;
@@ -47677,8 +47866,16 @@ function trnTeardown(){
   // La condizione guarda CUR, cioe' la schermata di ADESSO: appena si va
   // altrove il giro dopo chiude la socket come sempre, senza bandierine da
   // ricordarsi di spegnere.
+  // 11/08: i tavoli sul binario dei duelli sono tre, non piu' uno solo. Basta
+  // che UNO dei tre sia in un match di torneo perche' la socket debba restare
+  // viva: sono tavoli che si escludono a vicenda (un giocatore sta in una
+  // partita sola), quindi l'oppure non e' una scorciatoia — e' la domanda
+  // giusta.
+  function _tour(s){ return (typeof s!=='undefined'&&s&&s.tour); }
   var inDuelloTorneo=(typeof CUR!=='undefined'&&CUR==='duel'
-                      &&typeof DLRR!=='undefined'&&DLRR&&DLRR.tour);
+                      &&(_tour(typeof DLRR!=='undefined'?DLRR:null)
+                        ||_tour(typeof DLBJ!=='undefined'?DLBJ:null)
+                        ||_tour(typeof DLPKD!=='undefined'?DLPKD:null)));
   if(!inDuelloTorneo&&GLD.ui!=='match'&&GLD.ui!=='search'&&GLD.ui!=='over'){
     GLD.spec=false;GLD.specRid=null;GLD.tour=false;
     if(GLD.ws){GLD.closedByUs=true;try{GLD.ws.close();}catch(e){}GLD.ws=null;GLD.wsOk=false;}
@@ -48699,20 +48896,43 @@ function trnEnterMatch(){
 // Il primo dei due che arriva NON trova la partita: la apre il secondo. Quindi
 // questa funzione sa aspettare, e lo dice — un'attesa muta su una schermata
 // vuota fa chiudere l'app, e chi chiude l'app perde il match a tavolino.
-var TRN_DUELLO={fermo:false,timer:0};
+var TRN_DUELLO={fermo:false,timer:0,game:''};
+// Ogni gioco del binario porta due sole cose: il suo cassetto di stato (dove
+// si azzera la posta, o a fine match il tavolo offrirebbe una rivincita a
+// QUELLA cifra) e la funzione che apre il tavolo. Una mappa e non una catena
+// di `if`: aggiungere un gioco e' una riga, e non c'e' nessun posto dove
+// dimenticarsene la meta'.
+var TRN_DUEL_CLIENT={
+  rr: {store:function(){return DLRR;},  enter:function(d){dlRrEnter(d);}},
+  bjl:{store:function(){return DLBJ;},  enter:function(d){dlBjEnter(d);}},
+  pkd:{store:function(){return DLPKD;}, enter:function(d){dlPkdEnter(d);}}
+};
 function trnDuelloStop(){
   TRN_DUELLO.fermo=true;
   if(TRN_DUELLO.timer){clearTimeout(TRN_DUELLO.timer);TRN_DUELLO.timer=0;}
 }
 function trnEntraDuello(g){
-  if(g!=='rr'){toast('Gioco non ancora supportato — aggiorna l\'app','err',2600);return;}
+  g=String(g||'');
+  var c=trnGC(g),cl=TRN_DUEL_CLIENT[g];
+  // le due domande sono diverse e servono tutte e due: `duel` dice che il
+  // gioco si gioca qui dentro, la mappa dice che questo client sa aprirne il
+  // tavolo. Un torneo di un gioco piu' nuovo dell'app deve dirlo, non
+  // lasciare il dito premuto nel vuoto.
+  if(!c||!c.duel||!cl){toast('Gioco non ancora supportato — aggiorna l\'app','err',2600);return;}
   TRN_DUELLO.fermo=false;
+  TRN_DUELLO.game=g;
   trnDuelloBussa(1);
 }
 function trnDuelloBussa(giro){
   if(TRN_DUELLO.fermo)return;
-  fetch(BACKEND+'/duel/rr_tour_enter',{method:'POST',headers:dlBjHdr(),
-        body:JSON.stringify({user_id:S.userId})})
+  var g=TRN_DUELLO.game||'rr',cl=TRN_DUEL_CLIENT[g];
+  if(!cl)return;
+  // ROTTA UNICA: /duel/tour_enter con il gioco nel corpo. La vecchia
+  // /duel/rr_tour_enter resta viva sul server per i telefoni che non si sono
+  // ancora aggiornati, ma da qui non si chiama piu': una rotta per gioco
+  // sarebbe una copia da tenere allineata a ogni correzione.
+  fetch(BACKEND+'/duel/tour_enter',{method:'POST',headers:dlBjHdr(),
+        body:JSON.stringify({user_id:S.userId,game:g})})
     .then(function(r){return r.json();})
     .then(function(d){
       if(TRN_DUELLO.fermo)return;
@@ -48720,11 +48940,16 @@ function trnDuelloBussa(giro){
         toast('⚠️ '+((d&&d.error)||'errore'),'err',2600);
         return;
       }
-      if(d.status==='playing'){
+      // `done` non e' un caso teorico: fra una mano e l'altra, o dopo che il
+      // match si e' chiuso, chi ritocca ENTRA riceve il tavolo gia' finito.
+      // Portarcelo e' l'unica risposta onesta — prima qui si finiva a dire
+      // "l'avversario non si e' presentato", che era falso.
+      if(d.status==='playing'||d.status==='done'){
         trnDuelloStop();
-        DLRR.bet=0;                       // niente rivincita a soldi in coda
+        var st=cl.store();
+        if(st)st.bet=0;                   // niente rivincita a soldi in coda
         go('duel');
-        dlRrEnter(d);
+        cl.enter(d);
         return;
       }
       // in attesa dell'altro: si ribussa piano finche' non arriva o finche'
