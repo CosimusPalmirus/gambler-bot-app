@@ -42301,6 +42301,13 @@ function twrSndToggle(){
 // ── state ───────────────────────────────────────────────────────────
 var TWR={
   ws:null,wsOk:false,ui:'',tier:'5',pendingJoin:false,closedByUs:false,retries:0,
+  // TORNEO (12/08/2026): `tour` dice che questo match e' di un torneo (posta
+  // zero, si torna al tabellone), `mid` e' il canale della chat della lobby.
+  tour:false,mid:'',
+  // SPETTATORE: stesso protocollo di tutti gli altri (watch/watch_ok/
+  // unwatch). Il turf era l'ultimo gioco del torneo che non si poteva
+  // guardare, e per il solito motivo: ha un renderer suo.
+  spec:false,specRid:null,pendingWatch:null,viewers:0,
   map:null,walls:{},hideouts:{},names:{},myId:null,you:null,potEur:0,rate:90000,
   snaps:[],lastRaw:null,over:null,searchAt:0,searchN:0,searchTick:null,
   pred:{x:0,y:0,ok:false},joy:{on:false,mx:0,my:0},sentZero:true,aim:{on:false,ax:1,ay:0},sentAimZero:true,
@@ -42417,9 +42424,21 @@ function twrRR(ctx,x,y,w,h,r){
 function twrHash(x,y){var h=(x*73856093)^(y*19349663);h=(h^(h>>13))*1274126177;return ((h^(h>>16))>>>0)/4294967295;}
 
 // ── lifecycle ───────────────────────────────────────────────────────
+// ── TORNEO NEL TURF (12/08/2026) ────────────────────────────────────────────
+// Il turf era, insieme al tank, l'altro gioco con una strada client tutta sua
+// e senza il concetto di torneo: `TWR.tour` non esisteva proprio. Gli stessi
+// guasti gia' visti nel tank — il rimborso promesso dove non c'e' una posta, i
+// premi in euro a fine partita, nessuna porta verso il tabellone, e la chat
+// della lobby che non arrivava. Qui si porta la stessa cura, non una nuova.
 function initTurf(){
   TWR.tier=TWR.tier||'5';
   if(window.TWR_TICKET){TWR.pendingTicket=window.TWR_TICKET;window.TWR_TICKET=null;TWR.practice=!!window.TWR_PRACTICE;window.TWR_PRACTICE=false;}
+  // TORNEO: la bandiera la alza trnEnterMatch, come TKD_TOUR e RTD_TOUR
+  if(window.TWR_TOUR){TWR.tour=true;TWR.practice=false;window.TWR_TOUR=false;}
+  if(window.TWR_WATCH){   // SPETTATORE: instradato da trnWatch
+    TWR.pendingWatch=window.TWR_WATCH;window.TWR_WATCH=null;
+    TWR.pendingTicket=null;TWR.practice=false;TWR.tour=false;TWR.spec=false;TWR.specRid=null;
+  }
   twrLookSync();
   twrConnect();
   // ── `iv:2` MANCAVA QUI, E SPEGNEVA MEZZO GIOCO (08/08/2026) ──────────────
@@ -42482,6 +42501,12 @@ function twrOnMsg(m){
     // Questo e' il ramo che scatta quando la websocket si apre DOPO che il
     // ticket e' gia' in mano — cioe' il caso normale entrando da un torneo.
     if(TWR.pendingTicket){twrSend({t:'join_ticket',ticket:TWR.pendingTicket,iv:2});TWR.pendingTicket=null;twrShowSearch();return;}
+    if(TWR.pendingWatch){twrSend({t:'watch',rid:TWR.pendingWatch});TWR.pendingWatch=null;twrShowSpecWait();return;}
+    // riaggancio dopo una caduta di rete, ma solo se si sta ancora guardando
+    if(TWR.spec&&TWR.specRid){
+      if(CUR==='turf'){twrSend({t:'watch',rid:TWR.specRid});return;}
+      TWR.spec=false;TWR.specRid=null;
+    }
     /* `iv` = cosa sa fare questa pagina. 2 = sa mostrare l'offerta di scambio
        e mandare il verbo `swap`. Il server serve chi NON lo manda come ha
        sempre fatto (raccolta automatica), cosi' una pagina vecchia in cache
@@ -42502,8 +42527,9 @@ function twrOnMsg(m){
     }
     return;
   }
-  if(t==='left'){TWR.ui='';twrShowLobby();toast('Buy-in rimborsato','ok',1600);if(typeof loadBalance==='function')loadBalance();return;}
-  if(t==='refund'){TWR.ui='';twrShowLobby();toast('Nessuno sfidante — rimborsato','warn',2200);if(typeof loadBalance==='function')loadBalance();return;}
+  // in torneo non si rimborsa niente perche' non si e' pagato niente
+  if(t==='left'){if(TWR.tour){twrTourLeave();return;}TWR.ui='';twrShowLobby();toast('Buy-in rimborsato','ok',1600);if(typeof loadBalance==='function')loadBalance();return;}
+  if(t==='refund'){if(TWR.tour){twrTourDone();return;}TWR.ui='';twrShowLobby();toast('Nessuno sfidante — rimborsato','warn',2200);if(typeof loadBalance==='function')loadBalance();return;}
   if(t==='err'){
     var e=m.msg||'errore';
     var it={'insufficient balance':'Saldo insufficiente — deposita per entrare',
@@ -42514,6 +42540,9 @@ function twrOnMsg(m){
   }
   if(t==='start'){
     if(m.game&&m.game!=='turf')return;
+    if(m.tour&&!TWR.tour)return;   // TORNEO: raduno abbandonato — niente render a sorpresa
+    TWR.tour=!!m.tour;             // autoritativo dal server
+    TWR.mid=m.mid||'';             // canale chat della MIA lobby
     TWR.practice=!!m.practice;
     TWR.map=m.map;TWR.names=m.names||{};TWR.myId=String(m.you);
     var profs=m.profiles||{};
@@ -42553,8 +42582,17 @@ function twrOnMsg(m){
     try{tg.HapticFeedback&&tg.HapticFeedback.notificationOccurred('warning');}catch(e){}
     return;
   }
+  if(t==='watch_ok'){twrWatchOk(m);return;}
   if(t==='s'){if(m.g==='tank')return;twrOnSnap(m);return;}
-  if(t==='over'){if(m.game&&m.game!=='turf')return;TWR.over=m;TWS.engine(false);TWS.heart(false);twrShowOver(m);return;}
+  if(t==='over'){if(m.game&&m.game!=='turf'&&!(m.tour&&TWR.spec))return;
+    if(TWR.spec){twrSpecOver(m);return;}
+    TWR.over=m;TWS.engine(false);TWS.heart(false);twrShowOver(m);return;}
+  // la chat del torneo: senza questo i frame cadevano nel vuoto e chi
+  // giocava un torneo di turf restava fuori dalla chat in entrambi i versi
+  if(t==='chat'||t==='chat_log'||t==='chat_slow'){
+    if(typeof trnOnChat==='function')trnOnChat(m);
+    return;
+  }
   if(t==='pong'){if(m.ts)TWR.ping=Date.now()-m.ts;return;}
 }
 function twrSend(o){if(TWR.wsOk){try{TWR.ws.send(JSON.stringify(o));}catch(e){}}}
@@ -42571,6 +42609,105 @@ function twrJoin(){
   twrSend({t:'join',tier:TWR.tier,iv:2});   // iv: vedi il commento sopra
 }
 function twrLeave(){twrSend({t:'leave'});}
+// TORNEO: abbandono del raduno e ritorno al tabellone (gemelli di
+// tkTourLeave/tkTourDone). `{t:'leave'}` NON si manda: il server ignora il
+// leave di chi aspetta su un biglietto, quindi il bottone non farebbe niente.
+function twrTourLeave(){
+  TWR.pendingTicket=null;TWR.tour=false;TWR.ui='';TWR.mid='';
+  twrStopRaf();twrOvClose();wsNetBanner('turf',0);
+  toast('Hai lasciato il raduno del match','warn',2000);
+  go('torneo');
+}
+function twrTourDone(){
+  TWR.ui='';TWR.tour=false;TWR.mid='';
+  twrStopRaf();twrOvClose();wsNetBanner('turf',0);
+  go('torneo');
+}
+// ── TORNEO: LO SPETTATORE DEL TURF (12/08/2026) ──────────────────────────────
+// Ultimo gioco del torneo a diventare guardabile. Stesso protocollo di tutti
+// gli altri — il server manda uno snapshot NEUTRO con gli uid gia' rimappati su
+// slot opachi — e stesso renderer del giocatore, coi comandi spenti.
+function twrShowSpecWait(){
+  TWR.ui='search';twrOvClose();twrStopRaf();
+  var el=document.getElementById('tw-body');if(!el)return;
+  el.classList.remove('tw-fit');
+  el.innerHTML='<div class="tw-radar"><div class="twr-radar-sweep"></div>👁</div>'
+    +'<div class="tw-search-t">SPETTATORE — CONNESSIONE AL MATCH…</div>'
+    +'<div class="tw-search-cd">Un attimo: entri in punta di piedi</div>'
+    +'<button class="action-btn red" onclick="twrSpecExit()" style="width:100%;">✖ ESCI</button>';
+}
+function twrWatchOk(m){
+  if(!m.map){toast('Match non disponibile','err',2000);twrSpecExit();return;}
+  TWR.spec=true;TWR.specRid=m.rid;TWR.tour=true;TWR.practice=false;
+  TWR.mid=m.mid||'';
+  TWR.map=m.map;TWR.names=m.names||{};
+  var profs=m.profiles||{};
+  Object.keys(profs).forEach(function(id){
+    if(profs[id]&&profs[id].name)TWR.names[id]=String(profs[id].name).slice(0,14);
+  });
+  // niente `myId`: da spettatore non c'e' un "mio" bandito, e il renderer del
+  // turf disegna tutti allo stesso modo (a differenza del tank, che colora il
+  // proprio carro). Cosi' la predizione locale non parte nemmeno.
+  TWR.myId=null;TWR.viewers=(m.viewers!=null)?m.viewers:1;TWR.potEur=0;
+  TWR.walls={};TWR.hideouts={};TWR.water={};TWR.parks={};
+  (m.map.walls||[]).forEach(function(w){TWR.walls[w[0]+'_'+w[1]]=1;});
+  (m.map.hideouts||[]).forEach(function(h){TWR.hideouts[h[0]+'_'+h[1]]=1;});
+  (m.map.water||[]).forEach(function(w){TWR.water[w[0]+'_'+w[1]]=1;});
+  TWR.waterArr=(m.map.water||[]).map(function(w){return [+w[0],+w[1]];});
+  (m.map.parks||[]).forEach(function(w){TWR.parks[w[0]+'_'+w[1]]=1;});
+  TWR.snaps=[];TWR.over=null;TWR.lastRaw=null;TWR.anim={};TWR.fxq=[];
+  TWR.pred={x:0,y:0,ok:false};TWR._lf=0;TWR.feedRows=[];TWR.shake=0;
+  twrShowSpecMatch();
+}
+function twrShowSpecMatch(){
+  TWR.ui='match';twrOvClose();
+  try{GBMusic.stop();}catch(e){}
+  var el=document.getElementById('tw-body');if(!el)return;
+  el.classList.add('tw-fit');
+  el.innerHTML=''
+    +'<div class="twr-hud">'
+    +'<div class="twr-chip" style="color:#ffd76b;">👁 LIVE</div>'
+    +'<div class="twr-chip gold">🏆 TORNEO</div>'
+    +'<div class="twr-chip" id="twr-alive">👥 –</div>'
+    +'<div class="twr-chip red" id="twr-zone">☢ –</div>'
+    +'<button class="twr-chip snd" id="twr-snd" onclick="twrSndToggle()">'+(TWS.on?'🔊':'🔇')+'</button>'
+    +'</div>'
+    +'<div class="twr-status" id="twr-status"></div>'
+    +'<div class="twr-wrap" id="twr-wrap">'
+    +'<canvas id="twr-cv"></canvas>'
+    +'<canvas id="twr-mini" class="twr-mini" width="96" height="96"></canvas>'
+    +'<div class="twr-feed" id="twr-feed"></div>'
+    +'<div class="twr-banner" id="twr-banner"></div>'
+    +'<div class="twr-vignette" id="twr-vig"></div>'
+    +'<div class="gld-spec-ov"><span id="twr-spec-n">SPETTATORE 👁 '+(TWR.viewers||1)+'</span></div>'
+    +'<button class="action-btn red gld-spec-exit" onclick="twrSpecExit()">✖ ESCI</button>'
+    +'</div>'
+    +'<div class="gld-spec-chat" id="twr-spec-chat">'+trnChatHTML()+'</div>';
+  twrCanvasInit();
+  twrStartRaf();
+  try{
+    if(typeof trnInjectCSS==='function')trnInjectCSS();
+    var _tk=document.getElementById('trn-ticker');
+    if(_tk&&_tk.parentNode)_tk.parentNode.removeChild(_tk);
+    TRN.chatSubbed=0;trnChatSub();trnChatPaint();
+  }catch(_cs){}
+}
+function twrSpecExit(){
+  if(TWR.wsOk&&(TWR.spec||TWR.specRid))twrSend({t:'unwatch'});
+  TWR.spec=false;TWR.specRid=null;TWR.pendingWatch=null;TWR.tour=false;TWR.mid='';
+  TWR.ui='';TWR.map=null;TWR.lastRaw=null;TWR.snaps=[];TWR.over=null;
+  twrStopRaf();twrOvClose();wsNetBanner('turf',0);
+  go('torneo');
+}
+function twrSpecOver(m){
+  TWR.over=m;TWR.ui='over';TWR.specRid=null;twrStopRaf();
+  TWS.engine(false);TWS.heart(false);TWS.play('win',0.7);
+  var wn=m.winner_name||(m.winner!=null?TWR.names[m.winner]:null);
+  twrOv('<div style="font-size:44px;">🏁</div>'
+    +'<div class="tw-win-t">MATCH FINITO</div>'
+    +'<div class="tw-ov-sub">'+(wn?('Vince <b>'+trnEsc(String(wn))+'</b>'):'Nessun vincitore')+'</div>'
+    +'<div class="tw-ov-btns"><button class="action-btn gold" onclick="twrSpecExit()">🏆 TORNA AL TORNEO</button></div>', true);
+}
 function twrThrowStart(ev,code){
   ev.preventDefault();
   var t=(ev.touches&&ev.touches[0])||ev;
@@ -42615,6 +42752,7 @@ function twrAct(a){
 }
 function twrPump(){
   if(TWR.ui!=='match')return;
+  if(TWR.spec)return;   // chi guarda non muove niente: nessun comando parte da qui
   if(TWR.joy.on){
     twrSend({t:'in',mx:TWR.joy.mx,my:TWR.joy.my});
     TWR.sentZero=false;
@@ -42927,6 +43065,18 @@ function twrEditClose(){
 function twrShowSearch(){
   TWR.ui='search';twrOvClose();twrStopRaf();
   var el=document.getElementById('tw-body');if(!el)return;
+  if(TWR.tour){
+    // TORNEO: raduno del match. Niente montepremi, niente "rimborso" (non si e'
+    // pagato niente) e niente countdown di rimborso: quello che conta e' la
+    // finestra di presentazione, e chi non si presenta e' eliminato.
+    el.innerHTML='<div class="tw-radar"><div class="twr-radar-sweep"></div>🏆</div>'
+      +'<div class="tw-search-t">RADUNO DEL MATCH…</div>'
+      +'<div class="tw-search-n" id="twr-sn">'+((TWR.searchN||1)+'/10')+'</div>'
+      +'<div class="twr-prize">🏆 MATCH DEL TORNEO</div>'
+      +'<div class="tw-search-cd">Presentati entro 3 minuti dal via del round o sei eliminato</div>'
+      +'<button class="action-btn red" onclick="twrTourLeave()" style="width:100%;">✖ ABBANDONA IL MATCH</button>';
+    return;
+  }
   el.innerHTML='<div class="tw-radar"><div class="twr-radar-sweep"></div>🌆</div>'
     +'<div class="tw-search-t">'+(TWR.practice?'ALLENAMENTO — ARRIVANO I BOT…':'IN CERCA DI SFIDANTI…')+'</div>'
     +'<div class="tw-search-n" id="twr-sn">'+(TWR.practice?'🤖 vs BOT':((TWR.searchN||1)+'/10'))+'</div>'
@@ -42944,6 +43094,10 @@ function twrShowSearch(){
 }
 function twrShowMatch(){
   TWR.ui='match';twrOvClose();
+  // il canale della MIA lobby si prende dove `ui` diventa 'match': e' l'unico
+  // posto in cui iscrizione e vista non possono divergere (stessa cura del
+  // Colosseo, dei giochi rtd e del tank)
+  if(TWR.tour){try{TRN.chatSubbed=0;trnChatSub();if(typeof trnChatSwap==='function')trnChatSwap();}catch(_ch){}}
   TWR._weapKey=null;                 // forza il primo paint del pannello arma su nuovo match
   var el=document.getElementById('tw-body');if(!el)return;
   el.classList.add('tw-fit');   // OVERLAY-FIT: canvas a schermo intero, controlli in overlay sull'arena
@@ -42996,6 +43150,33 @@ function twrElim(){
 function twrShowOver(m){
   TWR.ui='over';twrStopRaf();
   TWS.engine(false);TWS.heart(false);
+  if(m.tour||TWR.tour){
+    // TORNEO: niente denaro, e una porta sola — il tabellone. Qui dentro
+    // arriva anche il BYE, che il server manda come un `over` con walkover:
+    // senza questo ramo chi avanzava senza giocare leggeva "+€0.00".
+    var wnT=m.winner_name||(m.winner!=null?TWR.names[m.winner]:'')||'';
+    var h2;
+    if(m.walkover&&m.you_won){
+      TWS.play('win');
+      h2='<div style="font-size:46px;" class="twr-trophy">🏆</div>'
+        +'<div class="tw-win-t">PASSI SENZA GIOCARE</div>'
+        +'<div class="tw-ov-sub">'+trnEsc(String(m.msg||'Avanzi al prossimo round'))+'</div>';
+    }else if(m.you_won){
+      TWS.play('win');
+      try{tg.HapticFeedback&&tg.HapticFeedback.notificationOccurred('success');}catch(e){}
+      h2='<div style="font-size:46px;" class="twr-trophy">🏆</div>'
+        +'<div class="tw-win-t">HAI VINTO IL MATCH!</div>'
+        +'<div class="tw-ov-sub">Avanzi al prossimo round — tieni d\'occhio la tab TORNEI</div>';
+    }else{
+      TWS.play('lose');
+      h2='<div style="font-size:44px;">💀</div><div class="tw-lose-t">ELIMINATO</div>'
+        +'<div class="tw-ov-sub">'+(wnT?('<b>'+trnEsc(String(wnT))+'</b> vince il match — '):'')
+        +'il torneo continua senza di te</div>';
+    }
+    h2+='<div class="tw-ov-btns"><button class="action-btn gold" onclick="twrTourDone()">🏆 TORNA AL TORNEO</button></div>';
+    twrOv(h2,true);
+    return;
+  }
   if(m.practice||TWR.practice){
     TWS.play(m.you_won?'win':'lose');
     twrOv(practiceOverHTML(!!m.you_won,'twrPracAgain','twrPracToReal'),true);
@@ -48564,7 +48745,9 @@ function trnEsc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){re
 function trnGC(g){
   g=String(g||'glad');
   if(g==='glad')return {icon:'🏛️',watch:true};
-  if(g==='turf')return {icon:'🌆',watch:false,turf:true};
+  // 12/08: anche il turf si guarda (ha il suo renderer, e adesso anche il
+  // suo flusso watch/watch_ok/unwatch — vedi twrWatchOk)
+  if(g==='turf')return {icon:'🌆',watch:true,turf:true};
   // 12/08: il tank si guarda (ha il suo renderer, e adesso anche il suo
   // flusso watch/watch_ok/unwatch — vedi tkWatchOk)
   if(g==='tank')return {icon:'🚛',watch:true,tank:true};
@@ -49851,6 +50034,7 @@ function trnEnterMatch(){
     go('arc');
   }else if(c.turf){
     window.TWR_TICKET=mm.ticket;window.TWR_PRACTICE=false;
+    window.TWR_TOUR=true;   // 12/08: senza, il client turf non sa di essere in un torneo
     go('turf');
   }else if(c.tank){
     window.TKD_TICKET=mm.ticket;
@@ -49958,6 +50142,7 @@ function trnWatch(rid){
   grHaptic('pick');
   if(c.rtd){window.RTD_GAME=g;window.RTD_WATCH=rid;go('arc');}
   else if(c.tank){window.TKD_WATCH=rid;go('tank');}   // 12/08: anche il tank
+  else if(c.turf){window.TWR_WATCH=rid;go('turf');}   // …e il turf
   else{window.GLD_WATCH=rid;go('glad');}
 }
 // ══ SPETTATORE DEI GIOCHI DEL BINARIO DUELLI (12/08/2026) ═══════════════════
@@ -50109,10 +50294,12 @@ function trnAskViewers(){
 // RTD per i giochi rtd): nessuna seconda connessione — due socket per lo stesso
 // uid si ruberebbero il bind della room (bug derby di luglio).
 function trnChatSock(){
-  // DENTRO un match di tank la socket buona e' la SUA: le altre due possono
-  // essere aperte ma non sono quelle legate a questa partita (12/08/2026).
+  // DENTRO un match di tank o di turf la socket buona e' la SUA: le altre
+  // possono essere aperte ma non sono quelle legate a questa partita.
   if(typeof TKD!=='undefined'&&TKD.tour&&TKD.ui==='match'&&TKD.ws&&TKD.wsOk)
     return {send:tkSend};
+  if(typeof TWR!=='undefined'&&TWR.tour&&TWR.ui==='match'&&TWR.ws&&TWR.wsOk)
+    return {send:twrSend};
   if(typeof GLD!=='undefined'&&GLD.ws&&GLD.wsOk)return {send:gldSend};
   if(typeof RTD!=='undefined'&&RTD.ws&&RTD.wsOk)return {send:rtdSend};
   if(typeof TKD!=='undefined'&&TKD.ws&&TKD.wsOk)return {send:tkSend};
@@ -50136,6 +50323,8 @@ function trnChatCh(){
     // versi — non leggeva la lobby e il suo ticker restava vuoto.
     if(typeof TKD!=='undefined'&&TKD.tour&&TKD.ui==='match'&&TKD.mid)
       return 'r:'+String(TKD.mid);
+    if(typeof TWR!=='undefined'&&TWR.tour&&TWR.ui==='match'&&TWR.mid)
+      return 'r:'+String(TWR.mid);
     // ── E CHI GUARDA STA NELLA LOBBY CHE GUARDA (12/08/2026) ────────────────
     // Prima lo spettatore scriveva sul canale del TORNEO, che i giocatori in
     // gara non leggono: il tifo non arrivava a nessuno, ed era proprio la cosa
@@ -50285,10 +50474,10 @@ function trnTickerPaint(){
   // 12/08: fra i contenitori c'e' anche l'arena del TANK (#tk-wrap), che aveva
   // la sua strada e restava senza ticker.
   var host=document.getElementById('gld-wrap')||document.getElementById('arc-wrap')
-          ||document.getElementById('tk-wrap');
+          ||document.getElementById('tk-wrap')||document.getElementById('twr-wrap');
   if(!host){var t0=document.getElementById('trn-ticker');if(t0&&t0.parentNode){t0.parentNode.classList.remove('trn-tk-on');t0.parentNode.removeChild(t0);}return;}
   var inMatch=(typeof GLD!=='undefined'&&GLD.ui==='match')||(typeof RTD!=='undefined'&&RTD.ui==='match')
-             ||(typeof TKD!=='undefined'&&TKD.ui==='match');
+             ||(typeof TKD!=='undefined'&&TKD.ui==='match')||(typeof TWR!=='undefined'&&TWR.ui==='match');
   var el=document.getElementById('trn-ticker');
   if(!inMatch||!TRN.chat.length){if(el&&el.parentNode){el.parentNode.classList.remove('trn-tk-on');el.parentNode.removeChild(el);}return;}
   if(!el){el=document.createElement('div');el.id='trn-ticker';el.className='trn-ticker';host.appendChild(el);}
@@ -53288,8 +53477,24 @@ function rtdShowMatch(){
 function rtdShowOver(m){
   RTD.ui='over';rtdStopRaf();
   if(m.tour){   // TORNEO: niente denaro — esito match + ritorno all'hub
-    var wnT=m.winner_name||rtdName(m.winner)||'';
+    // il nome si legge SOLO se un vincitore c'e' davvero: rtdName non torna
+    // mai vuoto (ripiega su '#'+id), quindi con winner assente qui usciva
+    // «#undefined vince il match»
+    var wnT=m.winner_name||((m.winner!=null)?rtdName(m.winner):'')||'';
     var h2;
+    if(m.pari){
+      // PARI — il motore ha finito senza decidere e il match si rigioca.
+      // Stesse parole e stesso oro del binario dei duelli (dlTourEsito), che
+      // e' la schermata che i giocatori conoscono gia'.
+      TWS.play('alarm',0.7);
+      h2='<div style="font-size:44px;">🤝</div>'
+        +'<div class="tw-win-t" style="color:#ffd700;">PARI — NESSUNO PASSA</div>'
+        +'<div class="tw-ov-sub">Si rigioca: apri di nuovo il match dal tabellone, '
+        +'fra pochi secondi</div>';
+      h2+='<div class="tw-ov-btns"><button class="action-btn gold" onclick="rtdTourDone()">🏆 TORNA AL TORNEO</button></div>';
+      rtdOv(h2,true);
+      return;
+    }
     if(m.you_won){
       TWS.play('win');
       try{tg.HapticFeedback&&tg.HapticFeedback.notificationOccurred('success');}catch(e){}
@@ -53299,7 +53504,8 @@ function rtdShowOver(m){
     }else{
       TWS.play('lose');
       h2='<div style="font-size:44px;">💀</div><div class="tw-lose-t">ELIMINATO</div>'
-        +'<div class="tw-ov-sub"><b>'+trnEsc(String(wnT))+'</b> vince il match — il torneo continua senza di te</div>';
+        +'<div class="tw-ov-sub">'+(wnT?('<b>'+trnEsc(String(wnT))+'</b> vince il match — '):'')
+        +'il torneo continua senza di te</div>';
     }
     h2+='<div class="tw-ov-btns"><button class="action-btn gold" onclick="rtdTourDone()">🏆 TORNA AL TORNEO</button></div>';
     rtdOv(h2,true);
