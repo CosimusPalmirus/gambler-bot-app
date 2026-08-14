@@ -39205,6 +39205,12 @@ function dlPickGame(mode){
   TWR_TIERS.forEach(function(tk){ var b=Number(tk[0]); h+='<button class="tw-tier'+(b===dlPickSel.stake?' sel':'')+'" data-t="'+b+'" onclick="dlSetStake(\''+mode+'\','+b+')">'+tk[1]+'</button>'; });
   h+='</div>';
   h+='<button class="action-btn gold" id="dl-play-btn" onclick="dlPickPlay()" style="width:100%;">▶ GIOCA</button>';
+  // ALLENATI (14/08/2026): solo per i giochi del binario duelli che un bot ce
+  // l'hanno davvero (TRN_DUEL_PRATICA, che deve dire la stessa cosa di
+  // `_PRACTICE_DUELS` nel backend). Per gli altri il tasto non compare: un
+  // tasto che apre una schermata muta e' peggio di nessun tasto.
+  if(typeof TRN_DUEL_PRATICA!=='undefined'&&TRN_DUEL_PRATICA[mode])
+    h+='<button class="action-btn train-btn" onclick="dlCloseOverlay();practiceStart(\''+mode+'\')" style="width:100%;">🤖 ALLENATI · GRATIS vs BOT</button>';
   h+='<div class="tw-note">1 contro 1 · si gioca sulla posta più bassa tra i due (l\'eccedenza è rimborsata) · rimborso se nessuno accetta</div>';
   h+='<button class="pvp-m-btn" onclick="dlCloseOverlay()" style="margin-top:8px;">ANNULLA</button>';
   dlModalHTML(h);
@@ -39479,9 +39485,19 @@ function vsMatchFound(mePlayer, oppPlayer, stakeEur, title, color, onDone){
       '<div class="pvp-vs-rec">⚔ '+(info.dw||0)+'W · '+(info.dl||0)+'L'+((info.wins!=null)?' <span style="opacity:.6;">· 🏆 '+(info.wins||0)+'</span>':'')+'</div></div>';
   }
   var stake=Number(stakeEur||0);
-  var html='<div style="font-family:\'Russo One\',sans-serif;font-size:15px;letter-spacing:3px;color:'+color+';text-shadow:0 0 16px '+color+'aa;margin-bottom:6px;animation:twBantIn .35s ease-out;">MATCH FOUND</div>'
-    +'<div class="pvp-vs-betbar"><div class="pvp-vs-betlbl">STAKE · AL VINCITORE IL 95%</div>'
-    +'<div class="pvp-vs-bet">€'+stake.toFixed(2)+'</div></div>'
+  // ALLENAMENTO (14/08/2026): `stakeEur` negativo = partita di prova. La barra
+  // dei soldi diceva «STAKE · AL VINCITORE IL 95% — €0.00» su un percorso dove
+  // non entra un centesimo (la stanza pinna il piatto a zero): al suo posto va
+  // detto cos'e' davvero. Il segno invece di un parametro nuovo perche' questa
+  // funzione la chiamano in cinque punti diversi, e uno dimenticato mostrerebbe
+  // di nuovo la riga sbagliata.
+  var prova=(stake<0);
+  var html='<div style="font-family:\'Russo One\',sans-serif;font-size:15px;letter-spacing:3px;color:'+color+';text-shadow:0 0 16px '+color+'aa;margin-bottom:6px;animation:twBantIn .35s ease-out;">'+(prova?'ALLENAMENTO':'MATCH FOUND')+'</div>'
+    +(prova
+      ?'<div class="pvp-vs-betbar"><div class="pvp-vs-betlbl">PARTITA DI PROVA</div>'
+       +'<div class="pvp-vs-bet">🤖 GRATIS</div></div>'
+      :'<div class="pvp-vs-betbar"><div class="pvp-vs-betlbl">STAKE · AL VINCITORE IL 95%</div>'
+       +'<div class="pvp-vs-bet">€'+stake.toFixed(2)+'</div></div>')
     +'<div class="pvp-vs-stage">'
     +'<div class="pvp-vs-flash" id="vsmf-flash"></div><div class="pvp-vs-ring"></div><div class="pvp-vs-ring r2"></div>'
     +card(mePlayer,'TU',true,'me','🧑')
@@ -40171,6 +40187,10 @@ function dlRrBoard(d){
         // va detto cosa si sta giocando davvero, cioe' il turno.
         (d.tour
           ? '<div class="dlrr2-pot">🏆 TORNEO · TURNO <b>'+(d.tour_round||1)+'</b></div>'
+          // ALLENAMENTO (14/08): stessa ragione del torneo — «POT €0.00»
+          // sopra la testa dei due sembra un premio da zero euro
+          : d.pratica
+          ? '<div class="dlrr2-pot">🤖 ALLENAMENTO · <b>GRATIS</b></div>'
           : '<div class="dlrr2-pot">POT <b>€'+pot.toFixed(2)+'</b></div>')+
         dlRrGunSVG()+
         // la zona che risponde al dito: assoluta, invisibile, piu grande del
@@ -40237,14 +40257,24 @@ function dlRrBoard(d){
     //    qui la posta e' 0: nel migliore dei casi un errore, nel peggiore un
     //    invito a rigiocare una partita che nel tabellone e' gia' agli atti.
     // Al loro posto: com'e' andata nel torneo, e la strada per tornarci.
+    // ALLENAMENTO (14/08): identico ragionamento del torneo. La cifra non
+    // esiste e la RIVINCITA A SOLDI non deve esserci — dlRrStart(0) sarebbe
+    // un errore, dlRrStart(<posta vecchia>) sarebbe un invito a puntare
+    // davvero a chi era li' solo per provare. Al suo posto ANCORA · GRATIS.
     var amt=d.tour
       ? (win?'PASSI AL TURNO SUCCESSIVO':'ELIMINATO DAL TORNEO')
+      : d.pratica
+      ? (win?'ALLENAMENTO VINTO':'ALLENAMENTO FINITO')
       : (win?('+€'+(((d.prize_eur||0)-(d.bet_eur||0))).toFixed(2))
             :('−€'+(d.bet_eur||0).toFixed(2)));
     html+='<div class="pvp-result '+(win?'win':'lose')+'" style="color:'+col+';">'+res+'</div>'+
       '<div style="text-align:center;font-weight:800;margin-top:4px;color:'+col+';">'+amt+'</div>'+
       (d.tour
         ? '<button class="pvp-m-btn gold" onclick="dlCloseOverlay();go(\'torneo\')">🏆 TORNA AL TORNEO</button>'
+        : d.pratica
+        ? ((typeof TRN!=='undefined'&&TRN.trainFrom)
+            ? '<button class="pvp-m-btn gold" onclick="dlCloseOverlay();trnTrainBack()">🏆 TORNA AL TORNEO</button>'
+            : '<button class="pvp-m-btn gold" onclick="dlCloseOverlay();practiceStart(\'rr\')">🔁 ANCORA · GRATIS</button>')
         : '<button class="pvp-m-btn gold" onclick="dlRrStart('+(DLRR.bet||0)+')">'+LBL_AGAIN+'</button>')+
       '<button class="pvp-m-btn" onclick="dlCloseOverlay()">CLOSE</button>';
   }
@@ -40959,35 +40989,93 @@ function dlRndStopPoll(){ if(DLRND.poll){ clearInterval(DLRND.poll); DLRND.poll=
 // ── TRAIN MODE ("🤖 ALLENATI") — free practice vs bots (ZERO money) ──
 // Mints a stake=0 practice ticket on the backend and drops the player into the
 // game's WS room flagged practice. No funds check, no ante, no balance read.
-function practiceStart(game){
+// `daTorneo` (14/08/2026) = il tid da cui si e' partiti, quando l'allenamento
+// nasce dal tasto della PAGINA DEL TORNEO. Serve solo al RITORNO: la schermata
+// di fine offre «TORNA AL TORNEO» invece di «GIOCA VERA». Si azzera a ogni
+// altra partenza — se restasse appeso, un allenamento aperto dai duelli
+// rispedirebbe al torneo chi non ci era mai stato.
+function practiceStart(game, daTorneo){
+  if(typeof TRN!=='undefined')TRN.trainFrom=daTorneo?String(daTorneo):'';
   if(!S.userId){ toast('Apri da Telegram per allenarti','err'); return; }
   fetch(BACKEND+'/duel/practice_start',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId,game:game,username:(S.username||'Player'),photo_url:dlMyPhoto()})})
     .then(function(r){return r.json();}).then(function(d){
-      if(!d||d.error||!d.ticket){ toast('⚠️ '+((d&&d.error)||'allenamento non disponibile'),'err',2400); return; }
+      // `!d.ticket` NON basta piu' (14/08): i giochi del binario duelli non
+      // hanno nessun biglietto da riscattare — la partita e' gia' aperta e
+      // torna la sua vista. Chiedere il biglietto anche a loro voleva dire
+      // buttare via una partita gia' iniziata sul server.
+      if(!d||d.error||!(d.ticket||d.duel)){ toast('⚠️ '+((d&&d.error)||'allenamento non disponibile'),'err',2400); return; }
       if(game==='turf'){ window.TWR_TICKET=d.ticket; window.TWR_PRACTICE=true; go('turf'); }
       else if(game==='glad'){ window.GLD_TICKET=d.ticket; window.GLD_PRACTICE=true; go('glad'); }
-      else if(game==='race'){ window.RTD_TICKET=d.ticket; window.RTD_TICKET_GAME='race'; window.RTD_GAME='race'; window.RTD_PRACTICE=true; go('arc'); }
-      else if(game==='calcio'){ window.RTD_TICKET=d.ticket; window.RTD_TICKET_GAME='calcio'; window.RTD_GAME='calcio'; window.RTD_PRACTICE=true; go('arc'); }
-      else if(game==='scalata'){ window.RTD_TICKET=d.ticket; window.RTD_TICKET_GAME='scalata'; window.RTD_GAME='scalata'; window.RTD_PRACTICE=true; go('arc'); }
+      // TANK (14/08/2026): ha un client suo, come turf e glad — non passa da
+      // RTD_G. Era l'ultimo gioco del server real-time senza allenamento.
+      else if(game==='tank'){ window.TKD_TICKET=d.ticket; window.TKD_PRACTICE=true; go('tank'); }
+      // IL BINARIO DEI DUELLI (14/08/2026): questi giochi NON stanno sul
+      // server real-time e non hanno nessun biglietto — la partita e' gia'
+      // aperta e la sua vista arriva dentro questa stessa risposta. Si riusa
+      // la mappa del torneo (TRN_DUEL_CLIENT), che per ogni gioco tiene le due
+      // sole cose che servono: dove azzerare la posta e come aprire il tavolo.
+      else if(d.duel){
+        var _cl=(typeof TRN_DUEL_CLIENT!=='undefined')&&TRN_DUEL_CLIENT[game];
+        if(!_cl){ toast('Gioco non ancora supportato — aggiorna l\'app','err',2600); return; }
+        var _st=_cl.store();
+        if(_st)_st.bet=0;               // niente rivincita a soldi in coda
+        go('duel');
+        _cl.enter(d.vista||{});
+      }
+      // ⚠️ UN RAMO SOLO PER TUTTI I GIOCHI RTD (14/08/2026). Qui c'erano
+      // cinque IF senza ELSE: un gioco fuori elenco chiedeva il
+      // biglietto, lo riceveva, e lo buttava via IN SILENZIO — nessun
+      // errore, nessun log, solo un tasto che non fa niente. Quindici
+      // giochi col bot gia' pronto stavano dietro questa riga.
+      else if(RTD_G&&RTD_G[game]){ window.RTD_TICKET=d.ticket; window.RTD_TICKET_GAME=game; window.RTD_GAME=game; window.RTD_PRACTICE=true; go('arc'); }
+      else { toast('Allenamento non disponibile per questo gioco','err',2200); }
     }).catch(function(){ toast('Errore di rete','err'); });
 }
 function twrPractice(){ practiceStart('turf'); }
 function gldPractice(){ practiceStart('glad'); }
-function rtdPractice(){ practiceStart('race'); }
+//  NON ESISTE PIU'. Era codice morto — in tutto il file
+// l'unica occorrenza era la sua definizione — e per giunta forzava 'race':
+// se qualcuno l'avesse chiamata da una lobby di pong avrebbe aperto una
+// gara d'auto. Il tasto vero passa da practiceStart(RTD.game).
 // Shared practice end screen — NO prize, NO coin-rain, NO balance read.
 function practiceOverHTML(won, againFn, toRealFn){
   var h=won
     ? '<div style="font-size:46px;">🏆</div><div class="tw-win-t">ALLENAMENTO VINTO</div><div class="tw-ov-sub">Hai battuto i bot — è pratica, nessun premio.</div>'
     : '<div style="font-size:44px;">🤖</div><div class="tw-lose-t">ALLENAMENTO FINITO</div><div class="tw-ov-sub">I bot ti hanno steso. Riprova — è tutto gratis.</div>';
+  // IL RITORNO AL TORNEO (14/08/2026). Chi si e' allenato dal tasto della
+  // PAGINA DEL TORNEO deve tornare li', non finire nella lobby dei duelli: e'
+  // arrivato da un torneo aperto e ci vuole rientrare. E in quel caso «GIOCA
+  // VERA» non si offre affatto — proporre una partita a soldi a chi si sta
+  // scaldando per un torneo e' l'invito sbagliato nel momento sbagliato.
+  var _tt=(typeof TRN!=='undefined'&&TRN.trainFrom)?String(TRN.trainFrom):'';
   h+='<div class="tw-ov-btns"><button class="action-btn train-btn" onclick="'+againFn+'()">🔁 ANCORA · GRATIS</button>'
-   +'<button class="action-btn gold" onclick="'+toRealFn+'()">💰 GIOCA VERA</button></div>';
+   +(_tt?'<button class="action-btn gold" onclick="trnTrainBack()">🏆 TORNA AL TORNEO</button>'
+        :'<button class="action-btn gold" onclick="'+toRealFn+'()">💰 GIOCA VERA</button>')
+   +'</div>';
   return h;
 }
-function twrPracAgain(){ twrOvClose(); practiceStart('turf'); }
+// dal torneo si torna al torneo: alla SUA pagina, non all'elenco
+function trnTrainBack(){
+  var tid=(typeof TRN!=='undefined'&&TRN.trainFrom)?String(TRN.trainFrom):'';
+  TRN.trainFrom='';
+  if(typeof twrOvClose==='function')twrOvClose();
+  if(typeof gldOvClose==='function')gldOvClose();
+  if(typeof rtdOvClose==='function')rtdOvClose();
+  if(typeof RTD!=='undefined')RTD.ui='';
+  if(typeof TWR!=='undefined')TWR.practice=false;
+  if(typeof GLD!=='undefined')GLD.practice=false;
+  if(typeof RTD!=='undefined')RTD.practice=false;
+  if(tid){TRN.want=tid;TRN.wantN=0;}   // stessa strada del deep link
+  go('torneo');
+}
+function twrPracAgain(){ var _t=(typeof TRN!=='undefined'&&TRN.trainFrom)||''; twrOvClose(); practiceStart('turf',_t); }
 function twrPracToReal(){ TWR.practice=false; twrOvClose(); twrShowLobby(); }
-function gldPracAgain(){ gldOvClose(); practiceStart('glad'); }
+function gldPracAgain(){ var _t=(typeof TRN!=='undefined'&&TRN.trainFrom)||''; gldOvClose(); practiceStart('glad',_t); }
 function gldPracToReal(){ GLD.practice=false; gldOvClose(); gldShowLobby(); }
-function rtdPracAgain(){ rtdOvClose(); practiceStart((RTD.game==='calcio'||RTD.game==='scalata')?RTD.game:'race'); }
+// «ANCORA» riparte dal gioco che stavi giocando. Prima, per tutto cio' che
+// non era calcio o scalata, ripartiva da 'race': dal minigolf si finiva in
+// una gara d'auto.
+function rtdPracAgain(){ var _t=(typeof TRN!=='undefined'&&TRN.trainFrom)||''; rtdOvClose(); practiceStart(RTD.game||'race',_t); }
 function rtdPracToReal(){ RTD.practice=false; rtdOvClose(); rtdShowLobby(); }
 function dlRndStart(eur){
   if(!S.userId){ toast('Open in Telegram to play','err'); return; }
@@ -45077,6 +45165,17 @@ var TKD={
   // (che arriva come `over` walkover) finiva nello stesso guscio sbagliato.
   // `mid` e' il canale della chat della propria lobby.
   tour:false,mid:'',
+  // ── ALLENAMENTO CONTRO I BOT (14/08/2026) ──────────────────────────────
+  // Il tank era l'ULTIMO gioco rimasto fuori, e per lo stesso motivo per cui
+  // era stato l'ultimo a entrare nei tornei: ha un client tutto suo, e qui
+  // `practice` non esisteva proprio come concetto (zero occorrenze in tutto
+  // il file). Senza questa bandiera una partita gratis avrebbe mostrato
+  // l'attesa col «rimborso», la cartolina con «STAKE · WINNER TAKES 95% —
+  // €0.00» e una fine partita che dice «l'avversario si prende €0.00» e
+  // chiama loadBalance(). Il bot del tank invece e' buono da sempre
+  // (turfwar_rt_server._bot_tank: insegue tenendo la distanza, aggira di
+  // lato, mira con imprecisione voluta di ±0,175 rad, spara nell'80% dei casi).
+  practice:false,
   // ── SPETTATORE (12/08/2026) ────────────────────────────────────────────
   // Il tank era l'ULTIMO gioco del torneo che non si poteva guardare, e per
   // un motivo solo: ha un renderer suo e il flusso watch/watch_ok/unwatch
@@ -45101,6 +45200,8 @@ function initTank(){
   // TORNEO: il biglietto lo instrada trnEnterMatch, che alza anche questa
   // bandiera (stesso patto di RTD_TOUR per i giochi rtd)
   if(window.TKD_TOUR){TKD.tour=true;window.TKD_TOUR=false;}
+  // ALLENAMENTO: stesso patto di TKD_TOUR — la bandiera la alza practiceStart
+  if(window.TKD_PRACTICE){TKD.practice=true;window.TKD_PRACTICE=false;}
   // …e lo SPETTATORE arriva da trnWatch, stesso patto di GLD_WATCH/RTD_WATCH
   if(window.TKD_WATCH){
     TKD.pendingWatch=window.TKD_WATCH;window.TKD_WATCH=null;
@@ -45260,8 +45361,10 @@ function tkOnMsg(m){
     var e=m.msg||'errore';
     var it={'insufficient balance':'Saldo insufficiente','already in a lobby':'Sei già in una lobby',
             'auth failed':'Autenticazione fallita — riapri da Telegram','not in a lobby':'Non sei in lobby',
+            'gia impegnato':'Hai già una partita in corso o un match di torneo che ti aspetta',
             'ticket scaduto':(TKD.tour?'Match del torneo scaduto o già partito':'Match scaduto — le puntate sono state rimborsate')};
     toast(it[e]||e,'err',2600);
+    if(e==='gia impegnato'){TKD.ui='';TKD.practice=false;tkShowLobby();return;}
     if(e==='ticket scaduto'){
       if(TKD.tour){tkTourDone();return;}   // TORNEO: niente rimborsi — torna all'hub
       TKD.ui='';tkShowLobby();if(typeof loadBalance==='function')loadBalance();
@@ -45272,6 +45375,7 @@ function tkOnMsg(m){
     if(m.game!=='tank')return;
     if(m.tour&&!TKD.tour)return;   // TORNEO: raduno abbandonato — niente render su schermata nascosta
     TKD.tour=!!m.tour;             // autoritativo dal server (ripulisce flag stantii)
+    TKD.practice=!!m.practice;     // idem: lo dice la stanza, non il client
     TKD.mid=m.mid||'';             // canale chat della MIA lobby (r:<mid>)
     TKD.map=m.map;TKD.names=m.names||{};TKD.myId=String(m.you);
     TKD.pill={};(m.map.pillars||[]).forEach(function(pp){TKD.pill[pp[0]+'_'+pp[1]]=1;});
@@ -45328,6 +45432,11 @@ function tkMatchFound(){
   var bar=TKD.tour
     ?'<div class="pvp-vs-betbar"><div class="pvp-vs-betlbl">MATCH DEL TORNEO</div>'
      +'<div class="pvp-vs-bet">🏆</div></div>'
+    // ALLENAMENTO (14/08): stessa ragione del torneo, ancora piu' forte —
+    // qui la posta non esiste e l'avversario e' un bot
+    :TKD.practice
+    ?'<div class="pvp-vs-betbar"><div class="pvp-vs-betlbl">PARTITA DI PROVA</div>'
+     +'<div class="pvp-vs-bet">🤖 GRATIS</div></div>'
     :'<div class="pvp-vs-betbar"><div class="pvp-vs-betlbl">STAKE · WINNER TAKES 95%</div>'
      +'<div class="pvp-vs-bet">€'+stakeEur.toFixed(2)+'</div></div>';
   var html='<div style="font-family:\'Russo One\',sans-serif;font-size:15px;letter-spacing:3px;color:#a3e635;text-shadow:0 0 16px rgba(163,230,53,.7);margin-bottom:6px;animation:twBantIn .35s ease-out;">MATCH FOUND</div>'
@@ -45388,6 +45497,18 @@ function tkBack(){
       wsNetBanner('tank',0);go('torneo');return;
     }
     tkTourLeave();return;
+  }
+  // ALLENAMENTO (14/08): nessuna puntata da perdere, quindi nessuna conferma
+  // e nessuna parola sui soldi. Il {t:'leave'} ci vuole — lobby_leave chiude
+  // la stanza di allenamento abbandonata, e senza avvisare il server il
+  // prossimo ALLENATI ti rimetterebbe dentro questa.
+  if(TKD.practice){
+    tkLeave();
+    tkStopRaf();TKD.ui='';tkOvClose();
+    TKD.practice=false;TKD.pendingTicket=null;
+    wsNetBanner('tank',0);
+    if(typeof TRN!=='undefined'&&TRN.trainFrom){trnTrainBack();return;}
+    go('duel');return;
   }
   if(TKD.ui==='search'){tkLeave();}
   else if(TKD.ui==='match'){
@@ -45502,6 +45623,10 @@ function tkShowLobby(keepOv){
   TWR_TIERS.forEach(function(tk){h+='<button class="tw-tier'+(tk[0]===TKD.tier?' sel':'')+'" data-t="'+tk[0]+'" onclick="tkSetTier(\''+tk[0]+'\')">'+tk[1]+'</button>';});
   h+='</div>';
   h+='<button class="action-btn gold" onclick="tkJoin()" style="width:100%;">🎯 SFIDA QUALCUNO</button>';
+  // IL TASTO CHE MANCAVA (14/08/2026): il bot del tank esiste da sempre ed e'
+  // buono, ma non c'era nessun modo di arrivarci — questa lobby era l'unica
+  // dei venti giochi senza ALLENATI.
+  h+='<button class="action-btn train-btn" onclick="practiceStart(\'tank\')" style="width:100%;">🤖 ALLENATI · GRATIS vs BOT</button>';
   h+='<div class="tw-note">1 contro 1 · rimborso se nessuno accetta</div>';
   el.innerHTML=h;
 }
@@ -45518,6 +45643,16 @@ function tkShowSearch(){
       +'<div class="twr-prize">🏆 MATCH DEL TORNEO</div>'
       +'<div class="tw-search-cd" id="tk-scd">Presentati entro 3 minuti dal via del round o sei eliminato</div>'
       +'<button class="action-btn red" onclick="tkTourLeave()" style="width:100%;">✖ ABBANDONA IL MATCH</button>';
+    return;
+  }
+  if(TKD.practice){
+    // ALLENAMENTO (14/08): niente «rimborso automatico tra Ns», che qui non
+    // vuol dire niente — non e' entrato un centesimo e l'avversario non deve
+    // arrivare, c'e' gia'. Anche il ticker sotto resta spento.
+    el.innerHTML='<div class="tw-radar"><div class="twr-radar-sweep"></div>🤖</div>'
+      +'<div class="tw-search-t">ALLENAMENTO — ARRIVA IL BOT…</div>'
+      +'<div class="tw-search-cd" id="tk-scd">Pratica gratuita: nessuna puntata, nessun premio</div>'
+      +'<button class="action-btn red" onclick="tkBack()" style="width:100%;">✖ ESCI</button>';
     return;
   }
   el.innerHTML='<div class="tw-radar"><div class="twr-radar-sweep"></div>🎯</div>'
@@ -45629,7 +45764,7 @@ function tkShowMatch(){
     +'<div class="twr-hp" id="tk-hp-me"></div>'
     +'<div class="twr-chip" style="color:#a3e635;">VS</div>'
     +'<div class="twr-hp" id="tk-hp-en"></div>'
-    +'<div class="twr-chip gold" id="tk-pot" style="margin-left:auto;">'+(TKD.tour?'🏆 TORNEO':'€'+fmt(TKD.potEur,2))+'</div>'
+    +'<div class="twr-chip gold" id="tk-pot" style="margin-left:auto;">'+(TKD.tour?'🏆 TORNEO':(TKD.practice?'🤖 ALLENAMENTO':'€'+fmt(TKD.potEur,2)))+'</div>'
     +'<div class="twr-chip red" id="tk-sd">🔥 –</div>'
     +'</div>'
     +'<div class="twr-status" id="tk-status"></div>'
@@ -45687,6 +45822,18 @@ function tkShowOver(m){
     tkOv(h2,true);
     return;
   }
+  // ALLENAMENTO (14/08): stessa schermata degli altri giochi — nessun premio,
+  // nessuna pioggia di monete, e soprattutto NESSUNA loadBalance() su una
+  // partita che non ha toccato il saldo. `TKD.ui` si azzera qui, se no
+  // premendo ANCORA initTank rientra dal ramo `ui==='match' && map` e
+  // lampeggia l'arena della partita appena finita.
+  if(m.practice||TKD.practice){
+    TWS.play(m.you_won?'win':'lose');
+    tkOv(practiceOverHTML(!!m.you_won,'tkPracAgain','tkPracToReal'),true);
+    TKD.ui='';
+    tkShowLobby(true);
+    return;
+  }
   var h;
   if(m.you_won){
     TWS.play('win');
@@ -45708,6 +45855,10 @@ function tkShowOver(m){
   if(typeof loadBalance==='function')loadBalance();
 }
 function tkAgain(){TKD.ui='';tkOvClose();tkShowLobby();}
+// ALLENAMENTO: «ANCORA» riparte gratis (e non perde la strada del ritorno al
+// torneo), «GIOCA VERA» torna alla lobby a soldi con la bandiera abbassata.
+function tkPracAgain(){ var _t=(typeof TRN!=='undefined'&&TRN.trainFrom)||''; tkOvClose(); practiceStart('tank',_t); }
+function tkPracToReal(){ TKD.practice=false; tkOvClose(); tkShowLobby(); }
 function tkOv(html,sticky){
   var o=document.getElementById('tk-overlay'),mm=document.getElementById('tk-modal');
   if(mm)mm.innerHTML=html;if(o)o.classList.add('show');
@@ -48734,7 +48885,31 @@ var TRN={state:null,poll:null,busy:false,viewers:{},imTick:null,
          // MODALITÀ di #trn-body, non una schermata nuova: così poll, socket,
          // chat, contatori 👁 e i ritorni da spettatore (go('torneo')) restano
          // quelli dell'hub e nessuna guardia su CUR va toccata.
-         det:null,detSig:'',detTick:null};
+         det:null,detSig:'',detTick:null,
+         // DEEP LINK dai gruppi (?startapp=torneo_<tid>): il tid arriva PRIMA
+         // che lo stato sia sul filo, e trnDetOpen su un torneo che TRN.state
+         // non conosce ancora rimbalza da solo all'elenco (trnDetRender: !f →
+         // det=null). Quindi il tid si parcheggia qui e la pagina si apre alla
+         // prima risposta che lo contiene. wantN = i tentativi già spesi.
+         want:'',wantN:0,
+         // il tid da cui e' partito un allenamento aperto dalla pagina del
+         // torneo: serve solo alla schermata di fine, per tornare LI'
+         trainFrom:''};
+// il deep link aspetta il torneo, non il contrario. Torna 1 quando ha aperto la
+// pagina (o quando ha smesso di provarci): il chiamante non deve fare nulla.
+function trnWantTry(){
+  var w=TRN.want;if(!w)return 0;
+  var d=TRN.state||{},up=(d&&d.upcoming)||[],hs=TRN.hist||[],i,c=0;
+  if(d&&d.active&&String(d.id||'')===w)c=1;
+  for(i=0;i<up.length&&!c;i++){if(String(up[i].id||'')===w)c=1;}
+  for(i=0;i<hs.length&&!c;i++){if(String(hs[i].id||'')===w)c=1;}   // già finito: pagina d'archivio
+  if(c){TRN.want='';TRN.wantN=0;trnDetOpen(w);return 1;}
+  // torneo che non esiste (id sbagliato, o archiviato oltre il tetto dell'albo):
+  // dopo tre risposte si smette di cercarlo e resta l'elenco, che è una
+  // schermata vera — mai una pagina vuota e mai un ciclo che riapre da solo.
+  if(++TRN.wantN>=3){TRN.want='';TRN.wantN=0;}
+  return 0;
+}
 function trnEsc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 // ── TORNEI multi-gioco: mappa game → client (dispatch di ENTRA e SPETTATORE) ──
 // watch:true SOLO per i giochi con remap spettatore verificato lato RT
@@ -48795,6 +48970,40 @@ function trnGC(g){
 }
 function trnGameIcon(g){var c=trnGC(g);return (c&&c.icon)||'🎮';}
 function trnWatchOk(g){var c=trnGC(g);return !!(c&&c.watch);}
+// ── ALLENATI CONTRO I BOT, dalla pagina del torneo (14/08/2026) ──────────────
+// La richiesta del proprietario: chi guarda un torneo deve poter provare QUEL
+// gioco, lì, senza andarselo a cercare fra i duelli.
+// LA REGOLA DECISA: il tasto compare SOLO sui giochi pronti. Un tasto che apre
+// il gioco sbagliato o una schermata muta è PEGGIO di nessun tasto — in un
+// torneo a premi il giocatore pensa di essersi giocato il match.
+// Chi resta fuori, e perché:
+//  · i SEI del binario duelli (rr, bjl, pkd, rps, bs, ch): non hanno un bot in
+//    nessuna forma. Il tasto chiederebbe un allenamento che non esiste;
+//  · e basta. Il TANK e' entrato il 14/08, appena il suo client ha imparato
+//    cos'e' una partita gratis (TKD.practice): prima direbbe «annulla,
+//    rimborso» e «l'avversario si prende €0.00» in una partita che non tocca
+//    un centesimo.
+// Restano dentro glad, turf, tank e tutti i giochi che il client RTD sa
+// disegnare: catena provata da capo a fondo, bot verificato contro il motore.
+// I giochi del BINARIO DUELLI che hanno un bot. Si giocano dentro il backend e
+// non sul server real-time, quindi il loro bot e' un'altra cosa: gira dentro il
+// poll del giocatore. La lista deve dire la stessa cosa di `_PRACTICE_DUELS`
+// nel backend — di la' c'e' il cancello vero, qui solo il tasto.
+// La MORRA CINESE non entrera' mai: li' la mossa a caso e' gioco OTTIMO (e'
+// l'equilibrio del gioco), quindi un avversario finto non ha niente da
+// insegnare.
+var TRN_DUEL_PRATICA={rr:1};
+function trnTrainOk(g){
+  var c=trnGC(g);
+  if(!c)return false;
+  if(c.duel)return !!TRN_DUEL_PRATICA[String(g||'')];
+  return !!(c.rtd||c.turf||c.tank||String(g||'')==='glad');
+}
+function trnTrain(g){
+  g=String(g||'').replace(/[^A-Za-z0-9]/g,'');
+  if(!trnTrainOk(g)){toast('Allenamento non disponibile per questo gioco','err',2200);return;}
+  practiceStart(g,TRN.det||'');   // dispatch turf/glad/RTD già dentro practiceStart
+}
 function trnInjectCSS(){
   if(document.getElementById('trn-css'))return;
   var s=document.createElement('style');s.id='trn-css';
@@ -49048,6 +49257,7 @@ function trnHistFetch(force){
       if(!j||!j.ok||!j.items)return;
       TRN.hist=j.items;TRN.histCap=(+j.cap||0);TRN.histAt=Date.now();
       if(j.now)TRN.dt=(+j.now)-Math.floor(Date.now()/1000);
+      if(TRN.want&&trnWantTry())return;   // deep link a un torneo già in albo
       if(CUR==='torneo')trnRender();
     }).catch(function(){TRN.histBusy=0;});
 }
@@ -49206,6 +49416,7 @@ function trnFetch(){
       if(d.active&&d.status==='done'&&TRN.histFor!==String(d.id||'')){
         TRN.histFor=String(d.id||'');trnHistFetch(1);
       }
+      if(TRN.want&&trnWantTry())return;   // il deep link ha già disegnato
       if(CUR==='torneo')trnRender();
     }).catch(function(){});
 }
@@ -49883,6 +50094,21 @@ function trnDetRender(){
     }else{
       h+='<button class="action-btn gold trn-huge" onclick="trnRegister('+regArg+')">⚔️ ISCRIVITI GRATIS</button>';
     }
+  }
+  // IL TASTO ALLENATI (14/08/2026). Compare solo sui giochi pronti (trnTrainOk)
+  // e SPARISCE quando c'è qualcosa di più importante da fare: un match da
+  // entrare o le presenze aperte. Il server rifiuterebbe comunque — è la
+  // guardia «una partita alla volta» — ma un tasto che si prende un rifiuto
+  // non andava mostrato: farebbe credere di poter fare due cose insieme
+  // proprio nel momento in cui una delle due è un match di torneo.
+  if(trnTrainOk(g)&&!(cur&&cur.status==='checkin')
+     &&!(cur&&cur.status==='live'&&me.next)){
+    h+='<button class="action-btn train-btn" style="width:100%;margin-top:8px;" '
+      +'onclick="trnTrain(\''+String(g||'').replace(/[^A-Za-z0-9]/g,'')+'\')">'
+      +'🤖 ALLENATI CONTRO I BOT · GRATIS</button>'
+      +'<div class="tw-note" style="text-align:center;margin-top:4px;">'
+      +'Partita di prova su '+trnEsc(gl||g||'questo gioco')
+      +' — non conta per il torneo e non costa niente</div>';
   }
   h+=trnDetRosterHTML(t,cur)
    +trnDetLiveHTML(cur)
@@ -51059,9 +51285,15 @@ function rtdOnMsg(m){
     var it={'insufficient balance':'Saldo insufficiente','already in a lobby':'Sei già in una coda',
             'auth failed':'Autenticazione fallita — riapri da Telegram','not in a lobby':'Non sei in coda',
             'ticket scaduto':(RTD.tour?'Match del torneo scaduto o già partito':'Match scaduto — puntate rimborsate'),
+            // 14/08: la guardia «una partita alla volta». Il caso vero e' chi
+            // e' gia' atteso a un match di TORNEO e chiede un allenamento: le
+            // due stanze si spegnerebbero a vicenda e il torneo lo perderebbe
+            // senza capire perche'.
+            'gia impegnato':'Hai già una partita in corso o un match di torneo che ti aspetta',
             'room piena':'Room piena — troppi spettatori','match non trovato':'Match non trovato — forse è già finito'};
     toast(it[e]||e,'err',2200);
     if(e==='room piena'||e==='match non trovato'){if(RTD.spec){rtdSpecExit();}else if(CUR==='arc'){RTD.ui='';go('torneo');}return;}   // TORNEO: watch fallito → hub
+    if(e==='gia impegnato'){RTD.ui='';rtdShowLobby();return;}   // si resta dove si puo' agire
     if(e==='ticket scaduto'){
       RTD.ui='';
       if(RTD.tour){RTD.tour=false;go('torneo');}   // TORNEO: niente rimborsi — torna all'hub
@@ -51099,6 +51331,15 @@ function rtdOnMsg(m){
     rtdShowMatch();
     TWS.play('sting');
     var vsDelay=0;
+    // LA CARTOLINA «MATCH FOUND» RESTA ANCHE IN ALLENAMENTO, ma senza la riga
+    // dei soldi (14/08/2026). Diceva «STAKE · AL VINCITORE IL 95% — €0.00»
+    // su una partita gratis: il piatto e' pinnato a zero dalla stanza.
+    // Perche' NON la si salta: la cartolina (2,8 s) piu' il 3-2-1-GO (2,4 s)
+    // fanno il gong a 5,2 s, ed e' la sveglia su cui sono tarati i bot che
+    // aspettano il via — boxe e quick draw. Toglierla in allenamento
+    // sposterebbe il via del giocatore a 2,4 s lasciando i bot fermi fino a
+    // 5,2: due orologi diversi nella stessa partita. Il tempo che la
+    // cartolina copriva non si perde piu' perche' adesso i bot lo rispettano.
     if(RTD.game!=='race'&&Object.keys(RTD.names).length===2){vsDelay=2800;rtdMatchFound();}
     var t0c=performance.now()+vsDelay;
     // PONG: NIENTE countdown cosmetico lato client. Il pong ha il countdown
@@ -51147,7 +51388,9 @@ function rtdMatchFound(){
   var meP={name:meBase.name||'TU',photo_url:meBase.photo_url,xp:meBase.xp,dw:meBase.dw,dl:meBase.dl,wins:(meBase.wins!=null?meBase.wins:null)};
   var opP={name:opBase.name||RTD.names[opId]||'Rivale',photo_url:opBase.photo_url,xp:opBase.xp,dw:opBase.dw,dl:opBase.dl,wins:(opBase.wins!=null?opBase.wins:null)};
   var g=rtdMeta();
-  vsMatchFound(meP, opP, (RTD.potEur||0)/2, g.title, g.color, function(){ if(RTD.ui==='match')rtdOvClose(); });
+  // -1 = allenamento: niente riga «STAKE · AL VINCITORE IL 95% — €0.00»
+  vsMatchFound(meP, opP, RTD.practice?-1:(RTD.potEur||0)/2, g.title, g.color,
+               function(){ if(RTD.ui==='match')rtdOvClose(); });
 }
 
 // ── STREET RACE car editor ──────────────────────────────────────────
@@ -53103,7 +53346,11 @@ function rtdShowLobby(keepOv){
   TWR_TIERS.forEach(function(tk){h+='<button class="tw-tier'+(tk[0]===RTD.tier?' sel':'')+'" data-t="'+tk[0]+'" onclick="rtdSetTier(\''+tk[0]+'\')">'+tk[1]+'</button>';});
   h+='</div>';
   h+='<button class="action-btn gold" onclick="rtdJoin()" style="width:100%;">'+g.title.split(' ')[0]+' GIOCA</button>';
-  if(RTD.game==='race'||RTD.game==='calcio'||RTD.game==='scalata')h+='<button class="action-btn train-btn" onclick="practiceStart(\''+RTD.game+'\')" style="width:100%;">🤖 ALLENATI · GRATIS vs BOT</button>';
+  // IL TASTO PER TUTTI (14/08/2026): i bot ci sono per quasi tutti i giochi
+  // rtd, mancava solo la strada. Si passa SEMPRE RTD.game e mai un valore
+  // fisso — pool8 e pool15 condividono questa lobby col selettore qui sopra,
+  // e un nome scritto a mano aprirebbe il biliardo sbagliato.
+  if(RTD_G&&RTD_G[RTD.game])h+='<button class="action-btn train-btn" onclick="practiceStart(\''+RTD.game+'\')" style="width:100%;">🤖 ALLENATI · GRATIS vs BOT</button>';
   h+='<div class="tw-note">'+(RTD.game==='calcio'?'Squadre da 1v1 a 4v4 · parte anche in 2 coi portieri bot · rimborso se il conteggio resta dispari':(g.maxP?'Parte con almeno 2 · rimborso se resti solo':'1 contro 1 · rimborso se nessuno accetta'))+'</div>';
   h+='<div class="tw-note">'+(RTD.game==='calcio'?'💰 Il team vincente si divide il 92% del piatto (8% alla casa)':(RTD.game==='scalata'?'💰 Il primo in vetta si prende il 92% del piatto (8% alla casa)':(g.maxP?'💰 Vincitori: 92% del piatto alla linea d\'arrivo (8% alla casa) · podio 60/25/7 con 6+':'💰 Il vincitore si prende il 95% del piatto (5% alla casa)')))+'</div>';
   el.innerHTML=h;
@@ -53141,6 +53388,25 @@ function rtdBack(){
     }
     rtdTourLeave();return;
   }
+  // ALLENAMENTO (14/08/2026): QUI NON C'E' NESSUNA PUNTATA DA PERDERE — il
+  // biglietto nasce con stake 0. Chiedere «se esci ora perdi la puntata» a chi
+  // si allena e' la stessa bugia del montepremi nella schermata d'attesa, e
+  // durava TUTTA la partita.
+  // Il {t:'leave'} invece CI VUOLE, e da oggi funziona: lobby_leave ha il ramo
+  // che CHIUDE la stanza di allenamento abbandonata. Senza avvisare il server,
+  // WHERE resterebbe appeso a quella stanza e il prossimo ALLENATI ti ci
+  // rimetterebbe DENTRO (la guardia «una partita alla volta» ti riaggancia
+  // alla partita in corso) — cioe' torneresti nel match di prima invece di
+  // cominciarne uno nuovo.
+  if(RTD.practice){
+    rtdLeave();
+    rtdStopRaf();RTD.ui='';rtdOvClose();
+    RTD.practice=false;RTD.pendingTicket=null;
+    wsNetBanner('arc',0);
+    // chi si era allenato DAL torneo torna al torneo, non nei duelli
+    if(typeof TRN!=='undefined'&&TRN.trainFrom){trnTrainBack();return;}
+    go('duel');return;
+  }
   if(RTD.ui==='search'){rtdLeave();}
   else if(RTD.ui==='match'){
     if(!confirm('Sei in partita: se esci ora perdi la puntata. Uscire?'))return;
@@ -53174,8 +53440,22 @@ function rtdShowSearch(){
       +'<div class="tw-search-n" id="arc-sn">'+(RTD.practice?'🤖 vs BOT':(RTD.searchN+'/'+RTD.searchCap))+'</div>'
       +(RTD.practice?'':'<div class="twr-prize" id="arc-prize">'+pzH+'</div>')
       +'<div class="tw-search-cd" id="arc-scd">'+(RTD.practice?'Pratica gratuita contro i bot':cdH)+'</div>'
-      +'<button class="action-btn red" onclick="rtdLeave()" style="width:100%;">'+(RTD.practice?'✖ ESCI':'✖ ANNULLA (rimborso)')+'</button>';
+      +'<button class="action-btn red" onclick="'+(RTD.practice?'rtdBack()':'rtdLeave()')+'" style="width:100%;">'+(RTD.practice?'✖ ESCI':'✖ ANNULLA (rimborso)')+'</button>';
     rcGridFill();
+  }
+  else if(RTD.practice){
+    // ALLENAMENTO, TUTTI GLI ALTRI GIOCHI rtd (14/08/2026): finora questo caso
+    // non esisteva e cadeva nell'else qui sotto — biliardo, vicoli, minigolf e
+    // tutti gli altri mostravano «IN CERCA DI SFIDANTI», un MONTEPREMI di €10
+    // (calcolato dal tier, che in allenamento non e' mai stato scelto) e un
+    // tasto «✖ ANNULLA (rimborso)» su un percorso dove non e' entrato un
+    // centesimo. Tre bugie di soldi in tre righe, in un'app di soldi — e il
+    // tasto rispondeva pure «non sei in coda».
+    el.innerHTML='<div class="tw-radar"><div class="twr-radar-sweep"></div>🤖</div>'
+      +'<div class="tw-search-t">ALLENAMENTO — ARRIVA IL BOT…</div>'
+      +'<div class="tw-search-n" id="arc-sn">🤖 vs BOT</div>'
+      +'<div class="tw-search-cd" id="arc-scd">Pratica gratuita: nessuna puntata, nessun premio</div>'
+      +'<button class="action-btn red" onclick="rtdBack()" style="width:100%;">✖ ESCI</button>';
   }else{
     el.innerHTML='<div class="tw-radar"><div class="twr-radar-sweep"></div>'+rtdMeta().title.split(' ')[0]+'</div>'
       +'<div class="tw-search-t">IN CERCA DI SFIDANTI…</div>'
@@ -53190,6 +53470,9 @@ function rtdShowSearch(){
   if(!RTD.searchTick){
     RTD.searchTick=setInterval(function(){
       if(RTD.ui!=='search'){clearInterval(RTD.searchTick);RTD.searchTick=null;return;}
+      // ALLENAMENTO: il ticker non deve riscrivere «in attesa di un
+      // avversario» sopra la riga che dice che sta arrivando il bot
+      if(RTD.practice)return;
       var cd=document.getElementById('arc-scd');
       if(cd){
         if(RTD.searchAt){var s=Math.max(0,Math.ceil((RTD.searchAt-Date.now())/1000));cd.textContent='Si parte tra '+s+'s';}
@@ -53529,6 +53812,13 @@ function rtdShowOver(m){
   if(m.practice||RTD.practice){
     TWS.play(m.you_won?'win':'lose');
     rtdOv(practiceOverHTML(!!m.you_won,'rtdPracAgain','rtdPracToReal'),true);
+    // IL LAMPO DELLA PARTITA APPENA FINITA (14/08/2026). rtdShowLobby(true)
+    // tiene l'overlay ma NON azzera RTD.ui, che resta 'match': cosi' premendo
+    // ANCORA, initArc rientra dal ramo `RTD.ui==='match' && RTD.map` e
+    // ridisegna per un istante la scacchiera della partita appena persa prima
+    // della schermata di ricerca. Si azzera qui, che e' il punto in cui la
+    // partita e' finita davvero.
+    RTD.ui='';
     rtdShowLobby(true);
     return;
   }
@@ -69723,7 +70013,13 @@ function init(){
     var ld=document.getElementById('loading');
     if(ld){ld.classList.add('hide');setTimeout(function(){ld.style.display='none';},350);}
     // First-ever open → run the welcome funnel once (gated by a localStorage flag)
-    try{ if(!localStorage.getItem('gb_onboarded') && typeof obOpen==='function') setTimeout(obOpen,400); }catch(e){}
+    // 14/08: NON quando si arriva da un deep link (il tasto dell'annuncio nei
+    // gruppi). E' proprio il caso di chi non ha mai aperto la mini app: il
+    // funnel si aprirebbe sopra la pagina del torneo, e obFinish riporta a
+    // home — cioe' il tasto porterebbe altrove. Il flag NON viene scritto:
+    // il benvenuto resta lì per la prima apertura normale.
+    try{ if(!localStorage.getItem('gb_onboarded') && !(window.TRN&&TRN.want)
+           && typeof obOpen==='function') setTimeout(obOpen,400); }catch(e){}
   },300);
   // Periodic refresh
   setInterval(function(){
@@ -69734,7 +70030,14 @@ function init(){
   // TORNEO: deep-link — ?screen=torneo oppure start_param 'torneo' → apri la tab TORNEI dopo l'init
   try{
     var tsp=(window.Telegram&&window.Telegram.WebApp&&window.Telegram.WebApp.initDataUnsafe&&window.Telegram.WebApp.initDataUnsafe.start_param)||'';
-    if(/[?&]screen=torneo(?:&|$)/.test(location.search)||tsp==='torneo')setTimeout(function(){go('torneo');},400);
+    // 'torneo' = la tab TORNEI. 'torneo_<tid>' (il tasto dell'annuncio nei
+    // gruppi) = la PAGINA di QUEL torneo, quella col tasto ISCRIVITI: il tid
+    // si parcheggia in TRN.want perché lo stato non è ancora arrivato, e
+    // trnWantTry apre la pagina appena c'è (vedi TRN.want).
+    var tmt=/^torneo[_-]([A-Za-z0-9_-]{1,64})$/.exec(tsp||'')
+          ||/[?&]screen=torneo[_-]([A-Za-z0-9_-]{1,64})(?:&|$)/.exec(location.search);
+    if(tmt){TRN.want=tmt[1];TRN.wantN=0;setTimeout(function(){go('torneo');},400);}
+    else if(/[?&]screen=torneo(?:&|$)/.test(location.search)||tsp==='torneo')setTimeout(function(){go('torneo');},400);
     // SFIDA DIRETTA: il bottone "ACCETTA" della notifica Telegram apre la
     // mini-app con screen=duels (o start_param 'duel') → si va sui Duelli e
     // le sfide in arrivo vengono caricate subito, senza cercarle a mano.
