@@ -41911,7 +41911,7 @@ function dlPkdBoard(d, holdResult, ancora){
   var oppHidden=(playing||revealing);
   var html='<div class="pvp-m-title" style="color:#c084fc;">♠ POKER DUEL · 5-CARD DRAW</div>'+
     // in torneo il piatto non c'e': al suo posto il turno e la mano (§3.8)
-    '<div class="dlbj-pot">'+(d.tour?dlTourRiga(d):('POT €'+pot.toFixed(2)+' · best hand wins 95%'))+'</div>'+
+    '<div class="dlbj-pot">'+(d.tour?dlTourRiga(d):(d.pratica?'🤖 ALLENAMENTO · GRATIS':('POT €'+pot.toFixed(2)+' · best hand wins 95%')))+'</div>'+
     dlTourPresidio(d)+
     '<div class="dlpkd-side opp"><div class="dlpkd-nm">'+dlEsc(d.opp_name||'Opponent')+(d.opp_drawn?' <span style="color:#39ff14;">✓ drawn</span>':(playing?' · thinking…':(revealing?' · 🂠 hidden':'')))+(!oppHidden&&d.opp_rank?' · <b>'+dlEsc(d.opp_rank)+'</b>':'')+'</div>'+
       '<div class="dlpkd-hand">'+(oppHidden?dlPkdBacks():((d.opp_hand||[]).map(function(c){return dlPkdCard(c,false);}).join('')))+'</div></div>'+
@@ -41934,6 +41934,18 @@ function dlPkdBoard(d, holdResult, ancora){
     // una bugia) e nessuna rivincita — quella mano e' gia' agli atti del
     // tabellone. Una strada sola: tornarci.
     html+=dlTourFineHTML(d,ancora);
+  } else if(d.pratica){
+    // ALLENAMENTO (14/08): stessa ragione del torneo — nessuna cifra, e la
+    // rivincita e' un'altra mano GRATIS, non una a soldi alla posta di prima.
+    var pw=d.you_win, pp=d.push;
+    var pcol=pp?'#ffd700':(pw?'#39ff14':'#ff5b5b');
+    html+='<div class="pvp-result '+(pw?'win':(pp?'':'lose'))+'" style="color:'+pcol+';">'
+      +(pp?'🤝 PARI':(pw?'🏆 ALLENAMENTO VINTO':'🤖 IL BOT HA LA MANO MIGLIORE'))+'</div>'
+      +'<div style="text-align:center;font-weight:800;margin-top:4px;color:'+pcol+';">PARTITA DI PROVA · GRATIS</div>'
+      +((typeof TRN!=='undefined'&&TRN.trainFrom)
+        ?'<button class="pvp-m-btn gold" onclick="dlCloseOverlay();trnTrainBack()">🏆 TORNA AL TORNEO</button>'
+        :'<button class="pvp-m-btn gold" onclick="dlCloseOverlay();practiceStart(\'pkd\')">🔁 ANCORA · GRATIS</button>')
+      +'<button class="pvp-m-btn" onclick="dlCloseOverlay()">CLOSE</button>';
   } else {
     var win=d.you_win, push=d.push;
     var amt=push?('€'+(d.bet_eur||0).toFixed(2)+' returned'):(win?('+€'+(((d.prize_eur||0)-(d.bet_eur||0))).toFixed(2)):('−€'+(d.bet_eur||0).toFixed(2)));
@@ -48992,7 +49004,7 @@ function trnWatchOk(g){var c=trnGC(g);return !!(c&&c.watch);}
 // La MORRA CINESE non entrera' mai: li' la mossa a caso e' gioco OTTIMO (e'
 // l'equilibrio del gioco), quindi un avversario finto non ha niente da
 // insegnare.
-var TRN_DUEL_PRATICA={rr:1};
+var TRN_DUEL_PRATICA={rr:1,pkd:1};
 function trnTrainOk(g){
   var c=trnGC(g);
   if(!c)return false;
@@ -51370,6 +51382,12 @@ function rtdOnMsg(m){
     var ovDly=0,ovNow=performance.now();
     if(m.game==='scalata'&&typeof SC!=='undefined'&&SC.win&&ovNow-SC.win.t0<1500)ovDly=1450-(ovNow-SC.win.t0);
     else if(m.game==='calcio'&&typeof BLG!=='undefined'&&BLG.goalT&&ovNow-BLG.goalT<1400)ovDly=1400-(ovNow-BLG.goalT);
+    // SCOPA (14/08/2026): il conteggio non e' una cartolina, e' il momento in
+    // cui si capisce chi ha vinto e PERCHE'. Dura quanto la sua sequenza
+    // (SC_CONTA_MS), e la fine partita aspetta: se arrivasse subito coprirebbe
+    // proprio la spiegazione. Chi ha fretta tocca lo schermo e salta.
+    else if(m.game==='scopa'&&RTD._sc&&RTD._sc.scCountT)
+      ovDly=Math.max(0,SC_CONTA_MS-(ovNow-RTD._sc.scCountT));
     if(ovDly>50&&RTD.ui==='match'){
       if(RTD.overTmr)clearTimeout(RTD.overTmr);
       RTD.overTmr=setTimeout(function(){
@@ -58182,13 +58200,40 @@ function scBackSprite(W,H){
   });
 }
 // composita una carta (con ombra arrotondata, highlight, rotazione, alpha)
+// ── LE CARTE VERE (14/08/2026) ──────────────────────────────────────────────
+// Fino a oggi ogni carta era DISEGNATA sul canvas: pergamena, pips e figure
+// costruiti a geometrie (scCardSprite). Adesso sono immagini vere, generate
+// per questo mazzo — figure col Gambler Bot (re, cavallo, fante) e i denari
+// che sono monete ₿ — e stanno in `carte/` accanto a index.html.
+//
+// IL RIPIEGO NON E' PRUDENZA ESAGERATA: la pagina si carica a mano su Pages e
+// la cartella delle immagini e' un caricamento SEPARATO. Se la pagina arriva
+// prima (o se una carta e' persa per strada) il gioco deve continuare a
+// funzionare, non mostrare quaranta rettangoli vuoti. Finche' l'immagine non
+// e' pronta si disegna quella di prima, e la sostituzione avviene da sola al
+// frame dopo — senza uno sfarfallio, perche' il ripiego ha la stessa misura.
+var SC_IMG={},SC_IMG_ROTTE={};
+function scImgCarta(c){
+  if(SC_IMG_ROTTE[c])return null;
+  var im=SC_IMG[c];
+  if(!im){
+    im=SC_IMG[c]=new Image();
+    im.onerror=function(){SC_IMG_ROTTE[c]=1;};
+    im.src='carte/'+(c==='dorso'?'dorso':(c<10?'0'+c:''+c))+'.webp';
+  }
+  return (im.complete&&im.naturalWidth>0)?im:null;
+}
+// le si chiedono tutte insieme all'apertura del tavolo: quaranta richieste
+// piccole in parallelo, una volta sola, e poi le tiene la cache del browser
+function scPrecarica(){for(var c=0;c<40;c++)scImgCarta(c);scImgCarta('dorso');}
 function scPutCard(ctx,x,y,W,H,c,face,hl,alpha,rot){
   var Wr=Math.round(W),Hr=Math.round(H);
   ctx.save();
   if(alpha!=null)ctx.globalAlpha=alpha;
   if(rot){ctx.translate(x+W/2,y+H/2);ctx.rotate(rot);x=-W/2;y=-H/2;}
   ctx.shadowColor='rgba(0,0,0,.45)';ctx.shadowBlur=Math.max(4,W*0.14);ctx.shadowOffsetY=Math.max(2,H*0.045);
-  ctx.drawImage(face?scCardSprite(c,Wr,Hr):scBackSprite(Wr,Hr),x,y,Wr,Hr);
+  var vera=scImgCarta(face?c:'dorso');
+  ctx.drawImage(vera||(face?scCardSprite(c,Wr,Hr):scBackSprite(Wr,Hr)),x,y,Wr,Hr);
   ctx.shadowColor='transparent';ctx.shadowBlur=0;ctx.shadowOffsetY=0;
   if(hl){
     var rr=Math.max(3,W*0.12);
@@ -58361,6 +58406,10 @@ function scEvent(e){
 }
 function scTap(pxy){
   var raw=RTD.lastRaw;if(!raw||raw.g!=='scopa')return;
+  // durante il conteggio finale il tocco ha UN significato solo: salta. La
+  // partita e' finita, non c'e' piu' niente da giocare — e chi ha gia' capito
+  // com'e' andata non deve stare a guardare otto secondi di ventagli.
+  if(RTD._sc&&RTD._sc.scCount){scContaSalta();return;}
   if(raw.turn!==RTD.myId){TWS.play('lose',0.2);return;}
   var w=RTD.cssW,hh=RTD.cssH;
   var x=pxy.x*w,y=pxy.y*hh;
@@ -58420,6 +58469,7 @@ function rtdDrawScopa(ctx,raw,lp,now,w,hh){
     bc.lineWidth=rail;bc.strokeStyle='#3b2415';bc.strokeRect(rail/2,rail/2,w-rail,hh-rail);
     bc.lineWidth=1.5;bc.strokeStyle='rgba(212,175,55,.32)';bc.strokeRect(rail,rail,w-2*rail,hh-2*rail);
   }),0,0);
+  if(!RTD._sc._pre){RTD._sc._pre=1;scPrecarica();}
   var hand=raw.hand||[],table=raw.table||[],oppN=raw.oppN||0;
   var handN=hand.length,tableN=table.length;
   var G=scGeom(w,hh,handN,tableN);
@@ -58507,81 +58557,245 @@ function rtdDrawScopa(ctx,raw,lp,now,w,hh){
    Qui si vedono le cinque righe con i NUMERI di tutti e due — non solo chi ha
    vinto la riga — cosi' il totale si puo' rifare a occhio e la primiera
    smette di essere magia (e' l'unica che nessuno sa calcolare a mente). */
+// ═══ IL CONTEGGIO DELLA SCOPA, PUNTO PER PUNTO (14/08/2026) ═══════════════
+// Prima era un pannello di numeri che compariva tutto insieme: «DENARI 6 a 4»
+// chiedeva di fidarsi. Un numero non e' una prova — la prova sono le CARTE.
+// Adesso la smazzata finisce con una sequenza: i due mazzetti si aprono in
+// ventaglio, e ogni punto si prende UNA scena sua, in cui restano accese solo
+// le carte che quel punto lo fanno davvero. Alla fine, i totali.
+// Chi ha fretta tocca lo schermo e salta alla fine (scContaSalta).
+//
+// Le cinque scene, e quanto durano:
+//   0.0-1.1  APERTURA    i due mazzetti volano al centro e si aprono
+//   1.1-2.9  CARTE       si contano tutte, il numero sale carta per carta
+//   2.9-4.6  DENARI      resta acceso solo l'oro (le monete ₿)
+//   4.6-6.0  SETTEBELLO  una carta sola, ingrandita, con le scintille
+//   6.0-7.8  PRIMIERA    le quattro carte che fanno il punto, col loro valore
+//   7.8-8.8  SCOPE       se ce ne sono
+//   8.8-     TOTALI      e solo qui arriva la schermata di fine partita
+var SC_FASI=[
+  {k:'apri',  t:0,    d:1100},
+  {k:'carte', t:1100, d:1800, riga:'CARTE'},
+  {k:'den',   t:2900, d:1700, riga:'DENARI'},
+  {k:'sette', t:4600, d:1400, riga:'SETTEBELLO'},
+  {k:'prim',  t:6000, d:1800, riga:'PRIMIERA'},
+  {k:'scope', t:7800, d:1000, riga:'SCOPE'},
+  {k:'tot',   t:8800, d:1200}
+];
+var SC_CONTA_MS=10000;
+// il tocco durante il conteggio salta alla fine: si sposta indietro l'istante
+// di partenza, cosi' TUTTE le fasi risultano gia' passate senza toccare altro
+function scContaSalta(){
+  var s=RTD._sc;if(!s||!s.scCount||s.scSaltato)return false;
+  s.scSaltato=1;
+  s.scCountT=performance.now()-(SC_FASI[SC_FASI.length-1].t+40);
+  // e la fine partita, che stava aspettando la sequenza, non aspetta piu'
+  if(RTD.overTmr){clearTimeout(RTD.overTmr);RTD.overTmr=null;
+    if(RTD.over&&RTD.ui==='match')setTimeout(function(){
+      if(RTD.over&&RTD.ui==='match')rtdShowOver(RTD.over);},900);}
+  return true;
+}
+function scFaseOra(el){
+  var f=SC_FASI[0];
+  for(var i=0;i<SC_FASI.length;i++)if(el>=SC_FASI[i].t)f=SC_FASI[i];
+  return f;
+}
+// quali carte restano ACCESE in questa fase (le altre si spengono al 14%)
+function scAccese(e,fase,uid){
+  var pres=(e.prese||{})[uid]||[];
+  if(fase==='den')return pres.filter(function(c){return c<10;});
+  if(fase==='sette')return (pres.indexOf(6)>=0)?[6]:[];
+  if(fase==='prim')return ((e.prim_carte||{})[uid]||[]);
+  return pres;
+}
 function scDrawCount(ctx,e,now,w,hh){
   var me=String(RTD.myId),ids=Object.keys(e.pts||{});
   if(ids.length<2)return;
-  var op=ids[0]===me?ids[1]:ids[0];
-  if(ids.indexOf(me)<0)op=ids[1];
   var mio=ids.indexOf(me)>=0?me:ids[0];
-  var ent=Math.min(1,(now-(RTD._sc.scCountT||now))/420);
-  var ease=1-Math.pow(1-ent,3);
-  var PW=Math.min(w*0.86,360),PH=Math.min(hh*0.72,330);
-  var px=(w-PW)/2,py=(hh-PH)/2-hh*0.02+(1-ease)*22;
+  var op=ids[0]===mio?ids[1]:ids[0];
+  var el=now-(RTD._sc.scCountT||now);
+  var F=scFaseOra(el),k=F.k;
+  var loc=Math.max(0,Math.min(1,(el-F.t)/F.d));      // avanzamento nella fase
+  var ease=1-Math.pow(1-loc,3);
+
+  // fondo scuro che entra una volta sola
+  var ap=Math.min(1,el/420);
   ctx.save();
-  ctx.globalAlpha=0.55*ease;ctx.fillStyle='#05070c';ctx.fillRect(0,0,w,hh);
-  ctx.globalAlpha=ease;
-  ctx.fillStyle='#12151f';
-  if(ctx.roundRect){ctx.beginPath();ctx.roundRect(px,py,PW,PH,14);ctx.fill();}
-  else ctx.fillRect(px,py,PW,PH);
-  ctx.strokeStyle='rgba(255,215,0,.45)';ctx.lineWidth=1.5;
-  if(ctx.roundRect){ctx.beginPath();ctx.roundRect(px,py,PW,PH,14);ctx.stroke();}
-  else ctx.strokeRect(px,py,PW,PH);
-  /* I corpi dei caratteri si legano a UNA misura sola: prima scalavano sulla
-     larghezza mentre le righe scalavano sull'altezza, e su un pannello largo e
-     basso l'intestazione finiva sopra la prima riga. */
-  var U=Math.min(PW,PH*1.05);
-  var cx1=px+PW*0.60,cx2=px+PW*0.82,lx=px+PW*0.07;
+  ctx.globalAlpha=0.82*ap;ctx.fillStyle='#05070c';ctx.fillRect(0,0,w,hh);
+  ctx.globalAlpha=1;
+
+  // ── titolo della fase ────────────────────────────────────────────────
   ctx.textAlign='center';ctx.textBaseline='middle';
-  ctx.fillStyle='#ffd700';ctx.font='bold '+(U*0.062)+'px Russo One, sans-serif';
-  ctx.fillText('CONTEGGIO',px+PW/2,py+PH*0.085);
-  ctx.font='bold '+(U*0.042)+'px Orbitron, monospace';
-  ctx.fillStyle='#9ca3af';
-  ctx.fillText('TU',cx1,py+PH*0.175);ctx.fillText('LUI',cx2,py+PH*0.175);
-  var righe=[
-    ['CARTE',      (e.carte||{})[mio]|0, (e.carte||{})[op]|0, null],
-    ['DENARI',     (e.den||{})[mio]|0,   (e.den||{})[op]|0,   null],
-    ['SETTEBELLO', e.sette===mio?1:0,    e.sette===op?1:0,    'si'],
-    ['PRIMIERA',   (e.prim||{})[mio]|0,  (e.prim||{})[op]|0,  null],
-    ['SCOPE',      (e.scope||{})[mio]|0, (e.scope||{})[op]|0, 'scope']
-  ];
-  var y0=py+PH*0.255,dy=PH*0.108;
-  for(var i=0;i<righe.length;i++){
-    var R=righe[i],y=y0+i*dy;
-    var vinta=(R[3]==='scope')?null:(R[1]>R[2]?1:(R[2]>R[1]?2:0));
-    ctx.textAlign='left';
-    ctx.fillStyle=(R[3]==='scope')?((R[1]||R[2])?'#ffd700':'#9ca3af')
-                 :(vinta===1?'#39ff14':(vinta===2?'#ef4444':'#9ca3af'));
-    ctx.font='bold '+(U*0.044)+'px Inter, system-ui, sans-serif';
-    ctx.fillText(R[0],lx,y);
-    ctx.textAlign='center';
-    var t1=R[3]==='si'?(R[1]?'SI':'--'):String(R[1]);
-    var t2=R[3]==='si'?(R[2]?'SI':'--'):String(R[2]);
-    /* Il SI del settebello va in Inter: in Orbitron "SI" si legge "5I".
-       E le scope, che sono punti gia' contati e quindi non hanno una riga da
-       "vincere", restano in oro invece che in grigio: valgono, e si vede. */
-    var siRow=(R[3]==='si');
-    ctx.font='bold '+(U*(siRow?0.044:0.050))+'px '+(siRow?'Inter, system-ui, sans-serif':'Orbitron, monospace');
-    var c1=vinta===1?'#39ff14':'#e5e7eb',c2=vinta===2?'#ef4444':'#e5e7eb';
-    if(R[3]==='scope'){c1=R[1]>0?'#ffd700':'#6b7280';c2=R[2]>0?'#ffd700':'#6b7280';}
-    if(siRow){c1=R[1]?'#39ff14':'#6b7280';c2=R[2]?'#ef4444':'#6b7280';}
-    ctx.fillStyle=c1;ctx.fillText(t1,cx1,y);
-    ctx.fillStyle=c2;ctx.fillText(t2,cx2,y);
-    ctx.strokeStyle='rgba(255,255,255,.06)';ctx.lineWidth=1;
-    ctx.beginPath();ctx.moveTo(lx,y+dy*0.42);ctx.lineTo(px+PW*0.93,y+dy*0.42);ctx.stroke();
+  var U=Math.min(w,hh*1.05);
+  if(k!=='apri'&&k!=='tot'){
+    var tin=Math.min(1,(el-F.t)/260);
+    ctx.globalAlpha=ap*tin;
+    ctx.fillStyle='#ffd700';ctx.font='bold '+(U*0.075)+'px Russo One, sans-serif';
+    ctx.fillText(F.riga,w/2,hh*0.085);
+    ctx.globalAlpha=ap;
   }
-  var pm=(e.pts||{})[mio]|0,po=(e.pts||{})[op]|0;
-  var yt=y0+righe.length*dy+PH*0.045;
-  ctx.textAlign='left';ctx.fillStyle='#ffd700';
-  ctx.font='bold '+(U*0.055)+'px Russo One, sans-serif';ctx.fillText('TOTALE',lx,yt);
-  ctx.textAlign='center';ctx.font='bold '+(U*0.075)+'px Orbitron, monospace';
-  ctx.fillStyle=pm>po?'#39ff14':'#e5e7eb';ctx.fillText(String(pm),cx1,yt);
-  ctx.fillStyle=po>pm?'#ef4444':'#e5e7eb';ctx.fillText(String(po),cx2,yt);
-  ctx.textAlign='center';ctx.font='bold '+(U*0.048)+'px Russo One, sans-serif';
-  ctx.fillStyle=pm>po?'#39ff14':(po>pm?'#ef4444':'#9ca3af');
-  ctx.fillText(pm>po?'HAI VINTO':(po>pm?'HAI PERSO':'PAREGGIO'),px+PW/2,py+PH*0.945);
+
+  // ── i due ventagli ───────────────────────────────────────────────────
+  // uno per giocatore: il mio in basso, il suo in alto. Le carte partono dal
+  // mazzetto delle prese e si aprono; in ogni fase quelle che non c'entrano
+  // si spengono, cosi' l'occhio va solo su quelle che fanno il punto.
+  var G=scGeom(w,hh,3,4);
+  var cw=Math.min(w*0.115,G.tw*0.92),ch=cw*1.5;
+  function ventaglio(uid,yBase,dallaCima){
+    var pres=(e.prese||{})[uid]||[];
+    if(!pres.length)return;
+    var acc=scAccese(e,k,uid);
+    var perRiga=Math.max(6,Math.floor((w*0.9)/(cw*0.42)));
+    var passo=Math.min(cw*0.42,(w*0.86)/Math.max(1,Math.min(pres.length,perRiga)));
+    var righe=Math.ceil(pres.length/perRiga);
+    for(var i=0;i<pres.length;i++){
+      var c=pres[i],r=Math.floor(i/perRiga),n=Math.min(perRiga,pres.length-r*perRiga);
+      var i2=i-r*perRiga;
+      var x=w/2-(n*passo)/2+i2*passo;
+      var y=yBase+(dallaCima?1:-1)*r*ch*0.30;
+      // apertura: le carte escono dal mazzetto delle prese
+      if(k==='apri'){
+        var px0=dallaCima?G.pileOpX:G.pileMeX,py0=dallaCima?G.pileOpY:G.pileMeY;
+        var q=Math.max(0,Math.min(1,(el-i*14)/900));var qe=1-Math.pow(1-q,3);
+        x=px0+(x-px0)*qe;y=py0+(y-py0)*qe;
+        if(q<=0)continue;
+      }
+      var vivo=(acc.indexOf(c)>=0);
+      // nelle fasi a fuoco la carta accesa si alza e si ingrandisce un filo
+      var su=0,sc=1;
+      if(k==='den'||k==='prim'){ if(vivo){su=-ch*0.16*ease;sc=1+0.10*ease;} }
+      // NEI TOTALI i ventagli si spengono quasi del tutto: hanno gia' detto
+      // quello che avevano da dire, e lasciati accesi coprono il verdetto —
+      // che e' l'unica cosa che si guarda in quel momento.
+      ctx.globalAlpha=ap*(k==='tot'?0.22
+                         :(vivo?1:(k==='carte'||k==='apri'?1:0.14)));
+      var W2=cw*sc,H2=ch*sc;
+      scPutCard(ctx,x-(W2-cw)/2,y+su-(H2-ch)/2,W2,H2,c,true,false);
+      if(vivo&&(k==='den'||k==='sette'||k==='prim')){
+        ctx.save();ctx.globalAlpha=ap*0.55*ease;
+        ctx.strokeStyle='#ffd700';ctx.lineWidth=Math.max(2,cw*0.07);
+        scRR(ctx,x-(W2-cw)/2-1,y+su-(H2-ch)/2-1,W2+2,H2+2,Math.max(3,W2*0.12));
+        ctx.stroke();ctx.restore();
+      }
+    }
+    ctx.globalAlpha=ap;
+  }
+  var yMe=hh*0.60,yOp=hh*0.24;
+  ventaglio(op,yOp,true);
+  ventaglio(mio,yMe,false);
+
+  // ── il settebello: una carta sola, grande, in mezzo ──────────────────
+  if(k==='sette'&&e.sette){
+    var sW=Math.min(w*0.26,hh*0.20),sH=sW*1.5;
+    var pop=1+0.12*Math.sin(Math.min(1,loc*2.2)*Math.PI);
+    ctx.save();ctx.globalAlpha=ap;
+    ctx.shadowColor='#ffd700';ctx.shadowBlur=26;
+    scPutCard(ctx,w/2-sW*pop/2,hh*0.44-sH*pop/2,sW*pop,sH*pop,6,true,false);
+    ctx.restore();
+    if(loc<0.12&&!RTD._sc._setteFx){RTD._sc._setteFx=1;scBurst(w/2,hh*0.44,22,46);}
+  }
+  if(k!=='sette')RTD._sc._setteFx=0;
+
+  // ── la riga viva: chi vince QUESTO punto, con i due numeri ───────────
+  if(k!=='apri'&&k!=='tot'){
+    var v1,v2,suff='';
+    if(k==='carte'){
+      // il numero sale carta per carta: e' il conteggio che si VEDE
+      var tot1=(e.carte||{})[mio]|0,tot2=(e.carte||{})[op]|0;
+      v1=Math.round(tot1*ease);v2=Math.round(tot2*ease);
+    }else if(k==='den'){
+      var d1=(e.den||{})[mio]|0,d2=(e.den||{})[op]|0;
+      v1=Math.round(d1*ease);v2=Math.round(d2*ease);
+    }else if(k==='sette'){
+      v1=(e.sette===mio)?'SI':'--';v2=(e.sette===op)?'SI':'--';
+    }else if(k==='prim'){
+      v1=(e.prim||{})[mio]|0;v2=(e.prim||{})[op]|0;suff='';
+    }else{
+      v1=(e.scope||{})[mio]|0;v2=(e.scope||{})[op]|0;
+    }
+    var vinta=(k==='scope')?0:(scNum(v1)>scNum(v2)?1:(scNum(v2)>scNum(v1)?2:0));
+    // LA TARGA SOTTO I NUMERI. I due numeri cadono in mezzo ai ventagli, e
+    // con ventidue carte per parte capita che una carta ci finisca dietro: il
+    // numero resta leggibile per un pelo, ed e' il numero il motivo per cui
+    // uno sta guardando. Una lastra scura sotto lo stacca sempre, qualunque
+    // cosa ci sia dietro — costa due rettangoli e toglie il problema alla
+    // radice invece di sperare nella disposizione.
+    ctx.save();ctx.globalAlpha=ap*0.62;ctx.fillStyle='#05070c';
+    scRR(ctx,w*0.075,hh*0.345,w*0.85,hh*0.115,Math.max(6,w*0.03));ctx.fill();
+    ctx.restore();
+    ctx.font='bold '+(U*0.085)+'px Orbitron, monospace';
+    ctx.fillStyle=vinta===1?'#39ff14':'#e5e7eb';
+    ctx.fillText(String(v1)+suff,w*0.30,hh*0.435);
+    ctx.fillStyle=vinta===2?'#ef4444':'#e5e7eb';
+    ctx.fillText(String(v2)+suff,w*0.70,hh*0.435);
+    ctx.font='bold '+(U*0.036)+'px Inter, system-ui, sans-serif';
+    ctx.fillStyle='#9ca3af';
+    ctx.fillText('TU',w*0.30,hh*0.375);ctx.fillText('LUI',w*0.70,hh*0.375);
+    // il +1 che vola: e' il punto che si sta assegnando
+    if(vinta&&loc>0.55){
+      var pv=Math.min(1,(loc-0.55)/0.45);
+      ctx.globalAlpha=ap*(1-pv);
+      ctx.fillStyle=vinta===1?'#39ff14':'#ef4444';
+      ctx.font='bold '+(U*0.055)+'px Russo One, sans-serif';
+      ctx.fillText('+1',(vinta===1?w*0.30:w*0.70),hh*0.435-pv*hh*0.09);
+      ctx.globalAlpha=ap;
+    }
+  }
+
+  // ── i totali, alla fine ──────────────────────────────────────────────
+  if(k==='tot'){
+    var pm=(e.pts||{})[mio]|0,po=(e.pts||{})[op]|0;
+    var te=1-Math.pow(1-Math.min(1,loc*1.6),3);
+    ctx.globalAlpha=ap*te;
+    // la stessa lastra dei numeri, piu' alta: il verdetto sta sopra a tutto
+    ctx.save();ctx.globalAlpha=ap*te*0.72;ctx.fillStyle='#05070c';
+    scRR(ctx,w*0.06,hh*0.285,w*0.88,hh*0.30,Math.max(8,w*0.035));ctx.fill();
+    ctx.restore();
+    ctx.fillStyle='#ffd700';ctx.font='bold '+(U*0.075)+'px Russo One, sans-serif';
+    ctx.fillText('TOTALE',w/2,hh*0.34);
+    ctx.font='bold '+(U*0.13)+'px Orbitron, monospace';
+    ctx.fillStyle=pm>po?'#39ff14':'#e5e7eb';ctx.fillText(String(pm),w*0.30,hh*0.45);
+    ctx.fillStyle=po>pm?'#ef4444':'#e5e7eb';ctx.fillText(String(po),w*0.70,hh*0.45);
+    ctx.font='bold '+(U*0.062)+'px Russo One, sans-serif';
+    ctx.fillStyle=pm>po?'#39ff14':(po>pm?'#ef4444':'#9ca3af');
+    ctx.fillText(pm>po?'HAI VINTO':(po>pm?'HAI PERSO':'PAREGGIO'),w/2,hh*0.545);
+    ctx.globalAlpha=ap;
+  }
+
+  // ── il riepilogo in piccolo, sempre visibile: dove siamo arrivati ────
+  var righeR=[['CARTE',(e.carte||{})[mio]|0,(e.carte||{})[op]|0,'carte'],
+              ['DENARI',(e.den||{})[mio]|0,(e.den||{})[op]|0,'den'],
+              ['7 BELLO',e.sette===mio?1:0,e.sette===op?1:0,'sette'],
+              ['PRIMIERA',(e.prim||{})[mio]|0,(e.prim||{})[op]|0,'prim'],
+              ['SCOPE',(e.scope||{})[mio]|0,(e.scope||{})[op]|0,'scope']];
+  ctx.font='bold '+(U*0.026)+'px Inter, system-ui, sans-serif';
+  var ry=hh*0.90,rx0=w*0.5-w*0.44;
+  for(var ri=0;ri<righeR.length;ri++){
+    var R=righeR[ri],fatto=(el>=(SC_FASI[ri+1]||SC_FASI[1]).t+((SC_FASI[ri+1]||SC_FASI[1]).d*0.6));
+    var rx=rx0+ri*(w*0.88/5)+(w*0.88/10);
+    ctx.globalAlpha=ap*(fatto?1:0.28);
+    ctx.fillStyle='#9ca3af';ctx.fillText(R[0],rx,ry);
+    var vv=(R[3]==='scope')?0:(R[1]>R[2]?1:(R[2]>R[1]?2:0));
+    ctx.font='bold '+(U*0.034)+'px Orbitron, monospace';
+    ctx.fillStyle=fatto?(vv===1?'#39ff14':(vv===2?'#ef4444':'#6b7280')):'#6b7280';
+    var t1=(R[3]==='sette')?(R[1]?'✔':'—'):String(R[1]);
+    var t2=(R[3]==='sette')?(R[2]?'✔':'—'):String(R[2]);
+    ctx.fillText(t1+' · '+t2,rx,ry+U*0.042);
+    ctx.font='bold '+(U*0.026)+'px Inter, system-ui, sans-serif';
+  }
+  ctx.globalAlpha=ap;
+
+  // ── «tocca per saltare», finche' c'e' qualcosa da saltare ────────────
+  if(k!=='tot'&&!RTD._sc.scSaltato){
+    ctx.globalAlpha=ap*(0.35+0.25*Math.sin(now/420));
+    ctx.fillStyle='#e5e7eb';ctx.font='bold '+(U*0.028)+'px Inter, system-ui, sans-serif';
+    ctx.fillText('tocca per saltare il conteggio',w/2,hh*0.965);
+  }
+
   ctx.restore();
   ctx.textAlign='start';ctx.textBaseline='alphabetic';
 }
+function scNum(v){return (v==='SI')?1:((v==='--')?0:(+v||0));}
 // ═══════════════════════════════════════════════════════════════════
 // MINIGAMES PACK client — SNAKE · BASKET · ARCHERY · QUICK DRAW ·
 // MINIGOLF · BOXE — personaggi vettoriali animati per ogni gioco
