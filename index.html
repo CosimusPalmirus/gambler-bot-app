@@ -51145,6 +51145,15 @@ function rtdUrl(){return twrUrl();}
 // ── lifecycle / WS ──────────────────────────────────────────────────
 function initArc(){
   if(window.RTD_GAME){RTD.game=window.RTD_GAME;window.RTD_GAME=null;}
+  // LE CARTE SI CHIEDONO SUBITO, non al primo fotogramma del tavolo
+  // (14/08/2026, segnalato giocando: «le carte si sono caricate troppo
+  // lentamente»). Prima la precarica partiva dentro rtdDrawScopa, cioe' quando
+  // la partita era GIA' cominciata: 869 KB che arrivano mentre si gioca, e per
+  // i primi secondi si vedono le carte di ripiego. Qui parte all'apertura
+  // della schermata — c'e' di mezzo tutta la ricerca dell'avversario, che sono
+  // secondi buoni di vantaggio. E' idempotente: chiamarla due volte non
+  // riscarica niente.
+  if(RTD.game==='scopa'&&typeof scPrecarica==='function'){try{scPrecarica();}catch(_pc){}}
   if(window.RTD_TICKET){
     RTD.pendingTicket={t:window.RTD_TICKET,g:window.RTD_TICKET_GAME||RTD.game};window.RTD_TICKET=null;
     RTD.practice=!!window.RTD_PRACTICE;window.RTD_PRACTICE=false;
@@ -52899,7 +52908,15 @@ function rtdFeedEvent(e){
     case 'take':TWS.play('pock',0.7);if(g==='scopa')scEvent(e);break;
     case 'drop':TWS.play('clack',0.35);if(g==='scopa')scEvent(e);break;
     case 'scopa':TWS.play('gold',0.9);rtdStamp(e.who===RTD.myId?'SCOPA!':'SCOPA SUA','#fbbf24');RTD.shake=Math.min(8,RTD.shake+5);if(g==='scopa')scEvent(e);break;
-    case 'count':break;
+    // IL CONTEGGIO NON ARRIVAVA MAI A DESTINAZIONE (14/08/2026, trovato
+    // giocando). Questo `case` faceva `break` e basta: l'evento del server
+    // veniva riconosciuto e buttato via, e `scEvent` — che lo mette in
+    // RTD._sc.scCount, cioe' l'unica cosa che fa partire la sequenza — non
+    // veniva chiamato. Tutto il resto (il pannello vecchio prima, la sequenza
+    // a fasi adesso) era codice giusto attaccato a un filo staccato: a fine
+    // smazzata non si vedeva niente, e nessuna prova se ne accorgeva perche'
+    // provavano i pezzi, non il collegamento.
+    case 'count':if(g==='scopa')scEvent(e);break;
     case 'eat':TWS.play('pick',e.who===me?0.8:0.4);break;
     case 'crash':TWS.play('boom',0.7);RTD.shake=Math.min(10,RTD.shake+6);break;
     case 'bucket':
@@ -53316,6 +53333,8 @@ function rtdFx(tp,x,y,dur){
 // ── views ───────────────────────────────────────────────────────────
 function rtdShowLobby(keepOv){
   if(!keepOv){RTD.ui='lobby';rtdOvClose();}
+  // e anche qui: chi sta guardando la lobby della scopa sta per giocarci
+  if(RTD.game==='scopa'&&typeof scPrecarica==='function'){try{scPrecarica();}catch(_pc){}}
   rtdStopRaf();
   var el=document.getElementById('arc-body');if(!el)return;
   el.classList.remove('arc-fit');el.classList.remove('blg-fs');   // PONG pilota: layout overlay solo durante il match
