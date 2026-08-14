@@ -15719,7 +15719,7 @@ body.gb-nav-on .bnav{display:flex;}
     "Dinamite nel cantiere di notte · una vita sola":"Dynamite on the night site · one life only",
     "Regole ufficiali · presa obbligatoria":"Official rules · capture is mandatory",
     "Dadi, punte e bear-off · niente cubo":"Dice, points and bear-off · no cube",
-    "La classica, una smazzata secca":"The classic, one quick deal",
+    "La classica · si gioca a 11 punti":"The classic · first to 11 points",
     "Mangia, cresci, taglia la strada":"Eat, grow, cut them off",
     "60 secondi di tiri · ferro vero":"60 seconds of shots · real rim",
     "5 frecce a testa · occhio al VENTO":"5 arrows each · mind the WIND",
@@ -15818,7 +15818,7 @@ body.gb-nav-on .bnav{display:flex;}
     "carta uguale (obbligatoria) o somma — opzioni evidenziate":"matching card (mandatory) or a sum — options highlighted",
     "tavolo vuoto = +1 punto":"empty table = +1 point",
     "Punti veri":"Real scoring",
-    "carte, denari, settebello e primiera":"cards, coins, seven of coins and primiera",
+    "carte, denari, settebello e primiera — si va a 11":"cards, coins, seven of coins and primiera — first to 11",
     "Mangia e cresci":"Eat and grow",
     "ogni frutto = +1 segmento":"each fruit = +1 segment",
     "Taglia la strada":"Cut them off",
@@ -51061,10 +51061,10 @@ var RTD_G={
            ['💥','Blot colpiti','pedina sola = a rischio: torna dal bar'],
            ['🏠','Porta a casa','tutte in casa, poi fuori: primo a 15 vince']]},
   scopa:{title:'🧹 SCOPA',color:'#fbbf24',input:'tap',
-    hero:'SCOPA',sub:'La classica, una smazzata secca',
+    hero:'SCOPA',sub:'La classica · si gioca a 11 punti',
     rules:[['🃏','Prendi dal tavolo','carta uguale (obbligatoria) o somma — opzioni evidenziate'],
            ['🧹','SCOPA!','tavolo vuoto = +1 punto'],
-           ['🏆','Punti veri','carte, denari, settebello e primiera']]},
+           ['🏆','Punti veri','carte, denari, settebello e primiera — si va a 11']]},
   snake:{title:'🐍 SNAKE ARENA',color:'#4ade80',input:'stick',
     hero:'SNAKE ARENA',sub:'Mangia, cresci, taglia la strada',
     rules:[['🍎','Mangia e cresci','ogni frutto = +1 segmento'],
@@ -58489,6 +58489,16 @@ function rtdDrawScopa(ctx,raw,lp,now,w,hh){
     bc.lineWidth=1.5;bc.strokeStyle='rgba(212,175,55,.32)';bc.strokeRect(rail,rail,w-2*rail,hh-2*rail);
   }),0,0);
   if(!RTD._sc._pre){RTD._sc._pre=1;scPrecarica();}
+  // MANO NUOVA = VIA IL CONTEGGIO (14/08/2026). La scopa si gioca a 11 punti,
+  // quindi dopo il conteggio ne comincia un'altra: se non si togliesse di
+  // mezzo, la spiegazione della mano finita resterebbe incollata sopra la mano
+  // nuova. Il numero della mano lo manda il server a ogni istantanea, e
+  // cambiare quel numero e' l'unico segnale che serve.
+  if(raw.mano!=null&&RTD._sc._mano!==raw.mano){
+    if(RTD._sc._mano!=null){RTD._sc.scCount=null;RTD._sc.scSaltato=0;
+      RTD._sc.scDealt=0;RTD._sc._setteFx=0;}
+    RTD._sc._mano=raw.mano;
+  }
   var hand=raw.hand||[],table=raw.table||[],oppN=raw.oppN||0;
   var handN=hand.length,tableN=table.length;
   var G=scGeom(w,hh,handN,tableN);
@@ -58542,6 +58552,23 @@ function rtdDrawScopa(ctx,raw,lp,now,w,hh){
       ctx.beginPath();ctx.arc(hx+G.cw-9,G.hy+lift+9,4.5,0,6.283);ctx.fill();ctx.restore();
     }
   }
+  // ── IL PUNTEGGIO DELLA PARTITA, sul tavolo (14/08/2026) ─────────────────
+  // La scopa si gioca a 11: una mano non e' la partita. Senza questa riga uno
+  // gioca senza sapere se sta rimontando o se gli basta un punto — che e'
+  // esattamente cio' che rende interessante la mano che sta giocando.
+  if(raw.target){
+    var _tm=(raw.tot||{})[RTD.myId]|0,_op=null;
+    for(var _k in (raw.tot||{}))if(_k!==String(RTD.myId))_op=raw.tot[_k];
+    ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';
+    var _bx=w*0.5,_by=hh*0.335,_bw=w*0.40,_bh=hh*0.048;
+    ctx.globalAlpha=0.42;ctx.fillStyle='#05070c';
+    scRR(ctx,_bx-_bw/2,_by-_bh/2,_bw,_bh,_bh*0.42);ctx.fill();
+    ctx.globalAlpha=1;
+    ctx.font='bold '+(hh*0.026)+'px Orbitron, monospace';
+    ctx.fillStyle=(_tm>(_op|0))?'#a3e635':'#e5e7eb';
+    ctx.fillText(_tm+' — '+(_op|0)+'   ·   a '+raw.target,_bx,_by);
+    ctx.restore();
+  }
   // carte volanti (giocata/presa/distribuzione) + scintille + scopata
   scDrawAnims(ctx,now);
   scDrawParts(ctx,now);
@@ -58592,16 +58619,29 @@ function rtdDrawScopa(ctx,raw,lp,now,w,hh){
 //   6.0-7.8  PRIMIERA    le quattro carte che fanno il punto, col loro valore
 //   7.8-8.8  SCOPE       se ce ne sono
 //   8.8-     TOTALI      e solo qui arriva la schermata di fine partita
+// OGNI FASE DICE COSA STA GUARDANDO (14/08/2026, richiesta del proprietario:
+// «metti una scritta che faccia capire cosa sta guardando ogni conteggio»).
+// Il titolo da solo non basta: «PRIMIERA» a chi non gioca da anni non dice
+// niente, ed e' proprio la riga che nessuno sa leggere. Sotto ogni titolo va
+// la frase che la spiega — e i tempi sono piu' larghi di prima, perche' una
+// spiegazione che passa in un secondo e mezzo non e' una spiegazione.
 var SC_FASI=[
-  {k:'apri',  t:0,    d:1100},
-  {k:'carte', t:1100, d:1800, riga:'CARTE'},
-  {k:'den',   t:2900, d:1700, riga:'DENARI'},
-  {k:'sette', t:4600, d:1400, riga:'SETTEBELLO'},
-  {k:'prim',  t:6000, d:1800, riga:'PRIMIERA'},
-  {k:'scope', t:7800, d:1000, riga:'SCOPE'},
-  {k:'tot',   t:8800, d:1200}
+  {k:'apri',  t:0,     d:1300},
+  {k:'carte', t:1300,  d:2000, riga:'CARTE',
+   sotto:'chi ne ha prese di più'},
+  // il simbolo ₿ NON si scrive qui: nel font di sistema non c'e' e a schermo
+  // esce una beta greca. Il seme si chiama a parole.
+  {k:'den',   t:3300,  d:2000, riga:'DENARI',
+   sotto:'chi ha preso più carte di denari'},
+  {k:'sette', t:5300,  d:1600, riga:'SETTEBELLO',
+   sotto:'chi ha preso il 7 di denari'},
+  {k:'prim',  t:6900,  d:2200, riga:'PRIMIERA',
+   sotto:'la carta più alta di ogni seme'},
+  {k:'scope', t:9100,  d:1400, riga:'SCOPE',
+   sotto:'i tavoli puliti in un colpo'},
+  {k:'tot',   t:10500, d:2000}
 ];
-var SC_CONTA_MS=10000;
+var SC_CONTA_MS=12500;
 // il tocco durante il conteggio salta alla fine: si sposta indietro l'istante
 // di partenza, cosi' TUTTE le fasi risultano gia' passate senza toccare altro
 function scContaSalta(){
@@ -58650,8 +58690,28 @@ function scDrawCount(ctx,e,now,w,hh){
     var tin=Math.min(1,(el-F.t)/260);
     ctx.globalAlpha=ap*tin;
     ctx.fillStyle='#ffd700';ctx.font='bold '+(U*0.075)+'px Russo One, sans-serif';
-    ctx.fillText(F.riga,w/2,hh*0.085);
+    ctx.fillText(F.riga,w/2,hh*0.072);
+    // LA SPIEGAZIONE, sotto il titolo. E' la riga che rende leggibile il
+    // conteggio a chi non sa a memoria le regole della scopa.
+    if(F.sotto){
+      ctx.fillStyle='#cbd5e1';
+      ctx.font=(U*0.036)+'px Inter, system-ui, sans-serif';
+      ctx.fillText(F.sotto,w/2,hh*0.118);
+    }
     ctx.globalAlpha=ap;
+  }
+  // ── IL PUNTEGGIO DELLA PARTITA, sempre in alto a destra ──────────────
+  // Una smazzata non e' la partita: si va a 11. Senza questa riga uno vede
+  // «3 a 2» e crede di aver perso, mentre sta vincendo 9 a 5.
+  if(e.target){
+    var tm=(e.tot||{})[mio]|0,to=(e.tot||{})[op]|0;
+    ctx.textAlign='right';
+    ctx.fillStyle='#94a3b8';ctx.font=(U*0.030)+'px Inter, system-ui, sans-serif';
+    ctx.fillText('PARTITA · si va a '+e.target,w-w*0.045,hh*0.036);
+    ctx.font='bold '+(U*0.046)+'px Orbitron, monospace';
+    ctx.fillStyle=tm>to?'#39ff14':'#e5e7eb';
+    ctx.fillText(tm+' — '+to,w-w*0.045,hh*0.072);
+    ctx.textAlign='center';
   }
 
   // ── i due ventagli ───────────────────────────────────────────────────
@@ -58764,20 +58824,47 @@ function scDrawCount(ctx,e,now,w,hh){
   // ── i totali, alla fine ──────────────────────────────────────────────
   if(k==='tot'){
     var pm=(e.pts||{})[mio]|0,po=(e.pts||{})[op]|0;
+    var tm2=(e.tot||{})[mio],to2=(e.tot||{})[op];
+    var haTot=(tm2!=null&&to2!=null);
     var te=1-Math.pow(1-Math.min(1,loc*1.6),3);
     ctx.globalAlpha=ap*te;
     // la stessa lastra dei numeri, piu' alta: il verdetto sta sopra a tutto
-    ctx.save();ctx.globalAlpha=ap*te*0.72;ctx.fillStyle='#05070c';
-    scRR(ctx,w*0.06,hh*0.285,w*0.88,hh*0.30,Math.max(8,w*0.035));ctx.fill();
+    ctx.save();ctx.globalAlpha=ap*te*0.78;ctx.fillStyle='#05070c';
+    scRR(ctx,w*0.05,hh*0.245,w*0.90,hh*0.40,Math.max(8,w*0.035));ctx.fill();
     ctx.restore();
-    ctx.fillStyle='#ffd700';ctx.font='bold '+(U*0.075)+'px Russo One, sans-serif';
-    ctx.fillText('TOTALE',w/2,hh*0.34);
-    ctx.font='bold '+(U*0.13)+'px Orbitron, monospace';
-    ctx.fillStyle=pm>po?'#39ff14':'#e5e7eb';ctx.fillText(String(pm),w*0.30,hh*0.45);
-    ctx.fillStyle=po>pm?'#ef4444':'#e5e7eb';ctx.fillText(String(po),w*0.70,hh*0.45);
-    ctx.font='bold '+(U*0.062)+'px Russo One, sans-serif';
-    ctx.fillStyle=pm>po?'#39ff14':(po>pm?'#ef4444':'#9ca3af');
-    ctx.fillText(pm>po?'HAI VINTO':(po>pm?'HAI PERSO':'PAREGGIO'),w/2,hh*0.545);
+    // ── I PUNTI DI QUESTA MANO ─────────────────────────────────────────
+    ctx.fillStyle='#ffd700';ctx.font='bold '+(U*0.058)+'px Russo One, sans-serif';
+    ctx.fillText('PUNTI DI QUESTA MANO',w/2,hh*0.295);
+    ctx.font='bold '+(U*0.115)+'px Orbitron, monospace';
+    ctx.fillStyle=pm>po?'#39ff14':'#e5e7eb';ctx.fillText(String(pm),w*0.30,hh*0.375);
+    ctx.fillStyle=po>pm?'#ef4444':'#e5e7eb';ctx.fillText(String(po),w*0.70,hh*0.375);
+    ctx.font=(U*0.032)+'px Inter, system-ui, sans-serif';ctx.fillStyle='#94a3b8';
+    ctx.fillText('TU',w*0.30,hh*0.425);ctx.fillText('LUI',w*0.70,hh*0.425);
+    // ── E DOVE SIAMO NELLA PARTITA ─────────────────────────────────────
+    // La domanda vera dopo una mano non e' «quanto ho fatto», e' «a che punto
+    // sono». Il totale sta piu' in grande dei punti della mano, apposta.
+    if(haTot){
+      ctx.strokeStyle='rgba(255,255,255,.14)';ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(w*0.14,hh*0.455);ctx.lineTo(w*0.86,hh*0.455);ctx.stroke();
+      ctx.fillStyle='#ffd700';ctx.font='bold '+(U*0.058)+'px Russo One, sans-serif';
+      ctx.fillText('PARTITA · SI VA A '+(e.target||11),w/2,hh*0.495);
+      ctx.font='bold '+(U*0.145)+'px Orbitron, monospace';
+      ctx.fillStyle=tm2>to2?'#39ff14':'#e5e7eb';ctx.fillText(String(tm2),w*0.30,hh*0.575);
+      ctx.fillStyle=to2>tm2?'#ef4444':'#e5e7eb';ctx.fillText(String(to2),w*0.70,hh*0.575);
+    }
+    ctx.font='bold '+(U*0.055)+'px Russo One, sans-serif';
+    if(!haTot||e.ultima){
+      var vm=haTot?tm2:pm,vo=haTot?to2:po;
+      ctx.fillStyle=vm>vo?'#39ff14':(vo>vm?'#ef4444':'#9ca3af');
+      ctx.fillText(vm>vo?'HAI VINTO LA PARTITA':(vo>vm?'HAI PERSO LA PARTITA':'PAREGGIO'),
+                   w/2,hh*0.635);
+    }else{
+      // si continua: e va detto, se no la schermata sembra la fine
+      var manca=Math.max(1,(e.target||11)-Math.max(tm2,to2));
+      ctx.fillStyle='#38bdf8';
+      ctx.fillText('SI CONTINUA — mancano '+manca+(manca===1?' punto':' punti'),
+                   w/2,hh*0.635);
+    }
     ctx.globalAlpha=ap;
   }
 
