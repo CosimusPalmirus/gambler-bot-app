@@ -39042,13 +39042,61 @@ function dlInjectCSS(){
    +'.ch-sq{aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;position:relative;}'
    +'.ch-sq.lt{background:#e8d0a0;}.ch-sq.dk{background:#a37a4c;}'
    +'.ch-sq.last{box-shadow:inset 0 0 0 100px rgba(255,210,60,.28);}'
-   +'.ch-sq.check{box-shadow:inset 0 0 0 100px rgba(255,45,45,.4);}'
+   +'.ch-sq.check{box-shadow:inset 0 0 0 100px rgba(255,45,45,.4);animation:chScacco .8s ease-in-out 3;}'
    +'.ch-sq.sel{box-shadow:inset 0 0 0 3px #39ff14;}'
    +'.ch-sq.moved{animation:chMoved .42s;}@keyframes chMoved{0%{box-shadow:inset 0 0 0 100px rgba(120,220,255,.5)}100%{box-shadow:inset 0 0 0 100px rgba(255,210,60,.28)}}'
+   /* ══ LE ANIMAZIONI DEI PEZZI (14/08/2026) ═════════════════════════════
+      Prima la mossa era una traslazione piatta di 190 ms e la mangiata non
+      esisteva affatto: il pezzo mangiato spariva e basta, nello stesso
+      istante in cui arrivava l'altro. In una partita a scacchi la mangiata
+      e' IL fatto — quello che cambia la partita — e non aveva nessun segno.
+      Adesso: il pezzo si ALZA mentre attraversa (scala + ombra, come una
+      mano che lo prende e lo posa), il mangiato MUORE sul posto (si gonfia,
+      gira e si rimpicciolisce) sotto un anello d'urto, e lo scacco PULSA col
+      re che trema. */
+   +'@keyframes chSlide{0%{transform:translate(var(--dx),var(--dy)) scale(1)}'
+   +'45%{transform:translate(calc(var(--dx)*.45),calc(var(--dy)*.45 - 6px)) scale(1.18)}'
+   +'100%{transform:translate(0,0) scale(1)}}'
+   +'.ch-pc.slitta{animation:chSlide .27s cubic-bezier(.34,.7,.28,1);z-index:6;'
+   +'filter:drop-shadow(0 3px 4px rgba(0,0,0,.5));}'
+   +'@keyframes chMuore{0%{transform:scale(1) rotate(0);opacity:1}'
+   +'28%{transform:scale(1.14) rotate(-7deg);opacity:1}'
+   +'100%{transform:scale(.26) rotate(30deg);opacity:0}}'
+   +'.ch-morto{position:absolute;inset:4%;pointer-events:none;z-index:5;'
+   +'display:flex;align-items:center;justify-content:center;'
+   +'animation:chMuore .44s cubic-bezier(.36,0,.7,1) forwards;}'
+   +'.ch-morto img{width:100%;height:100%;object-fit:contain;display:block;}'
+   +'@keyframes chUrto{0%{transform:scale(.3);opacity:.9}100%{transform:scale(2);opacity:0}}'
+   +'.ch-urto{position:absolute;inset:14%;border-radius:50%;pointer-events:none;'
+   +'z-index:4;border:2px solid rgba(255,170,60,.95);'
+   +'box-shadow:0 0 14px rgba(255,150,40,.8),inset 0 0 10px rgba(255,190,90,.6);'
+   +'animation:chUrto .46s ease-out forwards;}'
+   +'@keyframes chScacco{0%,100%{box-shadow:inset 0 0 0 100px rgba(255,45,45,.16)}'
+   +'50%{box-shadow:inset 0 0 0 100px rgba(255,45,45,.66)}}'
+   +'@keyframes chTrema{0%,100%{transform:translateX(0) rotate(0)}'
+   +'14%{transform:translateX(-2.5px) rotate(-5deg)}'
+   +'34%{transform:translateX(2.5px) rotate(5deg)}'
+   +'56%{transform:translateX(-2px) rotate(-3deg)}'
+   +'78%{transform:translateX(1.5px) rotate(2deg)}}'
+   +'.ch-sq.check .ch-pc{animation:chTrema .52s ease-in-out;}'
+   /* chi ha chiesto meno movimento ne riceve meno: restano i colori, che
+      sono l'informazione, e sparisce il moto, che e' il condimento */
+   +'@media (prefers-reduced-motion:reduce){.ch-pc.slitta,.ch-morto,.ch-urto,'
+   +'.ch-sq.check,.ch-sq.check .ch-pc{animation:none!important;}}'
    +'.ch-coord{position:absolute;font-size:8px;font-weight:800;pointer-events:none;opacity:.55;}.ch-coord.file{bottom:0;right:2px;}.ch-coord.rank{top:0;left:2px;}.ch-sq.lt .ch-coord{color:#7a5a34;}.ch-sq.dk .ch-coord{color:#e8d0a0;}'
    +'.ch-sq.tgt::after{content:"";position:absolute;width:30%;height:30%;border-radius:50%;background:rgba(30,30,30,.35);}'
    +'.ch-sq.capt::after{content:"";position:absolute;inset:9%;border-radius:50%;border:3px solid rgba(30,30,30,.42);}'
-   +'.ch-pc{font-size:27px;line-height:1;cursor:pointer;-webkit-user-select:none;user-select:none;}'
+   /* ── LE PEDINE DISEGNATE (14/08/2026) ──────────────────────────────
+      `.ch-pc` era un carattere: adesso e' una SCATOLA di misura fissa che
+      dentro tiene l'immagine se c'e' e il glifo se non c'e' ancora. La
+      scatola non cambia misura quando l'immagine arriva, quindi la
+      sostituzione non fa sfarfallare la scacchiera. */
+   /* 100% e non 90%: le pedine erano piccole nella casella (chiesto dal
+      proprietario guardandole). L'altra meta' dell'ingrandimento sta nei
+      file — la tabella delle altezze in `componi_pezzi.py` — perche' qui
+      crescono tutte insieme e la GERARCHIA resta quella. */
+   +'.ch-pc{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:30px;line-height:1;cursor:pointer;-webkit-user-select:none;user-select:none;}'
+   +'.ch-im{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none;}'
    +'.ch-pc.w{color:#ffffff;text-shadow:-1.2px -1.2px 0 #141414,1.2px -1.2px 0 #141414,-1.2px 1.2px 0 #141414,1.2px 1.2px 0 #141414,0 2px 3px rgba(0,0,0,.45);}'
    +'.ch-pc.b{color:#171717;text-shadow:-1.2px -1.2px 0 rgba(244,244,244,.92),1.2px -1.2px 0 rgba(244,244,244,.92),-1.2px 1.2px 0 rgba(244,244,244,.92),1.2px 1.2px 0 rgba(244,244,244,.92),0 2px 3px rgba(0,0,0,.4);}'
    +'.ch-pl{display:flex;justify-content:space-between;align-items:center;padding:5px 11px;border-radius:10px;background:linear-gradient(160deg,rgba(24,30,52,.9),rgba(12,16,30,.9));border:1px solid var(--border);margin:3px 0;}'
@@ -41172,6 +41220,40 @@ var DLCH={poll:null,ticker:false,bet:0,busy:false,shown:false,sig:'',color:'w',s
 function dlChStopPoll(){ if(DLCH.poll){ clearInterval(DLCH.poll); DLCH.poll=null; } }
 function dlChStopTick(){ if(DLCH.ticker){ clearInterval(DLCH.ticker); DLCH.ticker=null; } }
 function chGlyph(p){ return CH_SOLID[p.toUpperCase()]||''; }
+// ── LE PEDINE GAMBLER BOT (14/08/2026) ────────────────────────────────
+// Il proprietario: pedine personalizzate, «ma si deve capire SUPER
+// CHIARAMENTE che pedine sono». Le dodici immagini stanno in `pedine/`, che
+// e' un caricamento a parte su Pages — esattamente come `carte/` per la
+// scopa, e per la stessa ragione: la pagina non deve ingrassare di un mega
+// per chi non gioca a scacchi.
+// IL GLIFO RESTA IL RIPIEGO, e non e' una formalita': finche' le immagini
+// non sono arrivate (o se la cartella non e' ancora online) la scacchiera
+// si disegna lo stesso, coi caratteri di sempre. Un gioco che aspetta le
+// figure e' un gioco rotto.
+var CH_IMG={},CH_IMG_ROTTE={};
+function chImgPezzo(p){
+  var col=(p===p.toUpperCase())?'w':'b',k=col+p.toLowerCase();
+  if(CH_IMG_ROTTE[k])return null;
+  var im=CH_IMG[k];
+  if(!im){
+    im=CH_IMG[k]=new Image();
+    im.onerror=function(){CH_IMG_ROTTE[k]=1;};
+    im.src='pedine/'+k+'.webp';
+  }
+  return (im.complete&&im.naturalWidth>0)?('pedine/'+k+'.webp'):null;
+}
+// il contenuto della casella: l'immagine se e' pronta, se no il glifo
+function chPezzo(p){
+  var u=chImgPezzo(p);
+  return u?('<img class="ch-im" src="'+u+'" alt="">'):chGlyph(p);
+}
+// si chiedono tutte all'apertura del tavolo: dodici richieste piccole in
+// parallelo, una volta sola. Se partisse al primo disegno si giocherebbe i
+// primi secondi coi glifi — e' il difetto che la scopa ha gia' pagato.
+function chPrecarica(){
+  var pz='KQRBNPkqrbnp';
+  for(var i=0;i<pz.length;i++)chImgPezzo(pz.charAt(i));
+}
 function dlChFile(i){ return i%8; }
 function dlChRank(i){ return Math.floor(i/8); }
 function dlChIdx(dr,dc,color){ return (color==='b')?(dr*8+(7-dc)):((7-dr)*8+dc); }
@@ -41199,6 +41281,9 @@ function dlChStart(eur){
   if(!S.userId){ toast('Open in Telegram to play','err'); return; }
   if((S.btc*S.rate)<eur){ toast('Insufficient balance','err'); return; }
   DLCH.bet=eur; DLCH.shown=false; DLCH.vsShown=false; DLCH.sig=''; DLCH.sel=-1; DLCH.promo=null;
+  // le pedine si chiedono QUI, mentre si cerca l'avversario: di mezzo c'e'
+  // l'attesa, ed e' il posto dove il caricamento non costa niente a nessuno
+  chPrecarica();
   dlSearchView('chess',eur);
   fetch(BACKEND+'/duel/ch_join',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId,bet_btc:eurToBtc(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
     .then(function(r){return r.json();}).then(function(d){
@@ -41218,7 +41303,7 @@ function dlChMatchPoll(){
   },1400);
 }
 function dlChEnter(d){
-  dlChStopPoll(); DLCH.color=d.your_color||'w'; DLCH.view=d; DLCH.sel=-1;
+  dlChStopPoll(); chPrecarica(); DLCH.color=d.your_color||'w'; DLCH.view=d; DLCH.sel=-1;
   // TORNEO: alla scacchiera SUBITO, senza il cartello "MATCH FOUND" — quel
   // cartello porta scritto "STAKE €0.00" (qui la posta non esiste) e mangia
   // tre secondi dell'orologio da torneo, che e' corto apposta.
@@ -41257,7 +41342,7 @@ function dlChStartPoll(){
         var prevBoard=(DLCH.view||{}).board||'';
         DLCH.view=d; DLCH.sel=-1; dlChBoard(d,ancora);
         var mv=d.last;
-        if(mv){ var cap=prevBoard&&prevBoard.charAt(mv.to)!=='.'; dlChAnimateSlide(mv); dlChFlashMove(mv); dlChSfx(d.result?'end':(d.check?'check':(cap?'capture':'move'))); }
+        if(mv){ var mang=prevBoard?prevBoard.charAt(mv.to):'', cap=(mang&&mang!=='.'); dlChAnimateSlide(mv,mang); dlChFlashMove(mv); dlChSfx(d.result?'end':(d.check?'check':(cap?'capture':'move'))); }
         if(fine&&!ancora){ dlChStopPoll(); dlChAfterDone(d); }
       }).catch(function(){});
   },1200);
@@ -41286,7 +41371,7 @@ function dlChBoardHTML(d){
     if(DLCH.sel===idx) cls+=' sel';
     if(legal.indexOf(idx)>=0) cls+=(p!=='.'?' capt':' tgt');
     var lbl=(dr===7?'<span class="ch-coord file">'+'abcdefgh'.charAt(dlChFile(idx))+'</span>':'')+(dc===0?'<span class="ch-coord rank">'+(dlChRank(idx)+1)+'</span>':'');
-    h+='<div class="'+cls+'" data-i="'+idx+'">'+lbl+(p!=='.'?'<span class="ch-pc '+(p===p.toUpperCase()?'w':'b')+'">'+chGlyph(p)+'</span>':'')+'</div>';
+    h+='<div class="'+cls+'" data-i="'+idx+'">'+lbl+(p!=='.'?'<span class="ch-pc '+(p===p.toUpperCase()?'w':'b')+'">'+chPezzo(p)+'</span>':'')+'</div>';
   }}
   return h+'</div>';
 }
@@ -41375,7 +41460,7 @@ function dlChPromo(from,to){
   var w=document.getElementById('ch-wrap')||document.body;
   var pieces=(DLCH.color==='w')?['Q','R','B','N']:['q','r','b','n'];
   var ov=document.createElement('div'); ov.className='ch-promo'; ov.id='ch-promo';
-  ov.innerHTML='<div class="ch-promo-row">'+pieces.map(function(pc){ return '<button onclick="dlChPickPromo(\''+pc.toLowerCase()+'\')"><span class="ch-pc '+(DLCH.color==='w'?'w':'b')+'">'+chGlyph(pc)+'</span></button>'; }).join('')+'</div><div class="ch-promo-lbl">promote to…</div>';
+  ov.innerHTML='<div class="ch-promo-row">'+pieces.map(function(pc){ return '<button onclick="dlChPickPromo(\''+pc.toLowerCase()+'\')"><span class="ch-pc '+(DLCH.color==='w'?'w':'b')+'">'+chPezzo(DLCH.color==='w'?pc.toUpperCase():pc.toLowerCase())+'</span></button>'; }).join('')+'</div><div class="ch-promo-lbl">promote to…</div>';
   w.appendChild(ov);
 }
 function dlChPickPromo(piece){
@@ -41398,7 +41483,7 @@ function dlChDoMove(from,to,promo){
       // la partita successiva.
       var fine=(d.status==='done'||!!d.result), anc=fine&&dlTourAncora(DLCH,d);
       dlChBoard(d,anc);
-      if(mv){ dlChAnimateSlide(mv); dlChFlashMove(mv); }
+      if(mv){ dlChAnimateSlide(mv,prevBoard?prevBoard.charAt(mv.to):''); dlChFlashMove(mv); }
       dlChSfx(d.result?'win':(d.check?'check':(special?'castle':(cap||(mv&&mv.special==='ep'))?'capture':'move')));
       if(fine&&!anc){ dlChStopPoll(); dlChAfterDone(d); }
     }).catch(function(){ DLCH.busy=false; toast('Network error','err'); dlChRender(); });
@@ -41406,19 +41491,67 @@ function dlChDoMove(from,to,promo){
 function dlChFlashMove(mv){
   try{ ['from','to'].forEach(function(k){ var el=document.querySelector('.ch-sq[data-i="'+mv[k]+'"]'); if(el){ el.classList.add('moved'); setTimeout(function(){ el.classList.remove('moved'); },420); } }); }catch(e){}
 }
-// Slide the moved piece from its old square to the new one (the board is already re-rendered).
-function dlChAnimateSlide(mv){
+// ── LA MOSSA, E LA MANGIATA (14/08/2026) ──────────────────────────────
+// `mangiato` e' il carattere del pezzo che stava sulla casella d'arrivo PRIMA
+// della mossa: lo sanno tutti e due i punti che chiamano questa funzione,
+// perche' tengono da parte la scacchiera precedente. Senza quel carattere non
+// si potrebbe far vedere CHI e' stato mangiato — e la mangiata e' il fatto
+// che cambia la partita, non un dettaglio.
+// lo scivolamento di un pezzo da una casella all'altra, senza mangiate: lo usa
+// la mossa normale e lo usa la TORRE dell'arrocco
+function dlChScivola(da,a){
   try{
-    if(!mv) return;
-    var fromEl=document.querySelector('.ch-sq[data-i="'+mv.from+'"]');
-    var toEl=document.querySelector('.ch-sq[data-i="'+mv.to+'"]');
+    var fromEl=document.querySelector('.ch-sq[data-i="'+da+'"]');
+    var toEl=document.querySelector('.ch-sq[data-i="'+a+'"]');
     if(!fromEl||!toEl) return;
     var pc=toEl.querySelector('.ch-pc'); if(!pc) return;
     var fr=fromEl.getBoundingClientRect(), tr=toEl.getBoundingClientRect();
     var dx=fr.left-tr.left, dy=fr.top-tr.top;
     if(!dx&&!dy) return;
-    pc.style.transition='none'; pc.style.zIndex='6'; pc.style.transform='translate('+dx+'px,'+dy+'px)';
-    requestAnimationFrame(function(){ requestAnimationFrame(function(){ pc.style.transition='transform .19s cubic-bezier(.3,.7,.3,1)'; pc.style.transform='none'; setTimeout(function(){ try{ pc.style.zIndex=''; pc.style.transition=''; }catch(e){} },230); }); });
+    pc.style.setProperty('--dx',dx+'px');
+    pc.style.setProperty('--dy',dy+'px');
+    pc.classList.add('slitta');
+    setTimeout(function(){ try{ pc.classList.remove('slitta');
+      pc.style.removeProperty('--dx'); pc.style.removeProperty('--dy'); }catch(e){} },320);
+  }catch(e){}
+}
+function dlChAnimateSlide(mv,mangiato){
+  try{
+    if(!mv) return;
+    var toEl=document.querySelector('.ch-sq[data-i="'+mv.to+'"]');
+    if(!toEl) return;
+    // 1. IL MANGIATO MUORE SUL POSTO. La scacchiera e' gia' ridisegnata e lui
+    //    non c'e' piu': si rimette un fantasma sulla casella, che si gonfia,
+    //    gira e si rimpicciolisce sotto un anello d'urto. Dura meno della
+    //    mossa, cosi' quando l'altro atterra il posto e' gia' libero.
+    // L'EN PASSANT: il pedone mangiato NON sta sulla casella d'arrivo, sta su
+    // quella accanto — stessa colonna dell'arrivo, stessa riga della partenza.
+    // Senza questa riga l'unica mangiata che non si vedrebbe sarebbe proprio
+    // quella che gia' confonde chi impara.
+    var dove=toEl;
+    if((!mangiato||mangiato==='.')&&mv.special==='ep'){
+      var iep=(Math.floor(mv.from/8))*8+(mv.to%8);
+      var epEl=document.querySelector('.ch-sq[data-i="'+iep+'"]');
+      if(epEl){ dove=epEl; mangiato=(mv.to<mv.from)?'P':'p'; }
+    }
+    if(mangiato&&mangiato!=='.'){
+      var g=document.createElement('span');
+      g.className='ch-morto '+(mangiato===mangiato.toUpperCase()?'w':'b');
+      g.innerHTML=chPezzo(mangiato);
+      var u=document.createElement('i'); u.className='ch-urto';
+      dove.appendChild(u); dove.appendChild(g);
+      setTimeout(function(){ try{ g.remove(); u.remove(); }catch(e){} },520);
+    }
+    // L'ARROCCO muove DUE pezzi: se la torre non scivola, salta da sola da un
+    // capo all'altro mentre il re vola — e sembra un difetto del gioco.
+    if(mv.special==='O-O'||mv.special==='O-O-O'){
+      var su=(mv.to>mv.from);
+      dlChScivola(su?mv.from+3:mv.from-4,su?mv.to-1:mv.to+1);
+    }
+    // 2. IL PEZZO SI ALZA MENTRE ATTRAVERSA: a meta' strada e' piu' grande e
+    //    un filo piu' in alto, con l'ombra sotto — il gesto di una mano che lo
+    //    prende e lo posa, invece di uno scivolamento piatto.
+    dlChScivola(mv.from,mv.to);
   }catch(e){}
 }
 function dlChResign(){
@@ -50505,11 +50638,23 @@ function trnSpecScena(g,s,pl){
   if(g==='ch'){
     var b=String(s.scacchiera||''),G='';
     if(b.length===64){
+      // LA QUARTA POSTAZIONE DEI PEZZI, quella che si dimentica: la
+      // scacchierina dello spettatore. Ha una mappa di glifi TUTTA SUA, e se
+      // si aggiorna solo il tavolo dei giocatori qui restano i caratteri —
+      // cioe' chi guarda vede un altro gioco. Stessa immagine, stesso
+      // ripiego: `chPezzo` sa gia' fare tutti e due.
       var PZ={p:'♟',n:'♞',b:'♝',r:'♜',q:'♛',k:'♚',P:'♙',N:'♘',B:'♗',R:'♖',Q:'♕',K:'♔'};
+      var pezzoMini=function(c){
+        if(!PZ[c])return '';
+        var u=(typeof chImgPezzo==='function')?chImgPezzo(c):null;
+        return u?('<img src="'+u+'" alt="" style="width:100%;height:100%;'
+                 +'object-fit:contain;display:block;">'):PZ[c];
+      };
+      if(typeof chPrecarica==='function')chPrecarica();
       G='<div style="display:grid;grid-template-columns:repeat(8,1fr);width:min(230px,72vw);margin:6px auto;border:1px solid rgba(255,200,60,.3);">';
       for(var r=7;r>=0;r--)for(var c2=0;c2<8;c2++){
         var ch2=b.charAt(r*8+c2),dk=((r+c2)%2===0);
-        G+='<div style="aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:16px;background:'+(dk?'rgba(255,255,255,.05)':'rgba(255,255,255,.13)')+';">'+(PZ[ch2]||'')+'</div>';
+        G+='<div style="aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:16px;background:'+(dk?'rgba(255,255,255,.05)':'rgba(255,255,255,.13)')+';">'+pezzoMini(ch2)+'</div>';
       }
       G+='</div>';
     }
