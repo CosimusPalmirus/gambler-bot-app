@@ -58268,20 +58268,66 @@ function scGeom(w,hh,handN,tableN){
   if(s._geo&&s._geoK===gk)return s._geo;
   // dimensioni proporzionali al canvas (device px) → stessa resa a ogni dpr
   var gap=Math.max(6,w*0.022);
-  var cw=Math.min(w*0.17,(w-2*gap-w*0.05)/Math.max(3,handN))*0.98,chh=cw*1.5;
-  var hy=hh-chh-Math.max(12,hh*0.03),hx0=w/2-(handN*(cw+gap)-gap)/2;
+  // ── LE CARTE PIU' GRANDI (14/08/2026) ──────────────────────────────────
+  // Le ha misurate il proprietario giocando: «troppo piccole e si leggono
+  // poco». Erano al 17% della larghezza in mano e al 13,5% sul tavolo, misure
+  // nate quando le carte erano un disegno di geometrie; le carte VERE hanno
+  // figure, semi e numeri, e a quella misura diventano una macchia colorata.
+  var cw=Math.min(w*0.205,(w-2*gap-w*0.04)/Math.max(3,handN))*0.98,chh=cw*1.5;
+  var hy=hh-chh-Math.max(10,hh*0.024),hx0=w/2-(handN*(cw+gap)-gap)/2;
   var tgap=Math.max(6,w*0.02);
-  var tw=Math.min(w*0.135,(w-2*tgap-w*0.04)/Math.max(4,tableN)),th=tw*1.5;
-  var ty=hh*0.395,tx0=w/2-(tableN*(tw+tgap)-tgap)/2;
+  // ── E IL TAVOLO SU PIU' FILE ───────────────────────────────────────────
+  // Su una fila sola la carta si stringeva a larghezza/n: con dieci carte in
+  // tavola — che a scopa capita di continuo — diventava un francobollo. E la
+  // fila usciva pure dai bordi, perche' il conto divideva la larghezza per il
+  // numero di carte ma poi aggiungeva uno spazio FRA una carta e l'altra:
+  // dieci carte occupavano 1183 px su 1080.
+  // Adesso si provano una, due e tre file e si tiene quella che fa le carte
+  // PIU' GRANDI, con larghezza E altezza tutte e due nel conto — cosi' la
+  // scelta non e' una soglia inventata, e' una misura.
+  var tmargin=Math.max(10,w*0.03),usable=w-2*tmargin;
+  var bandTop=hh*0.365,bandBot=hy-Math.max(10,hh*0.015);
+  var rgap=Math.max(8,hh*0.011),TWMAX=w*0.185;
+  var trows=1,tper=Math.max(1,tableN),tw=0;
+  for(var r=1;r<=3;r++){
+    var per=Math.ceil(Math.max(1,tableN)/r);
+    // il max(4,per) tiene le carte a una misura da carta anche quando in
+    // tavola ne resta una: se no una carta sola diventerebbe un poster
+    var byW=(usable+tgap)/Math.max(4,per)-tgap;
+    var byH=(bandBot-bandTop-(r-1)*rgap)/r/1.5;
+    var cand=Math.min(TWMAX,byW,byH);
+    if(cand>tw){tw=cand;trows=r;tper=per;}
+    if(cand>=TWMAX)break;
+  }
+  var th=tw*1.5;
+  var ty=bandTop+Math.max(0,((bandBot-bandTop)-(trows*th+(trows-1)*rgap))/2);
   var dw=Math.max(26,w*0.088),dh=dw*1.5,margin=Math.max(8,w*0.025);
   var ow=Math.max(24,w*0.072),oh=ow*1.5;
-  var G={gap:gap,cw:cw,chh:chh,hy:hy,hx0:hx0,tgap:tgap,tw:tw,th:th,ty:ty,tx0:tx0,
+  var G={gap:gap,cw:cw,chh:chh,hy:hy,hx0:hx0,tgap:tgap,tw:tw,th:th,ty:ty,
+    w:w,tn:tableN,trows:trows,tper:tper,rgap:rgap,
     dw:dw,dh:dh,dx:margin,dy:Math.round(hh*0.05),
     ow:ow,oh:oh,oy:Math.max(8,Math.round(hh*0.02)),
-    pileMeX:w-dw*0.86-margin,pileMeY:Math.round(hh*0.56),
+    // ── IL MAZZETTO DELLE PRESE, ACCANTO ALLA MANO (14/08/2026) ──────────
+    // Stava a meta' altezza sul bordo destro, cioe' DENTRO la fascia del
+    // tavolo: finche' il tavolo era una fila sola non si vedeva, con due file
+    // il mazzetto finiva sopra l'ultima carta della seconda fila. Adesso sta
+    // in fondo a destra, in linea con le mie carte — e il posto dice anche di
+    // chi e': il mio vicino alla mia mano, il suo vicino alle sue.
+    pileMeX:w-dw*0.86-margin,pileMeY:Math.round(hy+(chh-dh*0.86)/2),
     pileOpX:w-dw*0.86-margin,pileOpY:Math.round(hh*0.045)};
   s._geo=G;s._geoK=gk;return G;
 }
+// ── DOVE STA LA CARTA j DEL TAVOLO ───────────────────────────────────
+// Una funzione sola per disegno, animazioni e tocco. Prima la formula era
+// copiata in cinque punti: bastava cambiarne uno e il dito prendeva una carta
+// diversa da quella che si vede — il difetto piu' odioso di tutti, perche'
+// sembra che il gioco abbia deciso da solo.
+function scTx(G,j){
+  var row=Math.floor(j/G.tper),col=j-row*G.tper;
+  var n=Math.min(G.tper,G.tn-row*G.tper);if(n<1)n=1;
+  return G.w/2-(n*(G.tw+G.tgap)-G.tgap)/2+col*(G.tw+G.tgap);
+}
+function scTy(G,j){return G.ty+Math.floor(j/G.tper)*(G.th+G.rgap);}
 // ── tween carta volante (giocata/presa/distribuzione), pooled ────────
 function scSpawnCard(c,face,x0,y0,x1,y1,W,H,dur,delay,rotv,toPile){
   var A=RTD._sc.scAnim||(RTD._sc.scAnim=[]);
@@ -58331,14 +58377,98 @@ function scDrawParts(ctx,now){
   RTD._sc.scParts=keep;RTD._sc._partKeep=P;P.length=0;
 }
 // ── scopata: la scopa spazza il tavolo + streak di luce ──────────────
+// ── LA VETRINA DELLA PRESA: tre tempi, e uno e' fermo apposta ────────
+// Il tempo fermo e' il punto di tutta la cosa. Un'animazione che scorre
+// sempre non si legge: l'occhio insegue e non confronta. Qui le carte si
+// fermano affiancate — questa ha preso queste — e solo dopo se ne vanno.
+function scDrawShow(ctx,now){
+  var S=RTD._sc.scShow;if(!S)return;
+  var t=now-S.t0,fine=S.t1+S.hold+S.t2;
+  if(t>=fine){RTD._sc.scShow=null;return;}
+  if(t<0)return;
+  var fase=t<S.t1?0:(t<S.t1+S.hold?1:2);
+  var kOut=fase===2?(t-S.t1-S.hold)/S.t2:0;
+  // il lampo del mazzetto e le scintille del settebello vanno sparati quando
+  // le carte PARTONO verso il mazzetto, non all'inizio: se no il mazzetto
+  // lampeggia mentre le carte sono ancora ferme al centro
+  if(fase===2&&!S.fired){
+    S.fired=1;
+    RTD._sc.scPileFlash=S.mine?'me':'op';RTD._sc.scPileFlashT=now;
+    if(S.sette)scBurst(S.pileX+S.pw*0.5,S.pileY+S.ph*0.5,14,42);
+  }
+  ctx.save();
+  // il pannello: la vetrina deve staccarsi dal panno, se no le carte del
+  // tavolo che restano sotto confondono la lettura
+  // il pannello se ne va SUBITO quando le carte partono verso il mazzetto: se
+  // svanisse piano resterebbe un velo grigio sopra il tavolo mentre si gioca
+  // gia' — visto allo scatto, e sembrava uno sporco sullo schermo
+  var vis=fase===0?Math.min(1,t/Math.max(1,S.t1*0.55)):(fase===2?Math.max(0,1-kOut*4):1);
+  if(vis>0){
+    var pad=S.sw*0.18,py=S.cy-S.sh/2-pad-S.sh*0.30;
+    ctx.globalAlpha=0.90*vis;ctx.fillStyle='#04070d';
+    scRR(ctx,S.x0-pad,py,S.tot+pad*2,S.sh+pad*2+S.sh*0.30,pad*0.9);ctx.fill();
+    ctx.globalAlpha=0.5*vis;ctx.strokeStyle=S.mine?'#a3e635':'#f59e0b';
+    ctx.lineWidth=Math.max(1.5,S.sw*0.018);
+    scRR(ctx,S.x0-pad,py,S.tot+pad*2,S.sh+pad*2+S.sh*0.30,pad*0.9);ctx.stroke();
+    ctx.globalAlpha=vis;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillStyle=S.mine?'#bef264':'#fbbf24';
+    ctx.font='bold '+(S.sh*0.19)+'px Russo One, sans-serif';
+    ctx.fillText(S.mine?'PRENDI TU':'PRENDE LUI',S.x0+S.tot/2,py+S.sh*0.20);
+  }
+  // la freccia: e' lei che dice «questa prende quelle», non le carte
+  if(vis>0&&S.slots.length>1){
+    var ax=S.x0+S.sw+S.frecc*0.16,aw=S.frecc*0.68,ay=S.cy;
+    ctx.globalAlpha=vis;ctx.strokeStyle=S.mine?'#a3e635':'#fbbf24';
+    ctx.lineWidth=Math.max(2,S.sw*0.055);ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(ax+aw,ay);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(ax+aw-S.frecc*0.20,ay-S.frecc*0.17);
+    ctx.lineTo(ax+aw,ay);ctx.lineTo(ax+aw-S.frecc*0.20,ay+S.frecc*0.17);ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+  for(var i=0;i<S.slots.length;i++){
+    var s=S.slots[i],x,y,cw2,ch2,al=1,rot=0;
+    if(fase===0){
+      // si interpolano i CENTRI, non gli spigoli: le carte partono da misure
+      // diverse (mano, tavolo, dorso dell'avversario) e con gli spigoli
+      // scivolerebbero di lato mentre crescono
+      var k=1-Math.pow(1-Math.min(1,t/S.t1),3);
+      cw2=s.w0+(S.sw-s.w0)*k;ch2=s.h0+(S.sh-s.h0)*k;
+      x=(s.sx+s.w0/2)+((s.x+S.sw/2)-(s.sx+s.w0/2))*k-cw2/2;
+      y=(s.sy+s.h0/2)+((s.y+S.sh/2)-(s.sy+s.h0/2))*k-ch2/2-Math.sin(k*Math.PI)*S.sh*0.10;
+    }else if(fase===1){
+      x=s.x;y=s.y;cw2=S.sw;ch2=S.sh;
+      // la carta giocata respira: e' quella da guardare per prima
+      if(s.gioca){var pr=1+0.035*Math.sin((t-S.t1)/150);cw2*=pr;ch2*=pr;
+        x-=(cw2-S.sw)/2;y-=(ch2-S.sh)/2;}
+    }else{
+      var k2=1-Math.pow(1-Math.min(1,kOut),3);
+      cw2=S.sw+(S.pw-S.sw)*k2;ch2=S.sh+(S.ph-S.sh)*k2;
+      x=(s.x+S.sw/2)+((S.pileX+S.pw/2)-(s.x+S.sw/2))*k2-cw2/2;
+      y=(s.y+S.sh/2)+((S.pileY+S.ph/2)-(s.y+S.sh/2))*k2-ch2/2;
+      al=k2>0.7?Math.max(0,1-(k2-0.7)/0.3):1;
+      rot=k2*(s.gioca?0.5:-0.4);
+    }
+    scPutCard(ctx,x,y,cw2,ch2,s.c,true,false,al,rot);
+    if(fase===1&&s.gioca){
+      var rr=Math.max(3,cw2*0.12);
+      ctx.strokeStyle=S.mine?'#a3e635':'#fbbf24';ctx.lineWidth=Math.max(2,cw2*0.05);
+      scRR(ctx,x-1,y-1,cw2+2,ch2+2,rr);ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
 function scDrawSweep(ctx,now,w,hh,G){
   var k=(now-RTD._sc.scSweepT)/900;if(k>=1)return;
-  var x=w*(-0.12+1.24*k),y=G.ty+G.th*0.5;
+  // il tavolo puo' stare su piu' file: la scopata deve spazzarle TUTTE, se no
+  // pulisce mezzo tavolo e sotto restano le carte illuminate a meta'
+  var blocco=G.trows*G.th+(G.trows-1)*G.rgap;
+  var x=w*(-0.12+1.24*k),y=G.ty+blocco*0.5;
   ctx.save();
   ctx.globalAlpha=0.55*(1-k);
   var grd=ctx.createLinearGradient(x-w*0.32,0,x,0);
   grd.addColorStop(0,'rgba(255,255,255,0)');grd.addColorStop(1,'rgba(255,240,180,.5)');
-  ctx.fillStyle=grd;ctx.fillRect(x-w*0.32,G.ty-12,w*0.32,G.th+24);
+  ctx.fillStyle=grd;ctx.fillRect(x-w*0.32,G.ty-12,w*0.32,blocco+24);
   ctx.globalAlpha=1;
   ctx.translate(x,y-Math.sin(k*Math.PI)*22);ctx.rotate(-0.55+k*0.85);
   ctx.font=(G.th*0.95)+'px serif';ctx.textAlign='center';ctx.textBaseline='middle';
@@ -58380,7 +58510,7 @@ function scDeal(w,hh,raw){
   var hand=raw.hand||[],table=raw.table||[],oppN=raw.oppN||0;
   var G=scGeom(w,hh,hand.length,table.length),D=300;
   for(var j=0;j<table.length;j++)
-    scSpawnCard(table[j],true,G.dx,G.dy,G.tx0+j*(G.tw+G.tgap),G.ty,G.tw,G.th,D,Math.max(0,scDealLand('table',j)-D),(Math.random()-0.5)*0.6,0);
+    scSpawnCard(table[j],true,G.dx,G.dy,scTx(G,j),scTy(G,j),G.tw,G.th,D,Math.max(0,scDealLand('table',j)-D),(Math.random()-0.5)*0.6,0);
   for(var m=0;m<oppN;m++)
     scSpawnCard(0,false,G.dx,G.dy,w/2-((oppN*(G.ow+6)-6)/2)+m*(G.ow+6),G.oy,G.ow,G.oh,D,Math.max(0,scDealLand('opp',m)-D),(Math.random()-0.5)*0.5,0);
   for(var i=0;i<hand.length;i++)
@@ -58394,29 +58524,57 @@ function scEvent(e){
   var newT=(RTD.lastRaw&&RTD.lastRaw.table)||[];
   if(e.k==='drop'){
     var Gd=scGeom(w,hh,mine?prevH.length:1,newT.length);
-    var j=newT.length-1,dx=Gd.tx0+j*(Gd.tw+Gd.tgap),dy=Gd.ty,ox,oy;
+    var j=newT.length-1,dx=scTx(Gd,j),dy=scTy(Gd,j),ox,oy;
     if(mine){var hi=prevH.indexOf(e.card);ox=(hi>=0?Gd.hx0+hi*(Gd.cw+Gd.gap):w/2-Gd.tw/2)+(Gd.cw-Gd.tw)/2;oy=Gd.hy;}
     else{ox=w/2-Gd.tw/2;oy=Gd.oy;}
-    scSpawnCard(e.card,true,ox,oy,dx,dy,Gd.tw,Gd.th,320,0,(Math.random()-0.5)*0.5,0);
+    // 460 ms invece di 320: una carta buttata resta in tavola, ma bisogna
+    // vedere DA DOVE arriva, se no compare e basta. E poi si accende un attimo.
+    scSpawnCard(e.card,true,ox,oy,dx,dy,Gd.tw,Gd.th,460,0,(Math.random()-0.5)*0.5,0);
+    RTD._sc.scDropFx={c:e.card,x:dx,y:dy,w:Gd.tw,h:Gd.th,t0:performance.now()+460,mine:mine};
   }else if(e.k==='take'){
+    // ══ LA VETRINA DELLA PRESA (14/08/2026) ═══════════════════════════════
+    // Il proprietario, giocando: «quando butti una carta per prendere un'altra
+    // carta non da' il tempo all'avversario di vedere che carta hai usato per
+    // prendere cosa». Aveva ragione, e il difetto non era la velocita': era
+    // che le carte non si incontravano MAI. La giocata partiva dalla mano e le
+    // prese partivano dal tavolo, e volavano tutte al mazzetto per conto loro
+    // in 380 ms — non c'era un solo istante in cui si vedessero INSIEME.
+    //
+    // Adesso la presa si racconta in tre tempi:
+    //   1. le carte si incontrano al centro, in una vetrina che si stacca dal
+    //      tavolo (la giocata a sinistra, una freccia, le prese a destra);
+    //   2. restano ferme il tempo di leggerle, con scritto chi ha preso;
+    //   3. e solo allora vanno tutte insieme nel mazzetto di chi le ha prese.
+    // Il tempo di lettura e' PIU' LUNGO quando prende l'avversario e piu'
+    // corto quando prendi tu: la tua mossa la sai gia', la sua no.
     var Gt=scGeom(w,hh,mine?prevH.length:1,prevT.length);
-    var pileX=mine?Gt.pileMeX:Gt.pileOpX,pileY=mine?Gt.pileMeY:Gt.pileOpY;
-    var got=e.got||[],gi;
+    var got=e.got||[],gi,n=1+got.length;
+    var sw=Math.min(Gt.tw*1.12,(w*0.90)/(n+0.9)),sh=sw*1.5;
+    var gp=Math.max(4,w*0.014),frecc=Math.max(18,w*0.070);
+    var tot=sw*n+gp*(n-1)+frecc,x0=w/2-tot/2,cy=hh*0.47;
+    var slots=[],ox2,oy2;
+    if(mine){var hi2=prevH.indexOf(e.card);ox2=(hi2>=0?Gt.hx0+hi2*(Gt.cw+Gt.gap):w/2-Gt.cw/2);oy2=Gt.hy;}
+    else{ox2=w/2-Gt.ow/2;oy2=Gt.oy;}
+    slots.push({c:e.card,x:x0,y:cy-sh/2,sx:ox2,sy:oy2,
+                w0:mine?Gt.cw:Gt.ow,h0:mine?Gt.chh:Gt.oh,gioca:1});
     for(gi=0;gi<got.length;gi++){
-      var jj=prevT.indexOf(got[gi]);var sx=(jj>=0?Gt.tx0+jj*(Gt.tw+Gt.tgap):w/2),sy=Gt.ty;
-      scSpawnCard(got[gi],true,sx,sy,pileX,pileY,Gt.tw,Gt.th,380,40*gi,(Math.random()-0.5)*0.8,1);
+      var jj=prevT.indexOf(got[gi]);
+      slots.push({c:got[gi],x:x0+sw+frecc+gi*(sw+gp),y:cy-sh/2,
+                  sx:(jj>=0?scTx(Gt,jj):w/2-Gt.tw/2),sy:(jj>=0?scTy(Gt,jj):Gt.ty),
+                  w0:Gt.tw,h0:Gt.th,gioca:0});
     }
-    var ox2,oy2;
-    if(mine){var hi2=prevH.indexOf(e.card);ox2=(hi2>=0?Gt.hx0+hi2*(Gt.cw+Gt.gap):w/2)+(Gt.cw-Gt.tw)/2;oy2=Gt.hy;}
-    else{ox2=w/2-Gt.tw/2;oy2=Gt.oy;}
-    scSpawnCard(e.card,true,ox2,oy2,pileX,pileY,Gt.tw,Gt.th,380,20,(Math.random()-0.5)*0.8,1);
-    RTD._sc.scPileFlash=mine?'me':'op';RTD._sc.scPileFlashT=performance.now();
-    if(e.card===6||got.indexOf(6)>=0)scBurst(pileX+Gt.tw*0.4,pileY+Gt.th*0.4,14,42); // settebello
+    RTD._sc.scShow={t0:performance.now(),
+      t1:mine?340:440,hold:mine?300:820,t2:mine?360:400,
+      slots:slots,sw:sw,sh:sh,x0:x0,tot:tot,cy:cy,frecc:frecc,
+      pileX:(mine?Gt.pileMeX:Gt.pileOpX),pileY:(mine?Gt.pileMeY:Gt.pileOpY),
+      pw:Gt.dw*0.86,ph:Gt.dh*0.86,mine:mine,
+      sette:(e.card===6||got.indexOf(6)>=0),fired:0};
   }else if(e.k==='count'){
     /* IL CONTEGGIO — arrivava dal server e veniva buttato: alla fine della
        smazzata si vedeva "3 a 2" senza sapere perche'. Ora si tiene e lo
        disegna rtdDrawScopa. (coda 2, 02/08/2026) */
     RTD._sc.scCount=e;RTD._sc.scCountT=performance.now();
+    RTD._sc.scShow=null;RTD._sc.scDropFx=null;
   }else if(e.k==='scopa'){
     RTD._sc.scSweepT=performance.now();
     var Gs=scGeom(w,hh,1,newT.length);
@@ -58459,8 +58617,8 @@ function scTap(pxy){
   if(sel!=null){
     var opts2=(raw.opts||[])[sel]||[];
     for(var j=0;j<table.length;j++){
-      var tx=G.tx0+j*(G.tw+G.tgap);
-      if(x>=tx&&x<=tx+G.tw&&y>=G.ty&&y<=G.ty+G.th){
+      var tx=scTx(G,j),tyj=scTy(G,j);
+      if(x>=tx&&x<=tx+G.tw&&y>=tyj&&y<=tyj+G.th){
         for(var oi=0;oi<opts2.length;oi++){
           if(opts2[oi].indexOf(j)>=0){
             rtdSend({t:'act',a:'shot',ax:sel,ay:oi});
@@ -58496,7 +58654,8 @@ function rtdDrawScopa(ctx,raw,lp,now,w,hh){
   // cambiare quel numero e' l'unico segnale che serve.
   if(raw.mano!=null&&RTD._sc._mano!==raw.mano){
     if(RTD._sc._mano!=null){RTD._sc.scCount=null;RTD._sc.scSaltato=0;
-      RTD._sc.scDealt=0;RTD._sc._setteFx=0;}
+      RTD._sc.scDealt=0;RTD._sc._setteFx=0;
+      RTD._sc.scShow=null;RTD._sc.scDropFx=null;}
     RTD._sc._mano=raw.mano;
   }
   var hand=raw.hand||[],table=raw.table||[],oppN=raw.oppN||0;
@@ -58536,7 +58695,7 @@ function rtdDrawScopa(ctx,raw,lp,now,w,hh){
   for(var j=0;j<tableN;j++){
     if(dealing&&dt0<scDealLand('table',j))continue;
     if(hideArr.indexOf(table[j])>=0)continue;
-    scPutCard(ctx,G.tx0+j*(G.tw+G.tgap),G.ty,G.tw,G.th,table[j],true,!!takable[j]);
+    scPutCard(ctx,scTx(G,j),scTy(G,j),G.tw,G.th,table[j],true,!!takable[j]);
   }
   // mano
   var mine=raw.turn===RTD.myId;
@@ -58569,8 +58728,23 @@ function rtdDrawScopa(ctx,raw,lp,now,w,hh){
     ctx.fillText(_tm+' — '+(_op|0)+'   ·   a '+raw.target,_bx,_by);
     ctx.restore();
   }
+  // la carta appena buttata si accende un attimo: fra dieci carte in tavola,
+  // sapere QUALE e' arrivata adesso e' meta' della lettura del gioco
+  var DF=RTD._sc.scDropFx;
+  if(DF){
+    var dk=(now-DF.t0)/620;
+    if(dk>=1||dk<-1)RTD._sc.scDropFx=null;
+    else if(dk>=0){
+      ctx.save();ctx.globalAlpha=Math.max(0,1-dk)*0.9;
+      ctx.strokeStyle=DF.mine?'#a3e635':'#fbbf24';
+      ctx.lineWidth=Math.max(2,DF.w*0.055);
+      scRR(ctx,DF.x-1,DF.y-1,DF.w+2,DF.h+2,Math.max(3,DF.w*0.12));ctx.stroke();
+      ctx.restore();
+    }
+  }
   // carte volanti (giocata/presa/distribuzione) + scintille + scopata
   scDrawAnims(ctx,now);
+  scDrawShow(ctx,now);
   scDrawParts(ctx,now);
   if(RTD._sc.scSweepT&&now-RTD._sc.scSweepT<900)scDrawSweep(ctx,now,w,hh,G);
   // messaggio MESCOLA durante la prima mezza distribuzione
