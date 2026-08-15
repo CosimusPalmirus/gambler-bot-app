@@ -15270,6 +15270,8 @@ body.gb-nav-on .bnav{display:flex;}
     "Scacchi veri": "Real chess",
     "Scacchi veri · orologio blitz": "Real chess · blitz clock",
     "Scacco matto": "Checkmate",
+    "In torneo si cambia": "In a tournament it changes",
+    "5 minuti +1s, e +30s a ogni pezzo che mangi: premia chi gioca, non chi tira a campare": "5 minutes +1s, and +30s for every piece you capture: it rewards playing, not stalling",
     "Scappa dall'inseguitore.": "Outrun your pursuer.",
     "Scegli la mossa": "Choose your move",
     "Scegli una posta": "Pick a stake",
@@ -15426,7 +15428,7 @@ body.gb-nav-on .bnav{display:flex;}
     "chiede pegno. Una vita in cambio di un terzo del piatto. Nel Palazzo, è quasi un affare.": "demands a pledge. A life in exchange for a third of the pot. In the Palace, that's almost a bargain.",
     "compra un charm che piega le probabilità": "buy a charm that bends the odds",
     "da lì!": "from there!",
-    "dai scacco matto al re avversario per prendere il piatto": "checkmate the enemy king to take the pot",
+    "vinci il piatto (95%) · patta = rimborso a tutti e due": "you take the pot (95%) · draw = both refunded",
     "disponi le tue navi in segreto sulla griglia 8×8": "secretly place your ships on the 8×8 grid",
     "giochi la partita per davvero e il vincitore prende il piatto": "play the match for real and the winner takes the pot",
     "ha chiuso": "closed it out",
@@ -15446,7 +15448,7 @@ body.gb-nav-on .bnav{display:flex;}
     "prima volta": "first time",
     "pura fortuna, risultato in un secondo": "pure luck, result in a second",
     "qui si PARLA, e parlare ha conseguenze": "here you TALK, and talking has consequences",
-    "regole complete degli scacchi · muovi al tuo turno": "full chess rules · move on your turn",
+    "regole complete: arrocco, en passant, promozione": "full rules: castling, en passant, promotion",
     "s (con almeno 2 giocatori)": "s (with at least 2 players)",
     "s se nessuno arriva": "s if nobody makes it",
     "sabbia → lava ai bordi: niente melina": "sand → lava at the edges: no stalling",
@@ -39107,6 +39109,7 @@ function dlInjectCSS(){
    +'.ch-clk{font-family:Orbitron,monospace;font-weight:800;font-size:16px;color:#cbd5e8;background:rgba(0,0,0,.32);border-radius:6px;padding:2px 9px;min-width:56px;text-align:center;transition:color .2s,box-shadow .2s;}'
    +'.ch-clk.run{color:#fff;box-shadow:0 0 0 1px rgba(255,215,0,.55),0 0 10px rgba(255,200,40,.3);}'
    +'.ch-clk.low{color:#ff6b6b;}'
+   +'.ch-regole{text-align:center;font-size:10.5px;letter-spacing:.4px;color:var(--txt3);margin:-2px 0 3px;}'
    +'.ch-status{text-align:center;min-height:18px;margin:5px 0;font-size:12px;font-weight:800;letter-spacing:.3px;}'
    +'.ch-turn-you{color:#39ff14;}.ch-turn-opp{color:var(--txt3);}'
    +'.ch-promo{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);z-index:8;padding:12px 14px;border-radius:14px;background:#141a28;border:2px solid #cbb18b;box-shadow:0 12px 44px rgba(0,0,0,.8);text-align:center;}'
@@ -39206,10 +39209,18 @@ var dlGameMeta={
            ['🎯','Colpisci a turni','spari sulle acque nemiche: se COLPISCI spari ancora, se MANCHI passi il turno'],
            ['🏆','Affonda tutto','manda a fondo l\'intera flotta avversaria per prendere il piatto']],
     how:'A real naval BATTLESHIP duel. Secretly arrange your fleet on an 8×8 grid, then take turns firing at the enemy waters. A HIT lets you fire again; a MISS passes the turn. Sink the entire enemy fleet to take the pot.'},
+  // ── LE REGOLE DEGLI SCACCHI, AGGIORNATE (14/08/2026) ──────────────────
+  // I DUE OROLOGI SONO DIVERSI, e vanno detti tutti e due: al tavolo a soldi
+  // 10 minuti +3s a mossa (in produzione da mesi, non si tocca); in TORNEO 5
+  // minuti +1s piu' TRENTA SECONDI a ogni pezzo mangiato — numeri decisi dal
+  // proprietario dopo il primo torneo vero. Scrivere il bonus qui senza dire
+  // «in torneo» sarebbe una bugia al tavolo a soldi, dove quel bonus non
+  // esiste: chi ci contasse si troverebbe la bandierina addosso.
   chess:{dur:'~10 min',color:'#cbb18b',hero:'SCACCHI',sub:'Scacchi veri · orologio blitz',
-    rules:[['♟️','Scacchi veri','regole complete degli scacchi · muovi al tuo turno'],
+    rules:[['♟️','Scacchi veri','regole complete: arrocco, en passant, promozione'],
            ['⏱️','Orologio blitz','10 minuti a testa +3s a mossa: se scade, perdi'],
-           ['👑','Scacco matto','dai scacco matto al re avversario per prendere il piatto']],
+           ['🏆','In torneo si cambia','5 minuti +1s, e +30s a ogni pezzo che mangi: premia chi gioca, non chi tira a campare'],
+           ['👑','Scacco matto','vinci il piatto (95%) · patta = rimborso a tutti e due']],
     how:'A full strategic 1v1 chess match. Checkmate your opponent to claim the pot.'},
   random:{dur:'~6s',color:'#a78bfa',hero:'RANDOM',sub:'La ruota sceglie · giochi quello che esce',
     rules:[['🎡','Gira la ruota','una ruota sceglie a caso un duello dal vivo'],
@@ -41063,7 +41074,7 @@ function practiceStart(game, daTorneo){
       // la mappa del torneo (TRN_DUEL_CLIENT), che per ogni gioco tiene le due
       // sole cose che servono: dove azzerare la posta e come aprire il tavolo.
       else if(d.duel){
-        var _cl=(typeof TRN_DUEL_CLIENT!=='undefined')&&TRN_DUEL_CLIENT[game];
+        var _cl=(typeof TRN_DUEL_CLIENT!=='undefined')&&TRN_DUEL_CLIENT[(typeof duelKey==='function')?duelKey(game):game];
         if(!_cl){ toast('Gioco non ancora supportato — aggiorna l\'app','err',2600); return; }
         var _st=_cl.store();
         if(_st)_st.bet=0;               // niente rivincita a soldi in coda
@@ -41277,6 +41288,23 @@ function dlChCapStrip(list, edge){
   if(edge>0) g+='<span class="ch-cap-edge">+'+edge+'</span>';
   return g;
 }
+// ── L'OROLOGIO, SCRITTO DOVE SI GIOCA (14/08/2026) ────────────────────
+// Il bonus di trenta secondi per ogni pezzo mangiato esiste solo in TORNEO, e
+// senza dirlo qui l'orologio che SALE mentre giochi sembra un difetto. La
+// riga NON contiene numeri scritti a mano: li legge da `d.regole`, che e' il
+// server a mandare (`inc_ms` e `cattura_ms` in `_ch_view`). E' l'unico modo
+// perche' non possa mentire — se domani il proprietario cambia i secondi, qui
+// cambia da solo invece di restare una promessa vecchia.
+function dlChRegole(d){
+  if(d&&d.pratica) return '';   // in allenamento l'orologio e' fermo
+  var r=d&&d.regole; if(!r) return '';
+  var inc=Math.round((r.inc_ms||0)/1000), cat=Math.round((r.cattura_ms||0)/1000);
+  var p=[];
+  if(inc)p.push('+'+inc+'s a mossa');
+  if(cat)p.push('<b style="color:#a3e635">+'+cat+'s a ogni pezzo che mangi</b>');
+  if(!p.length) return '';
+  return '<div class="ch-regole">⏱ '+p.join(' · ')+'</div>';
+}
 function dlChStart(eur){
   if(!S.userId){ toast('Open in Telegram to play','err'); return; }
   if((S.btc*S.rate)<eur){ toast('Insufficient balance','err'); return; }
@@ -41307,7 +41335,10 @@ function dlChEnter(d){
   // TORNEO: alla scacchiera SUBITO, senza il cartello "MATCH FOUND" — quel
   // cartello porta scritto "STAKE €0.00" (qui la posta non esiste) e mangia
   // tre secondi dell'orologio da torneo, che e' corto apposta.
-  if(d&&d.tour){ DLCH.vsShown=true; DLCH.bet=0; DLCH.shown=false; DLCH.sig=''; dlTourAncoraReset(DLCH); }
+  // stessa ragione per il TORNEO e per l'ALLENAMENTO: il cartello «MATCH
+  // FOUND» porta scritta una posta, e in tutti e due i casi la posta non
+  // esiste. Si va alla scacchiera e basta.
+  if(d&&(d.tour||d.pratica)){ DLCH.vsShown=true; DLCH.bet=0; DLCH.shown=false; DLCH.sig=''; dlTourAncoraReset(DLCH); }
   if(d.status==='done'||d.result){
     // una PATTA non chiude il match: si rigioca (fino a tre), e il poll e'
     // l'unica cosa che sa trovare la partita successiva
@@ -41396,7 +41427,8 @@ function dlChBoard(d,ancora){
   var turnTxt=d.result?'':(d.your_turn?'<span class="ch-turn-you">● your move'+(d.check?' — CHECK!':'')+'</span>':'<span class="ch-turn-opp">opponent thinking…'+(d.check?' (check given)':'')+'</span>');
   var html='<div id="ch-wrap"><div class="pvp-m-title" style="color:#cbb18b;">♟️ CHESS DUEL</div>'+
     // in torneo il piatto non c'e': al suo posto il turno e la partita (§3.8)
-    '<div class="dlbs-pot">'+(d.tour?dlTourRiga(d):('POT €'+pot.toFixed(2)+' · checkmate wins 95% · draw refunds'))+'</div>'+
+    '<div class="dlbs-pot">'+(d.tour?dlTourRiga(d):(d.pratica?'🤖 ALLENAMENTO · GRATIS · senza orologio':('POT €'+pot.toFixed(2)+' · checkmate wins 95% · draw refunds')))+'</div>'+
+    dlChRegole(d)+
     dlTourPresidio(d)+
     '<div class="ch-pl opp"><div class="ch-pl-info"><span class="ch-pl-nm">'+dlEsc(d.opp_name||'Opponent')+' <i>('+opCol+')</i></span><span class="ch-cap">'+dlChCapStrip(oppCap,-youEdge)+'</span></div><span class="ch-clk" id="ch-clk-opp">'+dlChFmtClock(d.clock_opp_ms)+'</span></div>'+
     dlChBoardHTML(d)+
@@ -41421,6 +41453,23 @@ function dlChBoard(d,ancora){
         +'⚖️ Materiale: <b>'+mt.you+'</b> a <b>'+mt.opp+'</b>'
         +' — dopo tre patte passa chi ha il totale piu\' alto</div>';
     html+=dlTourFineHTML(d,ancora);
+  }
+  else if(d.pratica){
+    // ALLENAMENTO (15/08): stessa ragione del torneo — nessuna cifra, perche'
+    // ogni euro scritto qui sarebbe una bugia, e la rivincita e' un'altra
+    // partita GRATIS e non una a soldi alla posta di prima. E' la trappola
+    // gia' descritta per il tank: senza questo ramo il client, in buona fede,
+    // scriverebbe «l'avversario si prende €0.00» e offrirebbe il rigioco a
+    // pagamento.
+    var pw=d.you_win, pp=d.draw;
+    var pcol=pp?'#ffd700':(pw?'#39ff14':'#ff5b5b');
+    html+='<div class="pvp-result '+(pw?'win':(pp?'':'lose'))+'" style="color:'+pcol+';">'
+      +(pp?('🤝 PATTA — '+dlChResultName(d.result)):(pw?'🏆 HAI BATTUTO IL BOT':'🤖 IL BOT TI HA BATTUTO'))+'</div>'
+      +'<div style="text-align:center;font-weight:800;margin-top:4px;color:'+pcol+';">PARTITA DI PROVA · GRATIS</div>'
+      +((typeof TRN!=='undefined'&&TRN.trainFrom)
+        ?'<button class="pvp-m-btn gold" onclick="dlCloseOverlay();trnTrainBack()">🏆 TORNA AL TORNEO</button>'
+        :'<button class="pvp-m-btn gold" onclick="dlCloseOverlay();practiceStart(\'ch\')">🔁 ANCORA · GRATIS</button>')
+      +'<button class="pvp-m-btn" onclick="dlCloseOverlay()">CLOSE</button>';
   }
   else {
     var win=d.you_win, draw=d.draw;
@@ -41565,6 +41614,13 @@ function dlChResign(){
 }
 function dlChAfterDone(d){
   dlChStopPoll(); dlChStopTick();
+  // ALLENAMENTO: niente saldo da rileggere e niente statistiche da aggiornare
+  // — non si e' mosso un centesimo. Chiedere il saldo qui non farebbe danni,
+  // ma direbbe al giocatore che c'entrano dei soldi, e non c'entrano.
+  if(d&&d.pratica){
+    if(!DLCH.shown){ DLCH.shown=true; try{ gSound(d.draw?'chip':(d.you_win?'win':'lose')); }catch(e){} }
+    return;
+  }
   if(d.btc!==undefined&&d.btc!==null){ S.btc=d.btc; refresh(); }
   if(typeof loadBalance==='function')loadBalance().then(function(){dlUpdateStatsDom();});
   if(!DLCH.shown){ DLCH.shown=true; try{ gSound(d.draw?'chip':(d.you_win?'win-big':'lose')); }catch(e){}
@@ -49137,7 +49193,17 @@ function trnWatchOk(g){var c=trnGC(g);return !!(c&&c.watch);}
 // La MORRA CINESE non entrera' mai: li' la mossa a caso e' gioco OTTIMO (e'
 // l'equilibrio del gioco), quindi un avversario finto non ha niente da
 // insegnare.
-var TRN_DUEL_PRATICA={rr:1,pkd:1};
+// ⚠️ I TRE SPAZI DI NOMI, e il difetto che ci stava dentro (15/08/2026).
+// La LOBBY chiama i giochi `cards` e `chess` (dlPickGame), il SERVER e il
+// TORNEO li chiamano `pkd` e `ch`. Questa mappa la si legge con la chiave
+// della lobby (il tasto ALLENATI) E con quella del torneo: finche' c'era
+// solo `pkd`, il tasto «ALLENATI · GRATIS» NON compariva nella lobby del
+// poker — verificato in produzione. Si tengono tutte e due le scritture.
+var TRN_DUEL_PRATICA={rr:1,pkd:1,cards:1,ch:1,chess:1};
+// e la traduzione, per chi deve cercare in una mappa chiavata al modo del
+// torneo partendo dal nome della lobby
+var DUEL_ALIAS={chess:'ch',scacchi:'ch',cards:'pkd',poker:'pkd'};
+function duelKey(g){ g=String(g||''); return DUEL_ALIAS[g]||g; }
 function trnTrainOk(g){
   var c=trnGC(g);
   if(!c)return false;
