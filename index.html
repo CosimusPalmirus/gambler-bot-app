@@ -73863,7 +73863,7 @@ function tonUiPreleva(){
      la piastrella «ALLENAMENTO», via le due funzioni. Nient'altro la tocca.
      ⚠️ La pagina si carica SOLO alla prima apertura (src messo a mano): sono
      634 KB, e non si fanno pagare a chi non ci entra. -->
-<div id="bx2wrap" style="position:fixed;inset:0;z-index:99999;display:none;background:#07080c;">
+<div id="bx2wrap" style="position:fixed;inset:0;z-index:99999;display:none;background:#07080c;touch-action:none;overscroll-behavior:none;">
   <iframe id="bx2frame" title="BOXE allenamento"
           style="position:absolute;inset:0;width:100%;height:100%;border:0;display:block;"
           allow="autoplay"></iframe>
@@ -73881,14 +73881,60 @@ function tonUiPreleva(){
    · il tasto ESCI e' 44 px (il minimo per un pollice) e sta sotto la tacca
      (env safe-area), o su iPhone finisce sotto l'orologio. */
 var BX2_URL = 'https://62-238-17-24.sslip.io/boxe/';
+/* ⚠️ SU IPHONE SI MUOVEVA TUTTA LA MINI APP — 15/08, segnalato dal proprietario:
+   «quando muovi lo stick si muove anche la pagina intera della mini app».
+   Non e' il gioco: il gioco dentro il riquadro dichiara gia' touch-action:none.
+   E' la pagina SOTTO. Su iOS, quando un gesto comincia dentro un riquadro che
+   non ha niente da scorrere, il gesto NON si ferma li': passa al documento che
+   lo contiene, che si mette a scorrere e a rimbalzare. Si chiama concatenamento
+   dello scorrimento, e overscroll-behavior su WebKit non lo ferma.
+   L'unica cosa che lo ferma davvero e' TOGLIERE AL CORPO LA POSSIBILITA' DI
+   SCORRERE mentre la sovrapposizione e' aperta: position:fixed piu' il top
+   negativo, che e' anche il modo di NON perdere il punto in cui si stava. Alla
+   chiusura si rimette tutto e si torna esattamente dov'era: senza il top
+   negativo la mini app si riaprirebbe in cima, e chi stava in fondo alla lista
+   dei giochi si ritroverebbe altrove senza capire perche'. */
+/* ⚠️ E NON E' LA FINESTRA CHE SCORRE — misurato il 15/08, e la prima cura era
+   giusta per il problema sbagliato. In questa mini app il documento e' alto
+   ESATTAMENTE quanto lo schermo (844 su 844): la finestra non scorre mai. A
+   scorrere e' un contenitore interno (DIV.scroll, 2068 px di contenuto in 844,
+   overflow:auto), ed e' LUI che il gesto del pollice trascinava.
+   Bloccare il corpo non serviva a niente: il corpo non si muoveva gia'.
+   Percio' si cercano i contenitori che scorrono DAVVERO e si spengono finche'
+   la sovrapposizione e' aperta. Si cercano invece di nominarne uno: una classe
+   si puo' rinominare, e un blocco agganciato a un nome muore in silenzio il
+   giorno che qualcuno tocca il guscio. Lo scorrimento gia' fatto non si perde —
+   overflow:hidden non azzera scrollTop — quindi chiudendo si torna dov'erano. */
+var BX2_BLOCCATI = null;
+function bx2Blocca(){
+  BX2_BLOCCATI = [];
+  var tutti = document.querySelectorAll('body, div, main, section');
+  for (var i = 0; i < tutti.length; i++){
+    var e = tutti[i];
+    if (e.id === 'bx2wrap' || e.closest('#bx2wrap')) continue;   // non la sovrapposizione
+    if (e.scrollHeight <= e.clientHeight + 4) continue;          // non scorre: lasciala stare
+    var ov = getComputedStyle(e).overflowY;
+    if (ov !== 'auto' && ov !== 'scroll') continue;
+    BX2_BLOCCATI.push({ e: e, ov: e.style.overflowY });
+    e.style.overflowY = 'hidden';
+  }
+}
+function bx2Sblocca(){
+  if (!BX2_BLOCCATI) return;
+  for (var i = 0; i < BX2_BLOCCATI.length; i++)
+    BX2_BLOCCATI[i].e.style.overflowY = BX2_BLOCCATI[i].ov;
+  BX2_BLOCCATI = null;
+}
 function apriBoxe2(){
   var w = document.getElementById('bx2wrap'), f = document.getElementById('bx2frame');
   if(!f.getAttribute('src')) f.setAttribute('src', BX2_URL);
   w.style.display = 'block';
+  bx2Blocca();
   try{ if(window.Telegram && Telegram.WebApp && Telegram.WebApp.expand) Telegram.WebApp.expand(); }catch(e){}
 }
 function chiudiBoxe2(){
   document.getElementById('bx2wrap').style.display = 'none';
+  bx2Sblocca();
 }
 </script>
 
