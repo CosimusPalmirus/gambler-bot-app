@@ -8922,6 +8922,21 @@ body.gb-nav-on .bnav{display:flex;}
 }
 .ton-p b{ color:var(--ton-ink,#f2f4f8); font-weight:700; }
 .ton-p--warn{ color:#ff9d9d; }
+/* 22/08 — la nota piccola sotto l'hash del messaggio spedito: dice che quello
+   NON e' ancora il txid finale. Serve che sia leggibile ma non gridi: e' una
+   precisazione, non un allarme. */
+.ton-p--s{ font-size:12px; margin-top:6px; color:var(--ton-ink3,#8b93a1); }
+/* IL LINK ALL'ESPLORATORE. Non e' un bottone: e' la ricevuta che il giocatore
+   puo' controllare da solo, e fino al 22/08 non esisteva — la scheda diceva
+   «in attesa che la catena confermi» e non dava niente da guardare. */
+.ton-link{
+  display:inline-block; margin-top:8px;
+  font-family:var(--gb-f-txt); font-size:12px; font-weight:700;
+  letter-spacing:.3px; color:var(--ton-key,#38bdf8);
+  text-decoration:none; border-bottom:1px solid rgba(56,189,248,.45);
+  padding-bottom:1px;
+}
+.ton-link:active{ opacity:.7; }
 
 .ton-note{
   font-family:var(--gb-f-txt); font-size:12px; line-height:1.45;
@@ -11791,6 +11806,26 @@ body.gb-nav-on .bnav{display:flex;}
 #duel .tw-mega .tw-dat{
   position:absolute !important; top:10px; right:12px; left:auto; bottom:auto;
   z-index:2; text-align:right;
+}
+/* ⚠️ 22/08 — IL CONTATORE GIOCATORI SI LEGGEVA PER FORTUNA, NON PER COSTRUZIONE.
+   Misurato sulle cinque copertine online, col velo radiale gia' applicato: il
+   contrasto del numero bianco scende a 1,45:1 sul COLOSSEO, 2,15 sulla ROYALE,
+   2,68 sul DERBY — la soglia per un testo piccolo e' 4,5:1, e il 13,6% dei
+   pixel di quella scatola sulla Royale sta sotto.
+   Il perche': il velo e' calibrato sull'ANGOLO, ma il numero non sta
+   nell'angolo — sta a 12 px dal bordo e 10 dall'alto, dove il velo e' gia'
+   sceso, e li' le immagini hanno il cielo acceso (luminanza media 116,4 sul
+   DERBY). Passa sopra i pixel cattivi il piu' delle volte perche' e' largo
+   tre caratteri: e' fortuna, e la fortuna cambia quando cambia l'immagine.
+   La cura e' quella che il progetto usa gia' sulle pedine degli scacchi — «il
+   filetto che lo stacca» (componi_pezzi.py): un alone scuro sotto il glifo,
+   che NON tocca l'arte e vale per qualunque immagine ci finisca sotto, anche
+   quelle dei giochi nuovi che non sono ancora state disegnate. */
+#duel .tw-mega .tw-dat b{
+  text-shadow:0 1px 2px rgba(0,0,0,.92), 0 0 6px rgba(0,0,0,.75);
+}
+#duel .tw-mega .tw-dat span{
+  text-shadow:0 1px 2px rgba(0,0,0,.92), 0 0 5px rgba(0,0,0,.70);
 }
 /* la freccia scende in fondo a destra, accanto alla CTA */
 #duel .tw-mega::after{ top:auto !important; bottom:14px !important; transform:none !important; }
@@ -55769,7 +55804,16 @@ function pgSeatOf(id){
 
 var PG_LAG  = 0.080;   // s — compensa l'orologio di render (rtdLerp: now-85ms)
 var PG_SPD0 = 5.2;     // BALL_V0
-var PG_SPD1 = 30.6;    // MAX_BALL_V * RALLY_ACC_MAX  (NON 17)
+// ⚠️ 22/08 — NON E' PIU' UNA COPIA DI DUE COSTANTI, PERCHE' QUELLE NON
+// ESISTONO PIU'. Col neon pong senza timer sono spariti sia `MAX_BALL_V` sia
+// `RALLY_ACC_MAX`: la palla accelera senza tetto finche' non e' imprendibile,
+// che e' il modo in cui adesso finisce la partita. Questo numero resta e serve
+// a una cosa sola, COSMETICA: mappare la velocita' su una nota e sulla scia
+// (0..7). Va tarato su dove le partite finiscono DAVVERO — misurato sul motore
+// nuovo, picco di velocita' per partita: mediana 23,7 · 32,1 · massimo 35,1.
+// 36 sta appena sopra il massimo misurato: sotto, le partite piu' veloci
+// suonerebbero tutte uguali negli ultimi scambi, che sono quelli che contano.
+var PG_SPD1 = 36.0;
 // pentatonica minore di LA: nessun semitono -> qualunque sovrapposizione consuona
 var PG_NOTE = [220, 261.63, 293.66, 329.63, 392, 440,
                523.25, 587.33, 659.25, 783.99, 880];
@@ -73524,7 +73568,28 @@ function tonUiDisegna(){
         + '</div>'
         + '<div class="ton-lbl ton-lbl--sp">TO</div>'
         + '<div class="ton-well ton-well--addr ton-well--s">'
-        + tonUiEsc(s.pending.dest||'') + '</div>';
+        + tonUiEsc(s.pending.dest||'') + '</div>'
+        /* ⚠️ LA PROVA, 22/08. Prima qui c'era scritto «sent — waiting for the
+           chain to confirm» e nient'altro: il giocatore aspettava senza avere
+           NIENTE da guardare. E' lo stesso difetto del messaggio Telegram —
+           una ricevuta che non si puo' controllare non e' una ricevuta.
+           L'hash arriva GIA' IN ESADECIMALE dal server (`ton_coda.hash_hex`):
+           toncenter lo da' in base64, e un base64 dentro un URL fa un link
+           rotto. Questa pagina e' ES5 e disegna quel che le arriva. */
+        + (s.pending.hash
+            ? ('<div class="ton-lbl ton-lbl--sp">'
+               + (s.pending.confermato ? 'TRANSACTION' : 'BROADCAST HASH')
+               + '</div>'
+               + '<div class="ton-well ton-well--addr ton-well--s">'
+               + tonUiEsc(s.pending.hash) + '</div>'
+               + '<a class="ton-link" target="_blank" rel="noopener" href="'
+               + 'https://tonviewer.com/transaction/'
+               + encodeURIComponent(s.pending.hash) + '">Check it on tonviewer</a>'
+               + (s.pending.confermato ? ''
+                  : '<div class="ton-p ton-p--s">This is the hash of the '
+                    + 'message we broadcast. The final transaction hash may '
+                    + 'differ.</div>'))
+            : '');
     } else { p.style.display = 'none'; }
   }
 
