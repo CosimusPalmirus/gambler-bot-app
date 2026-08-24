@@ -42186,13 +42186,20 @@ function lobStateFetch(){
       if(LOB.mine&&d.track==='A'&&d.stato!=='aperta')lobPollA();
     }).catch(function(){});
 }
+var lobTornaA=false;   // «questa chiamata viene dal tasto TORNA ALLA PARTITA»
 function lobPollA(){
   if(!S.userId)return;
   fetch(BACKEND+'/duel/app_status',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},
     body:JSON.stringify({user_id:S.userId,mode:lobDuelMode(LOB.game||((LOB.card&&LOB.card.game)||''))})})
     .then(function(r){return r.json();}).then(function(d){
-      if(d&&d.status==='matched'){lobTickStop();DLRND.bet=(LOB.card&&LOB.card.stake_eur)||0;dlRndEnter(d.game,d);}
-    }).catch(function(){});
+      if(d&&d.status==='matched'){lobTornaA=false;lobTickStop();DLRND.bet=(LOB.card&&LOB.card.stake_eur)||0;dlRndEnter(d.game,d);}
+      // ⚠️ IL SILENZIO ERA IL DIFETTO. Questa funzione gira anche da sola, a
+      //    orologio, mentre aspetti: li' il «niente» e' normale e non si dice.
+      //    Ma se ci sei arrivato TOCCANDO il tasto, «niente» vuol dire che il
+      //    rientro non e' riuscito, e va detto — se no il tasto sembra rotto.
+      else if(lobTornaA){lobTornaA=false;
+        toast('Non riesco a riportarti dentro: questa partita si riprende solo dal gioco','warn',3600);}
+    }).catch(function(){if(lobTornaA){lobTornaA=false;toast('Errore di rete','err',2400);}});
 }
 function lobRenderCard(){
   var el=document.getElementById('lob-body');if(!el)return;
@@ -42313,15 +42320,31 @@ function lobTorna(){
   if(!c.dentro){toast('Questa partita non è tua','err',2400);return;}
   lobTickStop();
   if(c.track==='B'){
-    window.LOB_OPEN_LID='';
-    var sc=lobScreenB(c.game);
-    if(sc==='arc')window.RTD_GAME=c.game;
-    go(sc);
+    // ⚠️ IL LID CI VA. La prima stesura lo AZZERAVA «per sicurezza», e il
+    //    risultato era sicuro e INERTE: senza lid nessun ramo di rtdInit si
+    //    accende (index.html:52964), la socket si apre, manda hello e resta
+    //    li'. Il server e' pronto a riagganciarti e nessuno glielo chiede —
+    //    il tasto non faceva niente, ed e' cosi' che l'ha trovato il
+    //    proprietario.
+    // ⚠️ E MANDARLO NON PUO' ADDEBITARE, che era la paura da cui nasceva
+    //    l'errore: `lobby_open_join` (turfwar_rt_server.py:3805) guarda
+    //    `_where_live` PRIMA di ogni altra cosa e, se sei in una stanza,
+    //    riaggancia la socket, rimanda `start_payload` e RITORNA — prima del
+    //    controllo di capienza, prima dell'HTTP dei termini, prima
+    //    dell'escrow. E se non sei piu' in quella stanza, il backend risponde
+    //    «lobby chiusa» e il rifiuto arriva comunque prima dell'addebito.
+    lobEnterB(c.game);
   }else{
-    // BINARIO A: la partita e' una sessione del backend e il `matched`
-    // resta in attesa di ritiro finche' non scade. `lobPollA` e' gia' la
-    // funzione che lo ritira e porta al tavolo.
-    toast('Ti riporto al tavolo…','ok',1800);
+    // BINARIO A: il `matched` si ritira UNA VOLTA SOLA (`_DUEL_MATCHES.pop`).
+    // Se eri gia' entrato e poi sei uscito, quel ritiro e' gia' avvenuto e
+    // non c'e' piu' niente da ripescare.
+    // ⚠️ E ALLORA SI DICE, invece di tacere. Un tasto che non fa niente e non
+    //    spiega e' peggio di un tasto che manca: il proprietario ha perso
+    //    tempo a capire se fosse rotto il tasto o il gioco. Il rientro vero
+    //    su questo binario chiede la rotta di stato di OGNI gioco
+    //    (`/duel/bjl_state` e sorelle) e non e' scritto: e' dichiarato.
+    lobTornaA=true;
+    toast('Ti riporto al tavolo…','ok',1600);
     lobPollA();
   }
 }
