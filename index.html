@@ -42137,7 +42137,15 @@ function lobRenderCard(){
   h+='</div>';
   // ⚠️ IL TASTO E' LA VERITA'. Piena, scaduta, gia' partita: ognuna dice cosa
   // e' successo — mai un rimbalzo muto alla home (parole del proprietario).
-  if(stato==='in_gioco'){
+  if(stato==='in_gioco'&&c.dentro){
+    // IL RIENTRO, E SOLO PER CHI E' DENTRO (24/08). Il tasto nel gruppo
+    // lo vedono tutti — Telegram non sa a chi mostrarlo — ma `dentro` lo
+    // dice il SERVER, che sa chi si e' seduto. A chiunque altro resta il
+    // messaggio di sotto, che per lui e' la verita'.
+    h+='<div class="lob-stato lob-ok">LA PARTITA È IN CORSO</div>';
+    h+='<button class="action-btn gold" style="width:100%;" onclick="lobTorna()"><span>▶ TORNA ALLA PARTITA</span></button>';
+    h+='<div class="tw-note">Il tuo posto è ancora tuo: rientri dove eri rimasto. La posta è già sul tavolo.</div>';
+  }else if(stato==='in_gioco'){
     h+='<div class="lob-stato lob-ko">GIÀ PARTITA</div>';
     h+='<div class="tw-note">Questa lobby è già al tavolo: il posto non c\'è più.</div>';
   }else if(stato==='scaduta'){
@@ -42209,6 +42217,35 @@ function lobEnter(){
 // gruppo non deve MAI vedere un challenge_id (dentro c'e' l'uid Telegram del
 // creatore). Da `matched` in poi si riusa `dlRndEnter`, cioe' la stessa
 // funzione che dlAccept chiama gia' oggi: niente strada nuova.
+// ── TORNARE DENTRO ──────────────────────────────────────────────────────
+// IL RIENTRO ERA GIA' COSTRUITO NEL SERVER, E NESSUNO POTEVA ARRIVARCI.
+// Sul real-time la disconnessione NON toglie il posto (`Room.unbind`
+// sgancia solo la socket morta) e `lobby_join`, se ti trova gia' in una
+// stanza, riaggancia la socket nuova e rimanda `start_payload`. Mancava
+// la STRADA: il client apre la socket solo da dentro la schermata di un
+// gioco, quindi riaprendo l'app si atterra sulla home e niente dice che
+// sei a meta' partita.
+// E NON SI MANDA IL `lid`: `lobEnterB` lo manda perche' sta PRENDENDO un
+// posto, qui il posto ce l'hai gia' e mandarlo vorrebbe dire chiedere di
+// sedersi una seconda volta — cioe' rischiare un secondo addebito. Si
+// apre la schermata e basta: il `join` normale trova la stanza e riprende.
+function lobTorna(){
+  var c=LOB.card;if(!c)return;
+  if(!c.dentro){toast('Questa partita non è tua','err',2400);return;}
+  lobTickStop();
+  if(c.track==='B'){
+    window.LOB_OPEN_LID='';
+    var sc=lobScreenB(c.game);
+    if(sc==='arc')window.RTD_GAME=c.game;
+    go(sc);
+  }else{
+    // BINARIO A: la partita e' una sessione del backend e il `matched`
+    // resta in attesa di ritiro finche' non scade. `lobPollA` e' gia' la
+    // funzione che lo ritira e porta al tavolo.
+    toast('Ti riporto al tavolo…','ok',1800);
+    lobPollA();
+  }
+}
 function lobEnterA(){
   if(LOB.busy)return;
   LOB.busy=1;uiBusy(true,'Entro…');
