@@ -16625,6 +16625,11 @@ body.gb-nav-on .bnav{display:flex;}
        in tre elementi distinti), quindi ogni chiave qui sotto e' esattamente
        cio' che GB_TR trova nel DOM. */
     "🐦 CUCU' — COME SI GIOCA":"🐦 CUCKOO — HOW TO PLAY",
+    "IL RE FA MURO: NIENTE SECONDO TENTATIVO":"THE KING IS A WALL: NO SECOND TRY",
+    "IL CAVALLO NON BLOCCA: TI MANDA AVANTI":"THE KNIGHT DOES NOT BLOCK: IT SENDS YOU ON",
+    "SE DAVANTI SONO TUTTI CAVALLI":"IF EVERYONE AHEAD HAS A KNIGHT",
+    "mostra il CAVALLO — si salta al prossimo":"shows the KNIGHT — skip to the next",
+    "non ha piu' nessuno da sfidare — tiene la sua":"has nobody left to challenge — keeps their card",
     "📜 LA PARTITA":"📜 THE GAME","👑 IL CUCU'":"👑 THE CUCKOO","⚠️ TI FREGANO":"⚠️ GOTCHAS",
     "▶️ HO CAPITO, GIOCA":"▶️ GOT IT, PLAY","🐦 COME SI GIOCA":"🐦 HOW TO PLAY",
     "UNA CARTA A TESTA, COPERTA":"ONE CARD EACH, FACE DOWN",
@@ -42335,18 +42340,38 @@ function lobTorna(){
     //    «lobby chiusa» e il rifiuto arriva comunque prima dell'addebito.
     lobEnterB(c.game);
   }else{
-    // BINARIO A: il `matched` si ritira UNA VOLTA SOLA (`_DUEL_MATCHES.pop`).
-    // Se eri gia' entrato e poi sei uscito, quel ritiro e' gia' avvenuto e
-    // non c'e' piu' niente da ripescare.
-    // ⚠️ E ALLORA SI DICE, invece di tacere. Un tasto che non fa niente e non
-    //    spiega e' peggio di un tasto che manca: il proprietario ha perso
-    //    tempo a capire se fosse rotto il tasto o il gioco. Il rientro vero
-    //    su questo binario chiede la rotta di stato di OGNI gioco
-    //    (`/duel/bjl_state` e sorelle) e non e' scritto: e' dichiarato.
-    lobTornaA=true;
+    // BINARIO A — due specie di partita, e si provano nell'ordine giusto.
+    // ⚠️ PRIMA I SEI DUELLI CHE VIVONO NEL BACKEND (poker duello, blackjack,
+    //    roulette russa, battaglia navale, scacchi, morra cinese): hanno
+    //    ognuno la loro rotta di stato che LEGGE LA PARTITA VIVA ED ENTRA, e
+    //    l'unica cosa che mancava era sapere IN QUALE dei sei. Adesso lo dice
+    //    `/duel/dove_sono`, che legge sei dizionari e non muove un satoshi.
+    //    Si prova per prima perche' e' una domanda HTTP secca: se la risposta
+    //    e' «nessuna», non e' costato niente passare al real-time.
     toast('Ti riporto al tavolo…','ok',1600);
-    lobPollA();
+    fetch(BACKEND+'/duel/dove_sono',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},
+      body:JSON.stringify({user_id:S.userId})})
+      .then(function(r){return r.json();}).then(function(d){
+        if(d&&d.gioco){DLRND.bet=(LOB.card&&LOB.card.stake_eur)||0;dlRndEnter(d.gioco,{});return;}
+        lobTornaRT(c);
+      }).catch(function(){lobTornaRT(c);});
   }
+}
+// ⚠️ I SEDICI DUELLI REAL-TIME (pong, sumo, tank, biliardo, dama, scopa,
+//    boxe...). La loro stanza vive nell'altro processo, e fino al 25/08 non
+//    c'era modo di tornarci: il «sei stato accoppiato» si ritira UNA VOLTA
+//    SOLA, quindi chi era gia' entrato e poi uscito non aveva piu' niente da
+//    ripescare.
+// ⚠️ E NON SI USA UN INGRESSO. `lobby_join` con un `tier`, se non sei in una
+//    stanza, TI METTE IN CODA su una fascia a soldi — e questo tasto sta in
+//    un messaggio di gruppo che leggono tutti. Il messaggio `rientra` sa fare
+//    una cosa sola: riaggancia se sei dentro, e altrimenti risponde di no.
+function lobTornaRT(c){
+  window.LOB_OPEN_LID='';
+  window.RTD_RIENTRA=true;
+  var sc=lobScreenB(c.game);
+  if(sc==='arc')window.RTD_GAME=c.game;
+  go(sc);
 }
 function lobEnterA(){
   if(LOB.busy)return;
@@ -52977,6 +53002,16 @@ function initArc(){
     RTD.practice=false;RTD.tour=false;RTD.spec=false;RTD.specRid=null;
     RTD.pendingTicket=null;RTD.pendingWatch=null;
   }
+  // RIENTRO (25/08): non e' un ingresso. Chi torna nella propria
+  // partita non prende un posto, non sceglie una fascia e non porta un
+  // biglietto — dove sia lo sa gia' il server. Le altre strade si
+  // azzerano tutte, `pendingOpen` compreso: se restasse acceso si
+  // manderebbero DUE ingressi per la stessa partita.
+  if(window.RTD_RIENTRA){
+    RTD.pendingRientro=true;window.RTD_RIENTRA=false;
+    RTD.practice=false;RTD.tour=false;RTD.spec=false;RTD.specRid=null;
+    RTD.pendingTicket=null;RTD.pendingWatch=null;RTD.pendingOpen=null;
+  }
   if(window.RTD_WATCH){   // TORNEO: spettatore (trnWatch) — pattern GLD_WATCH
     RTD.pendingWatch=window.RTD_WATCH;window.RTD_WATCH=null;
     RTD.practice=false;RTD.pendingTicket=null;RTD.spec=false;RTD.specRid=null;
@@ -52984,7 +53019,9 @@ function initArc(){
   var ttl=document.getElementById('arc-title');
   if(ttl){ttl.textContent=rtdMeta().title;ttl.style.color=rtdMeta().color;}
   rtdConnect();
-  if(RTD.pendingOpen&&RTD.wsOk){rtdSend({t:'join_open',lid:RTD.pendingOpen});RTD.pendingOpen=null;rtdShowSearch();}
+  if(RTD.pendingRientro&&RTD.wsOk){rtdSend({t:'rientra'});RTD.pendingRientro=false;rtdShowSearch();}
+  else if(RTD.pendingRientro)rtdShowSearch();   // la socket non c'e' ancora: parte da hello_ok
+  else if(RTD.pendingOpen&&RTD.wsOk){rtdSend({t:'join_open',lid:RTD.pendingOpen});RTD.pendingOpen=null;rtdShowSearch();}
   else if(RTD.pendingOpen)rtdShowSearch();   // la socket non c'e' ancora: parte da hello_ok
   else if(RTD.pendingTicket&&RTD.wsOk){
     rtdSend({t:'join_ticket',ticket:RTD.pendingTicket.t,game:RTD.pendingTicket.g});
@@ -53081,6 +53118,7 @@ function rtdOnMsg(m){
     if(RTD.pendingTicket){rtdSend({t:'join_ticket',ticket:RTD.pendingTicket.t,game:RTD.pendingTicket.g});RTD.game=RTD.pendingTicket.g;RTD.pendingTicket=null;rtdShowSearch();return;}
     if(RTD.pendingWatch){rtdSend({t:'watch',rid:RTD.pendingWatch});RTD.pendingWatch=null;rtdShowSpecWait();return;}
     if(RTD.spec&&RTD.specRid){if(CUR==='arc')rtdSend({t:'watch',rid:RTD.specRid});return;}   // TORNEO: ri-aggancia da spettatore dopo reconnect
+    if(RTD.pendingRientro){RTD.pendingRientro=false;rtdSend({t:'rientra'});rtdShowSearch();return;}
     if(RTD.pendingOpen){var _lo=RTD.pendingOpen;RTD.pendingOpen=null;rtdSend({t:'join_open',lid:_lo});rtdShowSearch();return;}
     if(RTD.pendingJoin){RTD.pendingJoin=false;rtdSend({t:'join',game:RTD.game,tier:RTD.tier});}
     return;
@@ -53132,6 +53170,12 @@ function rtdOnMsg(m){
     // su una schermata di ricerca che non cerca piu' niente.
     if(typeof lobWsCatch==='function'&&lobWsCatch(e)){RTD.ui='';return;}
     var it={'insufficient balance':'Saldo insufficiente','already in a lobby':'Sei già in una coda',
+            // ⚠️ IL RIFIUTO DEL RIENTRO (25/08). Deve dire la cosa che serve
+            //    a chi legge — «la partita non c'è più» — e non il fatto
+            //    tecnico. Chi tocca il tasto sta cercando di rientrare in
+            //    qualcosa che per lui esiste ancora: se resta muto, o se
+            //    legge una parola da programmatore, pensa che sia rotto.
+            'nessuna partita da riprendere':'Quella partita è finita — non c\'è più niente in cui rientrare',
             'auth failed':'Autenticazione fallita — riapri da Telegram','not in a lobby':'Non sei in coda',
             'ticket scaduto':(RTD.tour?'Match del torneo scaduto o già partito':'Match scaduto — puntate rimborsate'),
             // 14/08: la guardia «una partita alla volta». Il caso vero e' chi
@@ -54834,6 +54878,8 @@ function rtdFeedEvent(e){
     case 'taglio':if(g==='cucu')cucuEvento(e);break;
     case 'cucu':if(g==='cucu')cucuEvento(e);break;
     case 'cucum':if(g==='cucu')cucuEvento(e);break;
+    case 'salta':if(g==='cucu')cucuEvento(e);break;
+    case 'muro':if(g==='cucu')cucuEvento(e);break;
     case 'su':if(g==='cucu')cucuEvento(e);break;
     case 'vita':if(g==='cucu')cucuEvento(e);break;
     case 'spar':if(g==='cucu')cucuEvento(e);break;
@@ -63595,8 +63641,19 @@ function cucuGeom(w,hh,n){
   var band=myH+bh+26*u;
   var top=hh-band;
   // la carta di un altro e l'avatar: §5.5, i tre numeri misurati
-  var cw=w*cucuScala(n,0.115,0.086,0.068),ch=cw*1.5;
-  var R=w*cucuScala(n,0.075,0.058,0.046)/2;
+  // ⚠️ MISURATI (25/08), non scelti: vedi `_cucu_misura_spazio.mjs`.
+  //    A sei giocatori il tetto era x2.48 — c'era spazio per quasi
+  //    raddoppiare. Qui si sta sotto il 72% del tetto E sotto il 70%
+  //    della MIA carta, perche' la mia deve restare la piu' grande del
+  //    tavolo: e' l'unica cosa che dice «questa e' tua» senza scriverlo.
+  //    Sotto i sette posti a fermare la crescita e' quella gerarchia,
+  //    non lo spazio.
+  var cw=w*cucuScala(n,0.150,0.140,0.0775),ch=cw*1.5;
+  // ⚠️ GLI AVATAR CRESCONO MENO DELLE CARTE, e non e' timidezza: `R`
+  //    entra in `cielo` qui sotto, cioe' decide dove COMINCIA l'ellisse
+  //    sotto l'orologio. Alzarlo quanto le carte schiaccerebbe l'ellisse
+  //    e si mangerebbe da solo lo spazio appena guadagnato.
+  var R=w*cucuScala(n,0.092,0.082,0.052)/2;
   // ⚠️ L'ELLISSE COMINCIA SOTTO L'OROLOGIO, e non e' un dettaglio di gusto:
   // a 6 posti (e a 4, 8, 10 — a ogni `n` pari) c'e' un posto ESATTAMENTE in
   // cima, a (cx, cy-ry). Con l'ellisse presa a occhio, i pesi a pigna
@@ -63627,10 +63684,12 @@ function cucuGeom(w,hh,n){
     b0:{x:mrg,y:by,w:bw,h:bh},b1:{x:mrg*2+bw,y:by,w:bw,h:bh},
     // il pallino della vita: 8 / 6 / 5 px di diametro alle tre taglie, e un
     // minimo in px veri — a 5 px un pallino e' ancora un pallino, a 3 e' polvere
-    lr:Math.max(2.2,u*cucuScala(n,4,3,2.5)),
-    nf:Math.max(7.5,u*cucuScala(n,12,10,9)),
-    ntag:(n>=8)?6:(n>=6?9:12),
-    aw:Math.max(1.4,u*cucuScala(n,3,2.5,2))};
+    lr:Math.max(2.6,u*cucuScala(n,5.4,4.8,3.0)),
+    nf:Math.max(8.5,u*cucuScala(n,15,14,10)),
+    // piu' spazio, piu' lettere del nome: a sei posti se ne leggono 12
+      // invece di 9, e sotto i sei il nome quasi non si taglia piu'.
+    ntag:(n>=8)?7:(n>=6?12:16),
+    aw:Math.max(1.6,u*cucuScala(n,3.6,3.3,2.3))};
   s._geo=g;s._geoK=gk;
   return g;
 }
@@ -64033,6 +64092,62 @@ function cucuDisegnaFx(ctx,G,now,seatOf,lite){
       //   700  il cono di luce si spegne, il Re resta scoperto
       // A 26 px restano leggibili, in ordine: la carta col Re, la scritta
       // (che e' grande A SCHERMO, non scalata col posto), il rimbalzo.
+      // ── IL SALTACAVALLO (25/08): piu' corto e piu' spento del CUCU'
+      //    di proposito. I due gesti dicono cose OPPOSTE — «lo scambio
+      //    si ferma» contro «lo scambio scivola» — e se si
+      //    somigliassero il giocatore non li distinguerebbe.
+      case 'salt':
+        p=seatOf(fx.who);
+        if(!p)break;
+        p2=fx.con?seatOf(fx.con):null;
+        // 1 · la carta si gira scoperta — l'UNICO gesto in comune col
+        //     CUCU', perche' in tutti e due i casi diventa pubblica
+        if(age<160){
+          sc=age<80?(1-age/80):((age-80)/80);
+          ctx.globalAlpha=1;
+          ctx.translate(p.cx,p.cy);ctx.scale(Math.max(0.04,sc),1);
+          ctx.fillStyle='#132018';
+          ctx.fillRect(-p.cw*0.5,-p.ch*0.5,p.cw,p.ch);
+          ctx.strokeStyle='#86efac';ctx.lineWidth=1.5;
+          ctx.strokeRect(-p.cw*0.5,-p.ch*0.5,p.cw,p.ch);
+          ctx.setTransform(1,0,0,1,0,0);
+        }
+        // 2 · IL BAGLIORE VERDE attorno al cavallo: dice CHI ha saltato
+        if(age>=140&&age<520){
+          dt=(age-140)/380;
+          ctx.globalAlpha=0.55*(1-dt);
+          ctx.strokeStyle='#86efac';ctx.lineWidth=Math.max(1,3*(1-dt)+1);
+          ctx.strokeRect(p.cx-p.cw*0.62,p.cy-p.ch*0.66,p.cw*1.24,p.ch*1.32);
+        }
+        // 3 · LA FRECCIA — la cosa che informa davvero, e l'unica che
+        //     resta leggibile a 40 px. Parte dal cavallo e punta al
+        //     bersaglio nuovo: si capisce «di la'» senza leggere.
+        if(p2&&age>=180&&age<560){
+          dt=(age-180)/380;
+          ctx.globalAlpha=0.9*Math.min(1,dt*3)*(dt>0.7?(1-(dt-0.7)/0.3):1);
+          x0=p.cx+(p2.cx-p.cx)*Math.min(1,dt*1.25);
+          y0=p.cy+(p2.cy-p.cy)*Math.min(1,dt*1.25);
+          ctx.strokeStyle='#86efac';ctx.lineWidth=2.5;ctx.lineCap='round';
+          ctx.beginPath();ctx.moveTo(p.cx,p.cy);ctx.lineTo(x0,y0);ctx.stroke();
+          a=Math.atan2(p2.cy-p.cy,p2.cx-p.cx);
+          rr=Math.max(5,p.cw*0.3);
+          ctx.fillStyle='#86efac';
+          ctx.beginPath();
+          ctx.moveTo(x0,y0);
+          ctx.lineTo(x0-rr*Math.cos(a-0.45),y0-rr*Math.sin(a-0.45));
+          ctx.lineTo(x0-rr*Math.cos(a+0.45),y0-rr*Math.sin(a+0.45));
+          ctx.closePath();ctx.fill();
+        }
+        // 4 · la parola, piccola: e' ornamento, la freccia ha gia' detto
+        if(!lite&&age>=200&&age<560){
+          dt=(age-200)/360;
+          ctx.globalAlpha=0.85*(dt<0.25?dt/0.25:(dt>0.75?(1-(dt-0.75)/0.25):1));
+          ctx.fillStyle='#bbf7d0';
+          ctx.font='700 '+Math.max(9,Math.round(p.cw*0.34))+'px system-ui,sans-serif';
+          ctx.textAlign='center';
+          ctx.fillText('SALTA',p.cx,p.cy-p.ch*0.78);
+        }
+        break;
       case 'cucu':
       case 'cucm':
         var mz=(fx.tp==='cucm');
@@ -64286,6 +64401,17 @@ function cucuSnd(n,o){
       at=cucuSndSlot(0.42,2);if(at<0)at=0;
       for(i=0;i<5;i++)TWS.noise({d:0.09,g:0.08*v,hp:1000,lp:4000,at:at+i*0.075,pan:(i%2?0.3:-0.3)});
       break;
+    case 'cuSalta':                           // IL SALTACAVALLO: due zoccoli
+      // ⛔ NON deve somigliare al CUCU'. Quello e' il campione
+      //    dell'orologio, un richiamo; questo e' legno su legno, secco e
+      //    corto. Se si somigliassero, l'orecchio confonderebbe «lo
+      //    scambio si ferma» con «lo scambio scivola».
+      at=cucuSndSlot(0.22,3);if(at<0)at=0;
+      TWS.noise({d:0.045,g:0.16*v,hp:900,lp:3600,at:at,pan:pn});
+      TWS.tone({f:210,f2:150,type:'square',d:0.05,g:0.09*v,lp:900,at:at,pan:pn});
+      TWS.noise({d:0.045,g:0.14*v,hp:900,lp:3600,at:at+0.115,pan:pn});
+      TWS.tone({f:186,f2:132,type:'square',d:0.05,g:0.08*v,lp:900,at:at+0.115,pan:pn});
+      break;
     case 'cuCut':                             // il tonfo del mazzo tagliato
       at=cucuSndSlot(0.14,2);if(at<0)at=0;
       TWS.noise({d:0.13,g:0.13*v,hp:700,lp:3000,at:at});
@@ -64461,6 +64587,27 @@ function cucuEvento(e){
       }catch(_hv){}
       if(mz)rtdFeed('👑 '+cucuL('Dal mazzo esce un RE')+' — '+cucuNome(e.who)+' '+cucuL('tiene la sua'));
       else rtdFeed('👑 '+cucuNome(e.who)+' '+cucuL('grida CUCU\'! — lo scambio non si fa'));
+      break;
+    // ── IL SALTACAVALLO (25/08) ───────────────────────────────────────
+    // Il 9 non e' un muro: chi ce l'ha lo MOSTRA e lo scambio scivola sul
+    // giocatore dopo. Deve leggersi come cosa DIVERSA dal CUCU', o non si
+    // capisce perche' a volte lo scambio si ferma e a volte prosegue:
+    // azzurro invece che oro, scuotimento minore (non e' un colpo) e
+    // NESSUNA cerimonia — il turno va avanti, e fermare lo schermo
+    // direbbe il contrario.
+    case 'salta':
+      cucuSnd('cuSalta',{pan:cucuPan(e.who)});
+      cucuFx({tp:'salt',who:String(e.who),con:(e.con==null?null:String(e.con)),c:e.c,dur:620});
+      RTD.shake=Math.min(6,RTD.shake+(RTD.lite?1:3));
+      try{var H2=tg&&tg.HapticFeedback;
+        if(H2&&String(e.con)===String(RTD.myId)&&H2.selectionChanged)H2.selectionChanged();
+      }catch(_hs){}
+      rtdFeed('🐎 '+cucuNome(e.who)+' '+cucuL('mostra il CAVALLO — si salta al prossimo'));
+      break;
+    // ── NESSUNO DA SFIDARE: davanti erano tutti cavalli ────────────────
+    case 'muro':
+      cucuSnd('cuTengo',{pan:cucuPan(e.who)});
+      rtdFeed('🛡 '+cucuNome(e.who)+' '+cucuL('non ha piu\' nessuno da sfidare — tiene la sua'));
       break;
     // ── LA SCOPERTA ───────────────────────────────────────────────────
     case 'su':
@@ -64958,7 +65105,9 @@ function cucuTutCucu(){
   return '<div class="cup-pv"><i class="c1"></i><i class="c2"></i><i class="re">R</i><i class="say">CUCU!</i></div>'
    +cucuTutRow('⚡','IL CUCU È AUTOMATICO','Non c\'è un tasto e non lo puoi rifiutare: se hai il Re, il gioco grida per te.')
    +cucuTutRow('🎭','CHI HA IL RE PUÒ CHIEDERE IL CAMBIO','…e regalarlo. I due tasti sono sempre accesi per tutti: nessuno può capire chi ha il Re guardando il tuo schermo.')
-   +cucuTutRow('🚫','CHI VIENE BLOCCATO NON RIPROVA','Niente secondo tentativo col giocatore dopo, e niente mazzo: il taglio è solo del mazziere.')
+   +cucuTutRow('🚫','IL RE FA MURO: NIENTE SECONDO TENTATIVO','Se ti blocca un Re, il tuo turno finisce lì. Non provi col giocatore dopo e non tocchi il mazzo: il taglio è solo del mazziere.')
+   +cucuTutRow('🐎','IL CAVALLO NON BLOCCA: TI MANDA AVANTI','Chi ha un 9 lo mostra e non te lo dà — ma lo scambio non si annulla: scivola sul giocatore dopo. Se anche quello ha un cavallo, si salta ancora. È la regola per cui il gioco si chiama anche SALTACAVALLO.')
+   +cucuTutRow('🛡','SE DAVANTI SONO TUTTI CAVALLI','Non resta nessuno da sfidare e tieni la tua carta. Coi quattro cavalli in gioco, a tavolo pieno succede.')
    +cucuTutRow('🎩','SE IL RE ESCE DAL MAZZO','È il mazzo che grida: la carta si scarta scoperta e il mazziere tiene la sua.')
    +cucuTutRow('⏭️','DOPPIO TOCCO PER SALTARE L\'ANIMAZIONE','Il risultato è già deciso dal server: saltarla non cambia niente e non manda niente.');
 }
