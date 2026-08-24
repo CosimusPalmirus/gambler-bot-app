@@ -13129,7 +13129,12 @@ body.gb-nav-on .bnav{display:flex;}
     <div class="game-title">♠️ TEXAS HOLD'EM</div>
   </div>
   <div class="game-content">
-    <div class="game-bal">€<span id="pk-bal">0</span></div>
+    <!-- ⚠️ L'EURO STA DENTRO LO SPAN, non fuori: refresh() (31169)
+         scrive qui `balEur()`, che il simbolo ce l'ha gia'. Con l'euro
+         anche nel markup a schermo usciva "€€12.34" — l'unico
+         dei quindici saldi dei giochi scritto in modo diverso dagli altri
+         quattordici. -->
+    <div class="game-bal"><span id="pk-bal">€0.00</span></div>
 
     <div class="pk-table">
       <div class="pk-phase-badge" id="pk-phase-badge">WAITING</div>
@@ -17367,7 +17372,13 @@ var S={
   address:'',txs:[],
   rank:null,weekProgress:{},claimedQuests:[],jackpotsHit:0,
   _pendingSyncs:0,duelWins:0,duelLosses:0,duelEarned:0,
-  _lastSyncTs:0
+  _lastSyncTs:0,
+  /* TON NELLE PUNTATE (24/08). `eurTon` nasce null e NON zero: zero
+     vorrebbe dire "il server mi ha detto che non ho TON giocabile",
+     null vuol dire "non me l'ha detto" — e sono due cose diverse
+     il giorno che la pagina gira contro un backend vecchio. */
+  eurTon:null,eurTonTs:0,eurGioc:null,tonGioco:false,tonFresh:false,
+  _capBtcVisto:null,_capVegliaTs:0
 };
 
 if(tg&&tg.initDataUnsafe&&tg.initDataUnsafe.user){
@@ -17406,7 +17417,92 @@ function getLevel(xp){
 function fmt(n,d){return(typeof n==='number'?n:0).toFixed(d||2);}
 function eur(btc){return Math.round(btc*S.rate);}
 function btcStr(b){return fmt(b,8)+' BTC';}
-function balEur(){return'€'+fmt(S.btc*S.rate,2);}
+/* ══════ LA CAPIENZA IN EURO: BTC + TON (24/08/2026) ══════
+   Il numero grande in cima alla mini app non e' piu' "i miei bitcoin, in
+   euro": e' "gli euro che posso davvero puntare adesso", cioe' il BTC piu'
+   la parte di TON che il server e' disposto a convertire per coprire una
+   posta (TON_PUNTATE_PROGETTO.md, fasi 4 e 5).
+
+   ⚠️ DUE NUMERI, NON UNO. La pagina NON tiene `eur_giocabile` come
+   e' arrivato: tiene da parte la sola PARTE TON (`S.eurTon`) e la somma al
+   volo al BTC vivo. E' la differenza che conta: `S.btc` cambia a OGNI
+   puntata (anche solo per la sottrazione ottimistica locale), mentre la
+   parte TON cambia solo quando il server converte davvero. Congelare il
+   totale vorrebbe dire rimostrare il saldo di PRIMA della puntata dopo ogni
+   puntata, cioe' promettere soldi gia' spesi.
+
+   ⚠️ IL CLIENT NON CONOSCE IL TASSO DEL TON, e non deve: se non lo
+   conosce non puo' inventarselo. Gli euro del TON li calcola il server
+   (`capienza_eur`), gia' al netto dello scarto del banco e gia' arrotondati
+   in GIU'. Qui si sommano, e basta.
+
+   ⚠️ SERVER VECCHIO = COMPORTAMENTO DI OGGI, RIGA PER RIGA.
+   `S.eurTon` nasce `null` e resta `null` finche' un `/balance` non porta i
+   campi nuovi: `capEur()` torna esattamente `S.btc*S.rate`. Serve davvero,
+   non e' prudenza teorica: `index.html` si carica su Pages A MANO, quindi
+   per giorni gireranno pagina nuova + backend vecchio (e viceversa). */
+
+/* Gli euro che il TON puo' aggiungere alla posta. Zero finche' il server non
+   lo dice: mai una stima nostra. */
+function capTonEur(){
+  var t=S.eurTon;
+  if(t===null||t===undefined)return 0;
+  t=+t;
+  if(!(t>0))return 0;          /* prende anche NaN: NaN>0 e' falso */
+  return t;
+}
+/* LA CAPIENZA: quello che si puo' puntare adesso, in euro. */
+function capEur(){return(S.btc*S.rate)+capTonEur();}
+/* Il solo BITCOIN in euro. ⚠️ Non e' un doppione di `capEur`: serve
+   dove il TON NON c'entra, cioe' la schermata PRELIEVO. Un prelievo esce in
+   bitcoin, e scrivere "AVAILABLE €50" quando i bitcoin ne valgono 20
+   sarebbe una promessa che nessuna rotta puo' mantenere. */
+function btcEur(){return'\u20ac'+fmt(S.btc*S.rate,2);}
+function balEur(){return'\u20ac'+fmt(capEur(),2);}
+
+/* Assorbe i campi nuovi di /balance (fase 4). ADDITIVO in senso stretto: se
+   non ci sono NON tocca niente — un backend vecchio non deve poter
+   spegnere quello che un backend nuovo aveva gia' detto. */
+function capTonSetta(d){
+  if(!d)return;
+  var haT=(d.eur_ton!==undefined&&d.eur_ton!==null);
+  var haG=(d.eur_giocabile!==undefined&&d.eur_giocabile!==null&&
+           d.eur_btc!==undefined&&d.eur_btc!==null);
+  if(!haT&&!haG)return;                 /* backend vecchio: si resta com'era */
+  var t=haT?(+d.eur_ton):((+d.eur_giocabile)-(+d.eur_btc));
+  if(!(t>0))t=0;                        /* niente TON, o numero storto */
+  S.eurTon=t;
+  S.eurTonTs=Date.now();
+  S._capBtcVisto=S.btc;                 /* riferimento per la veglia */
+  if(d.eur_giocabile!==undefined&&d.eur_giocabile!==null)S.eurGioc=+d.eur_giocabile;
+  if(d.ton_gioco!==undefined)S.tonGioco=!!d.ton_gioco;
+  if(d.ton_fresh!==undefined)S.tonFresh=!!d.ton_fresh;
+}
+
+/* LA VEGLIA SUL RABBOCCO — ⚠️ la trappola di tutto questo pezzo.
+   `S.eurTon` puo' invecchiare in un caso solo: quando il server converte
+   davvero dei TON per coprire una posta. Da fuori quel momento si riconosce,
+   e in modo preciso: il rabbocco converte ESATTAMENTE quello che manca,
+   quindi subito dopo l'addebito il BTC resta a zero. Se il bitcoin e' appena
+   sceso a (quasi) zero e noi continuiamo a dichiarare euro di TON, quegli
+   euro possono essere gia' stati spesi: si va a farsi dire la verita'.
+   Non e' un sondaggio a tempo: senza un CAMBIO di saldo non parte nessuna
+   chiamata, quindi un giocatore fermo col solo TON non fa traffico. E il
+   ritardo di 600 ms non e' estetico — `loadBalance` esce subito se c'e'
+   una sincronizzazione in volo (S._pendingSyncs), e la risposta del gioco
+   deve poter atterrare prima. */
+function capVeglia(){
+  var prima=S._capBtcVisto;
+  S._capBtcVisto=S.btc;
+  if(capTonEur()<=0)return;
+  if(prima===null||prima===undefined)return;
+  if(Math.abs(prima-S.btc)<1e-12)return;      /* niente si e' mosso */
+  if((S.btc*S.rate)>0.02)return;              /* resta bitcoin vero: nessun rabbocco */
+  var ora=Date.now();
+  if(ora-(S._capVegliaTs||0)<3000)return;     /* al massimo una ogni 3 s */
+  S._capVegliaTs=ora;
+  setTimeout(function(){if(typeof loadBalance==='function')loadBalance();},600);
+}
 
 function toast(msg,type,dur){
   // Saldo insufficiente (QUALSIASI gioco/buy-in) → CTA deposito crypto invece del semplice banner
@@ -17564,7 +17660,7 @@ function grRoomVideo(type){
 }
 function grHideVideo(){ var ov=document.getElementById('gr-vidovl'), v=document.getElementById('gr-vidovl-v'); if(ov){ ov.classList.remove('show'); ov.style.display='none'; } if(v){ try{ v.pause(); }catch(e){} } }
 function grSound(n){ try{ if(typeof gSound==='function') gSound(n); }catch(e){} }
-function grUpdBal(){ var el=document.getElementById('gr-bal'); if(el) el.textContent='€'+(S.btc*S.rate).toFixed(2); }
+function grUpdBal(){ var el=document.getElementById('gr-bal'); if(el) el.textContent=balEur(); }
 function grShow(which){
   document.getElementById('gr-start').style.display = which==='start'?'':'none';
   document.getElementById('gr-run').style.display   = which==='run'?'':'none';
@@ -17754,7 +17850,7 @@ function grTheme(){
 function grStart(){
   if(GR.busy) return;
   var eur=(typeof currentBet!=='undefined'&&currentBet.grun)?currentBet.grun:1;
-  if((S.btc*S.rate)<eur){ toast('Insufficient balance','err'); return; }
+  if(capEur()<eur){ toast('Insufficient balance','err'); return; }
   if(!S.userId){ toast('Open in Telegram to play','err'); return; }
   GR.busy=true; grSound('chip');
   fetch(BACKEND+'/run/start',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId,ante_btc:eurToBtc(eur)})})
@@ -31179,7 +31275,15 @@ function refresh(){
   var wt=document.getElementById('w-ton');
   if(wt){
     var vt=(S.bal&&+S.bal.TON)||0;
-    if(vt>0){ wt.textContent=vt.toFixed(2)+' TON'; wt.style.display=''; }
+    if(vt>0){
+      /* 24/08: accanto ai TON, non AL POSTO dei TON, gli euro che possono
+         coprire una posta. Sono meno del loro controvalore pieno (lo
+         scarto del banco e i tetti), ed e' giusto che si veda: e' il
+         numero che il server onorera', non quello del mercato. */
+      var te=capTonEur();
+      wt.textContent=vt.toFixed(2)+' TON'+(te>0?('  \u2248 \u20ac'+fmt(te,2)):'');
+      wt.style.display='';
+    }
     else wt.style.display='none';
   }
   /* IL TON IN HOME (09/08). Guardato con if(ht): a differenza dei cinque id
@@ -31187,12 +31291,20 @@ function refresh(){
      del saldo non e' ancora stata aggiornata, la riga non fa niente. */
   var ht=document.getElementById('home-ton');
   if(ht){ var vth=(S.bal&&+S.bal.TON)||0; ht.textContent=vth.toFixed(2)+' TON'; }
-  var wdb=document.getElementById('wd-bal');if(wdb)wdb.textContent=b;
+  /* ⚠️ IL PRELIEVO NO. La schermata dice "WITHDRAW BTC / AVAILABLE":
+     i TON non escono da li' (escono dalla schermata TON, in TON), quindi
+     qui va il solo bitcoin. Scriverci la capienza sarebbe l'unica riga
+     di questa fase capace di far chiedere un prelievo impossibile. */
+  var wdb=document.getElementById('wd-bal');if(wdb)wdb.textContent=btcEur();
   var wdbtc=document.getElementById('wd-btc');if(wdbtc)wdbtc.textContent=btcStr(S.btc);
   var lvl=getLevel(S.xp);
   document.getElementById('lvl-num').textContent='Lv.'+lvl.level;
   document.getElementById('lvl-icon').textContent=lvl.icon;
   document.getElementById('lvl-title').textContent=lvl.title;
+  /* La veglia sta IN CODA a refresh() e non dentro loadBalance: refresh()
+     e' il posto da cui passano TUTTI i cambi di saldo, compresi quelli
+     ottimistici locali che non chiedono niente al server. */
+  capVeglia();
 }
 
 var BETS=[1,2,5,10,25,50,100,250,500];
@@ -31216,8 +31328,22 @@ function buildBets(containerId,key){
 }
 
 function eurToBtc(e){return e/S.rate;}
-function hasFunds(eur){return S.btc>=eurToBtc(eur)*0.999;}
+/* ⚠️ 24/08: la capienza, non il bitcoin — la pagina non deve dire
+   di no a una puntata che il server accetterebbe. Il margine dello 0,999
+   e' quello di sempre (0,1% per lo scarto fra il tasso della pagina e
+   quello del server) e a TON zero la formula e' identica a prima:
+   S.btc>=eur/S.rate*0.999  <=>  S.btc*S.rate>=eur*0.999. */
+function hasFunds(eur){return capEur()>=eur*0.999;}
 
+/* ⚠️ QUI RESTA IL BITCOIN, NON LA CAPIENZA (24/08). `placeBet` e'
+   l'unico percorso che si salda da solo con /update_balance, e quella
+   rotta NON rabbocca dal TON: un saldo che andrebbe sotto zero viene
+   semplicemente schiacciato a zero (backend.py:1579-1582). Puntare qui
+   piu' bitcoin di quanti se ne hanno non convertirebbe niente —
+   aprirebbe una posta piu' grande del prelievo davvero avvenuto, cioe'
+   un buco a carico del banco. Il cancello in euro (`hasFunds`) sta a
+   monte per i giochi che il SERVER salda; questo e' l'ultimo muro di
+   quelli che si saldano qui. */
 function placeBet(eur,game){
   var btc=eurToBtc(eur);
   // Safety: refuse bet if would go negative locally
@@ -38765,7 +38891,7 @@ function renderProfile(){
   var winRate=total?Math.round((S.wins||0)/total*100):0;
   var avgBet=total?((S.totalBet||0)/total):0;
   var winRateHtml='Win rate: <b>'+winRate+'%</b> \u2022 <b>'+total+'</b> games';
-  if(total>0)winRateHtml += '<br><small style="opacity:.7;font-size:9px;">Avg bet: \u20ac'+avgBet.toFixed(2)+' \u2022 Net: '+((S.btc||0)>=0?'\u20ac':'')+(((S.btc||0)*S.rate).toFixed(2))+' balance</small>';
+  if(total>0)winRateHtml += '<br><small style="opacity:.7;font-size:9px;">Avg bet: \u20ac'+avgBet.toFixed(2)+' \u2022 Net: '+balEur()+' balance</small>';
   document.getElementById('pf-winrate').innerHTML=winRateHtml;
 
   var rt=document.getElementById('pf-rank-text');
@@ -38827,6 +38953,12 @@ function loadBalance(){
       if(d.error){setBalanceStatus('Error: '+d.error,'offline');return;}
       dcFillMult(d);        /* i pagamenti del dado, come li dice il server */
       S.btc=d.btc||0;
+      /* ⚠️ `balances` /balance lo manda da sempre (backend.py:1443) e
+         questa funzione era l'unica a NON leggerlo: la riga del TON in home
+         e nel wallet compariva solo dopo la prima partita, perche' `S.bal`
+         lo scrivevano soltanto le rotte dei giochi. */
+      if(d.balances)S.bal=d.balances;
+      capTonSetta(d);   /* gli euro giocabili: BTC + TON (fase 4) */
       S.wins=d.wins||0;
       S.losses=d.losses||0;
       // PRE-CONVERTED EUR from backend - no rate multiplication needed!
@@ -39756,7 +39888,7 @@ function dlSearchView(mode,eur){
     '<button class="action-btn red" onclick="dlCancelSearch()" style="width:100%;">✖ ANNULLA (rimborso)</button>');
 }
 function dlStartMatch(mode,eur){
-  if((S.btc*S.rate)<eur){ toast('Insufficient balance','err'); return; }
+  if(capEur()<eur){ toast('Insufficient balance','err'); return; }
   dlSearchView(mode,eur);
   fetch(BACKEND+'/duel/app_join',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId,mode:mode,bet_btc:eurToBtc(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
     .then(function(r){return r.json();}).then(function(d){
@@ -40383,7 +40515,7 @@ function dlBjStopPoll(){ if(DLBJ.poll){ clearInterval(DLBJ.poll); DLBJ.poll=null
 function dlBjStopTick(){ if(DLBJ.ticker){ clearInterval(DLBJ.ticker); DLBJ.ticker=null; } }
 function dlBjStart(eur){
   if(!S.userId){ toast('Open in Telegram to play','err'); return; }
-  if((S.btc*S.rate)<eur){ toast('Insufficient balance','err'); return; }
+  if(capEur()<eur){ toast('Insufficient balance','err'); return; }
   DLBJ.bet=eur; DLBJ.shown=false; DLBJ.vsShown=false;
   dlSearchView('bj',eur);
   fetch(BACKEND+'/duel/bjl_join',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId,bet_btc:eurToBtc(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
@@ -40572,7 +40704,7 @@ function dlRrStopPoll(){ if(DLRR.poll){ clearInterval(DLRR.poll); DLRR.poll=null
 function dlRrStopTick(){ if(DLRR.ticker){ clearInterval(DLRR.ticker); DLRR.ticker=null; } }
 function dlRrStart(eur){
   if(!S.userId){ toast('Open in Telegram to play','err'); return; }
-  if((S.btc*S.rate)<eur){ toast('Insufficient balance','err'); return; }
+  if(capEur()<eur){ toast('Insufficient balance','err'); return; }
   DLRR.bet=eur; DLRR.shown=false; DLRR.vsShown=false;
   dlSearchView('rr',eur);
   fetch(BACKEND+'/duel/rr_join',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId,bet_btc:eurToBtc(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
@@ -41356,7 +41488,7 @@ function dlRpsStopPoll(){ if(DLRPS.poll){ clearInterval(DLRPS.poll); DLRPS.poll=
 function dlRpsStopTick(){ if(DLRPS.ticker){ clearInterval(DLRPS.ticker); DLRPS.ticker=null; } }
 function dlRpsStart(eur){
   if(!S.userId){ toast('Open in Telegram to play','err'); return; }
-  if((S.btc*S.rate)<eur){ toast('Insufficient balance','err'); return; }
+  if(capEur()<eur){ toast('Insufficient balance','err'); return; }
   DLRPS.bet=eur; DLRPS.shown=false; DLRPS.vsShown=false; DLRPS.sig='';
   dlSearchView('rps',eur);
   fetch(BACKEND+'/duel/rps_join',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId,bet_btc:eurToBtc(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
@@ -41629,7 +41761,7 @@ function rtdPracAgain(){ var _t=(typeof TRN!=='undefined'&&TRN.trainFrom)||''; r
 function rtdPracToReal(){ RTD.practice=false; rtdOvClose(); rtdShowLobby(); }
 function dlRndStart(eur){
   if(!S.userId){ toast('Open in Telegram to play','err'); return; }
-  if((S.btc*S.rate)<eur){ toast('Insufficient balance','err'); return; }
+  if(capEur()<eur){ toast('Insufficient balance','err'); return; }
   DLRND.bet=eur;
   dlModalHTML('<div class="pvp-m-title" style="color:#ffd700;">FINDING OPPONENT</div>'+
     '<div class="pvp-search"><div class="pvp-search-ring"></div><div class="pvp-search-ring r2"></div><div class="pvp-search-core"><span style="display:inline-block;animation:spin 2.2s linear infinite;">🎡</span></div></div>'+
@@ -41911,7 +42043,7 @@ function lobCrea(){
   if(!S.userId){toast('Apri da Telegram per creare una lobby','err',2400);return;}
   if(LOB.busy)return;
   var g=lobG(LOB.game);if(!g)return;
-  if(!LOB.gratis&&(S.btc*S.rate)<LOB.eur-1e-9){toast('Saldo insufficiente','err',2400);return;}
+  if(!LOB.gratis&&capEur()<LOB.eur-1e-9){toast('Saldo insufficiente','err',2400);return;}
   LOB.busy=1;uiBusy(true,'Apro la lobby…');
   fetch(BACKEND+'/lobby/create',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},
     body:JSON.stringify({user_id:S.userId,username:(S.username||'Player'),game:LOB.game,
@@ -42061,7 +42193,7 @@ function lobCancel(){
 function lobEnter(){
   var c=LOB.card;if(!c||!LOB.lid)return;
   if(!S.userId){toast('Apri da Telegram per giocare','err',2400);return;}
-  if(!c.gratis&&(S.btc*S.rate)<Number(c.stake_eur||0)-1e-9){toast('Saldo insufficiente','err',2600);return;}
+  if(!c.gratis&&capEur()<Number(c.stake_eur||0)-1e-9){toast('Saldo insufficiente','err',2600);return;}
   if(c.track==='B')lobEnterB(c.game);else lobEnterA();
 }
 // BINARIO A — e' `duel_challenge_accept` col `lid` al posto del `cid`: il
@@ -42322,7 +42454,7 @@ function dlChRegole(d){
 }
 function dlChStart(eur){
   if(!S.userId){ toast('Open in Telegram to play','err'); return; }
-  if((S.btc*S.rate)<eur){ toast('Insufficient balance','err'); return; }
+  if(capEur()<eur){ toast('Insufficient balance','err'); return; }
   DLCH.bet=eur; DLCH.shown=false; DLCH.vsShown=false; DLCH.sig=''; DLCH.sel=-1; DLCH.promo=null;
   // le pedine si chiedono QUI, mentre si cerca l'avversario: di mezzo c'e'
   // l'attesa, ed e' il posto dove il caricamento non costa niente a nessuno
@@ -42693,7 +42825,7 @@ function dlBsStopPoll(){ if(DLBS.poll){ clearInterval(DLBS.poll); DLBS.poll=null
 function dlBsStopTick(){ if(DLBS.ticker){ clearInterval(DLBS.ticker); DLBS.ticker=null; } }
 function dlBsStart(eur){
   if(!S.userId){ toast('Open in Telegram to play','err'); return; }
-  if((S.btc*S.rate)<eur){ toast('Insufficient balance','err'); return; }
+  if(capEur()<eur){ toast('Insufficient balance','err'); return; }
   DLBS.bet=eur; DLBS.shown=false; DLBS.vsShown=false; DLBS.sig=''; DLBS.lastSeq=0; DLBS.ships=[]; DLBS.horiz=true; DLBS.gara='';
   dlSearchView('bs',eur);
   fetch(BACKEND+'/duel/bs_join',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId,bet_btc:eurToBtc(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
@@ -43030,7 +43162,7 @@ function dlBsSfx(type){
 }
 function dlPkdStart(eur){
   if(!S.userId){ toast('Open in Telegram to play','err'); return; }
-  if((S.btc*S.rate)<eur){ toast('Insufficient balance','err'); return; }
+  if(capEur()<eur){ toast('Insufficient balance','err'); return; }
   DLPKD.bet=eur; DLPKD.shown=false; DLPKD.vsShown=false; DLPKD.held=[false,false,false,false,false]; DLPKD.sig='';
   dlSearchView('cards',eur);
   fetch(BACKEND+'/duel/pkd_join',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId,bet_btc:eurToBtc(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
@@ -43218,7 +43350,7 @@ function dlSendChallenge(){
   var mode=(document.getElementById('pvp-chal-mode')||{}).value||'dice';
   var eur=parseFloat((document.getElementById('pvp-chal-bet')||{}).value||'5');
   if(!target.trim()){ toast('Enter a @username or ID','warn'); return; }
-  if((S.btc*S.rate)<eur){ toast('Insufficient balance','err'); return; }
+  if(capEur()<eur){ toast('Insufficient balance','err'); return; }
   uiBusy(true,'Sending…');
   fetch(BACKEND+'/duel/challenge',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId,target:target.trim(),mode:mode,bet_btc:eurToBtc(eur),username:(S.username||'Player')})})
     .then(function(r){return r.json();}).then(function(d){
@@ -43304,7 +43436,7 @@ function dlRematch(i){
 }
 function dlSendRematch(uid,eur){
   var mode=(document.getElementById('pvp-rm-mode')||{}).value||'dice';
-  if((S.btc*S.rate)<eur){ toast('Insufficient balance','err'); return; }
+  if(capEur()<eur){ toast('Insufficient balance','err'); return; }
   uiBusy(true,'Sending…');
   fetch(BACKEND+'/duel/challenge',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId,target:uid,mode:mode,bet_btc:eurToBtc(eur),username:(S.username||'Player')})})
     .then(function(r){return r.json();}).then(function(d){
@@ -45376,23 +45508,177 @@ function twrBlocked(x,y){
   var k=Math.floor(x)+'_'+Math.floor(y);
   return !!(TWR.walls[k]||(TWR.water&&TWR.water[k]));
 }
+/* ═══ TURF — L'OROLOGIO DI RIPRODUZIONE IN TEMPO SERVER (24/08/2026) ═══
+   Porta al turf il lavoro che il pong ha gia' fatto il 30/07 (`pgClk` qui
+   sotto, misure in `_ponglab/PONG_LEVELUP.md`), e raccoglie la frase con cui
+   finiva il lavoro sul lag del 22/08: dal passo fisso in poi `snap.time`
+   avanza di 50 ms ESATTI, quindi il client puo' ancorare l'interpolazione
+   all'orologio del SERVER invece che all'ora di arrivo dei pacchetti.
+
+   IL DIFETTO CHE CHIUDE. `twrLerpSnaps` cercava il segmento su `snap.rx`,
+   cioe' su `performance.now()` dell'istante in cui il pacchetto e' entrato.
+   Con quell'ancora il ballo della rete diventa 1:1 ballo di VELOCITA' di
+   tutto cio' che non sei tu — gli altri gangster, le auto, i proiettili.
+   Misurato con `_banco_turf_orologio.mjs` su un filo finto da 4G (45 ms di
+   base, 35 di ballo, un pacchetto su 25 in ritardo di 90): la riproduzione
+   stava fuori dalla forbice 0,85x–1,15x nel **66,8% dei fotogrammi**.
+
+   ⚠️ PERCHE' NESSUNO L'AVEVA VISTO: il TUO avatar e' predetto in locale da
+   sempre (`TWR.pred`, qualche riga piu' sotto) e non passa da qui. Chi prova
+   il gioco da solo vede tutto liscio. Il difetto lo vede solo chi guarda un
+   ALTRO muoversi — cioe' chi gioca davvero, a soldi.
+
+   ⚠️ EQUITA', ed e' il vincolo piu' forte di tutti: il ritardo NON cambia.
+   Il buffer resta 85 ms per chi gioca, esattamente come prima, e il bersaglio
+   resta lo stesso istante di prima (il tempo server che corrispondeva a
+   `now - 85`). Quello che cambia e' che il bersaglio non viene DISEGNATO: lo
+   insegue `pt`, che scorre col tempo vero e si riallinea al massimo al 12%.
+   Il ballo della rete diventa una fase che si riassorbe, e la MEDIA del
+   ritardo — cioe' il tempo di reazione che uno ha — resta quella di ieri.
+   Se un domani qualcuno allungasse il buffer per fare piu' bello, starebbe
+   regalando tempo di reazione a chi ha la rete peggiore: il cancello
+   dell'equita' del banco e' li' apposta.
+
+   ⚠️ MAI EXTRAPOLARE. `k` e' clampato in [0,1]: oltre l'ultimo stato noto la
+   scena si FERMA, non viene inventata. Su un gioco a soldi una posizione
+   inventata e' un colpo dato o subito che non e' successo.
+
+   ⚠️ NIENTE AZZERAMENTO A MANO fra una partita e l'altra. `TWR.snaps=[]`
+   compare in TRE punti della pagina e aggiungerne un quarto per `_clk`
+   sarebbe la sesta lista doppia della settimana: l'orologio si riaggancia da
+   solo al primo fotogramma (il tempo della partita nuova riparte da ~0, lo
+   scarto supera i 0,35 s e `pt` salta sul bersaglio).
+
+   Cancello: `_banco_turf_orologio.mjs`, che ESTRAE queste funzioni dalla
+   pagina e le fa girare su un filo finto. Il rosso e' dimostrato girandolo
+   contro `index.html.PRIMA_OROLOGIO_24AGO` (4 rossi su 8).                */
+function twrClk(now){
+  var c=TWR._clk;
+  if(!c)c=TWR._clk={pt:0,last:0,ok:0,dly:0.085};
+  var s=TWR.snaps,n=s.length,i;
+  /* server senza orologio (pagina nuova + server vecchio): si torna alla
+     strada di sempre invece di indovinare. */
+  if(!n||s[n-1].time==null){c.ok=-1;return c;}
+  /* IL BUFFER. Per chi GIOCA e' una COSTANTE, la stessa per tutti: se
+     dipendesse dalla rete misurata, due giocatori della stessa partita
+     vedrebbero la citta' in due istanti diversi e uno avrebbe piu' tempo per
+     reagire dell'altro. Per chi GUARDA no: il server manda agli spettatori un
+     tick su due (`turfwar_rt_server.py`, `_ticks % 2`), quindi ~100 ms, e con
+     85 ms fissi il tempo mostrato scavalca l'ultimo tick e la scena si
+     inchioda (misurato: 6,1% dei fotogrammi fermi). Lo spettatore non gioca:
+     il suo ritardo e' comodita', non equita'. */
+  if(!TWR.spec)c.dly=0.085;
+  else{
+    var mn=0,d0;
+    for(i=1;i<n;i++){
+      if(s[i].time==null||s[i-1].time==null)continue;
+      d0=s[i].time-s[i-1].time;
+      if(d0>0.001&&d0<0.5&&(mn===0||d0<mn))mn=d0;   /* il MINIMO: un pacchetto
+                                                       perso non deve far
+                                                       credere che il server
+                                                       sia dimezzato */
+    }
+    if(mn>0){
+      var want=mn*1.7;
+      if(want<0.085)want=0.085;else if(want>0.30)want=0.30;
+      c.dly+=(want-c.dly)*(c.dly<want?0.05:0.02);   /* sale piano, scende ancora piu' piano */
+    }
+  }
+  /* IL BERSAGLIO: il tempo SERVER che corrispondeva a `now - buffer`, letto
+     sulla mappa rx->time che gli snapshot portano con se'. E' esattamente
+     l'ancora di prima — identico ritardo. Ancorarlo invece all'ULTIMO tick
+     ricevuto sembra piu' semplice e regala mezzo tick di ritardo in media,
+     perche' fra due pacchetti quel valore sta fermo mentre il tempo scorre. */
+  var ta=now-c.dly*1000,tg=s[n-1].time,sp2,kk2;
+  if(s[0].rx!=null&&ta<=s[0].rx)tg=s[0].time;
+  else for(i=n-1;i>0;i--){
+    if(s[i-1].rx==null||s[i].rx==null||s[i-1].time==null)continue;
+    if(ta>=s[i-1].rx){
+      sp2=s[i].rx-s[i-1].rx;if(sp2<1)sp2=1;
+      kk2=(ta-s[i-1].rx)/sp2;if(kk2<0)kk2=0;else if(kk2>1)kk2=1;
+      tg=s[i-1].time+(s[i].time-s[i-1].time)*kk2;
+      break;
+    }
+  }
+  if(c.ok!==1){c.pt=tg;c.last=now;c.ok=1;return c;}
+  var dt=(now-c.last)/1000;c.last=now;
+  if(dt<0)dt=0;else if(dt>0.1)dt=0.1;
+  c.pt+=dt;
+  var er=tg-c.pt;
+  if(er>0.35||er<-0.35){c.pt=tg;return c;}   /* stallo, riconnessione, partita
+                                                nuova: si riaggancia di colpo */
+  var mx=0.12*dt,ad=er*0.15;
+  c.pt+=ad>mx?mx:(ad<-mx?-mx:ad);            /* riproduzione fra 0,88x e 1,12x */
+  return c;
+}
 function twrLerpSnaps(){
+  var s=TWR.snaps,n=s.length,i;
+  if(!n)return null;
+  /* [1] LA STRADA NUOVA: il segmento si cerca per TEMPO SERVER. */
+  var c=twrClk(performance.now());
+  if(c.ok===1&&n>1&&s[0].time!=null&&s[n-1].time!=null){
+    for(i=n-1;i>0;i--){
+      if(s[i-1].time==null||s[i].time==null)break;
+      if(c.pt>=s[i-1].time){
+        var sp=s[i].time-s[i-1].time;
+        if(sp<1e-4)sp=1e-4;
+        var k=(c.pt-s[i-1].time)/sp;
+        if(k<0)k=0;else if(k>1)k=1;          /* MAI extrapolare: si gioca a soldi */
+        return {a:s[i-1],b:s[i],k:k};
+      }
+    }
+    return {a:s[0],b:s[1],k:0};
+  }
+  /* [2] LA STRADA DI SEMPRE, per istante di arrivo. Ci si finisce solo se il
+     server non manda l'orologio: nessun percorso in cui si stia PEGGIO di
+     ieri. */
   var t=performance.now()-85;
-  var s=TWR.snaps;
-  if(!s.length)return null;
-  if(s.length===1||t<=s[0].rx)return {a:s[0],b:s[0],k:0};
-  for(var i=s.length-1;i>0;i--){
+  if(n===1||t<=s[0].rx)return {a:s[0],b:s[0],k:0};
+  for(i=n-1;i>0;i--){
     if(t>=s[i-1].rx){
       var a=s[i-1],b=s[i];
       var span=Math.max(1,b.rx-a.rx);
       return {a:a,b:b,k:Math.min(1,(t-a.rx)/span)};
     }
   }
-  var last=s[s.length-1];
+  var last=s[n-1];
   return {a:last,b:last,k:0};
 }
 
 // ── frame ───────────────────────────────────────────────────────────
+
+/* ═══ TURF — LA RICONCILIAZIONE NON DEVE DIPENDERE DAL TELEFONO (24/08/2026)
+   Il tuo avatar e' predetto in locale (`TWR.pred`) e va riavvicinato a quello
+   che dice il server. La riga di prima era `TWR.pred.x += ddx*0.08`: 8%
+   dell'errore A FOTOGRAMMA. Ma i fotogrammi non sono una misura di tempo —
+   un telefono a 120 Hz ne fa il doppio di uno a 60, e un vecchio che arranca
+   a 30 ne fa la meta'. Quanto errore resta dopo UN SECONDO:
+       30 fps  0,92^30  = 8,2%   → l'avatar striscia dietro al server
+       60 fps  0,92^60  = 0,68%  → il riferimento, com'e' sempre stato
+      120 fps  0,92^120 = 0,005% → lo strappo secco a ogni pacchetto
+   Cioe' due giocatori della stessa partita, con la stessa rete, vedevano due
+   elastici diversi — e il telefono buono era quello che strappava di piu'.
+
+   ⚠️ NIENTE CAMBIA A 60 fps, ed e' voluto: `Math.pow(0.92, dt*60)` vale
+   esattamente 0,08 quando dt = 1/60. Non e' una nuova taratura del feeling,
+   e' la STESSA taratura resa indipendente dal fotogramma. Chi volesse
+   cambiare la morbidezza dell'elastico tocchi 0.92, non l'esponente.
+
+   ⚠️ Il resto di `twrFrame` era gia' a tempo (la telecamera fa
+   `Math.min(1, dt*7)`): questa era l'unica riga rimasta a fotogramma, ed e'
+   il motivo per cui e' sopravvissuta — sta in mezzo a codice che sembra
+   uguale ma non lo e'.
+
+   Cancello: `_banco_turf_orologio.mjs` (prova 4), che ESTRAE questa funzione
+   dalla pagina e la misura a 30, 60, 120 e 144 fps. Il rosso e' dimostrato
+   girandolo contro `index.html.PRIMA_OROLOGIO_24AGO`.                     */
+function twrRiconcilia(dt){
+  if(!(dt>0))return 0;
+  if(dt>0.25)dt=0.25;                 /* una scheda tornata in primo piano dopo
+                                         un minuto non deve teletrasportare */
+  return 1-Math.pow(0.92,dt*60);
+}
+
 function twrFrame(){
   var ctx=TWR.ctx;if(!ctx||!TWR.lastRaw||!TWR.st)return;
   var now=performance.now();
@@ -45413,7 +45699,7 @@ function twrFrame(){
     }
     var ddx=meRow[1]-TWR.pred.x,ddy=meRow[2]-TWR.pred.y;
     if(Math.abs(ddx)>1.6||Math.abs(ddy)>1.6){TWR.pred.x=meRow[1];TWR.pred.y=meRow[2];}
-    else{TWR.pred.x+=ddx*0.08;TWR.pred.y+=ddy*0.08;}
+    else{var rk=twrRiconcilia(dt);TWR.pred.x+=ddx*rk;TWR.pred.y+=ddy*rk;}
     if(you.alive&&!you.in_car&&(Math.abs(TWR.joy.mx)>0.2||Math.abs(TWR.joy.my)>0.2)&&now-(TWR._dust||0)>150){
       TWR._dust=now;
       twrFxAdd('puff',TWR.pred.x-TWR.joy.mx*0.25,TWR.pred.y+0.30,520);
@@ -75205,7 +75491,12 @@ function pkSetStatus(txt,decision){
   if(st){ st.textContent=txt; if(decision) st.classList.add('decision'); else st.classList.remove('decision'); }
 }
 // Remaining player balance in EUR — used to clamp commits and drive all-in.
-function pkRemainEur(){ return S.btc * S.rate; }
+/* ⚠️ 24/08: la CAPIENZA, non il bitcoin. Questo numero scrive
+   l'etichetta "ALL-IN €X" e limita il rilancio del banco: se restasse
+   sul solo BTC, un giocatore col TON vedrebbe l'all-in a €0 mentre il
+   server la puntata la accetterebbe. Le mani del poker le salda il
+   server (/poker/act), che e' anche il punto dove il rabbocco avviene. */
+function pkRemainEur(){ return capEur(); }
 // Tidy EUR for button labels (no trailing .00).
 function pkFmtEur(x){ return (+(x).toFixed(2)).toString(); }
 // All-in: no more betting — reveal the rest of the board, then showdown.
@@ -75879,7 +76170,7 @@ function plDrop(eur){
     return;
   }
   if(!PL.boardReady){ plBuildBoard(); PL.boardReady = true; }
-  if((S.btc * S.rate) < eur){ toast('Insufficient balance','err'); return; }
+  if(capEur() < eur){ toast('Insufficient balance','err'); return; }
   if(!S.userId){ toast('Open in Telegram to play','err'); return; }
   PL.lastDropTs = now;
 
@@ -75913,11 +76204,11 @@ function plDrop(eur){
 // Fire one ball into the current (already-revealed) flight: optimistic deduction + real-gravity launch.
 function plFireBall(eur){
   if(PL.launchesThisLayout >= PL.MAX_LAUNCHES_PER_LAYOUT){ toast('Max 10 balls — let them land first', 'err', 1500); return; }
-  if((S.btc * S.rate) < eur){ toast('Insufficient balance','err'); return; }
+  if(capEur() < eur){ toast('Insufficient balance','err'); return; }
   S.btc = Math.max(0, S.btc - eurToBtc(eur)); refresh();   // optimistic — server settle on landing is authoritative
   PL.launchesThisLayout++;
   plUpdateFlightMeter();
-  var _bal = document.getElementById('pl-bal'); if(_bal) _bal.textContent = '€' + (S.btc * S.rate).toFixed(2);
+  var _bal = document.getElementById('pl-bal'); if(_bal) _bal.textContent = balEur();
   plLaunchBall(eur);
 }
 
@@ -76213,7 +76504,7 @@ function plLandSettle(b, slotIdx, d){
   } else {
     toast('\uD83D\uDC80 0x \u2014 -\u20ac' + eur, 'err', 1200);
   }
-  var _bal = document.getElementById('pl-bal'); if(_bal) _bal.textContent = '\u20ac' + (S.btc * S.rate).toFixed(2);
+  var _bal = document.getElementById('pl-bal'); if(_bal) _bal.textContent = balEur();
 }
 
 // Fade the ball out once it has settled (also lets the physics loop reclaim it).
@@ -76237,7 +76528,7 @@ function plRenderRecent(){
 }
 
 function plInit(){
-  document.getElementById('pl-bal').textContent = '\u20ac' + (S.btc * S.rate).toFixed(2);
+  document.getElementById('pl-bal').textContent = balEur();
   PL.revealed = false;
   PL.currentSlots = null;
   PL.layoutSeed = null;
@@ -76418,11 +76709,11 @@ function whSetRisk(risk){
 
 function whSpin(eur){
   if(WH.spinning){toast('Wheel still spinning','err',1200);return;}
-  if((S.btc*S.rate)<eur){toast('Insufficient balance','err');return;}
+  if(capEur()<eur){toast('Insufficient balance','err');return;}
   if(!S.userId){toast('Open in Telegram to play','err');return;}
   WH.spinning=true; gSound('chip');
   S.btc=Math.max(0,S.btc-eurToBtc(eur)); refresh();   // optimistic: show bet deducted now (server is authoritative)
-  document.getElementById('wh-bal').textContent='€'+(S.btc*S.rate).toFixed(2);
+  document.getElementById('wh-bal').textContent=balEur();
   var segments=WH.arranged||whBuildWheelSegments();
   fetch(BACKEND+'/play/wheel',{
     method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},
@@ -76454,14 +76745,14 @@ function whSpin(eur){
         setTimeout(function(){gSound('lose');},250);
         toast('No luck - try again','err',1500);
       }
-      document.getElementById('wh-bal').textContent='€'+(S.btc*S.rate).toFixed(2);
+      document.getElementById('wh-bal').textContent=balEur();
       WH.spinning=false;
     },4100);
   }).catch(function(e){WH.spinning=false;toast('Network error','err');if(typeof loadBalance==='function')loadBalance();});
 }
 
 function whInit(){
-  document.getElementById('wh-bal').textContent = '\u20ac' + (S.btc * S.rate).toFixed(2);
+  document.getElementById('wh-bal').textContent = balEur();
   whRenderWheel();
 }
 
@@ -77112,11 +77403,21 @@ function tonUiDisegna(){
   var s = TONUI.st || {};
   var b = document.getElementById('tonui-bal');
   if(b) b.textContent = tonUiFmt(s.balance) + ' TON';
+  /* ⚠️ 24/08: QUANTO VALGONO, in euro. Il numero grande resta in TON
+     — un prelievo si chiede in TON, e nasconderlo dietro un euro
+     renderebbe la schermata inutilizzabile — ma il giocatore deve poter
+     legare i suoi TON al totale che vede in home, o si ritrova due saldi
+     che non tornano e nessun modo di capire perche'. `s.eur` lo dice il
+     server (/ton/state, fase 4.2): il TASSO del TON qui non arriva mai,
+     cosi' la pagina non puo' inventarselo. */
+  var _te = (s.eur===undefined||s.eur===null) ? null : +s.eur;
+  var _tv = (_te!==null && _te>0)
+    ? ('<span class="ton-sub-k">\u2248 \u20ac' + _te.toFixed(2) + '</span>') : '';
   var sub = document.getElementById('tonui-sub');
-  if(sub) sub.innerHTML = s.connected
+  if(sub) sub.innerHTML = _tv + (s.connected
     ? '<span class="ton-sub-k">WITHDRAWALS TO</span>'
       + '<span class="ton-sub-v">' + tonUiEsc(tonUiCorto(s.address)) + '</span>'
-    : '<span class="ton-sub-k">WALLET NOT CONNECTED</span>';
+    : '<span class="ton-sub-k">WALLET NOT CONNECTED</span>');
 
   /* ── il wallet ── */
   var w = document.getElementById('tonui-wbody');
