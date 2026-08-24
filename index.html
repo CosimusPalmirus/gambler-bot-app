@@ -41718,12 +41718,12 @@ var LOB_GAMES=[
   ['draw','🔫','QUICK DRAW','A',2,2,1],
   ['golf','⛳','MINIGOLF','A',2,2,1],
   ['boxe','🥊','BOXE','A',2,2,1],
-  ['rr','🔫','ROULETTE RUSSA','A',2,2,0],
+  ['rr','🔫','ROULETTE RUSSA','A',2,2,1],
   ['bjl','🂡','BLACKJACK DUELLO','A',2,2,0],
   ['pkd','🃏','POKER DUELLO','A',2,2,0],
   ['rps','✊','MORRA CINESE','A',2,2,0],
-  ['bs','🚢','BATTAGLIA NAVALE','A',2,2,0],
-  ['ch','♟️','SCACCHI','A',2,2,0]
+  ['bs','🚢','BATTAGLIA NAVALE','A',2,2,1],
+  ['ch','♟️','SCACCHI','A',2,2,1]
 ];
 // I TRE DOPPI NOMI, dal lato del client: la lobby dei duelli chiama il
 // poker `cards`, il blackjack `bj` e gli scacchi `chess`, ma la cartolina
@@ -41828,7 +41828,16 @@ function lobSetGame(code){
   LOB.game=g[0];
   var opt=lobPostiOpt(g);
   if(opt.indexOf(LOB.posti)<0)LOB.posti=opt[0];
-  if(!g[6])LOB.gratis=false;          // i sei a turni non hanno il gratis
+  // ⚠️ IL GRATIS E' ACCESO PER ROULETTE RUSSA, BATTAGLIA NAVALE e SCACCHI
+  // dal 24/08/2026 (richiesta del proprietario). Non e' stato "aperto"
+  // niente nel backend: il gratis su tutti e sei i giochi HTTP del binario
+  // duelli era gia' costruito e gia' provato al satoshi da
+  // `test_gratis_sei_giochi.py` (64 prove: nove partite gratis, saldi
+  // identici, zero righe di movimento, statistiche che invece si muovono).
+  // Qui c'era solo l'interruttore della pagina, spento.
+  // Restano a posta BLACKJACK DUELLO, POKER DUELLO e MORRA CINESE: non li
+  // ha chiesti, e un gioco che si apre gratis va deciso, non dedotto.
+  if(!g[6])LOB.gratis=false;
   lobRenderCrea();
 }
 function lobSetPosti(n){LOB.posti=Number(n)||2;lobRenderCrea();}
@@ -50198,7 +50207,7 @@ function trnGC(g){
   // oggi lo impedisce e' il `if not room2.tour` del verbo `watch`. Il giorno
   // che si vorra' guardare una LOBBY APERTA (uno ci sta dentro, 10 posti) la
   // cura va fatta DI LA', non con una riga qui.
-  if(g==='uno')return {icon:'🎴',watch:true,rtd:true};
+  if(unoDue(g))return {icon:'🎴',watch:true,rtd:true};
   var m=(typeof RTD_G!=='undefined')&&RTD_G[g];
   // ── SI GUARDA TUTTO (12/08/2026) ──────────────────────────────────────────
   // La spunta era accesa per tre giochi soli. Non era una scelta di prodotto:
@@ -52341,7 +52350,7 @@ var RTD_G={
   unoc:{title:'🎴 UNO',color:'#f97316',input:'tap',
     hero:'UNO',sub:'Da 2 a 10 · vince chi finisce le carte',
     rules:[['🎴','Tocca una carta','si accendono solo quelle giocabili · le nere aprono la ruota dei colori'],
-           ['🚫','Le pescate NON si impilano','chi becca un +2 pesca e salta: non può rilanciare'],
+           ['➕','Le pescate si impilano','stesso colore o stesso valore · chi non risponde pesca tutta la somma'],
            ['➕','Il +4 di colore vale +1','regola di casa — il Jolly +4 nero resta da quattro'],
            ['📣','UNO! è AUTOMATICO','a una carta l\'annuncio parte da solo: nessuno può punirti per non averlo detto']]},
   snake:{title:'🐍 SNAKE ARENA',color:'#4ade80',input:'stick',
@@ -52445,7 +52454,7 @@ function initArc(){
   // secondi buoni di vantaggio. E' idempotente: chiamarla due volte non
   // riscarica niente.
   if(RTD.game==='scopa'&&typeof scPrecarica==='function'){try{scPrecarica();}catch(_pc){}}
-  if(RTD.game==='uno'&&typeof unoPrecarica==='function'){try{unoPrecarica();}catch(_pu){}}
+  if(unoDue(RTD.game)&&typeof unoPrecarica==='function'){try{unoPrecarica();}catch(_pu){}}
   if(window.RTD_TICKET){
     RTD.pendingTicket={t:window.RTD_TICKET,g:window.RTD_TICKET_GAME||RTD.game};window.RTD_TICKET=null;
     RTD.practice=!!window.RTD_PRACTICE;window.RTD_PRACTICE=false;
@@ -53558,7 +53567,7 @@ function rtdTapInit(){
     if(RTD.game==='dama')dmTap(pxy);
     else if(RTD.game==='backg')bgTap(pxy);
     else if(RTD.game==='scopa')scTap(pxy);
-    else if(RTD.game==='uno')unoTap(pxy);
+    else if(unoDue(RTD.game))unoTap(pxy);
   }
   cv.addEventListener('touchend',tap,{passive:false});
   cv.addEventListener('mouseup',tap);
@@ -54260,10 +54269,10 @@ function rtdFeedEvent(e){
     // stato istantaneo. Se il telefono perde un fotogramma mentre uno passa da
     // 1 a 0 (gioca l'ultima e vince), chi sorveglia `sc==1` non vede mai l'1 e
     // l'annuncio non parte proprio nel momento in cui contava.
-    case 'uno':if(g==='uno')unoAnnuncio(e.who);break;
-    case 'fuori':if(g==='uno')unoFuori(e.who);break;
-    case 'dir':if(g==='uno')unoGiraVerso(e.d);break;
-    case 'rul':if(g==='uno')unoRulCarta(e.who,e.c);break;
+    case 'uno':if(unoDue(g))unoAnnuncio(e.who);break;
+    case 'fuori':if(unoDue(g))unoFuori(e.who);break;
+    case 'dir':if(unoDue(g))unoGiraVerso(e.d);break;
+    case 'rul':if(unoDue(g))unoRulCarta(e.who,e.c);break;
     // ── UNO, GLI EFFETTI (23/08) — UNO_EFFETTI_SPEC ──────────────────────
     // Erano quattro eventi su diciassette: si sentiva l'annuncio UNO!, il
     // MERCY, l'inverti e la carta della roulette, e TUTTO IL RESTO ERA MUTO —
@@ -54273,27 +54282,27 @@ function rtdFeedEvent(e){
     // ⚠️ IL CANCELLO `g==='uno'` SU OGNI RIGA NON E' UNA FORMALITA': `pesca`,
     // `play` e `turn` sono parole comuni, e un giorno un altro motore puo'
     // usarle. Senza il cancello, quel giorno il biliardo suonerebbe come UNO.
-    case 'play':if(g==='uno')unoGiocata(e);break;
-    case 'saltatutti':if(g==='uno')unoSaltaTutti(e);break;
-    case 'mangia':if(g==='uno')unoIncassa(e);break;
+    case 'play':if(unoDue(g))unoGiocata(e);break;
+    case 'saltatutti':if(unoDue(g))unoSaltaTutti(e);break;
+    case 'mangia':if(unoDue(g))unoIncassa(e);break;
     // `pesca` con UNA carta e' il gesto normale del turno (tocchi PESCA e ne
     // arriva una): li' l'effetto pieno sarebbe rumore, e resta il solo tocco.
-    case 'pesca':if(g==='uno'){if((e.n|0)>1)unoIncassa(e);else unoPescata(e);}break;
-    case 'sette':if(g==='uno')unoSette(e);break;
-    case 'zero':if(g==='uno')unoZeroGiro(e);break;
-    case 'butta':if(g==='uno')unoButta(e);break;
+    case 'pesca':if(unoDue(g)){if((e.n|0)>1)unoIncassa(e);else unoPescata(e);}break;
+    case 'sette':if(unoDue(g))unoSette(e);break;
+    case 'zero':if(unoDue(g))unoZeroGiro(e);break;
+    case 'butta':if(unoDue(g))unoButta(e);break;
     // la ruota si ferma sul colore CHIAMATO e le carte scoperte partono col
     // ritmo che ci mette il client (arrivano tutte nello stesso battito).
-    case 'rulfine':if(g==='uno')unoRulFlush(e.col,e.n);break;
-    case 'bug_rul':if(g==='uno')unoRulFlush(e.col,e.n);break;
-    case 'rimescola':if(g==='uno')unoSnd('mescola',{v:0.7});break;
-    case 'rulchiedi':if(g==='uno'){
+    case 'rulfine':if(unoDue(g))unoRulFlush(e.col,e.n);break;
+    case 'bug_rul':if(unoDue(g))unoRulFlush(e.col,e.n);break;
+    case 'rimescola':if(unoDue(g))unoSnd('mescola',{v:0.7});break;
+    case 'rulchiedi':if(unoDue(g)){
       unoSnd('chiedi',{v:(String(e.who)===String(me))?0.95:0.5});
       if(String(e.who)===String(me)&&!RTD.spec)rtdStamp(unoL('SCEGLI IL COLORE'),'#ffd700');
     }break;
     // la pila indirizzata a chi se n'e' andato: evapora, e si sente che
     // evapora — altrimenti sparisce dallo schermo senza spiegazione.
-    case 'pila_persa':if(g==='uno'){unoSnd('sfuma',{v:0.8});try{rtdFeed('💨 '+unoL('la pila si perde')+' (+'+(e.n|0)+')');}catch(_pp){}}break;
+    case 'pila_persa':if(unoDue(g)){unoSnd('sfuma',{v:0.8});try{rtdFeed('💨 '+unoL('la pila si perde')+' (+'+(e.n|0)+')');}catch(_pp){}}break;
     case 'eat':TWS.play('pick',e.who===me?0.8:0.4);break;
     case 'crash':TWS.play('boom',0.7);RTD.shake=Math.min(10,RTD.shake+6);break;
     case 'bucket':
@@ -54582,7 +54591,7 @@ function rtdFeedEvent(e){
       // vincitore e' un uid (mai 0) e il punteggio non esiste, quindi ogni
       // partita finiva con «Finita! BLU vince -». Non mancava l'animazione:
       // mancava la fine.
-      if(g==='uno'){unoVincitore(e);break;}
+      if(unoDue(g)){unoVincitore(e);break;}
       if(g==='scalata'){
         if(e.winner!=null)sclWinEv(e);   // POLISH §6: sequenza vetta (zoom + fiches + fanfara)
         break;
@@ -54718,7 +54727,7 @@ function rtdShowLobby(keepOv){
   if(!keepOv){RTD.ui='lobby';rtdOvClose();}
   // e anche qui: chi sta guardando la lobby della scopa sta per giocarci
   if(RTD.game==='scopa'&&typeof scPrecarica==='function'){try{scPrecarica();}catch(_pc){}}
-  if(RTD.game==='uno'&&typeof unoPrecarica==='function'){try{unoPrecarica();}catch(_pu){}}
+  if(unoDue(RTD.game)&&typeof unoPrecarica==='function'){try{unoPrecarica();}catch(_pu){}}
   rtdStopRaf();
   var el=document.getElementById('arc-body');if(!el)return;
   el.classList.remove('arc-fit');el.classList.remove('blg-fs');   // PONG pilota: layout overlay solo durante il match
@@ -54767,7 +54776,7 @@ function rtdShowLobby(keepOv){
   // tavolo — l'eliminazione e l'impilamento — e non il numero di carte.
   if(RTD.game==='uno'||RTD.game==='unoc'){
     h+='<div class="tw-tiers" style="grid-template-columns:1fr 1fr;">'
-      +'<button class="tw-tier'+(RTD.game==='unoc'?' sel':'')+'" onclick="RTD.game=\'unoc\';rtdShowLobby()">🎴 CLASSICO<span class="arc-modesub">l\'UNO di sempre · nessuno viene eliminato · le pescate non si impilano</span></button>'
+      +'<button class="tw-tier'+(RTD.game==='unoc'?' sel':'')+'" onclick="RTD.game=\'unoc\';rtdShowLobby()">🎴 CLASSICO<span class="arc-modesub">l\'UNO di sempre · nessuno viene eliminato · nessun limite di carte</span></button>'
       +'<button class="tw-tier'+(RTD.game==='uno'?' sel':'')+'" onclick="RTD.game=\'uno\';rtdShowLobby()">💀 NO MERCY<span class="arc-modesub">+6, +10, Scarta Tutto · si impila · a 25 carte sei FUORI</span></button></div>';
   }
   if(RTD.game==='pool8'||RTD.game==='pool15'){
@@ -55721,7 +55730,7 @@ function rtdCanvasInit(){
   // rapporto si fissa qui invece di lasciarlo dedurre dalla mappa, perche' il
   // motore di UNO non ha una mappa in senso geometrico: 1.5 e' il massimo che
   // il letterbox concede, e sotto quello i posti e la mano si pestano.
-  if(RTD.game==='uno')ratio=1.5;
+  if(unoDue(RTD.game))ratio=1.5;
   if(RTD.game==='calcio')ratio=Math.min(1.5,(RTD.map.w||16)/(RTD.map.h||9));   // BOLGIA: campo VERTICALE (x-lungo ruotato di 90°)
   // SAFE/LITE CALCIO (23/07): su tier 'safe' o in modalità lite NON forzare il
   // full-screen. Il backing-store gigante ad alto dpr (≈17MB) uccide i compositor
@@ -56761,7 +56770,7 @@ function rtdFrame(){
   else if(g==='dama')rtdDrawDama(ctx,raw,lp,now,w,hh);
   else if(g==='backg')rtdDrawBackg(ctx,raw,lp,now,w,hh);
   else if(g==='scopa')rtdDrawScopa(ctx,raw,lp,now,w,hh);
-  else if(g==='uno')rtdDrawUno(ctx,raw,lp,now,w,hh);
+  else if(unoDue(g))rtdDrawUno(ctx,raw,lp,now,w,hh);
   rtdScoreBar(ctx,raw,now,w,hh);
   // STEP-BEACON DERBY (23/07): PRIMO paint calcio andato a buon fine (dispatch draw
   // completato senza throw). Se questo beacon non arriva ma 'blgcanvas' sì, il wedge
@@ -56882,7 +56891,7 @@ function rtdFrame(){
 // PUNTEGGIONE universale: sempre visibile, in alto al centro, su ogni gioco
 function rtdScoreBar(ctx,raw,now,w,hh){
   var g=RTD.game;
-  if(g==='hockey'||g==='race'||g==='scopa'||g==='calcio'||g==='uno')return;   // hanno già il loro (uno: il punteggione a due mentirebbe — `sc` ha fino a DIECI chiavi e sono CARTE IN MANO, dove meno = meglio) (scopa: pile+scope proprie; calcio: HUD squadre + sc è array)
+  if(g==='hockey'||g==='race'||g==='scopa'||g==='calcio'||unoDue(g))return;   // hanno già il loro (uno: il punteggione a due mentirebbe — `sc` ha fino a DIECI chiavi e sono CARTE IN MANO, dove meno = meglio) (scopa: pile+scope proprie; calcio: HUD squadre + sc è array)
   if(!raw||!raw.sc)return;
   var meS=null,opS=null;
   Object.keys(raw.sc).forEach(function(id){
@@ -61722,6 +61731,17 @@ function unoDisegnaRuota(ctx,G,now,rul){
 // Quale mazzo e' in tavola. La cercava gia' `unoDescr` dal 24/08 con un
 // `typeof` davanti: finche' non esisteva, le carte si descrivevano tutte
 // col vocabolario del No Mercy. Adesso c'e'.
+// ── I DUE UNO SONO UN GIOCO SOLO, PER CHI DISEGNA (24/08/2026) ─────────────
+// `uno` (No Mercy) e `unoc` (classico) hanno due motori, due mazzi e due
+// tornei, ma UNA SOLA pagina che li disegna: stesse carte, stesso tavolo,
+// stessi effetti. Prima questa domanda era scritta 29 volte come `g==='uno'`,
+// e il giorno che il classico e' entrato in tabella il disegno non l'ha
+// riconosciuto: SCHERMO NERO, senza un errore in console, sul primo tocco del
+// proprietario. Adesso la domanda ha un posto solo.
+// ⚠️ CHI AGGIUNGE UN TERZO UNO tocca questa riga e nient'altro. E chi deve
+//    DISTINGUERE i due (il selettore dei mazzi, `unoMazzo`) NON usa questa
+//    funzione: quella e' una domanda diversa e deve restare diversa.
+function unoDue(g){return g==='uno'||g==='unoc';}
 function unoMazzo(){return RTD.game==='unoc'?'classico':'nomercy';}
 function unoDescr(c){
   if(c==null)return null;
