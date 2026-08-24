@@ -54815,7 +54815,7 @@ function rtdShowLobby(keepOv){
   // ⚠️ `typeof` perche' `apriBoxe2` sta in un ALTRO blocco <script>:
   //    se quel blocco sparisce si deve perdere il tasto, non la lobby.
   if(RTD.game==='boxe'&&typeof apriBoxe2==='function')
-    h+='<button class="action-btn" onclick="apriBoxe2()" style="width:100%;">📖 TUTORIAL · impara i comandi</button>';
+    h+='<button class="action-btn" onclick="apriBoxe2(\'tut\')" style="width:100%;">📖 TUTORIAL · impara i comandi</button>';
   h+='<div class="tw-note">'+(RTD.game==='calcio'?'Squadre da 1v1 a 4v4 · parte anche in 2 coi portieri bot · rimborso se il conteggio resta dispari':(g.maxP?'Parte con almeno 2 · rimborso se resti solo':'1 contro 1 · rimborso se nessuno accetta'))+'</div>';
   h+='<div class="tw-note">'+(RTD.game==='calcio'?'💰 Il team vincente si divide il 92% del piatto (8% alla casa)':(RTD.game==='scalata'?'💰 Il primo in vetta si prende il 92% del piatto (8% alla casa)':(g.maxP?'💰 Vincitori: 92% del piatto alla linea d\'arrivo (8% alla casa) · podio 60/25/7 con 6+':'💰 Il vincitore si prende il 95% del piatto (5% alla casa)')))+'</div>';
   el.innerHTML=h;
@@ -55076,10 +55076,17 @@ function rtdShowBoxeRT(){
   if(!RTD.tour){
     var b=document.createElement('button');
     b.id='bxrt-esci';b.textContent='‹ ESCI';
-    b.style.cssText='position:absolute;top:calc(8px + env(safe-area-inset-top,0px));left:8px;'
-      +'min-height:44px;min-width:44px;padding:0 14px;border-radius:11px;z-index:2;'
+    // ⚠️ IN BASSO A SINISTRA **NO**: li' c'e' lo stick del movimento.
+    //    Misurato col browser a 390x844: ring 0-539, pad 539-844, stick
+    //    615-771 (x 16-172), attacco 724-833. Un ESCI in fondo si
+    //    prenderebbe il pollice a meta' di un pugno. Quindi scende nella
+    //    fascia BASSA DEL RING — sotto i pugili, sopra il pad — che e'
+    //    l'unica banda dove non c'e' nessun comando: a 844 px cade a 490,
+    //    con 49 px di margine prima del pad.
+    b.style.cssText='position:absolute;top:58%;left:10px;'
+      +'min-height:56px;min-width:56px;padding:0 20px;border-radius:14px;z-index:2;'
       +'border:1px solid rgba(255,255,255,.22);background:rgba(8,10,16,.82);'
-      +'color:#e7ecf3;font-size:13px;font-weight:800;letter-spacing:.06em;';
+      +'color:#e7ecf3;font-size:15px;font-weight:800;letter-spacing:.06em;';
     b.onclick=function(){rtdBack();};
     BXRT.wrap.appendChild(b);
   }
@@ -77573,10 +77580,10 @@ function tonUiPreleva(){
           style="position:absolute;inset:0;width:100%;height:100%;border:0;display:block;"
           allow="autoplay"></iframe>
   <button id="bx2back" onclick="chiudiBoxe2()"
-          style="position:absolute;top:calc(8px + env(safe-area-inset-top,0px));left:8px;
-                 min-height:44px;min-width:44px;padding:0 14px;border-radius:11px;
+          style="position:absolute;top:58%;left:10px;
+                 min-height:56px;min-width:56px;padding:0 20px;border-radius:14px;
                  border:1px solid rgba(255,255,255,.22);background:rgba(8,10,16,.82);
-                 color:#e7ecf3;font-size:13px;font-weight:800;letter-spacing:.06em;">&lsaquo; ESCI</button>
+                 color:#e7ecf3;font-size:15px;font-weight:800;letter-spacing:.06em;">&lsaquo; ESCI</button>
 </div>
 <script>
 /* La porta della boxe di allenamento. Tre scelte, e il perche' di ognuna:
@@ -77630,9 +77637,14 @@ function bx2Sblocca(){
     BX2_BLOCCATI[i].e.style.overflowY = BX2_BLOCCATI[i].ov;
   BX2_BLOCCATI = null;
 }
-function apriBoxe2(){
+function apriBoxe2(modo){
   var w = document.getElementById('bx2wrap'), f = document.getElementById('bx2frame');
-  if(!f.getAttribute('src')) f.setAttribute('src', BX2_URL);
+  // ⚠️ COL TUTORIAL IL `src` SI RIMETTE SEMPRE. Prima si metteva solo se
+  //    mancava — cioe' riaprendo si ritrovava la partita di prima invece
+  //    del primo passo, e il tasto TUTORIAL non avrebbe insegnato niente
+  //    a chi ci era gia' entrato una volta.
+  if(modo === 'tut') f.setAttribute('src', BX2_URL + '?tut=1&t=' + Date.now());
+  else if(!f.getAttribute('src')) f.setAttribute('src', BX2_URL);
   w.style.display = 'block';
   bx2Blocca();
   try{ if(window.Telegram && Telegram.WebApp && Telegram.WebApp.expand) Telegram.WebApp.expand(); }catch(e){}
