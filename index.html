@@ -7912,8 +7912,62 @@ body.gb-nav-on .bnav{display:flex;}
 .arc-g-alley .arc-ov-right.grab,.arc-g-alley .arc-ov-right:active{opacity:1;}
 .arc-ov-right{position:absolute;right:calc(10px + env(safe-area-inset-right));bottom:calc(12px + env(safe-area-inset-bottom));z-index:6;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:9px;opacity:.95;}
 .arc-ov-bottom{position:absolute;left:0;right:0;bottom:calc(12px + env(safe-area-inset-bottom));z-index:6;display:flex;justify-content:center;gap:14px;pointer-events:none;}
+/* ── (30/08, sera) LA PUNTELLA DEL FEED NON SERVE PIU'. C'era per spingere
+      `.twr-feed` sotto il suggerimento quando il suggerimento saliva in cima
+      DENTRO la tela. Adesso il suggerimento non sta piu' dentro la tela per
+      niente (vedi `.arc-ov-hint` qui sotto): il feed torna al suo top:6px di
+      sempre, in tutti i giochi, con o senza suggerimento. ── */
 .arc-ov-bottom>*{pointer-events:auto;}
-.arc-ov-hint{position:absolute;left:50%;bottom:calc(14px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:6;max-width:86%;text-align:center;font-size:12px;font-weight:600;color:#e5edf7;background:rgba(4,8,16,.62);border:1px solid rgba(120,140,170,.3);border-radius:20px;padding:7px 14px;pointer-events:none;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);}
+/* ── IL SUGGERIMENTO NON STA SULLA TELA: STA SOPRA DI ESSA (30/08/2026, sera)
+   Il proprietario, misurando col telefono: «il bannerino copre le carte».
+   Prima stava ancorato a `bottom` dentro #arc-wrap — cioe' esattamente dove
+   ogni gioco di carte mette la mano e i tasti (114 px dentro la mano in UNO,
+   144 nell'Uomo Nero, 171 nel burraco su una tela da 270).
+   Poi e' stato spostato a `top:10px`, SEMPRE dentro #arc-wrap, e il difetto
+   ha solo CAMBIATO PIANO: in cima alla tela non c'e' nessuna mano, ma c'e'
+   tutto il resto che i giochi disegnano li'. Misurato sulla pagina vera:
+     · BURRACO, la striscia FISSA delle pastiglie degli avversari (parola del
+       proprietario del 28/08, `_bur_geom.js:595`, pagata `winTop` px di
+       finestra): coperta di 32,0 / 34,4 / 38,8 / 40,8 px su tutti e quattro
+       i telefoni;
+     · UOMO NERO, l'orologio del turno: 21,1 px a 288x604 e 25,0 a 360x640;
+     · UNO 1v1, il disco dell'avversario: 9,8 px a 288x604 e 24,5 a 360x640
+       (su un disco alto 46: piu' di meta').
+   ⚠️ LA RADICE, E PERCHE' NON SI SPOSTA UN'ALTRA VOLTA: finche' il riquadro
+      e' un overlay SOPRA il canvas, ogni posto che si sceglie e' un posto che
+      un gioco usa — la mano, l'orologio, le pastiglie, i dischi — e non
+      esiste una fascia libera in tutti e 15 i giochi, su tutte e quattro le
+      tele, con tutte le mani. Percio' adesso il riquadro NON E' PIU' UN
+      OVERLAY: e' un elemento DI FLUSSO, fratello di #arc-wrap e messo prima
+      di lui (vedi `rtdShowMatch`). Il canvas si misura DOPO di lui
+      (`rtdCanvasInit` legge `wrap.clientHeight`), quindi il rettangolo del
+      suggerimento e quello della tela non possono intersecarsi mai piu':
+      non e' una scelta di px, e' una legge di layout.
+      Lo inchioda G6 di `_banco_hint_guscio.mjs` (leve `--rompi=fondo` e
+      `--rompi=cima`, che lo rimettono dentro la tela e lo fanno tornare rosso).
+   ⚠️ E LO SPAZIO RESTA RISERVATO PER TUTTA LA PARTITA: `rtdHintSpegni` lo
+      spegne con `visibility:hidden`, non con `display:none`. Con `display:none`
+      la tela si allargherebbe di ~32 px NELL'ISTANTE della prima mossa, cioe'
+      col dito ancora appoggiato sulla carta: tutta la geometria del gioco si
+      rifa' sotto il dito. La fascia vuota si vede solo nella PRIMA partita di
+      quel gioco (dalla seconda il riquadro non nasce nemmeno, G3).
+   ⚠️ IL PREZZO, MISURATO E DETTO (`_sonda_hint_prezzo.mjs`), perche' la
+      fascia in flusso toglie la sua altezza alla tela. Confronto fra la
+      PRIMA partita di un gioco e tutte quelle dopo:
+        · 390x844 e 430x932: la carta in mano NON cambia di un pixel
+          (l'altezza la pagava il letterbox, che li' avanzava);
+        · 288x604: −0,2 px di carta (270x405 → 269x403). Niente.
+        · 360x640 — l'unico telefono che paga davvero, e solo per una
+          partita: uomo nero 41,2 → 37,4 px, UNO 48,2 → 44,9, burraco
+          51,3 → 47,3 (tela 321x481 → 292x438).
+        · il burraco perde anche un po' di finestra del tavolo su tutti i
+          telefoni (487→435, 522→470, 726→689, 812→775), mai la mano:
+          `handTop` e' ancorato al bordo basso (A5.3).
+      Si paga qui, e non altrove, perche' l'alternativa e' un riquadro che
+      copre l'orologio, le pastiglie o il disco dell'avversario — cioe' un
+      difetto che dura TUTTA la partita invece di una tela piu' stretta che
+      dura una partita sola. ── */
+.arc-ov-hint{position:relative;align-self:center;flex:0 0 auto;z-index:6;max-width:86%;margin:0 0 5px 0;text-align:center;font-size:12px;font-weight:600;color:#e5edf7;background:rgba(4,8,16,.62);border:1px solid rgba(120,140,170,.3);border-radius:20px;padding:7px 14px;pointer-events:none;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);}
 /* D-PAD SNAKE (ECCEZIONE DURA: 4 frecce grandi, mai stick) */
 .rt-dpad{position:relative;width:196px;height:196px;}
 .rt-dpad .dp{position:absolute;width:70px;height:70px;border-radius:16px;border:2px solid rgba(74,222,128,.6);background:radial-gradient(circle at 42% 32%,#0f2417,#08160d);color:#bbf7d0;font-size:26px;display:flex;align-items:center;justify-content:center;touch-action:none;box-shadow:0 4px 12px rgba(0,0,0,.55),0 0 14px rgba(74,222,128,.18);cursor:pointer;padding:0;}
@@ -53454,6 +53508,14 @@ function rtdConnect(){
   ws.onerror=function(){if(RTD.ui==='match'||RTD.ui==='search')wsNetBanner('arc',1);};
 }
 function rtdSend(o){if(o&&o.t==='in')_ndInv++;   // SONDA: quanti comandi partono davvero
+  // ⭐ LA PRIMA MOSSA SPEGNE IL SUGGERIMENTO (30/08). Questo e' l'UNICO
+  //    imbuto da cui passano tutte e trenta le `rtdSend({t:'act'})` della
+  //    pagina, giochi di carte compresi: un posto solo invece di trenta.
+  //    ⚠️ SOLO su `t:'act'`: il canale `t:'in'` porta lo stick e passa di
+  //    qui venti volte al secondo — un `querySelectorAll` a 20 Hz e' un
+  //    costo per-frame che nessun budget vede. E `_hintOff` fa in modo
+  //    che il lavoro vero si faccia una volta per partita, non a ogni tocco.
+  if(o&&o.t==='act'&&!RTD._hintOff){RTD._hintOff=1;rtdHintSpegni();}
   if(RTD.wsOk){try{RTD.ws.send(JSON.stringify(o));}catch(e){}}}
 function rtdOnMsg(m){
   var t=m.t;
@@ -56273,6 +56335,50 @@ window.addEventListener('message', function(ev){
   if(d.bx==='esci'){rtdBack();return;}
 });
 
+// ══ IL SUGGERIMENTO E' UN ONE-SHOT, PER TUTTI (30/08/2026) ═══════════════
+//
+// Fino a oggi il riquadro `.arc-ov-hint` («👆 tocca per giocare la mossa»,
+// «👆 trascina per mirare»…) restava acceso PER SEMPRE in 14 giochi su 15.
+// Lo spegneva solo il backgammon, con `bgSent` e la memoria 'bg_hint_seen'
+// (§5.7 del suo piano). Il proprietario, 30/08: va spento in tutti.
+//
+// ⚠️ NON E' UN SECONDO MECCANISMO: e' QUELLO del backgammon portato nel
+//    guscio. `bgSent` adesso chiama queste funzioni, e la memoria vecchia
+//    'bg_hint_seen' — che sui telefoni dei giocatori C'E' GIA' — viene
+//    ONORATA in lettura e riscritta in scrittura: chi ha gia' imparato il
+//    backgammon non si rivede il suggerimento stanotte.
+//
+// ⚠️ LA MEMORIA E' PER GIOCO. Una chiave sola («l'ho visto una volta»)
+//    toglierebbe il suggerimento del biliardo a chi ha giocato a dama: i
+//    due gesti non sono lo stesso gesto (tocco secco contro trascinamento).
+//    Forma della chiave: la stessa gia' in casa per il calcio
+//    ('gb_cos_seen_calcio').
+function rtdHintKey(){return 'gb_hint_seen_'+(RTD.game||'?');}
+function rtdHintVisto(){
+  try{
+    if(localStorage.getItem(rtdHintKey())==='1')return true;
+    if(RTD.game==='backg'&&localStorage.getItem('bg_hint_seen')==='1')return true;   // la gemella del 07/08
+  }catch(_hv){}
+  return false;
+}
+// ⚠️ `querySelectorAll('.arc-ov-hint')` e NON `getElementById('arc-taphint')`:
+//    dei cinque riquadri che rtdShowMatch sa creare, DUE non hanno id (il
+//    quick-draw e quello del dito sul tavolo). Cercare l'id lasciava
+//    acceso proprio quello del gioco piu' veloce che abbiamo.
+function rtdHintSpegni(){
+  try{
+    localStorage.setItem(rtdHintKey(),'1');
+    if(RTD.game==='backg')localStorage.setItem('bg_hint_seen','1');
+  }catch(_hs){}
+  // ⚠️ `visibility` E NON `display` (30/08, sera). Il riquadro adesso e' un
+  //    elemento DI FLUSSO sopra la tela: con `display:none` la tela si
+  //    allargherebbe di ~32 px proprio nell'istante della prima mossa, col
+  //    dito ancora appoggiato — e tutta la geometria del gioco si rifarebbe
+  //    sotto il dito. Cosi' lo spazio resta riservato fino a fine partita e
+  //    non si muove niente; alla partita dopo il riquadro non nasce nemmeno.
+  var n=document.querySelectorAll('.arc-ov-hint'),i;
+  for(i=0;i<n.length;i++)n[i].style.visibility='hidden';
+}
 function rtdShowMatch(){
   // ── LA BOXE ESCE QUI (24/08/2026) ──────────────────────────────────
   // Prima di qualunque altra cosa, e prima che si crei l'HUD: il gioco
@@ -56459,6 +56565,25 @@ function rtdShowMatch(){
   }else{
     ov='<div class="arc-ov-hint" id="arc-draghint">👆 trascina per mirare · rilascia per tirare</div>';
   }
+  // ── IL SUGGERIMENTO NASCE UNA VOLTA SOLA (30/08) ────────────────────────
+  //    Un solo posto per tutti e cinque i rami qui sopra: se il giocatore
+  //    ha gia' fatto una mossa in QUESTO gioco, il riquadro non si crea
+  //    nemmeno — cosi' non c'e' un istante in cui lampeggia. Il controllo
+  //    e' sulla stringa perche' gli altri rami di `ov` sono BOTTONI (stick,
+  //    guardia della boxe, pedali): quelli non si toccano.
+  var hintOn=(ov.indexOf('arc-ov-hint')>=0);
+  if(hintOn&&rtdHintVisto()){ov='';hintOn=false;}
+  RTD._hintOff=hintOn?0:1;   // la prima mossa deve spegnere una volta sola
+  // ── IL SUGGERIMENTO ESCE DALLA TELA (30/08, sera) ─────────────────
+  //    Quando `ov` e' un suggerimento, `ov` NON contiene nient'altro (i
+  //    cinque rami che lo creano lo assegnano da soli; gli altri rami sono
+  //    stick, tasti e pedali, che restano in overlay dentro il wrap dove
+  //    sono sempre stati). Percio' qui il riquadro si stacca da `ov` e
+  //    diventa un FRATELLO di #arc-wrap, messo PRIMA di lui: il canvas si
+  //    misura dopo (`rtdCanvasInit` legge `wrap.clientHeight`) e non ci puo'
+  //    finire sotto ne' in cima ne' in fondo. Vedi la nota di `.arc-ov-hint`.
+  var hintHtml='';
+  if(hintOn){hintHtml=ov;ov='';}
   el.classList.add('arc-fit');   // OVERLAY-FIT per TUTTI gli RTD: canvas a schermo intero, controlli in overlay
   // 29/07: marcatore per-gioco. `arc-fit` e' condivisa da tutti gli arcade,
   // quindi ritoccare li' i comandi cambierebbe anche pong, snake, biliardo…
@@ -56475,6 +56600,7 @@ function rtdShowMatch(){
     // poche righe sotto e deve vedere l'altezza DEFINITIVA della barra.
     +'<div class="twr-hud'+(RTD.game==='calcio'?' blg-hudbar':'')+'" id="arc-hud"></div>'
     +'<div class="twr-status" id="arc-status"></div>'
+    +hintHtml
     +'<div class="twr-wrap" id="arc-wrap">'
     +'<canvas id="arc-cv"></canvas>'
     +'<div class="twr-feed" id="arc-feed"></div>'
@@ -71083,8 +71209,11 @@ function bgTrayY(mine,hh){return mine?hh*0.40:hh*0.60;}
 // B2 §5.1+§5.7: feedback mossa inviata — haptic pick + hint one-shot (localStorage 'bg_hint_seen')
 function bgSent(){
   grHaptic('pick');
-  try{localStorage.setItem('bg_hint_seen','1');}catch(_e){}
-  var _h=document.getElementById('arc-taphint');if(_h)_h.style.display='none';
+  // 30/08: il suggerimento one-shot non e' piu' roba del backgammon —
+  // e' del guscio, e vale per tutti. `rtdHintSpegni` scrive anche la
+  // memoria vecchia 'bg_hint_seen', quindi il lettore qui sotto
+  // (§5.7, il ramo che nasconde all'apertura) continua a funzionare.
+  rtdHintSpegni();
 }
 // A7: pool particelle zero-alloc (polvere dado / oro bear-off), cap 80
 function bgBurst(x,y,n,hue,spd){
@@ -73177,7 +73306,24 @@ function unoPutCard(ctx,x,y,W,H,c,face,hl,alpha,dim){
   if(alpha!=null)ctx.globalAlpha=alpha;
   ctx.shadowColor='rgba(0,0,0,.5)';ctx.shadowBlur=Math.max(3,W*0.12);ctx.shadowOffsetY=Math.max(1,H*0.035);
   var vera=unoImgCarta(face?c:'dorso');
-  ctx.drawImage(vera||unoSprite(face?c:'dorso',Wr,Hr),x,y,Wr,Hr);
+  if(vera)ctx.drawImage(vera,x,y,Wr,Hr);
+  else{
+    /* IL RIPIEGO SI CUOCE ALLA DENSITA' VERA (30/08, riparazione 3).
+       Da quando `rtdDrawUno` disegna in px CSS e scala la tela, una sprite
+       cotta a `Wr` px verrebbe STIRATA dal dpr: su un telefono a dpr 2 i
+       numeri — la cosa che il metro di casa vuole leggibile a colpo
+       d'occhio — uscirebbero sfocati proprio nella settimana in cui li si
+       e' ingranditi. L'immagine vera non ha il problema (`drawImage` di una
+       `<img>` campiona alla risoluzione finale); la sprite si', perche' e'
+       una tela cotta una volta. La densita' si legge dalla MATRICE del
+       contesto, cosi' vale qualunque scalamento ci sia sopra, oggi e domani.
+       Il tetto a 4 e' contro una matrice impazzita, non contro i telefoni:
+       il dpr piu' alto in giro e' 3,5. */
+    var _m=ctx.getTransform?ctx.getTransform():null;
+    var _k=_m?Math.abs(_m.a):1;
+    if(!(_k>0))_k=1; if(_k<1)_k=1; if(_k>4)_k=4;
+    ctx.drawImage(unoSprite(face?c:'dorso',Math.max(2,Math.round(Wr*_k)),Math.max(3,Math.round(Hr*_k))),x,y,Wr,Hr);
+  }
   ctx.shadowColor='transparent';ctx.shadowBlur=0;ctx.shadowOffsetY=0;
   if(dim){ctx.fillStyle='rgba(3,6,12,.45)';unoRR(ctx,x,y,Wr,Hr,W*0.11);ctx.fill();}
   if(hl){
@@ -73206,17 +73352,60 @@ function unoGeom(w,hh,n,handN,vista){
   var gk=w+'_'+hh+'_'+n+'_'+handN+(vista?'_v':'');
   if(s._geo&&s._geoK===gk)return s._geo;
   var u=w/390;                                  // «pixel di progetto» (vedi testata)
-  // la carta in mano: 44 px su un 390, mai piu' larga di un ottavo di schermo
-  var cw=Math.min(44*u,w*0.135), ch=cw*1.5;
   var mrg=9*u;
-  var rows=(handN>14)?2:1;                      // §7.5: la soglia e' 14, dichiarata
-  var per=Math.ceil(Math.max(1,handN)/rows);
   var usable=w-2*mrg;
+  // ── LA TAGLIA DELLA CARTA IN MANO (30/08, delega U-1) ───────────────
+  // Il proprietario, 30/08: le carte in mano sono piccole sul telefono. Era
+  // `Math.min(44*u, w*0.135)` — su una tela vera da 270 (telefono da 288!)
+  // faceva 30,5 px: SOTTO il metro di casa dei 40 px. Adesso e' il numero che
+  // il burraco ha gia' provato e che il proprietario ha gia' approvato il
+  // 29/08 (`_bur_geom.js:507`): 44*u PIU' DODICI, con il tetto della fila
+  // (`usable/5.5`) al posto del vecchio ottavo di schermo, che era proprio
+  // quello che teneva piccole le tele strette.
+  // Da' 42,5 / 48,2 / 54,0 / 58,5 px sulle quattro tele vere (270/321/372/412):
+  // sopra i 40 dappertutto. Il pavimento adesso e' SCRITTO, non sperato.
+  // Lo inchioda `_banco_uno_mano.mjs` (A1/A3).
+  var UNO_CW_MIN=40;                            // il metro di casa: sotto non si legge
+  var cw=Math.min(Math.max(UNO_CW_MIN,44*u+12), usable/5.5), ch=cw*1.5;
+  // ── LE RIGHE SI CALCOLANO DAL POLLICE (delega U-2) ─────────────────
+  // Era `rows=(handN>14)?2:1`: una soglia fissa, tarata su un 390. E' il
+  // difetto che l'Uomo Nero denuncia per nome (76639-76641) e che qui non era
+  // mai stato riparato: con 14 carte su una tela da 270 restava UNA riga sola
+  // e il lembo toccabile scendeva a 17,5 px — meno di meta' pollice — mentre
+  // a 15 carte raddoppiava di colpo a 31,7. Adesso le righe si contano: si
+  // spezza in due quando il lembo non arriva al pollice, e si smette quando il
+  // lembo e' gia' largo quanto la carta (piu' righe non lo allargherebbero).
+  // ⚠️ AL MASSIMO DUE RIGHE, e `per`/`step` si RICALCOLANO dopo il ciclo:
+  //    `while` esce con `rows` avanzato e gli altri due fermi al giro prima.
+  var UNO_POLLICE=44;                           // px CSS veri, non px di progetto
+  var rows=1,per,step;
+  while(rows<2){
+    per=Math.ceil(Math.max(1,handN)/rows);
+    step=(per>1)?Math.min(cw*1.04,(usable-cw)/(per-1)):cw;
+    if(step>=UNO_POLLICE||per<=1||step>=cw*1.04-1e-9)break;
+    rows++;
+  }
+  per=Math.ceil(Math.max(1,handN)/rows);
   // il lembo visibile: quanto sporge una carta da sotto la successiva
-  var step=(per>1)?Math.min(cw*1.04,(usable-cw)/(per-1)):0;
+  step=(per>1)?Math.min(cw*1.04,(usable-cw)/(per-1)):0;
   var rowGap=ch*0.56;
-  var handH=vista?(10*u):(ch+(rows-1)*rowGap+8*u);   // spettatore: solo un margine
+  // ── LA FASCIA E' SEMPRE ALTA DUE RIGHE (delega U-3) ────────────────
+  // Prima l'altezza seguiva le righe: il tavolo intero — ellisse, posti, monte,
+  // bottone — saltava su e giu' a ogni carta che faceva cambiare riga. Con le
+  // righe contate dal pollice cambierebbe molto piu' spesso di prima. Stessa
+  // regola dell'Uomo Nero (§5.3): la fascia sta ferma a due righe SEMPRE, e le
+  // carte che stanno su una si centrano dentro (`handY`). Costa una riga vuota
+  // a mano corta, compra un tavolo che non si muove mai.
+  var bandH=ch+rowGap+12*u;                     // 6*u di margine sopra e sotto
+  var handH=vista?(10*u):bandH;                 // spettatore: solo un margine
   var handTop=hh-handH;
+  // ⚠️ `handY` e' il bordo alto della riga PIU' BASSA (unoHandXY conta
+  //    all'indietro). Resta `hh-ch-6*u`, cioe' INCOLLATA AL FONDO: con la
+  //    fascia fissa a due righe la riga che avanza resta VUOTA IN ALTO, dove
+  //    non si vede, invece di lasciare un buco sotto le carte — e adesso i due
+  //    numeri della stessa fascia combaciano (6*u sopra la riga alta, 6*u
+  //    sotto la bassa), mentre prima `handY` cadeva 2*u sotto `handTop`.
+  var handY=hh-ch-6*u;
   // il tavolo sta tutto sopra la mano
   var cx=w/2, cy=handTop*0.455;
   var rx=w*0.385, ry=Math.max(handTop*0.30,40*u);
@@ -73250,7 +73439,7 @@ function unoGeom(w,hh,n,handN,vista){
   var bw=Math.max(96*u,R*3.2), bh=Math.max(54*u,R*1.35);
   var btn={x:w-mrg-bw, y:handTop-bh-4*u, w:bw, h:bh};
   var g={u:u,cw:cw,ch:ch,mrg:mrg,rows:rows,per:per,step:step,rowGap:rowGap,
-         handTop:handTop,handY:hh-ch-6*u,cx:cx,cy:cy,rx:rx,ry:ry,R:R,
+         handTop:handTop,handY:handY,cx:cx,cy:cy,rx:rx,ry:ry,R:R,
          seats:seats,btn:btn,n:n,handN:handN,w:w,hh:hh};
   s._geo=g;s._geoK=gk;
   return g;
@@ -73381,7 +73570,39 @@ function unoPosto(ctx,G,x,y,uid,carte,vivo,tocca,mer,now,unoOra,mio){
 }
 
 // ── IL TAVOLO ──────────────────────────────────────────────────────────────
+/* ⛔ LE COORDINATE SONO IN PX CSS (30/08, riparazione 3).
+   `rtdFrame` passa ai disegnatori `RTD.cv.width`/`height` (index.html:68921),
+   cioe' i px del BACKING STORE (css x dpr). Il DITO invece arriva in px CSS:
+   `unoTap` chiama `unoGeom(RTD.cssW,RTD.cssH,...)`. Finche' `unoGeom` era
+   omogenea di grado 1 in `w` le due geometrie erano l'una il multiplo esatto
+   dell'altra e il dito cadeva giusto anche a dpr 2. Le taglie nuove del 30/08
+   ci hanno messo dentro TRE NUMERI ASSOLUTI che non scalano col dpr
+   (`UNO_CW_MIN`, il `+12` di `44*u+12`, `UNO_POLLICE`): da dpr 1,5 in su le
+   due geometrie divergono su tutte e 24 le mani, e su una finestra di mani
+   differisce proprio il numero di RIGHE — il disegno ne fa una, il dito ne
+   conta due, e parte una carta che il giocatore non ha toccato.
+   Misurato il 30/08 con `_prova30_gioca_sbagliata.mjs` (tocchi VERI a dpr 2):
+   288x604 mano 10 -> 10 carte sbagliate su 10; 390x844 mano 14 -> 12 su 14.
+   ⭐ LA CURA E' QUELLA DI CASA, non una nuova: la stessa di `rtdDrawUomoNero`
+      (`var CW=RTD.cssW||w, sK=w/CW`) e di `burFrame`, che ha pagato lo stesso
+      difetto il 29/08. La geometria si fa in px CSS e la TELA si scala di
+      `sK`: da qui in giu' disegno e dito parlano la stessa lingua, qualunque
+      cosa ci sia dentro `unoGeom`. Vale anche per UNO CLASSICO: `unoGeom` e'
+      una sola, e `rtdDrawUno` la chiamano tutti e due.
+   ⚠️ CHI TOCCA `unoGeom` non deve piu' tenerla omogenea in `w`: era proprio
+      quel vincolo non scritto, che nessuno aveva mai scritto, a cedere.
+   Lo inchioda `_banco_uno_dpr.mjs` (D1/D2).                               */
 function rtdDrawUno(ctx,raw,lp,now,w,hh){
+  var CW=(typeof RTD!=='undefined'&&RTD.cssW)?RTD.cssW:w;
+  var CH=(typeof RTD!=='undefined'&&RTD.cssH)?RTD.cssH:hh;
+  var sK=(CW>0)?(w/CW):1;
+  if(!(sK>0))sK=1;
+  ctx.save();
+  if(sK!==1)ctx.scale(sK,sK);
+  try{ rtdDrawUnoCss(ctx,raw,lp,now,CW,CH); }
+  finally{ ctx.restore(); }
+}
+function rtdDrawUnoCss(ctx,raw,lp,now,w,hh){
   var s=unoSt();
   if(!s._pre){s._pre=1;unoPrecarica();}
   // panno: lo stesso mestiere della scopa, ma blu notte — il verde della
@@ -76641,7 +76862,26 @@ function unrGeom(w,hh,n,mie,bers){
   // ⚠️ LE RIGHE NON SI SCELGONO A SOGLIA FISSA, si CALCOLANO dal pollice.
   //    UNO scrive `rows = handN>14 ? 2 : 1`: soglia buona su un 390 e
   //    sbagliata su un 304, dove le stesse carte danno lembi da 21 px.
-  var cw=Math.min(44*u,w*0.135),ch=cw*1.5;
+  // ⚠️ LA TAGLIA DELLE CARTE IN MANO — 50*u, NON 44*u (30/08).
+  //    Parola del proprietario del 29/08: «in uomo nero le carte piu' grandi
+  //    — quelle che hai in mano». Misurato sulle TELE VERE (la viewport NON
+  //    e' la tela: `rtdCanvasInit` mette ratio 1.5, quindi 288->270, 360->321,
+  //    390->372, 430->412):
+  //      44*u -> 30,5 · 36,2 · 42,0 · 46,5 px di larghezza
+  //      50*u -> 34,6 · 41,2 · 47,7 · 52,8 px   (+13,6%)
+  //    ⚠️ PERCHE' 50 E NON DI PIU', ed e' misurato, non scelto a mente:
+  //      · a 51,4*u SETTE carte in mano si SPEZZANO in due righe sulle due
+  //        tele strette (270 e 321), cioe' la mano comoda diventa un mazzo;
+  //      · a 52*u il banco della geometria va ROSSO su tre tipi di coppia
+  //        (rivelazione|verdetto 3,2<4 · nome|targa 3,3<4 · mazzetto|nome
+  //        9,9<10), tutti sulla tela piu' stretta;
+  //      · e sopra 52,65*u comanderebbe il tetto `w*0.135` e la carta
+  //        smetterebbe di crescere proprio sul telefono piu' stretto.
+  //    I 40 px del metro di casa sulla tela da 270 NON si raggiungono senza
+  //    stringere la targhetta del nome: e' una cosa che il proprietario ha
+  //    gia' visto e approvato, e non si tocca senza la sua parola.
+  //    Lo inchioda G4d in `_un_misura_tavolo.mjs` (leva `--rompi=manopiccola`).
+  var cw=Math.min(50*u,w*0.135),ch=cw*1.5;
   var mrg=9*u;
   var POLLICE=44;                      // px CSS veri, non px di progetto
   var usable=w-2*mrg;
@@ -76671,7 +76911,23 @@ function unrGeom(w,hh,n,mie,bers){
   }
   per=Math.ceil(Math.max(1,mie)/rows);
   step=(per>1)?Math.min(cw*1.04,(usable-cw)/(per-1)):cw;
-  var rowGap=ch*0.58;
+  // ⚠️ 0,39 E NON 0,58, ED E' IL PREZZO DELLE CARTE PIU' GRANDI (30/08).
+  //    La fascia della mano e' quello che il tavolo NON ha: `handH` qui sotto
+  //    vale `ch*(1+rowGap) + 8u`, e ieri faceva `66u*1,58 + 8u = 112,28u`.
+  //    Con la carta a 50*u e lo stacco vecchio farebbe 126,5u: il tavolo si
+  //    stringe, l'ellisse scende, e il banco va ROSSO su tre tipi di coppia
+  //    (nome|targa, rivelazione|verdetto, mazzetto|nome). Con 0,39 fa
+  //    `75u*1,39 + 8u = 112,25u`: le carte crescono DENTRO la fascia di
+  //    sempre e sul tavolo non si sposta un pixel — la corda compresa
+  //    (12,5 px contro il suo tetto di 15, identica a ieri).
+  //    ⚠️ IL PREZZO, DETTO: della carta della riga di dietro si vede una
+  //    striscia di 20,3 px invece di 26,5 sulla tela da 270. Si paga qui
+  //    perche' la mano sta su DUE righe solo da otto carte in su — il 3,8%
+  //    dei fotogrammi a tre posti, lo 0,1% a cinque, mai a sei o piu'
+  //    (`_unero_mani.mjs`) — mentre la carta piu' grande si vede SEMPRE.
+  //    Lo inchioda G4d in `_un_misura_tavolo.mjs` (leve `--rompi=fasciagrossa`
+  //    e `--rompi=gapstretto`).
+  var rowGap=ch*0.39;
   // ⚠️ L ALTEZZA DELLA FASCIA E' FISSA A DUE RIGHE, SEMPRE, anche quando le
   //    carte stanno su una. E' la stessa regola dei mazzetti altrui (§5.3)
   //    applicata alla mia mano: se la fascia si alzasse e si abbassasse col
