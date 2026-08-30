@@ -14352,7 +14352,7 @@ body.gb-nav-on .bnav{display:flex;}
         ✅ Send BTC to the address above<br>
         ✅ Auto-detected every 2 minutes<br>
         ⚠️ Deposit fee: 5%<br>
-        💰 Min deposit: 0.0001 BTC
+        💰 Min deposit: €10 (0.00014815 BTC)
       </div>
     </div>
 
@@ -55204,7 +55204,22 @@ function rtdLerp(){
 function burNome(u){
   if(u==null)return '';
   if(String(u)===String(RTD.myId))return burL('TU');
-  var n=RTD.names&&RTD.names[u];
+  /* A6.5 - IL NOME TELEGRAM STA IN `RTD.profiles`, NON IN `RTD.names`.
+     `turfwar_rt_server.py:1262` manda `names = p["name"]`, e `p["name"]`
+     viene da `classic_rt.py:361` -> `NAMES[i % len(NAMES)]`, cioe' i
+     segnaposto del tavolo (Ace, Duke, Rex, Nero, ...): nessuno li
+     riscrive mai (zero riassegnazioni di `["name"]` in
+     turfwar_rt_server.py, classic_rt.py, burraco_stanza.py,
+     turfwar_rt.py). Il nome VERO e' la mappa accanto, `:1263`
+     `profiles`, riempita da `PROFILES[uid]` (`:5763`) col `profile`
+     dell'hello. E' la STESSA preferenza che la casa ha gia' in
+     `rtdName` (index.html:54541) e UNO in (:81158): prima i profili,
+     poi la mappa del tavolo.
+     Non toglie niente: se il profilo manca, `start_payload` mette li'
+     lo stesso `p["name"]` - e per un seggio `bot:` c'e' solo quello -
+     quindi si ricade esattamente sul comportamento di prima. */
+  var pr=RTD.profiles&&RTD.profiles[u];
+  var n=(pr&&pr.name)||(RTD.names&&RTD.names[u]);
   return n?String(n):('#'+String(u).slice(-4));
 }
 function burFeedRiga(e){
@@ -60209,7 +60224,7 @@ var BUR_GEOM = {
 };
 if (typeof window !== 'undefined') { window.BUR_GEOM = BUR_GEOM; }
 
-/* ---- _bur_suoni.js (33517 byte) ---- */
+/* ---- _bur_suoni.js (38031 byte) ---- */
 /* ══════════════════════════════════════════════════════════════════════════
    BURRACO — I SUONI.  ES5.  Attuazione di BURRACO_PIANO.md §8 (la tabella,
    8.1, 8.2, 8.3), §9 (la cerimonia), §2.4 e §4.6 (i conti delle ripetizioni).
@@ -60409,6 +60424,38 @@ var BUR_CFG = {
    x11»). Un solo pezzo di codice per tutte e tre. Ogni grano ha altezza di
    filtro sua e sfasamento suo: 45 grani identici sono un ronzio, non delle
    carte.                                                                   */
+/* -- (*) IL PASSO DELLA POSA (A6.3, parola del proprietario del 30/08) ----
+   > «deve suonare come carte vere che si posano sul tavolo, e crescere col
+   >  numero di carte: posarne tre non suona come posarne sette»
+
+   Prima di questo, `cala` faceva SEMPRE 4 strati e SEMPRE 290 ms, con tre
+   carte come con quattordici: l'unica cosa che cambiava era un'altezza, e
+   anche quella si fermava a sei carte. Era un accordo, non delle carte.
+   Adesso ogni carta che scende ha il SUO grano, come gia' fa il monte
+   raccolto — «la raffica CONTA LE CARTE», sta scritto nella ricetta 3 da
+   quando esiste, ed e' esattamente quello che qui serviva.
+
+   IL PASSO NON E' UN NUMERO MIO: 40 ms e' quello che il §8 riga 4 dichiara
+   per l'ANIMAZIONE — «le carte salgono dalla mano al tavolo, SFALSATE DI
+   40 ms». Il suono si posa allo stesso passo del disegno, o si scolla.
+
+   E IL TETTO NON E' ARBITRARIO: e' il piu' grande numero di carte il cui
+   sfalsamento sta dentro i millisecondi che il §8 da' a quell'animazione.
+   Con `burRaffica(n, n*BUR_POSA, ...)` il passo torna esatto (dt = secondi/n
+   = BUR_POSA), il grano piu' tardo cade a (n-1+0,225)*40 ms e dura 42:
+     cala   320 ms  ->  (n-0,775)*40 + 42 <= 320  ->  n <= 7   (e sette e'
+                        anche il burraco: oltre, l'orecchio non conta piu')
+     lega   220 ms  ->                              n <= 5   (ed e' lo stesso
+                        5 a cui si ferma il VENTAGLIO del volo: `aggVolo`,
+                        Math.min(5, opt.quante), in _bur_anim.js)
+   Sotto il tetto il conto e' ESATTO: tre grani sono tre carte.
+   Cancello G20 del banco: coda e strati devono CRESCERE col numero.      */
+var BUR_POSA = 0.040;
+function burPosaN(quante, tetto){
+  var n = quante | 0;
+  return burClamp(n, 1, tetto);
+}
+
 function burRaffica(n, secondi, g, hpBase, informativa){
   var i, at, hp, dt;
   if (n < 1) n = 1;
@@ -60481,19 +60528,53 @@ var BUR_REC = {
     var f = BUR_N[3 - r] * (1 + (burRnd() - 0.5) * 0.045);
     burT({f:f, f2:f * 0.70, type:'sine', d:0.110, g:0.070 * v, lp:1800});
     burN({d:0.045, g:0.075 * v, hp:1100, lp:3800});
+    /* (*) IL SECONDO COLPO (A6.3, 30/08) — «la carta cade sul monte E SI POSA
+       STORTA di qualche grado» (§8 riga 7): il colpetto in cui si assesta,
+       piu' corto, piu' piano e piu' chiaro del primo. Serve a due cose: fa
+       sentire una CARTA invece di un tonfo, e mette una distanza fra i tre
+       suoni della posa, che il proprietario sentiva «troppo simili» — lo
+       scarto e' UNA carta sola (regola 3.5) e adesso si sente che e' una
+       sola, mentre calare e attaccare hanno un grano per carta.          */
+    burN({d:0.030, g:0.030 * v, hp:1600, lp:5200, at:0.052 + burRnd() * 0.016});
   },
 
-  /* 5 · L'APERTURA DI UN GIOCO (§8 riga 4) — «accordo che sale, 3 note».
-     La radice sale col numero di carte calate (`o.len`): aprire con tre carte
-     e aprire con sei non e' la stessa cosa, e si sente.
-     In `lite` cadono le scintille (§8 riga 4: «resta, senza le scintille»):
-     e' esattamente lo strato di rumore, che infatti passa da `burN`.      */
+  /* 5 · L'APERTURA DI UN GIOCO (§8 riga 4) — (*) RIFATTA IL 30/08 (A6.3).
+     PRIMA erano tre note di triangolo e un fruscio: 4 strati, 290 ms, uguali
+     identici da tre carte a quattordici (misurato). Il proprietario, che ci
+     stava giocando, l'ha chiamato «un suono un po' insulso», e aveva ragione
+     con dei numeri dietro: 3 strati su 4 erano intonati, il 75% del guadagno
+     era tonale, e due calate di fila uscivano byte per byte identiche — era
+     l'unica delle 21 ricette senza nemmeno un termine casuale.
+
+     ADESSO IL CORPO DEL SUONO SONO LE CARTE: un grano per ogni carta che
+     scende (`o.quante`), al passo di 40 ms del §8. Tre carte fanno tre
+     colpi, sette ne fanno sette, e si contano a orecchio.
+
+     DUE NUMERI, DUE CANALI, e non vanno confusi:
+       · `o.quante` = quante carte SCENDONO ADESSO -> i grani, cioe' il corpo;
+       · `o.len`    = quanto e' LUNGO il gioco che nasce -> l'altezza della
+                      firma, che e' il vecchio «accordo che sale» del §8 e
+                      resta perche' e' l'identita' del suono (senza, calare
+                      e attaccare diventerebbero la stessa cosa).
+     Sono i due numeri che `aggEventi` calcola gia' da sempre in ogni fatto
+     `cala` (_bur_anim.js): fino a oggi il secondo era l'unico che arrivava.
+     Se `quante` non arriva si ripiega su `len`, e il ripiego e' quello
+     giusto: una calata NUOVA posa tutte le carte del gioco che nasce.
+
+     La firma scende da 0,250 a 0,148 di guadagno tonale: non e' piu' lei il
+     suono, e' il colore sopra le carte.
+     In `lite` cadono le scintille e SOLO le scintille (§8 riga 4: «resta,
+     senza le scintille»): i grani delle carte sono INFORMAZIONE — dicono
+     quante ne hai calate — e passano da `burNi`, che in lite non cade.   */
   cala: function(v, o){
-    var b = 4 + burClamp((o.len || 3) - 3, 0, 3);
-    burT({f:BUR_N[b],     type:'triangle', d:0.14, g:0.085 * v});
-    burT({f:BUR_N[b + 2], type:'triangle', d:0.14, g:0.080 * v, at:0.045});
-    burT({f:BUR_N[b + 4], type:'triangle', d:0.20, g:0.085 * v, at:0.090});
-    burN({d:0.060, g:0.050 * v, hp:2200, lp:8000});
+    var len = (o.len || 3);
+    var b   = 4 + burClamp(len - 3, 0, 3);
+    var q   = burPosaN((o.quante != null) ? o.quante : len, 7);
+    burRaffica(q, q * BUR_POSA, 0.076 * v, 1500, true);
+    burT({f:BUR_N[b],     type:'triangle', d:0.12, g:0.058 * v});
+    burT({f:BUR_N[b + 2], type:'triangle', d:0.12, g:0.050 * v, at:0.045});
+    burT({f:BUR_N[b + 4], type:'triangle', d:0.14, g:0.058 * v, at:0.090});
+    burN({d:0.060, g:0.034 * v, hp:2200, lp:8000, at:0.030});
   },
 
   /* 6 · IL GIOCO CHE SI ALLUNGA (§8 riga 5) — «tonfo morbido».
@@ -60505,8 +60586,15 @@ var BUR_REC = {
   lega: function(v, o){
     var j = burClamp((o.len || 4) - 3, 0, 5);
     var f = BUR_N[3 + j] * (1 + (burRnd() - 0.5) * 0.03);
-    burT({f:f, f2:f * 0.86, type:'sine', d:0.160, g:0.065 * v, lp:2400});
-    burN({d:0.040, g:0.055 * v, hp:900, lp:3000});
+    /* (*) A6.3 · anche l'attacco posa delle CARTE, e possono essere piu' di
+       una: `o.quante` = quante ne stai legando adesso (uno, il caso normale,
+       resta il suono di prima piu' un grano solo). PRIMA attaccare una carta
+       a una scala da dieci e attaccarne cinque suonavano IDENTICI, perche'
+       arrivava solo `len` e sopra le otto carte `len` e' saturo. */
+    var q = burPosaN((o.quante != null) ? o.quante : 1, 5);
+    burRaffica(q, q * BUR_POSA, 0.042 * v, 1200, true);
+    burT({f:f, f2:f * 0.86, type:'sine', d:0.150, g:0.056 * v, lp:2400});
+    burN({d:0.040, g:0.042 * v, hp:900, lp:3000});
   },
 
   /* 7 · LA MATTA CHE SI LIBERA (§8 riga 6, regola 5.3 / D12) — «due note, la
@@ -60806,9 +60894,9 @@ function burSndDopo(n, ms, o){
 var BUR_TURNO_TIPO = [
   {n:'tuo',    ms:0,    o:{}},
   {n:'pesca',  ms:520,  o:{rest:28}},
-  {n:'cala',   ms:1180, o:{len:4}},
-  {n:'lega',   ms:1760, o:{len:5}},
-  {n:'lega',   ms:2120, o:{len:6}},
+  {n:'cala',   ms:1180, o:{len:4, quante:4}},
+  {n:'lega',   ms:1760, o:{len:5, quante:1}},
+  {n:'lega',   ms:2120, o:{len:6, quante:1}},
   {n:'scarto', ms:2680, o:{i:1}},
   {n:'turno',  ms:3060, o:{pan:0.45}}
 ];
@@ -60834,7 +60922,7 @@ try {
   }
 } catch (e) {}
 
-/* ---- _bur_anim.js (100965 byte) ---- */
+/* ---- _bur_anim.js (102465 byte) ---- */
 /* ══════════════════════════════════════════════════════════════════════════
    _bur_anim.js — LE ANIMAZIONI DEL BURRACO            (27/08/2026, giro 5)
 
@@ -62412,18 +62500,45 @@ var AGG_LAMPI = {burraco:"#ffd24a", pozzetto:"#fff0a8", chiusura:"#fff0c0"};
      pesca {rest} = quante restano nel tallone (la nota sale mentre finisce)
      monte {n}    = quante carte raccogli (la raffica le conta)
      scarto {i}   = l'anello di quattro altezze
-     cala {len} · lega {len} = la lunghezza del gioco (a sette l'orecchio
-                    sente arrivare il burraco un colpo prima di vederlo)
+     cala {len,quante} · lega {len,quante} = DUE numeri diversi, e non vanno
+                    confusi. `len` = quanto e' lungo il gioco DOPO (a sette
+                    l'orecchio sente arrivare il burraco un colpo prima di
+                    vederlo): comanda l'ALTEZZA. `quante` = quante carte
+                    scendono ADESSO: comanda i GRANI, uno per carta.
+                    ⭐ A6.3, 30/08, parola del proprietario: «deve suonare
+                    come carte vere che si posano, e crescere col numero di
+                    carte». `quante` questo file lo calcola gia' da sempre
+                    (aggEventi, qui sotto) e fino al 30/08 lo BUTTAVA: al
+                    suono arrivava solo `len`, e siccome sopra le otto carte
+                    `len` e' saturo, attaccare UNA carta a una scala da dieci
+                    e attaccarne CINQUE suonavano identici. Adesso passa.
      turno {pan}  = da che parte del tavolo e' finito il turno · tuo {}
    Le FESTE (burraco/pulito/pozzetto/chiusura/totale) NON si suonano a mano:
    il §8.3 ha l'ordine e le distanze, ed e' `bur830` che le mette in fila —
    `aggVoci` le tiene da parte apposta, in un elenco separato.            */
+/* le opzioni della POSA (cala / attacca): i due numeri che aggEventi mette in
+   ogni fatto. Sono separati perche' rispondono a due domande diverse — «che
+   gioco e'» e «quante carte hai appena posato» — e la ricetta del §8 li legge
+   tutti e due (`o.len` per l'altezza, `o.quante` per i grani). Chi non ha il
+   dato non lo manda: le ricette hanno gia' il loro ripiego (cala ripiega su
+   `len`, lega su una carta sola). */
+function aggPosaO(e){
+  var o = {};
+  if(e.len    != null) o.len    = e.len|0;
+  /* la leva del banco: la REGOLA VECCHIA, quella di prima del 30/08 — al
+     suono arrivava SOLO la lunghezza del gioco, e quante carte fossero
+     appena scese non lo sapeva nessuno. Cancello S3b. */
+  if(ROMPI === "quante") return o;
+  if(e.quante != null) o.quante = e.quante|0;
+  return o;
+}
+
 var AGG_VOCI = {
   pescata:  {n:"pesca",  o:function(e){ return (e.rest  != null) ? {rest:e.rest|0} : {}; }},
   raccogli: {n:"monte",  o:function(e){ return (e.quante!= null) ? {n:e.quante|0}  : {}; }},
   scarto:   {n:"scarto", o:function(e){ return (e.resta != null) ? {i:e.resta|0}   : {}; }},
-  cala:     {n:"cala",   o:function(e){ return (e.len   != null) ? {len:e.len|0}   : {}; }},
-  attacca:  {n:"lega",   o:function(e){ return (e.len   != null) ? {len:e.len|0}   : {}; }},
+  cala:     {n:"cala",   o:function(e){ return aggPosaO(e); }},
+  attacca:  {n:"lega",   o:function(e){ return aggPosaO(e); }},
   turno:    {n:function(e){ return e.mio ? "tuo" : "turno"; },
              o:function(e){ return (e.pan != null) ? {pan:e.pan} : {}; }},
   conta:    {n:"totale", o:function(){ return {}; }, festa:true},
@@ -62766,7 +62881,7 @@ return {
 })();
 if (typeof window !== 'undefined') { window.BUR_ANIM = BUR_ANIM; }
 
-/* ---- _bur_cerimonia.js (39822 byte) ---- */
+/* ---- _bur_cerimonia.js (49412 byte) ---- */
 /* ══════════════════════════════════════════════════════════════════════════
    _bur_cerimonia.js — LA CERIMONIA DEI PUNTI DEL BURRACO   (27/08/2026)
 
@@ -62917,9 +63032,50 @@ function faseNum(k){ for(var i=0;i<FASI.length;i++) if(FASI[i].k===k) return i; 
    ══════════════════════════════════════════════════════════════════════════ */
 var GRADI = {200:'PULITO', 150:'SEMIPULITO', 100:'SPORCO'};
 
+/* ⭐ A6.5 · IL NOME AL POSTO DELL'ID, E IL RIPIEGO QUANDO IL NOME NON C'E'.
+
+   > «rendi ancora piu' chiaro il punteggio alla fine, con i nomi invece
+   >  degli id»  (proprietario, 30/08)
+
+   Il pacchetto viene da `vista()` e il motore i nomi NON li sa — ed e' giusto
+   cosi': un motore che sa i nomi e' un motore che li deve anche proteggere.
+   Li porta chi ospita, in `e.nomi`, e il CONTRATTO sta in fondo al file sotto
+   `INNESTO · LA MAPPA DEI NOMI`. Qui si legge e basta.
+
+   IL RIPIEGO, e perche' questo e non un altro. Nella pagina ne convivono tre:
+   `burNome` (index.html:55204) da' `'#'+uid.slice(-4)`; `rtdName` (:54541) da'
+   `'#'+id` intero; questa funzione dava `String(uid)` — undici cifre di
+   Telegram in faccia al giocatore, che e' esattamente quello che il
+   proprietario ha visto e che A6.5 vieta. Si sceglie **la forma di
+   `burNome`**, per tre ragioni misurate:
+     · e' gia' la forma di casa: quella che il diario del burraco stampa da
+       sempre (index.html:55220, :55223, :55225). Due ripieghi diversi nella
+       stessa partita sono due liste;
+     · sta dentro la pastiglia del tavolo, che taglia a **6 caratteri**
+       (`nm.w=46px`, `nm.h=20px`, `max(3,floor(46/(20*0.62*0.58)))`):
+       `#4839` sono 5 caratteri e si legge intero, `#7042318877` no;
+     · non finge un nome che non c'e': si vede subito che e' un ripiego.
+   ⚠️ E non e' l'id nudo: le prime sette cifre — quelle che dicono quando uno
+   si e' iscritto a Telegram — non si vedono. */
+function ripiegoNome(uid){
+  /* la leva del banco: LA REGOLA VECCHIA — il ripiego era l'id nudo. */
+  if(ROMPI === 'idnudi') return String(uid);
+  var s = (uid == null) ? '' : String(uid);
+  if(!s) return '#???';
+  return '#' + (s.length > 4 ? s.slice(-4) : s);
+}
 function nomeDi(e, uid){
-  var n = (e.nomi||{})[uid];
-  return n ? String(n) : String(uid);
+  var mappa = (e && e.nomi) || {};
+  /* la leva del banco: LA REGOLA VECCHIA — la mappa non la riempiva nessuno,
+     quindi era come non averla. E' lo stato in cui il proprietario ha giocato
+     la partita del 30/08. */
+  if(ROMPI === 'senzamappa') mappa = {};
+  /* l'uid puo' arrivare numero da una parte e stringa dall'altra (il motore
+     le chiavi le fa stringhe, il pacchetto del server no): si cercano tutte
+     e due, o la mappa c'e' e non serve a niente. */
+  var n = mappa[uid];
+  if((n == null || n === '') && uid != null) n = mappa[String(uid)];
+  return (n == null || String(n) === '') ? ripiegoNome(uid) : String(n);
 }
 function etichettaLinea(e, v){
   var m = v.membri||[], i, s = [];
@@ -63512,6 +63668,129 @@ function riepilogo(g, C, w, h, U, ap, el){
       volta sola.
    ══════════════════════════════════════════════════════════════════════════ */
 
+/* ══════════════════════════════════════════════════════════════════════════
+   INNESTO . LA MAPPA DEI NOMI - A6.5, giro 11 (30/08/2026)
+   IL CONTRATTO PER LA MANO DELL'ACCENSIONE. NB: questo file NON tocca
+   index.html: qui c'e' scritto cosa deve fare chi lo tocca, e i cancelli
+   C12/C13/C14 del banco misurano che questo lato del contratto regge.
+
+   -- PRIMA DI TUTTO, UNA CORREZIONE AL BLOCCO QUI SOPRA --------------------
+   L'INNESTO 1-2-3 **E' GIA' STATO FATTO** al giro 10: la cerimonia e' in
+   pagina (`var BUR_CERIM`, index.html:62846), la comincia `burHostCerimInizia`
+   (index.html:68690) e la disegna il tavolo. Quel blocco e' rimasto scritto
+   al futuro. Quello che segue e' l'unica cosa che manca davvero.
+
+   -- IL CAMPO -------------------------------------------------------------
+       e.nomi = { "<uid>": "<nome leggibile>", ... }
+   Un oggetto piatto, chiavi STRINGA (l'uid come lo scrive il motore), valori
+   stringa non vuota. Nessun'altra forma: niente array, niente {id,name}.
+
+   -- DA QUALE FONTE -------------------------------------------------------
+   NON dal motore: `vista()` (burraco_regole.py:2372-2455) i nomi non li ha e
+   non deve averli (un motore che sa i nomi e' un motore che li deve anche
+   proteggere).
+   E **NON** da `TWR.names`: quella e' la mappa dei giochi TURF. Il burraco e'
+   un gioco RTD, e allo start il server ne manda **DUE**, di mappe
+   (index.html:53621, al rientro :56826):
+     - `RTD.names`    = `turfwar_rt_server.py:1262`, `{p["id"]: p["name"]}`
+       -> ⛔ **NON e' il nome Telegram**: `p["name"]` nasce a
+       `classic_rt.py:361` come `NAMES[i % len(NAMES)]`, cioe' i
+       SEGNAPOSTO del tavolo (`classic_rt.py:262`: Ace, Duke, Rex,
+       Nero, Vega, Iris, Otto, Kilo, Lupo, Zara) e nessuno lo riscrive
+       mai (zero riassegnazioni di `["name"]` nei quattro file del
+       tavolo). Chi legge solo questa mappa fa chiamare il
+       proprietario «Duke».
+     - `RTD.profiles` = `:1263`, `PROFILES[uid]` (riempita a `:5763`
+       dal `profile` dell'hello) -> ⭐ **QUI** sta il nome Telegram,
+       in `.name`. Se manca, il server ci rimette dentro lo stesso
+       `p["name"]`, quindi il ripiego e' gratis.
+   * E il lettore giusto **esiste gia' in pagina**: `burNome(u)`
+   (index.html:55204). Fa tre cose che servono tutte e tre:
+       1. `RTD.myId` -> `burL('TU')`, cioe' tradotto;
+       2. `RTD.profiles[u].name`, poi `RTD.names[u]` -> il nome
+          Telegram, con la STESSA preferenza di `rtdName`
+          (index.html:54541) e di UNO (:81158). Riparato il 30/08
+          (giro 11, riparazione 1): prima leggeva solo `RTD.names`.
+       3. ripiego `'#'+String(u).slice(-4)` - la STESSA forma di `ripiegoNome`
+          qui sopra. Vedi «LE DUE COPIE» in fondo.
+   Quindi la mano dell'accensione **non scrive nessuna regola nuova**: chiama
+   quella che c'e' gia'.
+
+   -- DOVE, ESATTAMENTE ----------------------------------------------------
+   In **`burHostVista(raw)`** (`_bur_incolla_index.py:152`, index.html:67940),
+   accanto a `raw.io` e `raw.posto`, PRIMA di `raw._burIo=1`:
+
+       if(!raw.nomi) raw.nomi = {};
+       for(i=0;i<ord.length;i++){
+         var u = String(ord[i]);
+         if(!raw.nomi[u]) raw.nomi[u] = burNome(ord[i]);
+       }
+
+   Tre ragioni per cui e' quello il posto, e non dentro la cerimonia:
+   . e' gia' **l'unico** punto in cui il pacchetto del motore viene arricchito
+     con quello che sa solo la pagina, e ha gia' la guardia di idempotenza
+     (`if(raw._burIo)return raw`). Un secondo posto sarebbe una seconda lista;
+   . **serve a DUE consumatori**: questa cerimonia (`e.nomi`) e il TAVOLO
+     (`d.nomi`, vedi sotto). Iniettare solo nella cerimonia lascerebbe le
+     pastiglie coi numeri per tutta la partita, e il difetto e' meta' curato;
+   . il pacchetto della cerimonia **e' lo stesso oggetto**: `burHostCerimInizia`
+     fa `s.cerim={e:v, ...}` con la `v` che esce di qui (index.html:68690).
+     Niente da passare, niente da ricopiare, nessun terzo posto.
+
+   * **LA MAPPA E' TOTALE, NON PARZIALE**: una casella per OGNI uid di `ord`,
+   ripiego compreso. Cosi' il ripiego si applica **una volta sola, in un posto
+   solo**, e i consumatori non devono conoscerlo. Il ripiego di questo file
+   resta come rete per il caso «la mappa non e' arrivata affatto» (pacchetto
+   di una pagina vecchia, pagina di prova, banco).
+
+   -- SE MANCA -------------------------------------------------------------
+   Non si rompe niente e non salta nessun ramo: `nomeDi` ripiega su
+   `ripiegoNome` e si legge `#4839`. L'id nudo di Telegram non compare MAI -
+   cancello C14. Non c'e' nessun errore da mostrare: una cerimonia che si
+   rifiutasse di andare in scena perche' non sa un nome sarebbe peggio del
+   difetto che sta curando.
+
+   -- E IL TAVOLO, CHE E' LO STESSO DIFETTO --------------------------------
+   Non basta la cerimonia. Le pastiglie degli avversari disegnano oggi
+   `sc.altri[j]`, cioe' **l'uid** (`_bur_tavolo_pennello.js:532` =
+   index.html:65464-65465), tagliato a 6 caratteri: il proprietario vede
+   `639012` dal primo secondo della partita, non solo alla fine.
+   NB: `sc.altri` **non si converte in nomi**: e' letto come uid in altri tre
+   punti del pennello (`:136` chi tocca, `:146` le carte in mano, `:640`). Si
+   AGGIUNGE una lista parallela, in `_componi` (`_bur_tavolo_pennello.js:133`,
+   index.html:65067):
+
+       var nomi = d.nomi || {}, altriNomi = [];
+       ...  altriNomi.push(nomi[String(u)] || ('#'+String(u).slice(-4)));
+       ...  altriNomi: altriNomi,            // accanto a `altri` e `mani`
+
+   e la riga :532 disegna `sc.altriNomi[j]` invece di `sc.altri[j]`.
+   ATTENZIONE alla larghezza: la pastiglia taglia a **6 caratteri**
+   (`nm.w=46px`, `nm.h=20px` misurati a 390 px di tela,
+   `max(3,floor(46/(20*0.62*0.58)))=6`). «Giuseppina» diventa «Giusep». Il
+   ripiego `#4839` sono 5 caratteri e ci sta intero - ed e' una delle tre
+   ragioni per cui e' quello. Se il taglio a 6 non basta e' una scelta di
+   larghezza del tavolo, non dei nomi.
+   NB: il pennello **non puo' leggere `RTD`**: viene copiato verbatim nella
+   pagina di prova autosufficiente (`_bur_tavolo_pagina.mjs`), dove `RTD` non
+   esiste. Il nome gli deve arrivare **dal pacchetto**. Per la pagina di
+   prova, `_artprove/_bur_stati.json` va arricchito con `nomi` come un campo
+   qualunque (oggi porta `ord`, `io`, `posto`, `carte`, `linee`... e NON
+   `nomi`).
+
+   -- LE DUE COPIE, DICHIARATE ---------------------------------------------
+   Il ripiego finisce scritto in tre posti: `burNome` (index.html:55204),
+   `ripiegoNome` (questo file) e il pennello. Non e' una svista ed e' il
+   minimo possibile: le due pagine di prova sono autosufficienti per
+   costruzione e non possono chiamarsi fra loro. LA LEGGE E' UNA E STA QUI:
+   **`'#' + le ultime quattro cifre`**. Chi tocca il pennello deve mettere nel
+   banco del tavolo (`_burraco_tavolo_vero.mjs`) un cancello che confronti la
+   scritta disegnata per un uid ASSENTE dalla mappa con quella regola - come
+   fa qui il cancello C13. Due copie senza confronto sono la trappola che
+   questa casa ha gia' pagato tre volte.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+
 /* ==========================================================================
    L'AGGANCIO AL FILO — A5.5, giro 10 (29/08/2026)
    Il server butta via il valore di ritorno del motore (ricetta del giro 9:
@@ -63597,6 +63876,7 @@ return {
   FASI:FASI, CONTA_MS:CONTA_MS, CONTA_SENZA_VINCITORE:CONTA_SENZA_VINCITORE,
   faseOra:faseOra, faseNum:faseNum,
   conti:conti, metaSu:metaSu,
+  nomeDi:nomeDi, ripiegoNome:ripiegoNome,
   disegna:disegna, attesa:attesa, salta:salta, tempoOra:tempoOra,
   rompi:rompi, largo:largo,
   aggInizia:aggInizia,
@@ -64930,7 +65210,7 @@ var BUR_MANOG = {
 };
 if (typeof window !== 'undefined') { window.BUR_MANOG = BUR_MANOG; }
 
-/* ---- _bur_tavolo_pennello.js (43105 byte) ---- */
+/* ---- _bur_tavolo_pennello.js (44513 byte) ---- */
 /* ══════════════════════════════════════════════════════════════════════════
    BURRACO · IL PENNELLO DEL TAVOLO   (passo 8 del §12 — «il tavolo che si vede»)
 
@@ -65067,6 +65347,25 @@ function _componi(d, np, mia, byLine) {
   for (i = 1; i < n; i++) altri.push(d.ord[(p0 + i) % n]);
   var chiTocca = -1;
   for (i = 0; i < altri.length; i++) if (altri[i] === d.turno) chiTocca = i;
+  /* ⭐ A6.5 · I NOMI, e sono una lista A PARTE.
+     ⛔ `altri` NON si converte: e' letto come uid in altri tre punti
+        (`chiTocca` qui sopra, `mani` qui sotto — `d.carte[u]` e' indicizzato
+        per uid — e il segno «X HA CALATO»). Convertirlo spegnerebbe il
+        contatore delle carte degli avversari.
+     ⛔ E IL PENNELLO NON PUO' LEGGERE `RTD`: viene copiato verbatim nella
+        pagina di prova autosufficiente (`_bur_tavolo_pagina.mjs`), dove
+        `RTD` non esiste. Il nome gli arriva DAL PACCHETTO (`d.nomi`), che
+        riempie `burHostVista` in index.html.
+     ⚠️ IL RIPIEGO E' LA LEGGE DI `_bur_cerimonia.js` (`ripiegoNome`): `'#'`
+        piu' le ultime quattro cifre. E' la terza copia, ed e' dichiarata:
+        le due pagine di prova sono autosufficienti per costruzione e non
+        possono chiamarsi fra loro. Il cancello che le confronta sta in
+        `_burraco_tavolo_vero.mjs`. */
+  var nomi = d.nomi || {}, altriNomi = [];
+  for (i = 0; i < altri.length; i++) {
+    var _u = String(altri[i]);
+    altriNomi.push(String(nomi[_u] || nomi[altri[i]] || ('#' + _u.slice(-4))));
+  }
   return {
     /* ⚠️ `taglia` esiste solo per le partite REGISTRATE: e' il nome della
        scena («corta», «estrema»). In una partita vera non c'e' e non
@@ -65076,6 +65375,7 @@ function _componi(d, np, mia, byLine) {
     gioA: gioA, gioB: gioB,
     gioAm: gioA.map(mis), gioBm: gioB.map(function (l) { return l.map(mis); }),
     altri: altri,
+    altriNomi: altriNomi,
     mani: altri.map(function (u) { return d.carte[u]; }),
     conti: [d.tallN, d.monteN, d.pozzQ[0], d.pozzQ[1]],
     presi: [0, 0, (d.pozzQ[0] === 0) ? 1 : 0, (d.pozzQ[1] === 0) ? 1 : 0],
@@ -65462,7 +65762,9 @@ function disegnaStriscia(g, G, st, sc) {
     g.beginPath(); g.arc(fa.x + fa.w / 2, fa.y + fa.h / 2, fa.w / 2, 0, 6.2832); g.fill();
     ogg('chip-nome#' + j);
     var lettere = Math.max(3, Math.floor(nm.w / (nm.h * 0.62 * 0.58)));
-    scritta(g, sc.altri[j].slice(0, lettere), nm.x, nm.y + nm.h / 2, nm.h * 0.62, '#e7edf5');
+    /* A6.5 · la pastiglia scrive il NOME, non l'uid. */
+    scritta(g, String((sc.altriNomi && sc.altriNomi[j]) || sc.altri[j]).slice(0, lettere),
+            nm.x, nm.y + nm.h / 2, nm.h * 0.62, '#e7edf5');
     ogg('chip-num#' + j);
     g.fillStyle = 'rgba(255,255,255,.16)';
     g.beginPath(); g.arc(nu.x + nu.w / 2, nu.y + nu.h / 2, nu.w / 2, 0, 6.2832); g.fill();
@@ -65570,7 +65872,9 @@ function disegnaSegno(g, G, sY, novita, sc) {
   g.lineTo(fx + fr, fy - fr * 0.55 * s.verso);
   g.stroke();
   ogg('segno');
-  var chi = (sc && sc.altri && sc.altri.length) ? sc.altri[0] : 'GIUSEPPINA';
+  /* A6.5 · e anche il segno «X HA CALATO» dice il nome. */
+  var chi = (sc && sc.altriNomi && sc.altriNomi.length) ? String(sc.altriNomi[0])
+          : ((sc && sc.altri && sc.altri.length) ? String(sc.altri[0]) : 'GIUSEPPINA');
   var testo = (s.stato === 'ritorno') ? 'IL TUO GIOCO'
             : (s.stato === 'novita')
               ? (chi.slice(0, G0.segnoLettere(G, sY, novita, ' HA CALATO')) + ' HA CALATO')
@@ -65843,7 +66147,7 @@ function misuraScena(np, taglia, w, veduta, novita, hVera) {
   };
 }
 
-/* ---- _bur_ponte_rtd.js (63146 byte) ---- */
+/* ---- _bur_ponte_rtd.js (89285 byte) ---- */
 /* ═══════════════════════════════════════════════════════════════════════════
    _bur_ponte_rtd.js — IL PONTE FRA IL DITO E IL SERVER
    ═══════════════════════════════════════════════════════════════════════════
@@ -66082,7 +66386,9 @@ var BUR_SPECCHIO = {
   MELD_MIN: 3,          /* burraco_regole.py MELD_MIN        :503 */
   TETTO_TRIS: 9,        /* burraco_regole.py TETTO_TRIS      :500 */
   TETTO_VERE_TRIS: 8,   /* burraco_regole.py TETTO_VERE_TRIS :501 */
-  SCALA_MAX: 14         /* burraco_regole.py SCALA_MAX       :502 */
+  SCALA_MAX: 14,        /* burraco_regole.py SCALA_MAX       :502 */
+  /* A6.2 (30/08) - la leva del motore, rilette insieme alle altre da C1. */
+  MATTA_SI_SPOSTA_PER_ATTACCO: true  /* burraco_regole.py MATTA_SI_SPOSTA_PER_ATTACCO */
 };
 
 // Le facce, come le scrive il motore (`carta(s,r)=(s<<4)|r`, :684; il 14
@@ -66095,6 +66401,75 @@ function burPonteRango(c) { return c & 15; }
 function burPonteEJolly(c) { return c === 0; }
 // regola 1.2 · le matte sono i 4 jolly e gli 8 due (`matta_possibile`, :708).
 function burPonteEMatta(c) { return burPonteEJolly(c) || burPonteRango(c) === 2; }
+
+// ── I DUE CAPI DI UNA SCALA — `_puo_estendere_basso` / `_puo_estendere_alto`
+//    (burraco_regole.py:884-900), regola 4.4. ⭐ SCRITTI UNA VOLTA SOLA: prima
+//    del 30/08 la stessa aritmetica stava a mano dentro `burGiudicaPosaScala`,
+//    e la sostituzione di A6.1 ne avrebbe voluta una TERZA copia per sapere
+//    dove va la matta liberata. Tornano il rango nuovo, o null se quel capo
+//    non si puo' allungare.
+function burPonteEstBasso(base, L) {
+  var nb = base - 1;
+  if (nb < 1) return null;
+  if (nb <= 1 && base + L - 1 >= 14) return null;            // regola 4.4
+  return nb;
+}
+function burPonteEstAlto(base, L) {
+  var na = base + L;
+  if (na > 14) return null;
+  if (base <= 1 && na >= 14) return null;                    // regola 4.4
+  return na;
+}
+
+// ── I RANGHI CHE UNA CARTA PUO' OCCUPARE — `_ranghi_possibili` (:925).
+//    L'asso ne ha due (1 e 14), ogni altra carta uno solo.
+function burPonteRanghiPoss(c) {
+  var r = burPonteRango(c);
+  return (r === 1) ? [1, 14] : [r];
+}
+
+// ── LA MATTA CHE SI SPOSTA A TAPPARE IL BUCO (A6.2, parola del proprietario)
+//    Specchio RIGA PER RIGA di `_matta_tappa_il_buco` (burraco_regole.py:935).
+// ⛔ E' LA TERZA COPIA DELLA STESSA LEGGE — motore, bot, questo specchio — e
+//    per questo il banco `_bur_specchio_banco.mjs` la confronta col motore su
+//    502 attacchi etichettati (cancello C5). Senza questa funzione C5 e' ROSSO
+//    su due casi veri, e il difetto e' quello che conta: il MOTORE accetta e
+//    LA PAGINA rifiuta, cioe' il tasto resta spento sulla mossa che il
+//    proprietario ha chiesto («pinella, 4 e 5, arriva un 7: la pinella
+//    diventa il 6»).
+// ⚠ `f` e' lo stato dello specchio, non uno slot: si ragiona sui RANGHI, e si
+//    torna il nuovo {base, L, mattaI} o null. Chi chiama scrive solo se non
+//    e' null, come fa il motore.
+function burPonteMattaTappa(f, c) {
+  if (f.tipo !== 'scala' || f.appesa) return null;
+  if (burPonteEMatta(c) || burPonteSeme(c) !== f.seme) return null;  // 5.1
+  if (f.mattaI == null) return null;          // niente matta: niente da spostare
+  var veri = {}, k;
+  for (k = 0; k < f.L; k++) if (k !== f.mattaI) veri[f.base + k] = 1;
+  var poss = burPonteRanghiPoss(c), pi;
+  for (pi = 0; pi < poss.length; pi++) {
+    var r = poss[pi];
+    if (veri[r]) continue;                    // un doppione non entra in fila
+    var ranghi = {}, x;
+    for (x in veri) if (veri.hasOwnProperty(x)) ranghi[x | 0] = 1;
+    ranghi[r] = 1;
+    var lo = null, hi = null;
+    for (x in ranghi) {
+      if (!ranghi.hasOwnProperty(x)) continue;
+      var v = x | 0;
+      if (lo === null || v < lo) lo = v;
+      if (hi === null || v > hi) hi = v;
+    }
+    var buchi = [];
+    for (x = lo; x <= hi; x++) if (!ranghi[x]) buchi.push(x);
+    if (buchi.length !== 1) continue;
+    if (hi - lo + 1 > BUR_SPECCHIO.SCALA_MAX - 1) continue;          // 4.6
+    if (lo < 1 || hi > 14) continue;
+    if (lo <= 1 && hi >= 14) continue;                               // 4.4
+    return {base: lo, L: hi - lo + 1, mattaI: buchi[0] - lo};
+  }
+  return null;
+}
 
 // ── IL TRIS — specchio di `tris_da_carte` (:903), nello stesso ordine ────
 // regola 4.2 stesso valore · 4.5 tetti · 4.7 niente sole matte · 5.1 una matta
@@ -66291,15 +66666,15 @@ function burGiudicaPosaScala(f, c, verso) {
   if (f.L >= BUR_SPECCHIO.SCALA_MAX)
     return {ok: false, perche: 'una sequenza arriva al massimo a ' + BUR_SPECCHIO.SCALA_MAX + ' carte'};
   // `_puo_estendere_basso` / `_puo_estendere_alto` (:885-900), regola 4.4
-  var nb = f.base - 1;
-  if (nb < 1 || (nb <= 1 && f.base + f.L - 1 >= 14)) nb = null;
-  var na = f.base + f.L;
-  if (na > 14 || (f.base <= 1 && na >= 14)) na = null;
+  var nb = burPonteEstBasso(f.base, f.L);
+  var na = burPonteEstAlto(f.base, f.L);
   // ⚠️ PRIMA la carta naturale, POI la matta: cosi' il due del seme che cade
   //    al suo posto naturale entra da carta VERA (regola 1.3), come nel motore.
   if (nb !== null && c === burPonteFaccia(f.seme, nb)
       && (verso == null || verso === 'basso')) {
+    /* la carta entra SOTTO: tutto scorre di uno, la matta compresa */
     f.base = nb; f.L++;
+    if (f.mattaI != null) f.mattaI++;
     return {ok: true};
   }
   if (na !== null && c === burPonteFaccia(f.seme, na)
@@ -66311,11 +66686,11 @@ function burGiudicaPosaScala(f, c, verso) {
     if (f.haMatta)
       return {ok: false, perche: "questo gioco ha gia' una matta"};   // 5.1
     if ((verso == null || verso === 'basso') && nb !== null) {
-      f.base = nb; f.L++; f.haMatta = true;
+      f.base = nb; f.L++; f.haMatta = true; f.mattaI = 0; f.mattaC = c;
       return {ok: true};
     }
     if ((verso == null || verso === 'alto') && na !== null) {
-      f.L++; f.haMatta = true;
+      f.mattaI = f.L; f.mattaC = c; f.L++; f.haMatta = true;
       return {ok: true};
     }
     if (f.L === 13 && BUR_SPECCHIO.SCALA_MAX >= 14) {
@@ -66323,6 +66698,26 @@ function burGiudicaPosaScala(f, c, verso) {
       return {ok: true};
     }
     return {ok: false, perche: 'la matta non ha dove andare in questa scala'};
+  }
+  /* ⭐ A6.2 · ULTIMA STRADA, E SOLO ULTIMA — come nel motore (:1841): si
+     arriva qui dopo che tutte le altre hanno detto di no, quindi «la carta
+     entra SOLO spostando la matta» e' vero per costruzione.
+     ⚠ `verso` non passa di qui, esattamente come nel motore: chiede un capo
+        preciso, e questa mossa muove anche la matta. */
+  if (BUR_SPECCHIO.MATTA_SI_SPOSTA_PER_ATTACCO && verso == null) {
+    var nuovo = burPonteMattaTappa(f, c);
+    if (nuovo) {
+      f.base = nuovo.base; f.L = nuovo.L; f.mattaI = nuovo.mattaI;
+      /* ⚠ regola 1.3 · se la matta e' finita sul SUO posto naturale (il due
+         del seme giusto nel buco del 2) NON e' piu' una matta: `indice_matta`
+         (:819) non la trova, e il gioco puo' riceverne una. Lo dice anche il
+         motore, invariante 1 di `_matta_tappa_il_buco`. */
+      if (f.mattaC != null
+          && f.mattaC === burPonteFaccia(f.seme, f.base + f.mattaI)) {
+        f.mattaI = null; f.haMatta = false;
+      }
+      return {ok: true};
+    }
   }
   return {ok: false, perche: 'quella carta non si lega a questa sequenza'};
 }
@@ -66345,7 +66740,13 @@ function burGiudicaLega(g, carte, verso) {
     f = {tipo: 'scala', seme: g.seme, base: g.base,
          L: nTot - (g.appesa ? 1 : 0),
          appesa: !!g.appesa,
-         haMatta: (!!g.appesa || g.matta_i != null)};
+         haMatta: (!!g.appesa || g.matta_i != null),
+         /* A6.2 · DOV'E' la matta e QUAL E': servono a `burPonteMattaTappa`.
+            `matta_i` e' l'indice dentro lo slot (`indice_matta`, :819), e la
+            carta e' quella che il pacchetto dichiara in quel posto. */
+         mattaI: (g.appesa || g.matta_i == null) ? null : g.matta_i,
+         mattaC: (g.appesa || g.matta_i == null || !g.carte) ? null
+                 : g.carte[g.matta_i]};
   }
   for (i = 0; i < carte.length; i++) {
     var e = (f.tipo === 'tris') ? burGiudicaPosaTris(f, carte[i])
@@ -66354,6 +66755,194 @@ function burGiudicaLega(g, carte, verso) {
     if (!e.ok) return {ok: false, perche: e.perche, carta: carte[i]};
   }
   return {ok: true};
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// 1c · LE TRE REGOLE DEL TAVOLO (A6.6b — parola del proprietario, 30/08)
+// ═════════════════════════════════════════════════════════════════════════
+// ⛔ PERCHE' ESISTONO. Fino al giro 10 lo specchio giudicava SOLO LE CARTE
+//    IN MANO, e le regole che dipendono dallo STATO DEL TAVOLO restavano tutte
+//    al server: il client diceva SI', il motore diceva NO, e il giocatore non
+//    capiva. La prova e' la domanda del proprietario del 30/08 — «ci sta un
+//    limite di gioco che puoi giocare? perche' avevo 3 assi e non me li faceva
+//    mettere giu'» — che e' la regola 4.9 vista da fuori.
+//    Le tre sono:
+//      4.9  due combinazioni dello stesso valore   `_apri`  :1631
+//      8.3  non si chiude calando tutto            `_guardia_mano_residua` :1590
+//      7.6  col pozzetto e senza burraco si tengono due carte       :1596
+// ⚠ SONO UNA SECONDA COPIA DELLA LEGGE, e per questo i loro tre codici ESCONO
+//    dal `CONTORNO` di `_bur_specchio_banco.mjs`: da oggi, se lo specchio dice
+//    SI' e il motore rifiuta con uno di questi tre, il banco e' ROSSO.
+// ⚠ LA QUARTA NON E' QUI. `resteresti_senza_scarto` (3.5/8.2, :1605) chiede al
+//    motore se una carta e' scartabile, e la risposta dipende dal monte e dal
+//    riscarto (3.7): resta nel CONTORNO, ed e' l'ultimo rifiuto che arriva
+//    muto. Per lui — e per tutti quelli che nessuno ha ancora scoperto — c'e'
+//    la sezione 5b.
+var BUR_TAVOLO = {
+  BURRACO_MIN_CARTE: 7,          /* burraco_regole.py BURRACO_MIN_CARTE        :493 */
+  VIETA_DUE_TRIS_UGUALI: true,   /* burraco_regole.py VIETA_DUE_TRIS_UGUALI    :548 */
+  TENERE_DUE_SENZA_BURRACO: true /* burraco_regole.py TENERE_DUE_SENZA_BURRACO :558 */
+};
+
+// I nomi al PLURALE, e servono a una cosa sola: il rifiuto che INSEGNA.
+// ⚠ E' una PRIMA copia, non una seconda: il motore i nomi italiani non li ha
+//    (`NOMI_RANGHI`, burraco_regole.py:681, dice A/J/Q/K) e nemmeno la pagina
+//    (`BUR_NOMI_RANGHI`, _bur_carte.js:96). Qui servono le PAROLE.
+var BUR_TAV_PLURALE = ['', 'assi', 'due', 'tre', 'quattro', 'cinque', 'sei',
+                       'sette', 'otto', 'nove', 'dieci', 'jack', 'donne', 're'];
+function burTavPlurale(r) { return BUR_TAV_PLURALE[r] || ('' + r); }
+
+// I giochi della MIA linea, letti dal pacchetto: ogni gioco porta la sua
+// `linea` (`vista`, burraco_regole.py:2422).
+// ⚠ null = non so qual e' la mia linea, e allora NON SI GIUDICA: nel dubbio si
+//    manda e decide il motore, come fa gia' `burPonteOffre`.
+function burTavGiochiMiei(v, io) {
+  var out = [], i, mia = burPonteMiaLinea(v, io);
+  if (!v || !v.giochi || mia === null) return null;
+  for (i = 0; i < v.giochi.length; i++)
+    if (v.giochi[i].linea === mia) out.push(v.giochi[i]);
+  return out;
+}
+// regola 8.1(b) · `l.ha_burraco()` letto dal pacchetto: `v.burr` e'
+// `[l.burrachi() for l in self.linee]` (:2424).
+function burTavHoBurraco(v, io) {
+  var mia = burPonteMiaLinea(v, io);
+  if (!v || !v.burr || mia === null || !v.burr[mia]) return false;
+  return v.burr[mia].length > 0;
+}
+// regole 7.1/7.2 · la mia linea ha gia' preso un pozzetto? `v.pozzChi` sono gli
+// UID di chi li ha presi (`pozzetti_presi`, :2398) e `v.linee` i membri.
+function burTavPozzMio(v, io) {
+  var i, j, mia = burPonteMiaLinea(v, io);
+  if (!v || !v.pozzChi || mia === null || !v.linee || !v.linee[mia]) return false;
+  for (i = 0; i < v.pozzChi.length; i++) {
+    if (v.pozzChi[i] == null) continue;
+    for (j = 0; j < v.linee[mia].length; j++)
+      if (String(v.linee[mia][j]) === String(v.pozzChi[i])) return true;
+  }
+  return false;
+}
+// regole 7.3/7.4 · e ne resta uno da prendere? (`_pozzetto_disponibile`, :2023)
+// ⚠ Il ramo a 3 senza coppia nata del motore torna sempre lo 0, e lo 0 in quel
+//    momento e' libero per forza (la coppia NASCE prendendo il pozzetto): le
+//    due scritture dicono la stessa cosa senza che il pacchetto debba portare
+//    `coppia_nata`.
+function burTavPozzLibero(v, io) {
+  var i;
+  if (!v || !v.pozzChi) return false;
+  if (burTavPozzMio(v, io)) return false;
+  for (i = 0; i < v.pozzChi.length; i++) if (v.pozzChi[i] == null) return true;
+  return false;
+}
+
+// ⭐ regola 4.9 — `_apri`, burraco_regole.py:1631. E IL RIFIUTO INSEGNA: non
+//    non puoi, ma dove vanno messe quelle carte (parola del proprietario:
+//    «hai gia' un tris di assi: trascinaci sopra le carte per attaccarle»).
+// ⚠ regola 4.10 · due SCALE dello stesso seme si': il divieto e' solo dei tris.
+function burGiudica49(v, io, giud) {
+  var g, i;
+  if (!BUR_TAVOLO.VIETA_DUE_TRIS_UGUALI) return {ok: true};
+  if (!giud || !giud.ok || giud.tipo !== 'tris') return {ok: true};
+  g = burTavGiochiMiei(v, io);
+  if (g === null) return {ok: true};
+  for (i = 0; i < g.length; i++) {
+    if (g[i].tipo !== 'tris' || g[i].valore !== giud.valore) continue;
+    return {ok: false, codice: 'due_tris_uguali', regola: '4.9', gioco: g[i].id,
+            perche: "hai gia' un tris di " + burTavPlurale(giud.valore)
+                    + ': trascinaci sopra le carte per attaccarle (regola 4.9)'};
+  }
+  return {ok: true};
+}
+
+// ⭐ regole 8.3 e 7.6 — `_guardia_mano_residua`, burraco_regole.py:1584.
+// ⚠ L'ORDINE E' QUELLO DEL MOTORE: prima il caso resta 0 (8.3, col ramo del
+//    pozzetto AL VOLO della 7.3), poi il caso resta 1 (7.6).
+function burGiudicaResidua(v, io, resta, burracoDopo) {
+  if (!v || typeof resta !== 'number' || resta < 0) return {ok: true};
+  if (burPonteMiaLinea(v, io) === null) return {ok: true};
+  if (!v.pozzChi || !v.linee) return {ok: true};
+  if (resta === 0) {
+    if (burTavPozzLibero(v, io)) return {ok: true, pozzetto: 'AL_VOLO'};   // 7.3
+    return {ok: false, codice: 'non_si_chiude_senza_scarto', regola: '8.3',
+            perche: "non si chiude calando tutto: lo scarto finale e'"
+                    + ' obbligatorio (regola 8.3)'};
+  }
+  if (resta === 1 && BUR_TAVOLO.TENERE_DUE_SENZA_BURRACO
+      && burTavPozzMio(v, io) && !burracoDopo)
+    return {ok: false, codice: 'tieni_due_carte', regola: '7.6',
+            perche: "la vostra linea ha gia' il pozzetto e non ha un burraco:"
+                    + ' devi tenere almeno due carte (regola 7.6)'};
+  return {ok: true};
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// 1d · LA SOSTITUZIONE (A6.1 — il gesto che non esisteva)
+// ═════════════════════════════════════════════════════════════════════════
+// ⛔ IL BUCO, detto dal proprietario il 30/08: «se ci sta una pinella sul 4 e
+//    voglio sostituirla con il 4 [...] non me lo fa fare». Il motore la sa fare
+//    da sempre (`_sostituisci`, burraco_regole.py:1805) e il ponte aveva gia' il
+//    verbo (`burMossaSostituisci`): mancava IL GESTO, e lo specchio rifiutava
+//    quel caso apposta.
+// ⭐ IL GESTO, DECISO QUI E SCRITTO: la carta vera si molla SULLA CARTA DELLA
+//    MATTA, dentro il gioco gia' a terra. Non sul gioco: su QUELLA carta. Il
+//    registro le dichiara gia' una per una (`carta-gioco`, _bur_geom.js:1219 e
+//    :1251, id = i*100+j) e `burBersaglio` (_bur_dito.js:730) vince col
+//    rettangolo disegnato SOPRA, cioe' con la carta che si vede: il posto
+//    arriva qui dentro `bersaglio.posto`, e ne' il dito ne' la geometria si
+//    toccano (misurato: nessuna riga di _bur_dito.js cambia).
+// ⭐ E DEVE ESSERE DIFFICILE SBAGLIARE, perche' sostituire per errore e' un
+//    turno buttato. Sono CINQUE scatti, e devono essere veri tutti insieme:
+//      1) UNA carta sola in volo (due carte non sostituiscono mai);
+//      2) il gioco e' una SCALA della mia linea (in un tris la carta vera si
+//         AGGIUNGE, regola 5.4/D12: li' il posto non conta e resta un LEGA);
+//      3) il posto mollato e' PROPRIO quello della matta (`matta_i`);
+//      4) la carta e' ESATTAMENTE quella che la matta rappresenta;
+//      5) e il motore offre SOSTITUISCI adesso (`v.mv`).
+//    Sbagliare posto o carta non fa danno: torna a essere un attacco normale,
+//    e quell'attacco e' impossibile per costruzione (la carta che la matta
+//    rappresenta cade DENTRO la scala, mai ai capi), quindi il no si legge in
+//    pagina e NON parte niente.
+// ⚠ E il gesto non si chiude qui: `burHostBersagli` (_bur_incolla_index.py:451)
+//    oggi dichiara solo i rettangoli `gioco` e salta i `carta-gioco`. Finche'
+//    quella riga non cambia, `posto` arriva sempre null e questa strada resta
+//    spenta: la riga esatta sta in _GIRO11_gesto-specchio.md.
+
+// Dove va la matta liberata: e' `_ricolloca_matta` (:1785), che gira DOPO che
+// la carta vera ha preso il posto della matta, cioe' su base e L invariati.
+function burPonteSostDove(base, L) {
+  if (burPonteEstBasso(base, L) !== null) return 'basso';
+  if (burPonteEstAlto(base, L) !== null) return 'alto';
+  if (BUR_SPECCHIO.SCALA_MAX >= 14 && L === 13) return 'appesa';        // D13
+  return null;                                                          // 5.5
+}
+
+// Lo specchio di `_sostituisci` (:1805), riga per riga e nello stesso ordine.
+// `g` e' il gioco COME ARRIVA NEL PACCHETTO (`come_dizionario`, :867).
+function burGiudicaSostituisci(g, c) {
+  var i, L, vera, dove;
+  if (!g || !g.tipo) return {ok: false, perche: "quel gioco non c'e'"};
+  if (g.tipo !== 'scala')
+    return {ok: false, codice: 'tris_non_si_sostituisce', regola: '5.4/D12',
+            perche: 'in un tris la matta non si sostituisce: la carta si'
+                    + ' aggiunge (regola 5.4)'};
+  if (g.appesa)
+    return {ok: false, codice: 'matta_appesa', regola: '4.6/D13',
+            perche: 'quella matta non rappresenta nessuna carta (regola 4.6)'};
+  i = (g.matta_i == null) ? null : g.matta_i;
+  if (i === null)
+    return {ok: false, codice: 'niente_matta', regola: '5.3',
+            perche: 'questo gioco non ha matte'};
+  vera = burPonteFaccia(g.seme, g.base + i);
+  if (c !== vera)
+    return {ok: false, codice: 'manca_la_vera', regola: '5.3',
+            perche: 'quella matta rappresenta un altro valore (regola 5.3)'};
+  L = (g.carte && g.carte.length) ? g.carte.length : 0;
+  dove = burPonteSostDove(g.base, L);
+  if (dove === null)
+    return {ok: false, codice: 'matta_senza_posto', regola: '5.5',
+            perche: 'la matta liberata non avrebbe dove andare (regola 5.5)'};
+  return {ok: true, vera: vera, posto: i, dove: dove,
+          matta: (g.carte && g.carte.length > i) ? g.carte[i] : null};
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -66630,8 +67219,13 @@ function burPonteMiaLinea(v, io) {
   return null;
 }
 
-function burPonteApriCmd(v, carte, tipoGioco, mattaRango) {
+// ⚠ `io` e' l'ultimo, ed e' FACOLTATIVO: se non arriva si legge da `v.io`
+//    (l'ospite ce lo mette lui, `burHostVista`, _bur_incolla_index.py:159),
+//    cosi' le chiamate vecchie continuano a funzionare parola per parola.
+function burPonteApriCmd(v, carte, tipoGioco, mattaRango, io) {
+  var giud, t49, tg, resta, burracoDopo;
   carte = carte ? carte.slice(0) : [];
+  if (io == null && v) io = v.io;
   if (carte.length < BUR_SPECCHIO.MELD_MIN)
     return {esito: 'rifiuto', a: 'APRI', carte: carte,
             perche: 'per calare servono almeno ' + BUR_SPECCHIO.MELD_MIN + ' carte'};
@@ -66640,16 +67234,49 @@ function burPonteApriCmd(v, carte, tipoGioco, mattaRango) {
   if (v && v.mano_mia && !burPonteInMano(v, carte))
     return {esito: 'niente', a: 'APRI',
             perche: "quelle carte non sono piu' tutte in mano"};
-  var giud = burGiudica(carte, tipoGioco, mattaRango);
+  giud = burGiudica(carte, tipoGioco, mattaRango);
   if (!giud.ok)
     return {esito: 'rifiuto', a: 'APRI', carte: carte, perche: giud.perche};
+  // ⭐ A6.6b · LE REGOLE DEL TAVOLO, NELLO STESSO ORDINE DEL MOTORE (`_apri`,
+  //    burraco_regole.py:1612): prima la 4.9, poi la guardia della mano
+  //    residua. L'ordine non e' un vezzo: quando valgono tutt'e due, il
+  //    motore dice 4.9, e chi rispecchia deve dire la stessa cosa.
+  t49 = burGiudica49(v, io, giud);
+  if (!t49.ok)
+    return {esito: 'rifiuto', a: 'APRI', carte: carte, perche: t49.perche,
+            codice: t49.codice, regola: t49.regola, gioco: t49.gioco};
+  resta = (v && v.mano_mia) ? (v.mano_mia.length - carte.length) : -1;
+  burracoDopo = burTavHoBurraco(v, io)
+                || carte.length >= BUR_TAVOLO.BURRACO_MIN_CARTE;
+  tg = burGiudicaResidua(v, io, resta, burracoDopo);
+  if (!tg.ok)
+    return {esito: 'rifiuto', a: 'APRI', carte: carte, perche: tg.perche,
+            codice: tg.codice, regola: tg.regola};
   return {esito: 'manda', a: 'APRI', prova: 'APRI', carte: carte,
-          specchio: giud, msg: burMossaApri(carte, tipoGioco, mattaRango)};
+          specchio: giud, alVolo: (tg.pozzetto === 'AL_VOLO'),
+          msg: burMossaApri(carte, tipoGioco, mattaRango)};
 }
 
-function burPonteLegaCmd(v, gid, carte, verso, io) {
+// ⭐ IL NO CHE INSEGNA LA SOSTITUZIONE (A6.1). Se la carta che l'attacco
+//    rifiuta e' PROPRIO quella che la matta rappresenta, il giocatore non ha
+//    sbagliato carta: ha sbagliato POSTO. Dirgli «quella carta non si lega» e'
+//    vero e inutile; dirgli dove mollarla e' la cura.
+function burPonteLegaInsegna(g, carte, perche) {
+  if (!g || g.tipo !== 'scala' || g.appesa || g.matta_i == null) return perche;
+  if (!carte || carte.length !== 1) return perche;
+  if (carte[0] !== burPonteFaccia(g.seme, g.base + g.matta_i)) return perche;
+  return "quella e' la carta che la matta rappresenta: mollala SOPRA LA MATTA"
+         + ' per sostituirla (regola 5.3)';
+}
+
+// ⚠ DUE ARGOMENTI NUOVI IN CODA, tutt'e due facoltativi: `io` si legge da
+//    `v.io` se non arriva, e `posto` e' l'indice della carta del gioco su cui
+//    il dito ha mollato (A6.1). Senza `posto` questa funzione fa parola per
+//    parola quello che faceva prima del 30/08.
+function burPonteLegaCmd(v, gid, carte, verso, io, posto) {
   carte = carte ? carte.slice(0) : [];
-  var g = null, i;
+  var g = null, i, giud, tg, resta, burracoDopo;
+  if (io == null && v) io = v.io;
   if (v && v.giochi) {
     for (i = 0; i < v.giochi.length; i++) {
       if (burPonteGioco(v.giochi[i]) === gid) { g = v.giochi[i]; break; }
@@ -66667,11 +67294,85 @@ function burPonteLegaCmd(v, gid, carte, verso, io) {
   if (v && v.mano_mia && !burPonteInMano(v, carte))
     return {esito: 'niente', a: 'LEGA',
             perche: "quelle carte non sono piu' tutte in mano"};
-  var giud = burGiudicaLega(g, carte, verso);
+  // ⭐ A6.1 · I CINQUE SCATTI DELLA SOSTITUZIONE (il quinto lo mette
+  //    `burPonteSostituisciCmd` guardando `v.mv`). Se uno solo manca, questa
+  //    resta la strada di sempre: un attacco.
+  if (posto != null && carte.length === 1 && g.tipo === 'scala' && !g.appesa
+      && g.matta_i != null && posto === g.matta_i
+      && carte[0] === burPonteFaccia(g.seme, g.base + g.matta_i))
+    return burPonteSostituisciCmd(v, gid, carte[0], io);
+  giud = burGiudicaLega(g, carte, verso);
   if (!giud.ok)
-    return {esito: 'rifiuto', a: 'LEGA', carte: carte, perche: giud.perche};
+    return {esito: 'rifiuto', a: 'LEGA', carte: carte,
+            perche: burPonteLegaInsegna(g, carte, giud.perche)};
+  // A6.6b · la guardia della mano residua vale anche per l'attacco (`_lega`,
+  // burraco_regole.py:1764). La 4.9 no: l'attacco non fa nascere giochi.
+  resta = (v && v.mano_mia) ? (v.mano_mia.length - carte.length) : -1;
+  burracoDopo = burTavHoBurraco(v, io)
+                || (((g.carte ? g.carte.length : 0) + carte.length)
+                    >= BUR_TAVOLO.BURRACO_MIN_CARTE);
+  tg = burGiudicaResidua(v, io, resta, burracoDopo);
+  if (!tg.ok)
+    return {esito: 'rifiuto', a: 'LEGA', carte: carte, perche: tg.perche,
+            codice: tg.codice, regola: tg.regola};
   return {esito: 'manda', a: 'LEGA', prova: 'LEGA', carte: carte,
+          alVolo: (tg.pozzetto === 'AL_VOLO'),
           msg: burMossaLega(gid, carte, verso)};
+}
+
+// ⭐ A6.1 · IL VERBO CHE NESSUN GESTO CHIAMAVA. `burMossaSostituisci` esisteva
+//    dal giro 6 e non lo invocava nessuno: adesso ha una porta.
+function burPonteSostituisciCmd(v, gid, carta, io) {
+  var g = null, i, off, mia, giud, tg, resta;
+  if (io == null && v) io = v.io;
+  if (v && v.giochi) {
+    for (i = 0; i < v.giochi.length; i++) {
+      if (burPonteGioco(v.giochi[i]) === gid) { g = v.giochi[i]; break; }
+    }
+  }
+  if (!g)
+    return {esito: 'niente', perche: "quel gioco non c'e'", a: 'SOSTITUISCI'};
+  off = burPonteOffre(v, 'SOSTITUISCI');
+  if (!off.ok)
+    return {esito: 'niente', perche: off.perche, a: 'SOSTITUISCI', spento: true};
+  mia = burPonteMiaLinea(v, io);
+  if (mia !== null && typeof g.linea === 'number' && g.linea !== mia)
+    return {esito: 'rifiuto', a: 'SOSTITUISCI', carte: [carta],
+            perche: 'non si toccano i giochi degli altri'};         // 4.8
+  if (v && v.mano_mia && !burPonteInMano(v, [carta]))
+    return {esito: 'niente', a: 'SOSTITUISCI',
+            perche: "quella carta non e' piu' in mano"};
+  giud = burGiudicaSostituisci(g, carta);
+  if (!giud.ok)
+    return {esito: 'rifiuto', a: 'SOSTITUISCI', carte: [carta],
+            perche: giud.perche, codice: giud.codice, regola: giud.regola};
+  // ⚠ LA STESSA GUARDIA DEL MOTORE, e con lo stesso `burraco_dopo`: la
+  //    sostituzione non cambia quante carte ha il gioco, quindi non puo' far
+  //    NASCERE un burraco (`_sostituisci` passa `l.ha_burraco()` e basta).
+  resta = (v && v.mano_mia) ? (v.mano_mia.length - 1) : -1;
+  tg = burGiudicaResidua(v, io, resta, burTavHoBurraco(v, io));
+  if (!tg.ok)
+    return {esito: 'rifiuto', a: 'SOSTITUISCI', carte: [carta],
+            perche: tg.perche, codice: tg.codice, regola: tg.regola};
+  return {esito: 'manda', a: 'SOSTITUISCI', prova: 'SOSTITUISCI',
+          carte: [carta], specchio: giud,
+          alVolo: (tg.pozzetto === 'AL_VOLO'), msg: burMossaSostituisci(gid)};
+}
+
+// ⭐ LA MAPPA DELLA POSA, IN UN PUNTO SOLO (A4.4 + A6.1). La mano del disegno
+//    passa di qui e non sceglie piu' il verbo da sola:
+//      · UNA carta mollata SULLA MATTA di una mia scala -> SOSTITUISCI
+//      · UNA carta mollata su un gioco a terra          -> LEGA
+//      · tutto il resto                                 -> APRI
+//    `bers` e' il bersaglio del dito (`burBersaglio`, _bur_dito.js:730): porta
+//    `gid`, e da A6.1 anche `posto` quando il dito e' finito su una carta.
+function burPontePosaCmd(v, bers, carte, io) {
+  carte = carte ? carte.slice(0) : [];
+  if (io == null && v) io = v.io;
+  if (bers && bers.gid != null && carte.length === 1)
+    return burPonteLegaCmd(v, bers.gid, carte, null, io,
+                           (bers.posto == null) ? null : bers.posto);
+  return burPonteApriCmd(v, carte, null, null, io);
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -66697,6 +67398,7 @@ function burPonteNuovo(opts) {
     guai: [],          // gli errori, e non sono mai muti
     eventi: [],        // accettata / rifiutata / muto — da leggere e svuotare
     snapN: 0,          // quanti pacchetti sono arrivati in tutto
+    noN: 0,            // A6.6a · quanti rifiuti del motore sono gia' stati letti
     ultimoSnap: 0,     // quando e' arrivato l'ultimo
     giu: null,         // il bersaglio su cui il dito si e' posato
     io: (opts.io == null) ? null : String(opts.io),
@@ -66748,6 +67450,14 @@ function burPonteProva(nome, v, p) {
     return f.giochiN > p.prima.giochiN;
   if (nome === 'LEGA')
     return f.carteATerra > p.prima.carteATerra;
+  // ⭐ A6.1 · E LA SOSTITUZIONE ADESSO HA IL SUO SEGNO, invece del ripiego.
+  //    Sembra uno scambio a somma zero e non lo e': `_ricolloca_matta` (:1785)
+  //    RIMETTE la matta liberata dentro la scala (basso, alto o appesa), e
+  //    quindi il gioco cresce SEMPRE di una carta — in tutt'e tre i casi.
+  //    La mano invece non basta: con `resta == 0` il pozzetto preso al volo
+  //    (regola 7.3) la fa CRESCERE di undici.
+  if (nome === 'SOSTITUISCI')
+    return f.carteATerra > p.prima.carteATerra;
   return burPonteFirmaDiversa(f, p.prima);
 }
 
@@ -66769,9 +67479,17 @@ function burPonteInVolo(pt, cmd, v, ora) {
 // Va chiamata PRIMA del giro degli eventi del diario, come per il cucu'
 // (`cucuSnapCheck`, index.html:71527).
 function burPonteSnap(pt, v, ora) {
-  var i, p, resta = [], usciti = [];
+  var i, p, resta = [], usciti = [], daFilo = null, nr;
   pt.snapN++;
   pt.ultimoSnap = ora;
+  // ⭐ A6.6a · IL RIFIUTO DENTRO IL PACCHETTO, se il server lo manda (una
+  //    delle due strade della sezione 5b). Si legge UNA VOLTA SOLA: `n`
+  //    cresce a ogni rifiuto nuovo, cosi' un campo che resta appiccicato al
+  //    pacchetto non ripete lo stesso no venti volte al secondo.
+  if (v && v.rifiuto && (v.rifiuto.codice != null || v.rifiuto.frase != null)) {
+    nr = (v.rifiuto.n == null) ? (pt.noN + 1) : v.rifiuto.n;
+    if (nr > pt.noN) { pt.noN = nr; daFilo = burPonteNo(pt, v.rifiuto, ora); }
+  }
   for (i = 0; i < pt.pend.length; i++) {
     p = pt.pend[i];
     if (burPonteProva(p.prova, v, p)) {
@@ -66792,6 +67510,9 @@ function burPonteSnap(pt, v, ora) {
   }
   pt.pend = resta;
   for (i = 0; i < usciti.length; i++) burPonteEvento(pt, usciti[i]);
+  // ⚠ quello del motore e' gia' uscito dentro `burPonteNo`: qui si aggiunge
+  //    alla lista, non si rialza una seconda volta.
+  if (daFilo) usciti.unshift(daFilo);
   return usciti;
 }
 
@@ -66808,6 +67529,67 @@ function burPonteMuto(pt, ora) {
   if (!pt.snapN) return null;
   if (ora - pt.ultimoSnap < BUR_PONTE_MUTO_MS) return null;
   e = {tipo: 'muto', ms: ora - pt.ultimoSnap, quante: pt.pend.length};
+  burPonteEvento(pt, e);
+  return e;
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// 5b · IL RIFIUTO CHE ARRIVA (A6.6a — parola del proprietario, 30/08)
+// ═════════════════════════════════════════════════════════════════════════
+// ⛔ COM'E' OGGI, misurato. Il motore alza `Vietato(codice, frase, regola)`
+//    (burraco_regole.py:744) con tutt'e tre le cose gia' scritte in italiano
+//    da leggere — per i tre assi: `due_tris_uguali` / «due tris dello stesso
+//    valore non si possono avere» / «4.9» — e tutt'e tre muoiono in UN PUNTO
+//    SOLO: `burraco_stanza.py:270-271`, `except B.Vietato: return False`.
+//    Da li' in poi non c'e' piu' niente da perdere (`turfwar_rt_server.py:5955`
+//    butta anche il `False`, e un ack per mossa non esiste), e il giocatore
+//    legge «il server non ha accettato: APRI».
+// ⭐ QUESTA E' LA META' DEL CLIENT, ed e' pronta adesso. Il ponte sa ricevere
+//    il rifiuto in DUE forme, cosi' la mano che apre la strada dal server (la
+//    scelta N5) sceglie quella che le costa meno senza tornare qui:
+//      1) un messaggio suo   ->  burPonteNo(pt, {a, codice, frase, regola}, ora)
+//      2) dentro il pacchetto ->  v.rifiuto = {a, codice, frase, regola, n}
+//    Tutt'e due finiscono nello STESSO evento `rifiutata`, che la pagina gia'
+//    sa dire, con in piu' `frase`, `regola` e `dalMotore: true`.
+// ⛔ E IL RIFIUTO NON E' SOLO UNA FRASE. `mossa_accettata` (classic_rt.py:803)
+//    non si chiama su un `Vietato`: l'orologio della presenza NON si azzera e
+//    i 240 s corrono lo stesso. Un giocatore che crede di aver giocato, a 240
+//    s e' fuori con la posta alla casa.
+
+// La frase da leggere: quella del motore PER INTERO, col numero della regola.
+// ⚠ Il numero non si appiccica due volte: le tre regole che lo specchio ha
+//    imparato (sezione 1c) lo portano gia' dentro la frase.
+function burPonteFraseNo(e) {
+  var t;
+  if (!e) return 'il server non ha accettato la mossa';
+  if (e.frase) {
+    t = '' + e.frase;
+    if (e.regola && t.indexOf('regola ' + e.regola) < 0)
+      t += ' (regola ' + e.regola + ')';
+    return t;
+  }
+  return 'il server non ha accettato ' + (e.a || 'la mossa');
+}
+
+// Il rifiuto detto dal motore. Si aggancia alla mossa in volo con lo stesso
+// verbo (se non c'e', si dice lo stesso: un no non si perde mai) e la fa
+// uscire SUBITO, senza aspettare i 900 ms della deduzione.
+function burPonteNo(pt, dati, ora) {
+  var i, p = null, k = -1, e;
+  if (!pt || !dati) return null;
+  for (i = 0; i < pt.pend.length; i++) {
+    if (dati.a && pt.pend[i].a !== dati.a) continue;
+    p = pt.pend[i]; k = i; break;
+  }
+  if (k >= 0) pt.pend.splice(k, 1);
+  e = {tipo: 'rifiutata', a: (p ? p.a : (dati.a || null)),
+       ms: (p && ora != null) ? (ora - p.t0) : null,
+       ax: p ? p.ax : null, dalMotore: true,
+       codice: (dati.codice == null) ? null : dati.codice,
+       regola: (dati.regola == null) ? null : dati.regola,
+       frase: (dati.frase == null) ? null : dati.frase,
+       perche: burPonteFraseNo({a: (p ? p.a : dati.a), frase: dati.frase,
+                                regola: dati.regola})};
   burPonteEvento(pt, e);
   return e;
 }
@@ -67085,7 +67867,16 @@ var BUR_PONTE = {
   scartaCmd: burPonteScarta,
   specchio: BUR_SPECCHIO,
   giudica: burGiudica, giudicaLega: burGiudicaLega,
+  tavolo: BUR_TAVOLO, plurale: burTavPlurale,
+  giochiMiei: burTavGiochiMiei, hoBurraco: burTavHoBurraco,
+  pozzMio: burTavPozzMio, pozzLibero: burTavPozzLibero,
+  giudica49: burGiudica49, giudicaResidua: burGiudicaResidua,
+  giudicaSostituisci: burGiudicaSostituisci, sostDove: burPonteSostDove,
+  estBasso: burPonteEstBasso, estAlto: burPonteEstAlto,
   apriCmd: burPonteApriCmd, legaCmd: burPonteLegaCmd,
+  sostituisciCmd: burPonteSostituisciCmd, posaCmd: burPontePosaCmd,
+  legaInsegna: burPonteLegaInsegna,
+  no: burPonteNo, fraseNo: burPonteFraseNo,
   inMano: burPonteInMano, miaLinea: burPonteMiaLinea,
   apri: burMossaApri, lega: burMossaLega, sostituisci: burMossaSostituisci,
   presta: burMossaPresta, rimetti: burMossaRimetti,
@@ -67946,6 +68737,22 @@ function burHostVista(raw){
   if(p<0) p=(raw.seat!=null)?(raw.seat|0):0;
   raw.io=(me!=null)?me:((ord[p]!=null)?String(ord[p]):null);
   raw.posto=p;
+  /* ⭐ A6.5 · I NOMI, non gli id. Il motore i nomi non li sa (e fa
+     bene: un motore che sa i nomi li deve anche proteggere); la pagina si',
+     e il lettore esiste gia': `burNome` (index.html:55204) — `TU` per se
+     stessi, il nome Telegram per gli altri, `#4839` come ripiego.
+     ⛔ LA FONTE E' `RTD.names`, NON `TWR.names`: quella e' la mappa dei
+        giochi TURF, il burraco e' RTD (contratto in _bur_cerimonia.js,
+        blocco INNESTO · LA MAPPA DEI NOMI).
+     ⭐ E LA MAPPA E' TOTALE — una casella per ogni uid di `ord`, ripiego
+        compreso: cosi' il ripiego si applica UNA VOLTA SOLA, in un posto
+        solo. Due consumatori la leggono: la cerimonia (`e.nomi`) e il
+        tavolo (`d.nomi`), e sono lo stesso oggetto.                     */
+  if(!raw.nomi) raw.nomi={};
+  for(i=0;i<ord.length;i++){
+    var _bu=String(ord[i]);
+    if(!raw.nomi[_bu]) raw.nomi[_bu]=burNome(ord[i]);
+  }
   raw._burIo=1;
   return raw;
 }
@@ -68237,16 +69044,24 @@ function burHostSu(x,y,ev){
    altrui si sente dire SUBITO la 4.8 dallo specchio, invece di lasciar
    correre i 240 s su un rifiuto dedotto.                                  */
 function burHostBersagli(){
-  var s=BUR_H, out=[], i, o, g, li;
+  var s=BUR_H, out=[], i, o, g, li, gi;
   if(!s||!s.reg||!s.sc)return out;
   for(i=0;i<s.reg.length;i++){
     o=s.reg[i];
-    if(o.nome!=='gioco')continue;
-    if(o.banda===2){ g=s.sc.gioA[o.id]; }
-    else { li=Math.floor(o.id/1000)-1;
-           g=(s.sc.gioB[li]||[])[o.id%1000]; }
+    /* ⭐ A6.1 · ANCHE LE CARTE dei giochi, per la sostituzione. Il
+       registro le dichiara gia' oggi (`carta-gioco`, _bur_geom.js:1219 e
+       :1251, `id = i*100 + j`, col campo `gio` che porta la cella) e
+       `burBersaglio` vince con l'ULTIMO rettangolo, cioe' con la carta che
+       si VEDE: il posto arriva al ponte senza che il dito sappia niente di
+       matte (cancello G15, _bur_gesto_banco.mjs).                       */
+    if(o.nome!=='gioco'&&o.nome!=='carta-gioco')continue;
+    gi=(o.nome==='gioco')?o.id:o.gio;
+    if(o.banda===2){ g=s.sc.gioA[gi]; }
+    else { li=Math.floor(gi/1000)-1;
+           g=(s.sc.gioB[li]||[])[gi%1000]; }
     if(!g)continue;
-    out.push({x:o.x,y:o.y,w:o.w,h:o.h,gid:burPonteGioco(g),banda:o.banda});
+    out.push({x:o.x,y:o.y,w:o.w,h:o.h,gid:burPonteGioco(g),banda:o.banda,
+              posto:(o.nome==='carta-gioco')?(o.id%100):null});
   }
   return out;
 }
@@ -68260,11 +69075,11 @@ function burHostPosa(r, v){
   var m=burMossaCarte((v&&v.mano_mia)?v.mano_mia:[], r.facce||[]);
   var cmd;
   if(!m)return {esito:'niente',perche:"quelle carte non sono piu' tutte in mano",dito:r};
-  if(r.bersaglio&&r.bersaglio.gid!=null&&m.carte.length===1){
-    cmd=burPonteLegaCmd(v, r.bersaglio.gid, m.carte, null, v?v.io:null);
-  }else{
-    cmd=burPonteApriCmd(v, m.carte, null, null);
-  }
+  /* ⭐ A6.1 · LA MAPPA DELLA POSA STA IN UN PUNTO SOLO, nel ponte
+     (`burPontePosaCmd`): SOSTITUISCI / LEGA / APRI. Prima stava scritta qui
+     a mano, e la sostituzione ne avrebbe voluta una seconda copia — due
+     liste per la stessa legge, la trappola gia' pagata tre volte.       */
+  cmd=burPontePosaCmd(v, r.bersaglio, m.carte, v?v.io:null);
   cmd.dito=r;
   return cmd;
 }
@@ -68616,10 +69431,15 @@ function burHostVoliOra(s){
       else if(f.fatto==='scarto')
         A.aggScarto(burHostBoxLato(v,f.chi), burHostBoxMuc(1),
                     {ora:ora, carta:f.carta});
+      /* ⭐ A6.3 · `quante` (quante carte scendono ADESSO) va al VOLO come va
+         al suono: `aggVolo` ce l'ha gia' nel contratto e apre un ventaglio
+         fino a 5 carte. Senza, calarne sette si vedeva come calarne una.  */
       else if(f.fatto==='cala')
-        A.aggCala(burHostBoxLato(v,f.chi), burHostBoxGioco(f.gioco), {ora:ora});
+        A.aggCala(burHostBoxLato(v,f.chi), burHostBoxGioco(f.gioco),
+                  {ora:ora, quante:f.quante});
       else if(f.fatto==='attacca')
-        A.aggAttacca(burHostBoxLato(v,f.chi), burHostBoxGioco(f.gioco), {ora:ora});
+        A.aggAttacca(burHostBoxLato(v,f.chi), burHostBoxGioco(f.gioco),
+                     {ora:ora, quante:f.quante});
       else if(f.fatto==='lampo')
         A.aggLampo(f.nome,
                    (f.nome==='burraco')?burHostBoxGioco(f.gioco)
@@ -68769,7 +69589,13 @@ function burSnapCheck(m){
       if(e.tipo==='rifiutata'){
         burHostSuono('errore');
         burHostVibra('medium');
-        burHostDillo("il server non ha accettato: "+(e.a||'la mossa'));
+        /* ⭐ A6.6a · SE IL MOTORE HA PARLATO, si legge LUI. `e.perche`
+           e' la frase del `Vietato` per intero col numero della regola
+           (`burPonteFraseNo`); il vecchio «il server non ha accettato: APRI»
+           resta solo per il rifiuto DEDOTTO, quello che nessuno ha
+           raccontato.                                                    */
+        burHostDillo((e.dalMotore&&e.perche)?e.perche
+                     :("il server non ha accettato: "+(e.a||'la mossa')));
       }
     }
     s.pt.eventi=[];
@@ -94689,6 +95515,15 @@ function tonUiDisegna(){
         + 'Send TON to this address, <b>with the memo below</b>. It is '
         + 'credited automatically within a couple of minutes '
         + '(5% deposit fee).</div>'
+        /* S1b (parola del proprietario, 30/08) - IL DEPOSITO MINIMO E'
+           UGUALE AL PRELIEVO: 10,00 EUR. Il numero NON si scrive qui: e'
+           lo stesso `s.min_withdraw` che il server manda gia' dentro
+           /ton/state (valute_common.MIN_WITHDRAW), percio' non esiste una
+           seconda lista da tenere allineata. Prima non c'era nessun
+           minimo scritto, e chi depositava 0,5 TON (0,59 EUR) non poteva
+           piu' riprenderli. */
+        + '<div class="ton-row"><span class="ton-row__k">MINIMUM</span>'
+        + '<span class="ton-row__v">' + tonUiFmt(s.min_withdraw) + ' TON</span></div>'
         + '<div class="ton-lbl ton-lbl--sp">ADDRESS</div>'
         + '<div class="ton-well ton-well--addr">' + tonUiEsc(dep.address) + '</div>'
         + '<button class="action-btn ton-w" '
