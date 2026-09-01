@@ -12246,7 +12246,13 @@ body.gb-nav-on .bnav{display:flex;}
         <div class="bal-lbl">BALANCE</div>
         <div class="bal-row">
           <div class="bal-num" id="home-bal">€0.00</div>
-          <div class="bal-cells">
+          <!-- ⛔ (01/09/2026) NASCOSTE, NON TOLTE. `refresh()` scrive
+               `home-btc` senza controllare che esista: cancellarlo
+               alzerebbe un'eccezione dentro l'unica funzione da cui
+               passano tutti i cambi di saldo, e bloccherebbe la
+               navigazione di TUTTA l'app (vedi riga 10268).
+               Il giocatore vede solo euro: e' il modello nuovo. -->
+          <div class="bal-cells" style="display:none;">
             <div class="bal-cell" id="home-btc">0.00000000 BTC</div>
             <div class="bal-cell" id="home-ton">0.00 TON</div>
           </div>
@@ -14311,8 +14317,11 @@ body.gb-nav-on .bnav{display:flex;}
       <div>
         <div class="bal-lbl">BALANCE</div>
         <div class="bal-num" id="w-bal">€0.00</div>
-        <div class="bal-sub" id="w-btc">0.00000000 BTC</div>
+        <!-- (01/09/2026) nascoste per la stessa ragione della home:
+             `refresh()` le scrive, quindi devono esistere. -->
+        <div class="bal-sub" id="w-btc" style="display:none;">0.00000000 BTC</div>
         <div class="bal-sub" id="w-ton" style="display:none;">0.00 TON</div>
+        <div class="bal-sub" id="bal-gioc" style="display:none;"></div>
       </div>
     </div>
     <div style="display:flex;gap:8px;">
@@ -17802,6 +17811,11 @@ var S={
      null vuol dire "non me l'ha detto" — e sono due cose diverse
      il giorno che la pagina gira contro un backend vecchio. */
   eurTon:null,eurTonTs:0,eurGioc:null,tonGioco:false,tonFresh:false,
+  /* (01/09/2026) `eurPoss` = la parte NON bitcoin di quello che
+     POSSIEDE, in euro (`eur_totale` - `eur_btc`, come li manda il
+     server). Si tiene separata dal bitcoin per la stessa ragione di
+     `eurTon`: il bitcoin cambia a ogni puntata, questa no. */
+  eurPoss:null,eurParz:false,eurPerche:null,eurMotivo:null,
   _capBtcVisto:null,_capVegliaTs:0
 };
 
@@ -17883,6 +17897,15 @@ function capEur(){return(S.btc*S.rate)+capTonEur();}
    sarebbe una promessa che nessuna rotta puo' mantenere. */
 function btcEur(){return'\u20ac'+fmt(S.btc*S.rate,2);}
 function balEur(){return'\u20ac'+fmt(capEur(),2);}
+/* QUANTO POSSIEDE, in euro. ⚠️ Non e' `capEur()`: quello e' quanto puo'
+   PUNTARE adesso, e i due numeri differiscono finche' esiste un saldo in
+   una moneta che il server non converte (oggi: i TON non autorizzati).
+   Questo e' il numero grande della card, perche' e' quello che il
+   giocatore chiama \"i miei soldi\"; il giocabile resta sui tavoli, dove
+   un numero e' una promessa. */
+function possEurN(){var p=S.eurPoss;p=(p===null||p===undefined||!(+p>0))?0:+p;
+  return(S.btc*S.rate)+p;}
+function possEur(){return'\u20ac'+fmt(possEurN(),2);}
 
 /* Assorbe i campi nuovi di /balance (fase 4). ADDITIVO in senso stretto: se
    non ci sono NON tocca niente — un backend vecchio non deve poter
@@ -17901,6 +17924,19 @@ function capTonSetta(d){
   if(d.eur_giocabile!==undefined&&d.eur_giocabile!==null)S.eurGioc=+d.eur_giocabile;
   if(d.ton_gioco!==undefined)S.tonGioco=!!d.ton_gioco;
   if(d.ton_fresh!==undefined)S.tonFresh=!!d.ton_fresh;
+  /* (01/09/2026) QUANTO POSSIEDE. `eur_totale` il server lo mandava
+     da giorni e questa pagina non lo leggeva: e' il motivo per cui
+     chi aveva dei TON li vedeva scritti e non li ritrovava in
+     nessun totale. Si tiene la sola parte NON bitcoin, e la si
+     somma al bitcoin VIVO in `possEur()`. */
+  if(d.eur_totale!==undefined&&d.eur_totale!==null&&
+     d.eur_btc!==undefined&&d.eur_btc!==null){
+    var p=(+d.eur_totale)-(+d.eur_btc);
+    S.eurPoss=(p>0)?p:0;          /* prende anche NaN: NaN>0 e' falso */
+  }
+  if(d.eur_parziale!==undefined)S.eurParz=!!d.eur_parziale;
+  if(d.perche!==undefined)S.eurPerche=d.perche;
+  if(d.motivo!==undefined)S.eurMotivo=d.motivo;
 }
 
 /* LA VEGLIA SUL RABBOCCO — ⚠️ la trappola di tutto questo pezzo.
@@ -31696,13 +31732,14 @@ function go(id){
 }
 
 function refresh(){
-  var b=balEur();
-  document.getElementById('home-bal').textContent=b;
+  var b=balEur();          /* quanto puo' PUNTARE: resta sui tavoli */
+  var p=possEur();         /* quanto POSSIEDE: la card del saldo */
+  document.getElementById('home-bal').textContent=p;
   document.getElementById('home-btc').textContent=btcStr(S.btc);
   ['bj-bal','slots-bal','rl-bal','dc-bal','sc-bal','cr-bal','lt-bal','pk-bal','br-bal','vk-bal','turf-bal','tank-bal','glad-bal','arc-bal','lob-bal'].forEach(function(id){
     var e=document.getElementById(id);if(e)e.textContent=b;
   });
-  var w=document.getElementById('w-bal');if(w)w.textContent=b;
+  var w=document.getElementById('w-bal');if(w)w.textContent=p;
   var wb=document.getElementById('w-btc');if(wb)wb.textContent=btcStr(S.btc);
   /* IL TON (03/08/2026). La riga compare SOLO se il saldo e maggiore di zero.
      Oggi non lo e per nessuno, ed e giusto cosi: finche non esistono un gioco
@@ -31734,6 +31771,21 @@ function refresh(){
      di questa fase capace di far chiedere un prelievo impossibile. */
   var wdb=document.getElementById('wd-bal');if(wdb)wdb.textContent=btcEur();
   var wdbtc=document.getElementById('wd-btc');if(wdbtc)wdbtc.textContent=btcStr(S.btc);
+  /* ⚠️ LA DIFFERENZA SI DICE, NON SI NASCONDE. Se di quello che
+     possiede non si puo' puntare tutto, il giocatore lo deve leggere
+     PRIMA di scoprirlo con un rifiuto — ed e' esattamente cio' che
+     succedeva: i TON comparivano nel saldo e non entravano in
+     nessuna puntata, senza una parola. Il motivo lo manda il server
+     (`motivo`), non ce lo inventiamo qui. */
+  var g=document.getElementById('bal-gioc');
+  if(g){
+    var diff=possEurN()-capEur();
+    if(diff>0.005){
+      g.textContent='\u20ac'+fmt(capEur(),2)+' available to play'+
+                    (S.eurMotivo?(' \u00b7 '+S.eurMotivo):'');
+      g.style.display='';
+    } else g.style.display='none';
+  }
   var lvl=getLevel(S.xp);
   document.getElementById('lvl-num').textContent='Lv.'+lvl.level;
   document.getElementById('lvl-icon').textContent=lvl.icon;
@@ -38631,7 +38683,15 @@ function swapCreate(){
     btn.disabled=false; btn.textContent='🔄 CONVERTI IN BTC';
     if(res.status===503){ swapShowOff(); return; }
     var d=res.data||{};
-    if(!res.ok || !d.payinAddress){ toast(d.error||'Errore creazione swap','err'); return; }
+    if(!res.ok || !d.payinAddress){
+      /* ⭐ (31/08/2026) LO STESSO DIFETTO DEL PRELIEVO TON, un piano piu' in
+         la'. Qui si stampava la frase del server tale e quale, e il RIPIEGO
+         era in ITALIANO ('Errore creazione swap') dentro una pagina che parla
+         inglese a tutti gli altri. Chi vedeva quel messaggio era, per
+         definizione, uno a cui qualcosa era appena andato storto sui soldi. */
+      var smsg = d.error || 'Could not create the swap. Nothing was charged.';
+      toast(smsg,'err'); return;
+    }
     swapShowResult(c,d);
   }).catch(function(){
     btn.disabled=false; btn.textContent='🔄 CONVERTI IN BTC';
@@ -95514,7 +95574,13 @@ function tonUiDisegna(){
         '<div class="ton-p">'
         + 'Send TON to this address, <b>with the memo below</b>. It is '
         + 'credited automatically within a couple of minutes '
-        + '(5% deposit fee).</div>'
+        /* ⭐ (31/08/2026) LA COMMISSIONE VIENE DAL SERVER. Qui c'era un
+           «5%» battuto a mano accanto a ton_depositi.COMMISSIONE = 0.05:
+           coincidevano per abitudine, e nessun cancello li teneva
+           insieme. Il giorno che il proprietario cambia la quota, questa
+           riga avrebbe continuato a dire 5. */
+        + '(' + (s.deposit_fee_pct != null ? s.deposit_fee_pct : 5)
+        + '% deposit fee).</div>'
         /* S1b (parola del proprietario, 30/08) - IL DEPOSITO MINIMO E'
            UGUALE AL PRELIEVO: 10,00 EUR. Il numero NON si scrive qui: e'
            lo stesso `s.min_withdraw` che il server manda gia' dentro
@@ -95821,14 +95887,35 @@ function tonUiPreleva(){
     TONUI.busy = false;
     var d = res.data || {};
     if(!res.ok || !d.ok){
-      if(typeof toast==='function') toast(d.error || 'Withdrawal refused','err');
+      /* ⭐ (31/08/2026) IL CODICE, NON LA FRASE DEL SERVER. Qui si stampava
+         `d.error` tale e quale: il motivo nasceva in italiano dentro
+         ton_coda.apri e arrivava intatto a un giocatore inglese, che leggeva
+         «saldo TON insufficiente». Adesso il server manda anche `error_code`,
+         che non e' una lingua, e la pagina dice la sua frase. `d.error` resta
+         il ripiego: e' gia' inglese, e un motivo nuovo si legge lo stesso
+         invece di sparire dietro un «refused» generico. */
+      var TON_ERR = {
+        saldo:       'Not enough TON in your balance.',
+        gia_uno:     'You already have a TON withdrawal in progress.',
+        sospesi:     'TON withdrawals are paused right now: one of them needs to be cleared first. Nothing is lost.',
+        sconosciuto: 'Account not found.',
+        inesistente: 'That request no longer exists.'
+      };
+      var msg = TON_ERR[d.error_code] || d.error || 'Withdrawal refused';
+      if(typeof toast==='function') toast(msg,'err');
       if(btn){ btn.disabled=false; btn.textContent='\ud83d\udce4 WITHDRAW TO MY WALLET'; }
       return;
     }
     if(typeof toast==='function')
-      toast(d.needs_approval
-        ? 'Requested. An operator will approve it shortly.'
-        : 'Requested. It leaves within a minute.', 'ok');
+      /* ⭐ (31/08/2026) «un minuto» solo se e' vero. La coda TON puo' essere
+         ferma per un pagamento da chiarire: prima la richiesta veniva
+         rifiutata (anche a chi non c'entrava), adesso entra in coda — e
+         prometterle un minuto sarebbe la stessa bugia detta gentilmente. */
+      toast(d.queue_paused
+        ? 'Requested. The TON queue is paused while we clear an earlier payment: yours leaves as soon as it restarts, and you can cancel until then.'
+        : (d.needs_approval
+          ? 'Requested. An operator will approve it shortly.'
+          : 'Requested. It leaves within a minute.'), 'ok');
     return tonUiLoad();
   }).catch(function(){
     TONUI.busy = false;
