@@ -38469,18 +38469,33 @@ function renderWallet(){
     var ts=t.ts||t.timestamp||0;
     var dateStr=ts?new Date(ts*1000).toLocaleString():'';
     var rawAmt=t.amount||0;
-    // Determine if amount is in BTC or EUR:
-    // - Backend stores game txs in BTC (small numbers like 0.0001)
-    // - Deposits/withdrawals stored in EUR usually (larger numbers like 50)
-    // Heuristic: amount > 1 = likely EUR; amount < 1 = likely BTC
+    /* ⛔ (01/09/2026) VIA L'INDOVINELLO. Qui c'era, scritto per esteso:
+         «Heuristic: amount > 1 = likely EUR; amount < 1 = likely BTC»
+       cioe' l'unita' di un importo si deduceva dalla sua GRANDEZZA. E' lo
+       stesso indovinello che il 31/08 e' stato tolto dal pannello admin
+       (`_sanitize_btc`, «any value greater than 1.0 BTC ... is almost
+       certainly EUR»), e li' era gia' stato giudicato: il numero mostrato
+       dipendeva dall'indovinello.
+       Cosa costava: un deposito da 0,5 BTC — 33.600 euro — veniva letto
+       come «0,5 euro». E una vincita da 3 unita' come «3 euro».
+       ⚠️ E il ramo `type==='deposit' || 'withdraw'` NON SCATTAVA MAI:
+       contati sul registro vero, in `txs` non esiste NESSUNA riga con quei
+       tipi (ci sono solo turfwar_buyin, game_win, game_loss, duel_*,
+       lotto_*, challenge_reward). Depositi e prelievi in questa lista non
+       comparivano proprio.
+       Adesso: l'unita' la DICHIARA il server nel campo `unita`. Se non la
+       dichiara, si assume BTC — che e' cio' che `txs` contiene davvero,
+       misurato — e non si tira a indovinare. */
     var amtEur;
-    if(t.type==='deposit'||t.type==='withdraw'){
-      // These are usually stored in EUR already
+    var unita=(t.unita||t.unit||'BTC').toUpperCase();
+    if(unita==='EUR'){
       amtEur=rawAmt;
-    }else if(rawAmt<1){
-      amtEur=rawAmt*S.rate;
+    }else if(unita==='TON'){
+      /* il client NON conosce il tasso del TON e non se lo inventa: se il
+         server non ha mandato gli euro gia' fatti, si mostra la moneta. */
+      amtEur=(t.eur!==undefined&&t.eur!==null)?(+t.eur):null;
     }else{
-      amtEur=rawAmt;
+      amtEur=rawAmt*S.rate;
     }
     // Determine sign based on type
     var isPositive=(t.type==='game_win'||t.type==='deposit'||t.type==='challenge_reward'||t.type==='lotto_win'||t.type==='duel_win');
@@ -38501,13 +38516,20 @@ function renderWallet(){
     if(t.game && t.game!=='Deposito' && t.game!=='Prelievo' && t.game!=='game'){
       label += ' · '+t.game;
     }
-    var displayAmt=Math.abs(amtEur).toFixed(2);
+    /* se gli euro non si sanno (una moneta di cui il client non ha il
+       tasso), si mostra la MONETA invece di un numero inventato. */
+    var testo;
+    if(amtEur===null||amtEur===undefined||amtEur!==amtEur){
+      testo=fmt(Math.abs(rawAmt),unita==='TON'?2:8)+' '+unita;
+    }else{
+      testo='€'+Math.abs(amtEur).toFixed(2);
+    }
     var sign=isPositive?'+':(isNegative?'−':'');
     var cls=isPositive?'pos':(isNegative?'neg':'');
     return '<div class="tx-item">'+
       '<div class="tx-info"><div class="tx-type">'+label+'</div>'+
       '<div class="tx-time">'+dateStr+'</div></div>'+
-      '<div class="tx-amt '+cls+'">'+sign+'€'+displayAmt+'</div></div>';
+      '<div class="tx-amt '+cls+'">'+sign+testo+'</div></div>';
   }).join('');
 }
 
