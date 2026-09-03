@@ -95991,7 +95991,10 @@ function tonUiErrore(t){
 function tonUiDisegna(){
   var s = TONUI.st || {};
   var b = document.getElementById('tonui-bal');
-  if(b) b.textContent = tonUiFmt(s.balance) + ' TON';
+  /* mondo in euro: il saldo E' euro; il portafoglio TON e' azzerato */
+  if(b) b.textContent = (s.saldo_eur!=null)
+    ? ('\u20ac' + (+s.saldo_eur).toFixed(2))
+    : (tonUiFmt(s.balance) + ' TON');
   /* ⚠️ 24/08: QUANTO VALGONO, in euro. Il numero grande resta in TON
      — un prelievo si chiede in TON, e nasconderlo dietro un euro
      renderebbe la schermata inutilizzabile — ma il giocatore deve poter
@@ -96000,6 +96003,7 @@ function tonUiDisegna(){
      server (/ton/state, fase 4.2): il TASSO del TON qui non arriva mai,
      cosi' la pagina non puo' inventarselo. */
   var _te = (s.eur===undefined||s.eur===null) ? null : +s.eur;
+  if(s.saldo_eur!=null) _te = null;   /* il numero grande E' gia' euro */
   var _tv = (_te!==null && _te>0)
     ? ('<span class="ton-sub-k">\u2248 \u20ac' + _te.toFixed(2) + '</span>') : '';
   var sub = document.getElementById('tonui-sub');
@@ -96092,9 +96096,13 @@ function tonUiDisegna(){
         /* R3: la carta espone i suoi due numeri invece di una riga di prosa.
            Sono gli stessi che /ton/state manda gia': nessuna chiamata in piu'. */
         + '<div class="ton-row"><span class="ton-row__k">AVAILABLE</span>'
-        + '<span class="ton-row__v">' + tonUiFmt(s.balance) + ' TON</span></div>'
+        + '<span class="ton-row__v">' + ((s.saldo_eur!=null)
+            ? ('\u20ac' + (+s.saldo_eur).toFixed(2))
+            : (tonUiFmt(s.balance) + ' TON')) + '</span></div>'
         + '<div class="ton-row"><span class="ton-row__k">MINIMUM</span>'
-        + '<span class="ton-row__v">' + tonUiFmt(s.min_withdraw) + ' TON</span></div>'
+        + '<span class="ton-row__v">' + ((s.min_cent!=null)
+            ? ('\u20ac' + (s.min_cent/100).toFixed(2))
+            : (tonUiFmt(s.min_withdraw) + ' TON')) + '</span></div>'
         + '<button class="action-btn gold ton-w ton-cta" '
         + 'id="tonui-wdbtn" onclick="tonUiPreleva()">\ud83d\udce4 WITHDRAW TO MY WALLET</button>'
         + avviso;
@@ -96322,7 +96330,10 @@ function tonUiCopiaDep(quale){
 
 function tonUiMax(){
   var i = document.getElementById('tonui-amt');
-  if(i && TONUI.st) i.value = tonUiFmt(TONUI.st.balance);
+  if(!i || !TONUI.st) return;
+  i.value = (TONUI.st.saldo_eur!=null)
+    ? (+TONUI.st.saldo_eur).toFixed(2)
+    : tonUiFmt(TONUI.st.balance);
 }
 
 /* ── collegare: nonce dal server, prova dal wallet, verifica dal server ── */
@@ -96461,9 +96472,18 @@ function tonUiPreleva(){
   var btn = document.getElementById('tonui-wdbtn');
   TONUI.busy = true;
   if(btn){ btn.disabled = true; btn.textContent = 'Sending\u2026'; }
+  /* mondo in euro: accanto alla stringa viaggiano i CENTESIMI, cosi'
+     il server non deve rifare il parsing di un numero scritto a mano.
+     Con «all»/«max» decide il server sul saldo del momento. */
+  var _wb = { amount: v };
+  var _wf = parseFloat(String(v).replace(',', '.'));
+  if(TONUI.st && TONUI.st.saldo_cent!=null && isFinite(_wf) && _wf>0 &&
+     !/^(all|max|tutto)$/i.test(String(v).trim())){
+    _wb.cent = Math.round(_wf*100);
+  }
   swapApi('/ton/withdraw', {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ amount: v })
+    body: JSON.stringify(_wb)
   }).then(function(res){
     TONUI.busy = false;
     var d = res.data || {};
