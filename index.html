@@ -18435,7 +18435,7 @@ function grStart(){
   if(capEur()<eur){ toast('Insufficient balance','err'); return; }
   if(!S.userId){ toast('Open in Telegram to play','err'); return; }
   GR.busy=true; grSound('chip');
-  fetch(BACKEND+'/run/start',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId,ante_btc:eurToBtc(eur)})})
+  fetch(BACKEND+'/run/start',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId,...postaCent(eur,'ante')})})
     .then(function(r){return r.json();}).then(function(d){
       GR.busy=false;
       if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); if(typeof loadBalance==='function')loadBalance(); return; }
@@ -18462,7 +18462,7 @@ function grStart(){
         var _th=grTheme(); toast('🎰 '+_th.nm+' — '+_th.intro,'gold',4200);
       }
       if(d.balances)S.bal=d.balances;   /* 03/08: tutte le valute, se il server le manda */
-      if(d.btc!==undefined){ S.btc=d.btc; refresh(); } grUpdBal();
+      if(d.btc!==undefined){ S.btc=saldoDa(d); refresh(); } grUpdBal();
       // HOOK GDR (I1): carta CONTRATTO prima di entrare nel Palazzo (cb chiamata UNA volta;
       // server vecchio / GR_RPG_ON=false → _go() secco, comportamento identico a prima)
       var _goFired=false;
@@ -19807,7 +19807,7 @@ function grEventResolve(idx, ei){
       GR.busy=false;
       if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); return; }
       if(d.balances)S.bal=d.balances;   /* 03/08: tutte le valute, se il server le manda */
-      if(d.btc!==undefined){ S.btc=d.btc; refresh(); }
+      if(d.btc!==undefined){ S.btc=saldoDa(d); refresh(); }
       var ev=(d&&d.event)||{};
       var parts=[]; if(ev.text) parts.push(ev.text);
       var diff=grStoryDiff(GR._storyPrev, d.story); if(diff.length) parts.push(diff.join(' · '));
@@ -19859,7 +19859,7 @@ function grActResolve(idx, extra, dopo){
          niente. Il giocatore vede semplicemente la stanza che aveva scelto, risolta. */
       if(d&&d.__st===409){
         grHideVideo(); GR.busy=false; if(_ch)_ch.style.opacity='1';
-        if(d.btc!==undefined){ S.btc=d.btc; refresh(); }
+        if(d.btc!==undefined){ S.btc=saldoDa(d); refresh(); }
         if(d.over){ grEnd(d); } else { grRender(d); }
         return;
       }
@@ -19883,7 +19883,7 @@ function grActResolve(idx, extra, dopo){
           grHideVideo();
           GR.busy=false; if(_ch)_ch.style.opacity='1';
           if(d.balances)S.bal=d.balances;   /* 03/08: tutte le valute, se il server le manda */
-      if(d.btc!==undefined){ S.btc=d.btc; refresh(); }
+      if(d.btc!==undefined){ S.btc=saldoDa(d); refresh(); }
           if(d.over){ grEnd(d); } else { grRender(d); }
         }, 1150);
       }, reveal);
@@ -28509,7 +28509,7 @@ function grCashout(){
       GR.busy=false;
       if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); return; }
       if(d.balances)S.bal=d.balances;   /* 03/08: tutte le valute, se il server le manda */
-      if(d.btc!==undefined){ S.btc=d.btc; refresh(); }
+      if(d.btc!==undefined){ S.btc=saldoDa(d); refresh(); }
       grSound('win-medium'); grEnd(d);
     }).catch(function(){ GR.busy=false; toast('Network error','err'); });
 }
@@ -31486,11 +31486,11 @@ function brStart(){
   if(!hasFunds(bet)){toast('Insufficient balance','err');return;}
   if(!S.userId){toast('Open in Telegram to play','err');return;}
   BR.busy=true; BR.bet=bet;
-  fetch(BACKEND+'/botroulette/start',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId,bet_btc:eurToBtc(bet),live:BR.live})})
+  fetch(BACKEND+'/botroulette/start',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId,...postaCent(bet),live:BR.live})})
     .then(function(r){return r.json();}).then(function(d){
       BR.busy=false;
       if(!d||d.error){toast('⚠️ '+((d&&d.error)||'error'),'err');if(typeof loadBalance==='function')loadBalance();return;}
-      if(d.btc!==undefined)S.btc=d.btc;
+      if(d.btc!==undefined)S.btc=saldoDa(d);
       if(d.total_bet_eur!==undefined)S.totalBet=d.total_bet_eur;
       refresh();
       BR.active=true; BR.view=d.view;
@@ -31519,7 +31519,7 @@ function brSurvive(){
   document.getElementById('br-status').textContent = BR.view.can_pull ? '*click* — safe! Push your luck or bank it.' : 'Survived the max! Cash out for the big one.';
 }
 function brBang(d){
-  if(d.btc!==undefined)S.btc=d.btc;
+  if(d.btc!==undefined)S.btc=saldoDa(d);
   if(d.losses!==undefined)S.losses=d.losses;
   refresh(); if(CUR==='profile')renderProfile();
   gSound('explosion');
@@ -31541,7 +31541,7 @@ function brCashout(){
     .then(function(r){return r.json();}).then(function(d){
       BR.busy=false;
       if(!d||d.error){toast('⚠️ '+((d&&d.error)||'error'),'err');return;}
-      if(d.btc!==undefined)S.btc=d.btc; refresh(); if(CUR==='profile')renderProfile();
+      if(d.btc!==undefined)S.btc=saldoDa(d); refresh(); if(CUR==='profile')renderProfile();
       gSound('win-big');
       BR.active=false;
       document.getElementById('br-mult').innerHTML=d.mult.toFixed(2)+'<span class="x">x</span>';
@@ -31671,11 +31671,11 @@ function vkStart(){
   if(!hasFunds(bet)){toast('Insufficient balance','err');return;}
   if(!S.userId){toast('Open in Telegram to play','err');return;}
   VK.busy=true; VK.bet=bet;
-  fetch(BACKEND+'/vault/start',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId,bet_btc:eurToBtc(bet),level:VK.level})})
+  fetch(BACKEND+'/vault/start',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId,...postaCent(bet),level:VK.level})})
     .then(function(r){return r.json();}).then(function(d){
       VK.busy=false;
       if(!d||d.error){toast('⚠️ '+((d&&d.error)||'error'),'err');if(typeof loadBalance==='function')loadBalance();return;}
-      if(d.btc!==undefined)S.btc=d.btc;
+      if(d.btc!==undefined)S.btc=saldoDa(d);
       if(d.total_bet_eur!==undefined)S.totalBet=d.total_bet_eur;
       refresh();
       VK.active=true; VK.view=d.view; gSound('chip');
@@ -31704,7 +31704,7 @@ function vkLoot(){
   if(VK.view.can_pick){ setTimeout(function(){ if(VK.active&&VK.view) vkRenderDial(VK.view, false); }, 720); }
 }
 function vkBoom(d){
-  if(d.btc!==undefined)S.btc=d.btc;
+  if(d.btc!==undefined)S.btc=saldoDa(d);
   if(d.losses!==undefined)S.losses=d.losses;
   refresh(); if(CUR==='profile')renderProfile();
   gSound('explosion');
@@ -31725,7 +31725,7 @@ function vkCashout(){
     .then(function(r){return r.json();}).then(function(d){
       VK.busy=false;
       if(!d||d.error){toast('⚠️ '+((d&&d.error)||'error'),'err');return;}
-      if(d.btc!==undefined)S.btc=d.btc; refresh(); if(CUR==='profile')renderProfile();
+      if(d.btc!==undefined)S.btc=saldoDa(d); refresh(); if(CUR==='profile')renderProfile();
       gSound('win-big');
       VK.active=false;
       document.getElementById('vk-mult').innerHTML=d.mult.toFixed(2)+'<span class="x">x</span>';
@@ -31945,6 +31945,21 @@ function buildBets(containerId,key){
 }
 
 function eurToBtc(e){return e/S.rate;}
+/* ⭐ FASE B/C (D10, lato pagina). `postaCent` manda TUTT'E DUE i campi:
+   il server nuovo preferisce i centesimi (e il prezzo non c'entra piu'),
+   quello vecchio legge i bitcoin. Il campo vecchio si togliera' quando nei
+   log del server non arrivera' piu' una richiesta senza `bet_cent`. */
+function postaCent(eur,campo){campo=campo||'bet';var o={};
+  o[campo+'_cent']=Math.round(eur*100);
+  o[campo+'_btc']=eurToBtc(eur);return o;}
+/* `saldoDa` legge la VERITA' (cent) quando c'e'. S.btc resta l'unita'
+   interna della pagina, ma derivata dai centesimi: l'euro mostrato
+   (S.btc*S.rate) torna esattamente cent/100 — il prezzo entra ed esce
+   dalla stessa moltiplicazione, e si cancella. */
+function saldoDa(d){
+  if(d&&d.cent!=null){S.cent=d.cent;
+    return (S.rate>0)?(d.cent/100)/S.rate:(d.btc||0);}
+  return (d&&d.btc!=null)?d.btc:S.btc;}
 /* ⚠️ 24/08: la capienza, non il bitcoin — la pagina non deve dire
    di no a una puntata che il server accetterebbe. Il margine dello 0,999
    e' quello di sempre (0,1% per lo scarto fra il tasso della pagina e
@@ -32075,7 +32090,7 @@ function bjApply(d){
   // drifts a cent or two as the live BTC rate moves vs the client's cached rate (looked like a "fee").
   BJ.hands=d.hands.map(function(h){ return {cards:h.cards,bet:(BJ.bet||h.bet_eur)*(h.doubled?2:1),done:h.done,bust:h.bust,won:h.won,push:h.push,blackjack:h.blackjack,doubled:h.doubled}; });
   BJ.activeHand=d.active_hand||0;
-  if(d.btc!==undefined)S.btc=d.btc;
+  if(d.btc!==undefined)S.btc=saldoDa(d);
   if(d.total_bet_eur!==undefined)S.totalBet=d.total_bet_eur;
   if(d.state==='done'){
     BJ.dealer=d.dealer; BJ.dealerBlackjack=d.dealer_bj; BJ.active=false;
@@ -32122,7 +32137,7 @@ function bjDeal(){
   gSound('chip');
   setTimeout(function(){ gSound('card'); }, 120);
   setTimeout(function(){ gSound('card'); }, 240);
-  bjFetch('/bj/deal',{user_id:S.userId,bet_btc:eurToBtc(bet)});
+  bjFetch('/bj/deal',{user_id:S.userId,...postaCent(bet)});
 }
 function bjHit(){
   if(BJ.busy||!BJ.active)return;
@@ -33685,7 +33700,7 @@ function slv2SpinFetch(){
   uiBusy(true, 'Spinning…');
   fetch(BACKEND + '/play/slots', {
     method:'POST', headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},
-    body:JSON.stringify({user_id:S.userId, bet_btc:eurToBtc(bet)})
+    body:JSON.stringify({user_id:S.userId, ...postaCent(bet)})
   }).then(function(r){ return r.json(); }).then(function(d){
     if(btn) btn.disabled = false;
     if(!d || d.error){
@@ -37790,7 +37805,7 @@ function rlSpin(){
   buildRouletteWheel();
   gSound('chip-stack');
   S.btc=Math.max(0,S.btc-eurToBtc(totalBet)); refresh();   // optimistic: show bet deducted now (server is authoritative)
-  var payload=RL.bets.map(function(b){return {type:b.type,nums:b.nums||[],amount_btc:eurToBtc(b.amount)};});
+  var payload=RL.bets.map(function(b){return {type:b.type,nums:b.nums||[],...postaCent(b.amount,'amount')};});
   fetch(BACKEND+'/play/roulette',{
     method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},
     body:JSON.stringify({user_id:S.userId,bets:payload})
@@ -37816,7 +37831,7 @@ function rlSpin(){
       if(resEl){resEl.textContent=result;resEl.className='rl-result-num '+color;}
       if(colEl){colEl.textContent=color.toUpperCase()+(result%2===0&&result!==0?' · EVEN':(result!==0?' · ODD':''));}
       RL.history.unshift({n:result,c:color});if(RL.history.length>10)RL.history.pop();renderRlHistory();
-      if(d.btc!==undefined)S.btc=d.btc; if(d.wins!==undefined)S.wins=d.wins; if(d.losses!==undefined)S.losses=d.losses;
+      if(d.btc!==undefined)S.btc=saldoDa(d); if(d.wins!==undefined)S.wins=d.wins; if(d.losses!==undefined)S.losses=d.losses;
       if(d.total_bet_eur!==undefined)S.totalBet=d.total_bet_eur; if(d.biggest_win_eur!==undefined)S.biggestWin=d.biggest_win_eur;
       refresh(); if(CUR==='profile')renderProfile();
       var wonEur=(d.won_btc||0)*S.rate;
@@ -37918,7 +37933,7 @@ function dcRoll(){
     gSound('dice-stop'); hapGioco('colpo');   // i dadi atterrano (01/08)
     setTimeout(function(){d1.classList.remove('landed');d2.classList.remove('landed');},420);
     totalEl.textContent=sum;
-    if(resp.btc!==undefined) S.btc=resp.btc;
+    if(resp.btc!==undefined) S.btc=saldoDa(resp);
     if(resp.wins!==undefined) S.wins=resp.wins;
     if(resp.losses!==undefined) S.losses=resp.losses;
     if(resp.total_bet_eur!==undefined) S.totalBet=resp.total_bet_eur;
@@ -37945,7 +37960,7 @@ function dcRoll(){
   fetch(BACKEND+'/play/dice',{
     method:'POST',
     headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},
-    body:JSON.stringify({user_id:S.userId, bet_btc:eurToBtc(bet), pick:DC.pick})
+    body:JSON.stringify({user_id:S.userId, ...postaCent(bet), pick:DC.pick})
   }).then(function(r){return r.json();})
     .then(function(d){ resp=d; tryReveal(); })
     .catch(function(e){ respErr=e||true; tryReveal(); });
@@ -38030,12 +38045,12 @@ function scNew(){
   SCR.busy=true;
   fetch(BACKEND+'/scratch/new',{
     method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},
-    body:JSON.stringify({user_id:S.userId,bet_btc:eurToBtc(bet)})
+    body:JSON.stringify({user_id:S.userId,...postaCent(bet)})
   }).then(function(r){return r.json();}).then(function(d){
     SCR.busy=false;
     if(!d||d.error){toast('⚠️ '+((d&&d.error)||'error'),'err');if(typeof loadBalance==='function')loadBalance();return;}
     SCR.bet=bet;SCR.active=true;SCR.won=0;SCR.revealed=[];SCR.cells={};SCR.exploded=null;
-    if(d.btc!==undefined)S.btc=d.btc;
+    if(d.btc!==undefined)S.btc=saldoDa(d);
     if(d.total_bet_eur!==undefined)S.totalBet=d.total_bet_eur;
     refresh();if(CUR==='profile')renderProfile();
     gSound('ticket');
@@ -38061,7 +38076,7 @@ function scReveal(idx){
     if(d.bomb){
       SCR.active=false;SCR.exploded=idx;
       if(d.board){for(var i=0;i<d.board.length;i++){SCR.cells[i]=d.board[i];}}
-      if(d.btc!==undefined)S.btc=d.btc;
+      if(d.btc!==undefined)S.btc=saldoDa(d);
       if(d.losses!==undefined)S.losses=d.losses;
       refresh();if(CUR==='profile')renderProfile();
       renderScratch();
@@ -38079,7 +38094,7 @@ function scReveal(idx){
     renderScratch();
     if(d.perfect){
       SCR.active=false;
-      if(d.btc!==undefined)S.btc=d.btc;
+      if(d.btc!==undefined)S.btc=saldoDa(d);
       if(d.wins!==undefined)S.wins=d.wins;
       if(d.biggest_win_eur!==undefined)S.biggestWin=d.biggest_win_eur;
       refresh();if(CUR==='profile')renderProfile();
@@ -38104,7 +38119,7 @@ function scCashout(){
     SCR.busy=false;
     if(!d||d.error){toast('⚠️ '+((d&&d.error)||'error'),'err');return;}
     SCR.active=false;
-    if(d.btc!==undefined)S.btc=d.btc;
+    if(d.btc!==undefined)S.btc=saldoDa(d);
     if(d.wins!==undefined)S.wins=d.wins;
     if(d.biggest_win_eur!==undefined)S.biggestWin=d.biggest_win_eur;
     if(d.won_eur!==undefined)SCR.won=d.won_eur;
@@ -38145,12 +38160,12 @@ function crAction(){
     if(!S.userId){toast('Open in Telegram to play','err');return;}
     if(CR._starting)return; CR._starting=true;
     var _b0=document.getElementById('cr-btn'); if(_b0)_b0.disabled=true;
-    fetch(BACKEND+'/crash/start',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId,bet_btc:eurToBtc(bet)})})
+    fetch(BACKEND+'/crash/start',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId,...postaCent(bet)})})
       .then(function(r){return r.json();}).then(function(d){
         CR._starting=false; if(_b0)_b0.disabled=false;
         if(!d||d.error){toast('⚠️ '+((d&&d.error)||'error'),'err');if(typeof loadBalance==='function')loadBalance();return;}
         CR.bet=bet;CR.hasBet=true;CR.srvActive=true;CR.crashAt=0;CR.srvStartMs=d.start_ms;CR.lastPoll=0;
-        if(d.btc!==undefined)S.btc=d.btc; refresh();
+        if(d.btc!==undefined)S.btc=saldoDa(d); refresh();
         gSound('chip');
         setTimeout(function(){ gSound('rocket-launch'); }, 100);
         CR.startTime=performance.now();
@@ -38179,7 +38194,7 @@ function crCashout(){
       var mult=d.mult, won=(d.won_eur!==undefined)?d.won_eur:(CR.bet*mult);
       CR.mult=mult; CR.crashAt=d.crashAt||mult;
       CR.history.unshift({mult:mult,crashed:false}); CR.history=CR.history.slice(0,10);
-      if(d.btc!==undefined)S.btc=d.btc; if(d.wins!==undefined)S.wins=d.wins; if(d.biggest_win_eur!==undefined)S.biggestWin=d.biggest_win_eur;
+      if(d.btc!==undefined)S.btc=saldoDa(d); if(d.wins!==undefined)S.wins=d.wins; if(d.biggest_win_eur!==undefined)S.biggestWin=d.biggest_win_eur;
       refresh(); if(CUR==='profile')renderProfile();
       gSound('cashout');
       setTimeout(function(){ if(mult>=5)gSound('win-big'); else if(mult>=2)gSound('win-medium'); else gSound('win-small'); }, 250);
@@ -39479,7 +39494,7 @@ function chClaim(qid){
       toast('🎁 Reward claimed! +€'+rewardEur.toFixed(2),'ok',3000);
       if(!S.claimedQuests)S.claimedQuests={};
       S.claimedQuests[qid]=true;
-      if(d.btc!==undefined)S.btc=d.btc;
+      if(d.btc!==undefined)S.btc=saldoDa(d);
       refresh();
       fetchChallenges(renderChallenges);
     }else{
@@ -39629,7 +39644,7 @@ function loadBalance(){
       dcFillMult(d);        /* i pagamenti del dado, come li dice il server */
       /* (02/09) le monete in cui questo conto puo' uscire, dal server */
       if (d.monete_uscita !== undefined) S.moneteUscita = d.monete_uscita;
-      S.btc=d.btc||0;
+      S.btc=saldoDa(d)||0;
       /* ⚠️ `balances` /balance lo manda da sempre (backend.py:1443) e
          questa funzione era l'unica a NON leggerlo: la riga del TON in home
          e nel wallet compariva solo dopo la prima partita, perche' `S.bal`
@@ -39723,7 +39738,7 @@ function syncBalance(deltaBtc,bet,won,lost,game,extra){
     if(d.error)throw new Error(d.error);
     // BACKEND IS AUTHORITATIVE — adopt all returned fields, overwriting any
     // optimistic local state. This ensures we never drift from server truth.
-    if(d.btc!==undefined)S.btc=d.btc;
+    if(d.btc!==undefined)S.btc=saldoDa(d);
     if(d.wins!==undefined)S.wins=d.wins;
     if(d.losses!==undefined)S.losses=d.losses;
     if(d.xp!==undefined)S.xp=d.xp;
@@ -40569,11 +40584,11 @@ function dlSearchView(mode,eur){
 function dlStartMatch(mode,eur){
   if(capEur()<eur){ toast('Insufficient balance','err'); return; }
   dlSearchView(mode,eur);
-  fetch(BACKEND+'/duel/app_join',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId,mode:mode,bet_btc:eurToBtc(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
+  fetch(BACKEND+'/duel/app_join',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId,mode:mode,...postaCent(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
     .then(function(r){return r.json();}).then(function(d){
       if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); dlCloseOverlay(); if(typeof loadBalance==='function')loadBalance(); return; }
       if(d.balances)S.bal=d.balances;   /* 03/08: tutte le valute, se il server le manda */
-      if(d.btc!==undefined){ S.btc=d.btc; refresh(); }
+      if(d.btc!==undefined){ S.btc=saldoDa(d); refresh(); }
       if(d.status==='done'){ dlShowResult(d); return; }
       dlStartPoll(mode);
     }).catch(function(e){ toast('Network error','err'); dlCloseOverlay(); });
@@ -40768,14 +40783,14 @@ function dlLiveRender(){
 function dlCancelSearch(){
   dlStopPoll();
   fetch(BACKEND+'/duel/app_cancel',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId})})
-    .then(function(r){return r.json();}).then(function(d){ if(d&&d.btc!==undefined){S.btc=d.btc;refresh();} }).catch(function(){});
+    .then(function(r){return r.json();}).then(function(d){ if(d&&d.btc!==undefined){S.btc=saldoDa(d);refresh();} }).catch(function(){});
   dlCloseOverlay();
   if(typeof loadBalance==='function')loadBalance();
 }
 function dlShowResult(d){
   dlStopPoll();
   if(d.balances)S.bal=d.balances;   /* 03/08: tutte le valute, se il server le manda */
-      if(d.btc!==undefined){ S.btc=d.btc; refresh(); }
+      if(d.btc!==undefined){ S.btc=saldoDa(d); refresh(); }
   dlVsScreen(d, function(){
     if(d.picked_random){ dlGameWheel((d.detail&&d.detail.mode)||d.mode, function(){ dlReveal(d); }); }
     else { dlReveal(d); }
@@ -40949,7 +40964,7 @@ function dlGameWheel(mode, onDone){
 function dlReveal(d){
   dlStopPoll();
   if(d.balances)S.bal=d.balances;   /* 03/08: tutte le valute, se il server le manda */
-      if(d.btc!==undefined){ S.btc=d.btc; refresh(); }
+      if(d.btc!==undefined){ S.btc=saldoDa(d); refresh(); }
   if(typeof loadBalance==='function')loadBalance().then(function(){dlUpdateStatsDom();});
   var youP1=d.you_p1, det=d.detail||{}, mode=det.mode||d.mode, win=d.you_win;
   var oppName = youP1 ? d.p2_name : d.p1_name;
@@ -41206,11 +41221,11 @@ function dlBjStart(eur){
   if(capEur()<eur){ toast('Insufficient balance','err'); return; }
   DLBJ.bet=eur; DLBJ.shown=false; DLBJ.vsShown=false;
   dlSearchView('bj',eur);
-  fetch(BACKEND+'/duel/bjl_join',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId,bet_btc:eurToBtc(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
+  fetch(BACKEND+'/duel/bjl_join',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId,...postaCent(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
     .then(function(r){return r.json();}).then(function(d){
       if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); dlCloseOverlay(); if(typeof loadBalance==='function')loadBalance(); return; }
       if(d.balances)S.bal=d.balances;   /* 03/08: tutte le valute, se il server le manda */
-      if(d.btc!==undefined){ S.btc=d.btc; refresh(); }
+      if(d.btc!==undefined){ S.btc=saldoDa(d); refresh(); }
       if(d.state==='playing'||d.state==='done'){ dlBjEnter(d); return; }
       dlBjMatchPoll();
     }).catch(function(){ toast('Network error','err'); dlCloseOverlay(); });
@@ -41345,7 +41360,7 @@ function dlBjBoard(d,ancora){
 function dlBjAfterDone(d){
   dlBjStopPoll(); dlBjStopTick();
   if(d.balances)S.bal=d.balances;   /* 03/08: tutte le valute, se il server le manda */
-      if(d.btc!==undefined){ S.btc=d.btc; refresh(); }
+      if(d.btc!==undefined){ S.btc=saldoDa(d); refresh(); }
   if(typeof loadBalance==='function')loadBalance().then(function(){dlUpdateStatsDom();});
   if(!DLBJ.shown){
     DLBJ.shown=true;
@@ -41374,7 +41389,7 @@ function dlBjCancel(silent){
   dlBjStopPoll(); dlBjStopTick();
   fetch(BACKEND+'/duel/bjl_cancel',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId})})
     .then(function(r){return r.json();}).then(function(d){
-      if(d&&d.btc!==undefined){ S.btc=d.btc; refresh(); }
+      if(d&&d.btc!==undefined){ S.btc=saldoDa(d); refresh(); }
       if(d&&d.state==='done'){ dlBjBoard(d); dlBjAfterDone(d); }
       else { dlCloseOverlay(); }
       if(typeof loadBalance==='function')loadBalance().then(function(){dlUpdateStatsDom();});
@@ -41395,10 +41410,10 @@ function dlRrStart(eur){
   if(capEur()<eur){ toast('Insufficient balance','err'); return; }
   DLRR.bet=eur; DLRR.shown=false; DLRR.vsShown=false;
   dlSearchView('rr',eur);
-  fetch(BACKEND+'/duel/rr_join',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId,bet_btc:eurToBtc(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
+  fetch(BACKEND+'/duel/rr_join',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId,...postaCent(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
     .then(function(r){return r.json();}).then(function(d){
       if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); dlCloseOverlay(); if(typeof loadBalance==='function')loadBalance(); return; }
-      if(d.btc!==undefined&&d.btc!==null){ S.btc=d.btc; refresh(); }
+      if(d.btc!==undefined&&d.btc!==null){ S.btc=saldoDa(d); refresh(); }
       if(d.status==='playing'||d.status==='done'){ dlRrEnter(d); return; }
       dlRrMatchPoll();
     }).catch(function(){ toast('Network error','err'); dlCloseOverlay(); });
@@ -42094,7 +42109,7 @@ function dlRrAnimate(ev, onDone, view){
 }
 function dlRrAfterDone(d){
   dlRrStopPoll(); dlRrStopTick();
-  if(d.btc!==undefined&&d.btc!==null){ S.btc=d.btc; refresh(); }
+  if(d.btc!==undefined&&d.btc!==null){ S.btc=saldoDa(d); refresh(); }
   if(typeof loadBalance==='function')loadBalance().then(function(){dlUpdateStatsDom();});
   if(!DLRR.shown){
     DLRR.shown=true;
@@ -42150,7 +42165,7 @@ function dlRrCancel(silent){
   dlRrStopPoll(); dlRrStopTick();
   fetch(BACKEND+'/duel/rr_cancel',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId})})
     .then(function(r){return r.json();}).then(function(d){
-      if(d&&d.btc!==undefined&&d.btc!==null){ S.btc=d.btc; refresh(); }
+      if(d&&d.btc!==undefined&&d.btc!==null){ S.btc=saldoDa(d); refresh(); }
       if(d&&(d.status==='done'||d.state==='done')){ dlRrBoard(d); dlRrAfterDone(d); }
       else { dlCloseOverlay(); }
       if(typeof loadBalance==='function')loadBalance().then(function(){dlUpdateStatsDom();});
@@ -42179,10 +42194,10 @@ function dlRpsStart(eur){
   if(capEur()<eur){ toast('Insufficient balance','err'); return; }
   DLRPS.bet=eur; DLRPS.shown=false; DLRPS.vsShown=false; DLRPS.sig='';
   dlSearchView('rps',eur);
-  fetch(BACKEND+'/duel/rps_join',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId,bet_btc:eurToBtc(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
+  fetch(BACKEND+'/duel/rps_join',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId,...postaCent(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
     .then(function(r){return r.json();}).then(function(d){
       if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); dlCloseOverlay(); if(typeof loadBalance==='function')loadBalance(); return; }
-      if(d.btc!==undefined&&d.btc!==null){ S.btc=d.btc; refresh(); }
+      if(d.btc!==undefined&&d.btc!==null){ S.btc=saldoDa(d); refresh(); }
       if(d.status==='playing'||d.status==='done'){ dlRpsEnter(d); return; }
       dlRpsMatchPoll();
     }).catch(function(){ toast('Network error','err'); dlCloseOverlay(); });
@@ -42302,7 +42317,7 @@ function dlRpsBoard(d,ancora){
 }
 function dlRpsAfterDone(d){
   dlRpsStopPoll(); dlRpsStopTick();
-  if(d.btc!==undefined&&d.btc!==null){ S.btc=d.btc; refresh(); }
+  if(d.btc!==undefined&&d.btc!==null){ S.btc=saldoDa(d); refresh(); }
   if(typeof loadBalance==='function')loadBalance().then(function(){dlUpdateStatsDom();});
   if(!DLRPS.shown){
     DLRPS.shown=true;
@@ -42330,7 +42345,7 @@ function dlRpsCancel(silent){
   dlRpsStopPoll(); dlRpsStopTick();
   fetch(BACKEND+'/duel/rps_cancel',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId})})
     .then(function(r){return r.json();}).then(function(d){
-      if(d&&d.btc!==undefined&&d.btc!==null){ S.btc=d.btc; refresh(); }
+      if(d&&d.btc!==undefined&&d.btc!==null){ S.btc=saldoDa(d); refresh(); }
       if(d&&(d.status==='done'||d.state==='done')){ dlRpsBoard(d); dlRpsAfterDone(d); }
       else { dlCloseOverlay(); }
       if(typeof loadBalance==='function')loadBalance().then(function(){dlUpdateStatsDom();});
@@ -42456,10 +42471,10 @@ function dlRndStart(eur){
     '<div class="pvp-search-dots"><span></span><span></span><span></span></div>'+
     '<div style="text-align:center;font-size:12px;color:var(--txt2);">Matching you with any waiting player — then luck picks the game…</div>'+
     '<button class="pvp-m-btn" onclick="dlRndCancel(false)">CANCEL & REFUND</button>');
-  fetch(BACKEND+'/duel/rnd_join',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId,bet_btc:eurToBtc(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
+  fetch(BACKEND+'/duel/rnd_join',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId,...postaCent(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
     .then(function(r){return r.json();}).then(function(d){
       if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); dlCloseOverlay(); if(typeof loadBalance==='function')loadBalance(); return; }
-      if(d.btc!==undefined&&d.btc!==null){ S.btc=d.btc; refresh(); }
+      if(d.btc!==undefined&&d.btc!==null){ S.btc=saldoDa(d); refresh(); }
       if(d.status==='matched'){ dlGameWheel(d.game,function(){ dlRndEnter(d.game,d); }); return; }
       dlRndMatchPoll();
     }).catch(function(){ toast('Network error','err'); dlCloseOverlay(); });
@@ -42476,7 +42491,7 @@ function dlRndMatchPoll(){
 function dlRndCancel(silent){
   dlRndStopPoll();
   fetch(BACKEND+'/duel/rnd_cancel',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId})})
-    .then(function(r){return r.json();}).then(function(d){ if(d&&d.btc!==undefined&&d.btc!==null){ S.btc=d.btc; refresh(); } if(!silent) dlCloseOverlay(); if(typeof loadBalance==='function')loadBalance(); }).catch(function(){ if(!silent) dlCloseOverlay(); });
+    .then(function(r){return r.json();}).then(function(d){ if(d&&d.btc!==undefined&&d.btc!==null){ S.btc=saldoDa(d); refresh(); } if(!silent) dlCloseOverlay(); if(typeof loadBalance==='function')loadBalance(); }).catch(function(){ if(!silent) dlCloseOverlay(); });
 }
 // ══════════════════════════════════════════════════════════════════════════
 // A18 — LOBBY APERTE CON INVITO NEL GRUPPO (23/08/2026)   LOBBY_APERTE_SPEC
@@ -42991,7 +43006,7 @@ function lobEnterA(){
     .then(function(r){return r.json();}).then(function(d){
       LOB.busy=0;uiBusy(false);
       if(!d||d.error){toast('⚠️ '+lobErrIT((d&&d.error)||'errore'),'err',2800);lobStateFetch();return;}
-      if(d.btc!==undefined&&d.btc!==null){S.btc=d.btc;refresh();}
+      if(d.btc!==undefined&&d.btc!==null){S.btc=saldoDa(d);refresh();}
       lobTickStop();
       if(d.status==='matched'){DLRND.bet=(LOB.card&&LOB.card.stake_eur)||0;dlRndEnter(d.game,d);return;}
       dlShowResult(d);
@@ -43243,10 +43258,10 @@ function dlChStart(eur){
   // l'attesa, ed e' il posto dove il caricamento non costa niente a nessuno
   chPrecarica();
   dlSearchView('chess',eur);
-  fetch(BACKEND+'/duel/ch_join',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId,bet_btc:eurToBtc(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
+  fetch(BACKEND+'/duel/ch_join',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId,...postaCent(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
     .then(function(r){return r.json();}).then(function(d){
       if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); dlCloseOverlay(); if(typeof loadBalance==='function')loadBalance(); return; }
-      if(d.btc!==undefined&&d.btc!==null){ S.btc=d.btc; refresh(); }
+      if(d.btc!==undefined&&d.btc!==null){ S.btc=saldoDa(d); refresh(); }
       if(d.status==='playing'||d.status==='done'){ dlChEnter(d); return; }
       dlChMatchPoll();
     }).catch(function(){ toast('Network error','err'); dlCloseOverlay(); });
@@ -43551,7 +43566,7 @@ function dlChAfterDone(d){
     if(!DLCH.shown){ DLCH.shown=true; try{ gSound(d.draw?'chip':(d.you_win?'win':'lose')); }catch(e){} }
     return;
   }
-  if(d.btc!==undefined&&d.btc!==null){ S.btc=d.btc; refresh(); }
+  if(d.btc!==undefined&&d.btc!==null){ S.btc=saldoDa(d); refresh(); }
   if(typeof loadBalance==='function')loadBalance().then(function(){dlUpdateStatsDom();});
   if(!DLCH.shown){ DLCH.shown=true; try{ gSound(d.draw?'chip':(d.you_win?'win-big':'lose')); }catch(e){}
     if(d.you_win){ try{ tg.HapticFeedback&&tg.HapticFeedback.notificationOccurred('success'); }catch(e){} } }
@@ -43560,7 +43575,7 @@ function dlChCancel(silent){
   dlChStopPoll(); dlChStopTick();
   fetch(BACKEND+'/duel/ch_cancel',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId})})
     .then(function(r){return r.json();}).then(function(d){
-      if(d&&d.btc!==undefined&&d.btc!==null){ S.btc=d.btc; refresh(); }
+      if(d&&d.btc!==undefined&&d.btc!==null){ S.btc=saldoDa(d); refresh(); }
       if(d&&d.board){ dlChBoard(d); dlChAfterDone(d); } else if(!silent){ dlCloseOverlay(); }
       if(typeof loadBalance==='function')loadBalance().then(function(){dlUpdateStatsDom();});
     }).catch(function(){ if(!silent) dlCloseOverlay(); });
@@ -43611,10 +43626,10 @@ function dlBsStart(eur){
   if(capEur()<eur){ toast('Insufficient balance','err'); return; }
   DLBS.bet=eur; DLBS.shown=false; DLBS.vsShown=false; DLBS.sig=''; DLBS.lastSeq=0; DLBS.ships=[]; DLBS.horiz=true; DLBS.gara='';
   dlSearchView('bs',eur);
-  fetch(BACKEND+'/duel/bs_join',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId,bet_btc:eurToBtc(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
+  fetch(BACKEND+'/duel/bs_join',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId,...postaCent(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
     .then(function(r){return r.json();}).then(function(d){
       if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); dlCloseOverlay(); if(typeof loadBalance==='function')loadBalance(); return; }
-      if(d.btc!==undefined&&d.btc!==null){ S.btc=d.btc; refresh(); }
+      if(d.btc!==undefined&&d.btc!==null){ S.btc=saldoDa(d); refresh(); }
       if(d.status==='playing'||d.status==='done'){ dlBsEnter(d); return; }
       dlBsMatchPoll();
     }).catch(function(){ toast('Network error','err'); dlCloseOverlay(); });
@@ -43893,7 +43908,7 @@ function dlBsFire(r,c){
 }
 function dlBsAfterDone(d){
   dlBsStopPoll(); dlBsStopTick();
-  if(d.btc!==undefined&&d.btc!==null){ S.btc=d.btc; refresh(); }
+  if(d.btc!==undefined&&d.btc!==null){ S.btc=saldoDa(d); refresh(); }
   if(typeof loadBalance==='function')loadBalance().then(function(){dlUpdateStatsDom();});
   if(!DLBS.shown){ DLBS.shown=true; try{ gSound(d.you_win?'win-big':'lose'); }catch(e){}
     if(d.you_win){ try{ tg.HapticFeedback&&tg.HapticFeedback.notificationOccurred('success'); }catch(e){} } }
@@ -43902,7 +43917,7 @@ function dlBsCancel(silent){
   dlBsStopPoll(); dlBsStopTick();
   fetch(BACKEND+'/duel/bs_cancel',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId})})
     .then(function(r){return r.json();}).then(function(d){
-      if(d&&d.btc!==undefined&&d.btc!==null){ S.btc=d.btc; refresh(); }
+      if(d&&d.btc!==undefined&&d.btc!==null){ S.btc=saldoDa(d); refresh(); }
       if(d&&d.status==='done'){ dlBsBoard(d); dlBsAfterDone(d); }
       else if(!silent){ dlCloseOverlay(); }
       if(typeof loadBalance==='function')loadBalance().then(function(){dlUpdateStatsDom();});
@@ -43948,10 +43963,10 @@ function dlPkdStart(eur){
   if(capEur()<eur){ toast('Insufficient balance','err'); return; }
   DLPKD.bet=eur; DLPKD.shown=false; DLPKD.vsShown=false; DLPKD.held=[false,false,false,false,false]; DLPKD.sig='';
   dlSearchView('cards',eur);
-  fetch(BACKEND+'/duel/pkd_join',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId,bet_btc:eurToBtc(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
+  fetch(BACKEND+'/duel/pkd_join',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId,...postaCent(eur),username:(S.username||'Player'),photo_url:dlMyPhoto()})})
     .then(function(r){return r.json();}).then(function(d){
       if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); dlCloseOverlay(); if(typeof loadBalance==='function')loadBalance(); return; }
-      if(d.btc!==undefined&&d.btc!==null){ S.btc=d.btc; refresh(); }
+      if(d.btc!==undefined&&d.btc!==null){ S.btc=saldoDa(d); refresh(); }
       if(d.status==='playing'||d.status==='done'){ dlPkdEnter(d); return; }
       dlPkdMatchPoll();
     }).catch(function(){ toast('Network error','err'); dlCloseOverlay(); });
@@ -44112,7 +44127,7 @@ function dlPkdRevealThenDone(d){
 }
 function dlPkdAfterDone(d){
   dlPkdStopPoll(); dlPkdStopTick();
-  if(d.btc!==undefined&&d.btc!==null){ S.btc=d.btc; refresh(); }
+  if(d.btc!==undefined&&d.btc!==null){ S.btc=saldoDa(d); refresh(); }
   if(typeof loadBalance==='function')loadBalance().then(function(){dlUpdateStatsDom();});
   if(!DLPKD.shown){ DLPKD.shown=true; try{ gSound(d.push?'chip':(d.you_win?'win-big':'lose')); }catch(e){}
     if(d.you_win){ try{ tg.HapticFeedback&&tg.HapticFeedback.notificationOccurred('success'); }catch(e){} } }
@@ -44121,7 +44136,7 @@ function dlPkdCancel(silent){
   dlPkdStopPoll(); dlPkdStopTick();
   fetch(BACKEND+'/duel/pkd_cancel',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId})})
     .then(function(r){return r.json();}).then(function(d){
-      if(d&&d.btc!==undefined&&d.btc!==null){ S.btc=d.btc; refresh(); }
+      if(d&&d.btc!==undefined&&d.btc!==null){ S.btc=saldoDa(d); refresh(); }
       if(d&&(d.status==='done'||d.state==='done')){ dlPkdBoard(d); dlPkdAfterDone(d); }
       else { dlCloseOverlay(); }
       if(typeof loadBalance==='function')loadBalance().then(function(){dlUpdateStatsDom();});
@@ -44135,12 +44150,12 @@ function dlSendChallenge(){
   if(!target.trim()){ toast('Enter a @username or ID','warn'); return; }
   if(capEur()<eur){ toast('Insufficient balance','err'); return; }
   uiBusy(true,'Sending…');
-  fetch(BACKEND+'/duel/challenge',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId,target:target.trim(),mode:mode,bet_btc:eurToBtc(eur),username:(S.username||'Player')})})
+  fetch(BACKEND+'/duel/challenge',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId,target:target.trim(),mode:mode,...postaCent(eur),username:(S.username||'Player')})})
     .then(function(r){return r.json();}).then(function(d){
       uiBusy(false);
       if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); return; }
       if(d.balances)S.bal=d.balances;   /* 03/08: tutte le valute, se il server le manda */
-      if(d.btc!==undefined){ S.btc=d.btc; refresh(); }
+      if(d.btc!==undefined){ S.btc=saldoDa(d); refresh(); }
       DLRND.bet=eur;   // so if they accept a LIVE game, the entry + play-again use this stake
       dlModalHTML('<div class="pvp-m-title" style="color:#ffd700;">CHALLENGE SENT</div><div class="pvp-radar"><div class="pvp-radar-ico">⚔️</div></div>'+
         '<div style="text-align:center;font-size:12px;color:var(--txt2);">Waiting for '+dlEsc(target)+' to accept…<br>They got a notification.</div>'+
@@ -44170,7 +44185,7 @@ function dlAccept(cid,mode,bet){
     .then(function(r){return r.json();}).then(function(d){
       uiBusy(false);
       if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); dlLoadIncoming(); return; }
-      if(d.btc!==undefined&&d.btc!==null){ S.btc=d.btc; refresh(); }
+      if(d.btc!==undefined&&d.btc!==null){ S.btc=saldoDa(d); refresh(); }
       dlLoadIncoming();
       if(d.status==='matched'){ DLRND.bet=bet||0; dlRndEnter(d.game,d); return; }   // live interactive duel (pass d so WS ticket routes to RTD)
       dlShowResult(d);   // instant (dice)
@@ -44221,12 +44236,12 @@ function dlSendRematch(uid,eur){
   var mode=(document.getElementById('pvp-rm-mode')||{}).value||'dice';
   if(capEur()<eur){ toast('Insufficient balance','err'); return; }
   uiBusy(true,'Sending…');
-  fetch(BACKEND+'/duel/challenge',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId,target:uid,mode:mode,bet_btc:eurToBtc(eur),username:(S.username||'Player')})})
+  fetch(BACKEND+'/duel/challenge',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId,target:uid,mode:mode,...postaCent(eur),username:(S.username||'Player')})})
     .then(function(r){return r.json();}).then(function(d){
       uiBusy(false);
       if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); return; }
       if(d.balances)S.bal=d.balances;   /* 03/08: tutte le valute, se il server le manda */
-      if(d.btc!==undefined){ S.btc=d.btc; refresh(); }
+      if(d.btc!==undefined){ S.btc=saldoDa(d); refresh(); }
       DLRND.bet=eur;
       dlModalHTML('<div class="pvp-m-title" style="color:#ffd700;">CHALLENGE SENT</div><div class="pvp-radar"><div class="pvp-radar-ico">⚔️</div></div>'+
         '<div style="text-align:center;font-size:12px;color:var(--txt2);">Waiting for your opponent to accept…<br>They got a notification.</div>'+
@@ -93786,7 +93801,7 @@ function pkUpdateLabels(){
 // forwards the player's action — it can no longer decide a win or the payout.
 function pkApplyServer(d){
   if(!d || d.error){ toast('⚠️ '+((d&&d.error)||'poker error'),'err'); PK.busy=false; pkUpdateButtons(); return; }
-  if(d.btc!==undefined){ S.btc=d.btc; refresh(); if(CUR==='profile')renderProfile(); }
+  if(d.btc!==undefined){ S.btc=saldoDa(d); refresh(); if(CUR==='profile')renderProfile(); }
   PK.player=d.player||[]; PK.community=d.community||[]; PK.revealedCommunity=d.revealed||0;
   PK.pot=(d.pot_btc||0)*S.rate; PK.pTotal=(d.p_total_btc||0)*S.rate; PK.dTotal=(d.d_total_btc||0)*S.rate;
   PK.ante=(d.ante_btc||0)*S.rate; PK.anteEur=PK.ante; PK.toCallEur=(d.to_call_btc||0)*S.rate;
@@ -93810,7 +93825,7 @@ function pkStart(ante){
   PK.busy=true; PK.ante=ante;
   pkSound('chip');
   var st=document.getElementById('pk-status'); if(st){st.textContent='Dealing...';st.classList.remove('decision');}
-  fetch(BACKEND+'/poker/deal',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId, ante_btc:eurToBtc(ante)})})
+  fetch(BACKEND+'/poker/deal',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId, ...postaCent(ante,'ante')})})
     .then(function(r){return r.json();})
     .then(function(d){
       if(!d||d.error){ toast('⚠️ '+((d&&d.error)||'error'),'err'); PK.busy=false; PK.phase='idle'; pkUpdateButtons(); if(typeof loadBalance==='function')loadBalance(); return; }
@@ -95021,7 +95036,7 @@ function plLandBall(b, slotIdx){
   fetch(BACKEND + '/play/plinko', {
     method:'POST',
     headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},
-    body:JSON.stringify({user_id:S.userId, bet_btc:eurToBtc(eur), risk:PL.risk, action:'settle', landed_bucket:slotIdx})
+    body:JSON.stringify({user_id:S.userId, ...postaCent(eur), risk:PL.risk, action:'settle', landed_bucket:slotIdx})
   }).then(function(r){return r.json();}).then(function(d){
     if(!d || d.error){
       S.btc = Math.max(0, S.btc + eurToBtc(eur)); refresh();   // undo the optimistic deduction
@@ -95291,7 +95306,7 @@ function whSpin(eur){
   var segments=WH.arranged||whBuildWheelSegments();
   fetch(BACKEND+'/play/wheel',{
     method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},
-    body:JSON.stringify({user_id:S.userId,bet_btc:eurToBtc(eur),risk:WH.risk})
+    body:JSON.stringify({user_id:S.userId,...postaCent(eur),risk:WH.risk})
   }).then(function(r){return r.json();}).then(function(d){
     if(!d||d.error){WH.spinning=false;toast('⚠️ '+((d&&d.error)||'error'),'err');if(typeof loadBalance==='function')loadBalance();return;}
     var multi=d.multi, matches=[]; for(var i=0;i<segments.length;i++){if(segments[i].multi===multi)matches.push(i);}
@@ -95306,7 +95321,7 @@ function whSpin(eur){
     document.getElementById('wh-result').innerHTML='<div style="font-family:Russo One,sans-serif;font-size:14px;color:#ffd700;letter-spacing:2px;">✨ SPINNING…</div>';
     setTimeout(function(){
       gSound('ball-stop');
-      if(d.btc!==undefined)S.btc=d.btc; if(d.wins!==undefined)S.wins=d.wins; if(d.losses!==undefined)S.losses=d.losses;
+      if(d.btc!==undefined)S.btc=saldoDa(d); if(d.wins!==undefined)S.wins=d.wins; if(d.losses!==undefined)S.losses=d.losses;
       if(d.total_bet_eur!==undefined)S.totalBet=d.total_bet_eur; if(d.biggest_win_eur!==undefined)S.biggestWin=d.biggest_win_eur;
       refresh(); if(CUR==='profile')renderProfile();
       if(multi>0){
