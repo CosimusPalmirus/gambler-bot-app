@@ -12501,7 +12501,7 @@ body.gb-nav-on .bnav{display:flex;}
       <div class="pvp-hero-glow"></div>
       <span class="pvp-cor tl"></span><span class="pvp-cor tr"></span>
       <span class="pvp-cor bl"></span><span class="pvp-cor br"></span>
-      <div class="pvp-hero-kick">⚔️ 1 CONTRO 1 · DAL VIVO</div>
+      <div class="pvp-hero-kick">⚔️ DUELLI E TAVOLI · DAL VIVO</div>
       <div class="pvp-hero-title">PvP ARENA</div>
       <div class="pvp-hero-sub">Sfida giocatori veri · chi vince prende il piatto <span class="pvp-fee">−5% commissione</span></div>
       <!-- MINI BANNER TORNEI dentro l'arena (31/07). Stessi id di prima
@@ -17405,7 +17405,7 @@ body.gb-nav-on .bnav{display:flex;}
     "Scudo e cannone":"Shield and cannon",
     "lo scudo para un gol e stampa PARATO, il cannone si carica: guarda il cerchio sulla racchetta":"the shield saves one goal and prints SAVED, the cannon charges up: watch the ring on your paddle",
     /* ── BANNER PvP ARENA (31/07) ── */
-    "⚔️ 1 CONTRO 1 · DAL VIVO":"⚔️ 1 ON 1 · LIVE",
+    "⚔️ DUELLI E TAVOLI · DAL VIVO":"⚔️ DUELS & TABLES · LIVE",
     "Sfida giocatori veri · chi vince prende il piatto":"Challenge real players · winner takes the pot",
     "−5% commissione":"−5% fee",
     /* ── CHI C'E' ADESSO (31/07) ── */
@@ -39921,8 +39921,14 @@ function dlUpdateStatsDom(){
   var l=document.getElementById('dl-losses');if(l)l.textContent=S.duelLosses||0;
   var e=document.getElementById('dl-earned');
   if(e){
-    var eur = Math.round((S.duelEarned||0)*S.rate);
-    e.textContent='\u20ac'+eur.toLocaleString();
+    /* ⚠️ `duel_earned` E' IN CENTESIMI, non in bitcoin (backend.py:
+       `wu["duel_earned"] += prize`, lo STESSO intero che passa a
+       `_VC.eur_add`). Qui si moltiplicava per il cambio BTC: era giusto
+       finche' il campo era in bitcoin, ed e' rimasto invariato quando la
+       Fase B ha portato tutto in euro. Misurato il 04/09/2026 sul conto
+       con piu' vittorie: 27345 centesimi, cioe' €273,45, si leggevano
+       «€2.461.050.000». Si divide per cento, e non si tocca S.rate. */
+    e.textContent='\u20ac'+fmt((S.duelEarned||0)/100,2);
   }
   var bEl=document.getElementById('dl-bal');
   if(bEl)bEl.textContent=balEur();
@@ -94368,7 +94374,7 @@ function pfShowDebug(){
   content += '  = '+((S.biggestWin||0)/(S.rate||90000)).toFixed(8)+' BTC<br>';
   content += '<br><b style="color:#39ff14;">DUEL STATS:</b><br>';
   content += 'Wins: '+(S.duelWins||0)+' \u2022 Losses: '+(S.duelLosses||0)+'<br>';
-  content += 'Earned: \u20ac'+(((S.duelEarned||0)*S.rate)||0).toFixed(2)+'<br>';
+  content += 'Earned: \u20ac'+((S.duelEarned||0)/100).toFixed(2)+'<br>';   /* centesimi, non bitcoin (04/09/2026) */
   content += '<br><b style="color:#39ff14;">OTHER:</b><br>';
   content += 'XP: '+(S.xp||0)+'<br>';
   content += '</div>';
