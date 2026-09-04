@@ -872,6 +872,27 @@ body.gb-nav-on .bnav{display:flex;}
 .tx-amt{font-family:'Orbitron';font-size:13px;font-weight:700;}
 .tx-amt.pos{color:var(--gn);}
 .tx-amt.neg{color:var(--rd);}
+/* ── WALLET «da banca» (04/09) — regole SCOPATE su #wallet ─────────────── */
+#wallet .bal-card{display:block;padding:18px 16px 14px;}
+#wallet .bal-num{font-size:34px;letter-spacing:.5px;}
+#wallet .w-eur-chip{position:absolute;top:14px;right:14px;font-size:10px;
+  letter-spacing:1.6px;color:var(--gold);border:1px solid rgba(255,215,0,.35);
+  padding:3px 9px;border-radius:999px;opacity:.85;font-weight:600;}
+#wallet .w-stats{display:flex;gap:22px;margin-top:12px;padding-top:12px;
+  border-top:1px solid rgba(255,255,255,.07);}
+#wallet .w-stat__k{font-size:10px;letter-spacing:1.2px;color:var(--txt3);}
+#wallet .w-stat__v{font-family:'Orbitron';font-size:13px;font-weight:700;
+  color:var(--txt);margin-top:3px;font-variant-numeric:tabular-nums;}
+#wallet .w-act{display:flex;gap:10px;}
+#wallet .w-act .action-btn{flex:1;}
+#wallet .w-act .w-ghost{background:transparent;color:var(--txt);
+  border:1px solid var(--border);box-shadow:none;}
+#wallet .tx-item{padding:11px 12px;}
+#wallet .tx-ic{width:34px;height:34px;flex:0 0 34px;border-radius:9px;
+  background:rgba(255,255,255,.05);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;font-size:15px;
+  margin-right:10px;}
+#wallet .tx-amt{font-size:13.5px;font-variant-numeric:tabular-nums;}
 
 .lb-item{display:flex;align-items:center;gap:10px;background:var(--card);
   padding:10px 12px;border-radius:var(--r);border:1px solid var(--border);}
@@ -14325,19 +14346,29 @@ body.gb-nav-on .bnav{display:flex;}
   </div>
   <div class="game-content">
     <div class="bal-card">
-      <div>
-        <div class="bal-lbl">BALANCE</div>
+      <div class="w-eur-chip">EUR</div>
+      <div style="width:100%;">
+        <div class="bal-lbl">SALDO</div>
         <div class="bal-num" id="w-bal">€0.00</div>
         <!-- (01/09/2026) nascoste per la stessa ragione della home:
              `refresh()` le scrive, quindi devono esistere. -->
         <div class="bal-sub" id="w-btc" style="display:none;">0.00000000 BTC</div>
         <div class="bal-sub" id="w-ton" style="display:none;">0.00 TON</div>
         <div class="bal-sub" id="bal-gioc" style="display:none;"></div>
+        <!-- (04/09) visibile SOLO quando una parte del saldo e' sui
+             tavoli: senza soldi in gioco direbbe due volte lo stesso
+             numero. La scrive refresh(). -->
+        <div class="w-stats" id="w-stats" style="display:none;">
+          <div class="w-stat"><div class="w-stat__k">DISPONIBILE</div>
+            <div class="w-stat__v" id="w-avail">—</div></div>
+          <div class="w-stat"><div class="w-stat__k">IN GIOCO</div>
+            <div class="w-stat__v" id="w-inplay">—</div></div>
+        </div>
       </div>
     </div>
-    <div style="display:flex;gap:8px;">
-      <button class="action-btn" style="flex:1;" onclick="go('deposit')">📥 DEPOSIT</button>
-      <button class="action-btn red" style="flex:1;" onclick="go('withdraw')">📤 WITHDRAW</button>
+    <div class="w-act">
+      <button class="action-btn gold" onclick="go('deposit')">📥 CARICA</button>
+      <button class="action-btn w-ghost" onclick="go('withdraw')">📤 PRELEVA</button>
     </div>
     <!-- ⛔ (02/09/2026) VIA IL TASTO «TON WALLET» DA QUI.
          Stava accanto a Deposita e Preleva come se il TON fosse un secondo
@@ -14345,7 +14376,7 @@ body.gb-nav-on .bnav{display:flex;}
          serve a UNA cosa sola, caricare il conto, e quindi vive DENTRO il
          deposito. Tenerlo qui e' cio' che rendeva la schermata confusa. -->
     <div>
-      <div class="section-ttl" style="padding:0;"><svg class="gb-ic-t" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-2-1.3-2 1.3-2-1.3-2 1.3-2-1.3L6 21V3Z"/><path d="M9 8h6"/><path d="M9 12h6"/></svg>RECENT TRANSACTIONS</div>
+      <div class="section-ttl" style="padding:0;"><svg class="gb-ic-t" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-2-1.3-2 1.3-2-1.3-2 1.3-2-1.3L6 21V3Z"/><path d="M9 8h6"/><path d="M9 12h6"/></svg>MOVIMENTI RECENTI</div>
       <div class="tx-list" id="w-tx" style="margin-top:8px;">
         <div class="gb-empty" style="min-height:180px;">
           <div class="gb-empty__ico">🧾</div>
@@ -31869,6 +31900,19 @@ function refresh(){
   var p=possEur();         /* quanto POSSIEDE: la card del saldo */
   document.getElementById('home-bal').textContent=p;
   var _hb9=document.getElementById('hero-bal'); if(_hb9)_hb9.textContent=p;
+  /* (04/09) la riga del wallet: quanto e' spendibile e quanto sta sui
+     tavoli. Compare solo quando i due numeri sono DIVERSI. */
+  var _ws9=document.getElementById('w-stats');
+  if(_ws9){
+    var _pn9=possEurN(), _bn9=capEur(), _ig9=_pn9-_bn9;
+    if(_ig9>0.009){
+      _ws9.style.display='flex';
+      var _wa9=document.getElementById('w-avail');
+      if(_wa9)_wa9.textContent='\u20ac'+fmt(_bn9,2);
+      var _wi9=document.getElementById('w-inplay');
+      if(_wi9)_wi9.textContent='\u20ac'+fmt(_ig9,2);
+    } else { _ws9.style.display='none'; }
+  }
   document.getElementById('home-btc').textContent=btcStr(S.btc);
   ['bj-bal','slots-bal','rl-bal','dc-bal','sc-bal','cr-bal','lt-bal','pk-bal','br-bal','vk-bal','turf-bal','tank-bal','glad-bal','arc-bal','lob-bal'].forEach(function(id){
     var e=document.getElementById(id);if(e)e.textContent=b;
@@ -38622,7 +38666,19 @@ function renderWallet(){
   }
   tx.innerHTML=S.txs.slice(0,20).map(function(t){
     var ts=t.ts||t.timestamp||0;
-    var dateStr=ts?new Date(ts*1000).toLocaleString():'';
+    /* (04/09) data CORTA: «Oggi · 11:34», «Ieri · 09:12», poi «03/09».
+       La vecchia toLocaleString portava anno e SECONDI: rumore che
+       nessuno legge su una riga di movimento. */
+    var dateStr='';
+    if(ts){
+      var _dt=new Date(ts*1000), _oggi=new Date();
+      var _hm=('0'+_dt.getHours()).slice(-2)+':'+('0'+_dt.getMinutes()).slice(-2);
+      var _gg=('0'+_dt.getDate()).slice(-2)+'/'+('0'+(_dt.getMonth()+1)).slice(-2);
+      if(_dt.toDateString()===_oggi.toDateString()) dateStr='Oggi \u00b7 '+_hm;
+      else if(_dt.toDateString()===new Date(_oggi.getTime()-86400000).toDateString())
+        dateStr='Ieri \u00b7 '+_hm;
+      else dateStr=_gg+' \u00b7 '+_hm;
+    }
     var rawAmt=t.amount||0;
     /* ⛔ (01/09/2026) VIA L'INDOVINELLO. Qui c'era, scritto per esteso:
          «Heuristic: amount > 1 = likely EUR; amount < 1 = likely BTC»
@@ -38684,8 +38740,14 @@ function renderWallet(){
     }
     var sign=isPositive?'+':(isNegative?'−':'');
     var cls=isPositive?'pos':(isNegative?'neg':'');
+    /* (04/09) l'emoji in testa all'etichetta diventa l'icona nel
+       riquadro: la mappa resta UNA (TX_ETICHETTE), qui si separa e basta. */
+    var _sp=label.indexOf(' ');
+    var _ico=_sp>0?label.slice(0,_sp):'\uD83C\uDFB2';
+    var _lbl=_sp>0?label.slice(_sp+1):label;
     return '<div class="tx-item">'+
-      '<div class="tx-info"><div class="tx-type">'+label+'</div>'+
+      '<div class="tx-ic">'+_ico+'</div>'+
+      '<div class="tx-info"><div class="tx-type">'+_lbl+'</div>'+
       '<div class="tx-time">'+dateStr+'</div></div>'+
       '<div class="tx-amt '+cls+'">'+sign+testo+'</div></div>';
   }).join('');
@@ -40898,7 +40960,7 @@ function vsMatchFound(mePlayer, oppPlayer, stakeEur, title, color, onDone){
     +'<div class="pvp-vs-flameWrap"><span class="pvp-vs-fire">🔥</span><span class="pvp-vs-flame">VS</span></div>'
     +card(oppPlayer,(oppPlayer&&oppPlayer.name)||'Rivale',false,'op','👤')
     +'</div>'
-    +'<div class="pvp-vs-go">'+esc(title||'')+' · PRONTI…</div>';
+    +'<div class="pvp-vs-go">'+esc(title||'')+' · '+((typeof GB_LANG!=='undefined'&&GB_LANG==='en')?'READY…':'PRONTI…')+'</div>';
   var arc=(typeof CUR!=='undefined'&&CUR==='arc'), modalSel;
   if(arc){ rtdOv(html,true); modalSel='#arc-modal'; }
   else { dlModalHTML(html); modalSel='#pvp-modal'; }
@@ -49871,7 +49933,7 @@ function gldHud(m){
   for(var i=0;i<4;i++)s+=(i<hp)?'<span class="twr-h">❤️</span>':'<span class="twr-h off">🖤</span>';
   var a=document.getElementById('gld-hp-me');if(a)a.innerHTML=s;
   var al=0;(m.p||[]).forEach(function(r){if(r[7]&1)al++;});
-  var ac=document.getElementById('gld-alive');if(ac)ac.textContent='⚔ '+al+' VIVI';
+  var ac=document.getElementById('gld-alive');if(ac)ac.textContent='⚔ '+al+((typeof GB_LANG!=='undefined'&&GB_LANG==='en')?' ALIVE':' VIVI');
   if(al===3&&!GLD._three){GLD._three=true;gldBanner('⚔️ 3 RIMASTI','',2000);gldSnd('corno',0.8);}   // B8: corno a 3 vivi
   if(GLD.feedRows.length){ // B8: fade-out righe kill-feed dopo 4s
     var nowMs=Date.now(),n0=GLD.feedRows.length;
@@ -56715,7 +56777,7 @@ function rtdShowMatch(){
       +'<div class="pg-bar" id="pg-bar">'
       +'<div class="pg-bar-rail"></div><div class="pg-bar-mid"></div>'
       +'<div class="pg-bar-knob" id="pg-bar-knob"></div>'
-      +'<div class="pg-bar-hint">↔ TRASCINA PER MUOVERE LA RACCHETTA</div>'
+      +'<div class="pg-bar-hint">'+((typeof GB_LANG!=='undefined'&&GB_LANG==='en')?'↔ DRAG TO MOVE THE PADDLE':'↔ TRASCINA PER MUOVERE LA RACCHETTA')+'</div>'
       +'</div></div>';
   }else if(inp==='stick'){
     if(RTD.game==='snake'){
@@ -71377,15 +71439,15 @@ function rtdDrawPong(ctx,raw,lp,now,w,hh){
       ctx.shadowBlur=0;
       ctx.font='bold '+Math.round(Math.max(11,R*0.30))+'px Russo One, sans-serif';
       ctx.fillStyle='rgba(253,230,138,.92)';
-      ctx.fillText('PRONTI…',cxq,cyq+R*1.32);
+      ctx.fillText((typeof GB_LANG!=='undefined'&&GB_LANG==='en')?'READY…':'PRONTI…',cxq,cyq+R*1.32);
       if(raw.serve!=null){
         ctx.font='bold '+Math.round(Math.max(10,hh*0.022))+'px Russo One, sans-serif';
         ctx.fillStyle='rgba(203,213,225,.9)';
-        ctx.fillText(raw.serve===pgMySeat()?'⬇ VIENE VERSO DI TE':'⬆ PARTE VERSO DI LUI',w/2,hh*0.60);
+        ctx.fillText(raw.serve===pgMySeat()?((typeof GB_LANG!=='undefined'&&GB_LANG==='en')?'⬇ COMING TO YOU':'⬇ VIENE VERSO DI TE'):((typeof GB_LANG!=='undefined'&&GB_LANG==='en')?'⬆ GOING TO THEM':'⬆ PARTE VERSO DI LUI'),w/2,hh*0.60);
       }
       ctx.font='bold '+Math.round(Math.max(9,R*0.24))+'px Russo One, sans-serif';
       ctx.fillStyle='rgba(148,163,184,.85)';
-      ctx.fillText('↔ TRASCINA LA BARRA SOTTO',cxq,hh-14);
+      ctx.fillText((typeof GB_LANG!=='undefined'&&GB_LANG==='en')?'↔ DRAG THE BAR BELOW':'↔ TRASCINA LA BARRA SOTTO',cxq,hh-14);
     }else{
       var ga=Math.max(0,1-goAge/650);
       ctx.globalAlpha=ga;
