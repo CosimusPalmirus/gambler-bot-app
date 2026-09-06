@@ -44336,6 +44336,7 @@ var guT = {
         segna: "la casa che segni domani sara alla sbarra"
     },
     gelo: "l urna e sigillata",
+    sigillata: "SIGILLATA", secondi: " s",
     astieni: "ASTIENITI",
     astChip: "nessuno",
     pronto: "PRONTO",
@@ -44479,7 +44480,7 @@ var guGelo = false;
    guTimerP: l ultima frazione scritta sulla barra (10 Hz); guUrg: se la
    classe urg e' su; guFirmaBot/guFirmaCap: la firma dello stato con cui
    bottoni e didascalia sono stati scritti l ultima volta. */
-var guTimerP = -1, guTimerT = 0, guUrg = false, guFirmaBot = "", guFirmaCap = "";
+var guTimerP = -1, guTimerT = 0, guUrg = false, guFirmaBot = "", guFirmaCap = "", guFirmaTempo = "";
 var guRay = null;
 var guTicSec = -1;
 var guToasts = [];
@@ -44627,6 +44628,10 @@ function guStile() {
         "#luPan .cap{display:flex;justify-content:space-between;align-items:baseline;gap:8px}",
         "#luPan .cap .k{font-family:var(--mono);font-size:10px;letter-spacing:2.5px;",
         "  color:var(--fuoco);text-transform:uppercase;flex:none}",
+        "#luPan .cap .t{font-family:var(--mono);font-size:15px;font-weight:700;",
+        "  letter-spacing:1px;color:var(--luna);flex:none;font-variant-numeric:tabular-nums}",
+        "#luPan .cap .t.urg{color:#ffb9c6}",
+        "#luPan .cap .t.sig{font-size:11px;letter-spacing:2px;color:#ffb9c6}",
         "#luPan .cap .s{font-size:11px;line-height:1.3;color:var(--muro-luce);",
         "  text-align:right;flex:1;min-width:0}",
         "#luPan.gelo .cap .s{color:#ffb9c6}",
@@ -44932,8 +44937,14 @@ function guCostruisci() {
     guE.pan.id = "luPan";
     var cap = guNodo("div", "cap");
     guE.capK = guNodo("span", "k", "");
+    /* IL TEMPO CHE RESTA STA DOVE GUARDI (06/09, ordine del proprietario:
+       «non si capisce quando devi fare cosa, renderei piu leggibile fasi e
+       tempo rimasto»). In cima c e gia la barra, ma quando devi scegliere
+       gli occhi sono in fondo, sui volti e sui tasti: il numero va qui. */
+    guE.capT = guNodo("span", "t", "");
     guE.capS = guNodo("span", "s", "");
     cap.appendChild(guE.capK);
+    cap.appendChild(guE.capT);
     cap.appendChild(guE.capS);
     guE.volti = guNodo("div", "");
     guE.volti.id = "luVolti";
@@ -45339,6 +45350,30 @@ function guAggBottoni() {
         guE.bCon.disabled = !!guGelo;
     }
     if (guGelo) { guE.bCon.disabled = true; }
+}
+
+/* il numero dentro la plancia: si scrive solo quando cambia il secondo
+   (o lo stato del sigillo), cosi non si tocca il layout 60 volte al
+   secondo — e' la stessa regola della barra (L2, B.4) */
+function guCapTempo(resta, sigillata) {
+    if (!guE.capT) { return; }
+    var sec = Math.ceil((resta || 0) - 0.001);
+    if (sec < 0) { sec = 0; }
+    var chiave = (sigillata ? "S" : "") + sec + "|" + guAttivo();
+    if (chiave === guFirmaTempo) { return; }
+    guFirmaTempo = chiave;
+    if (!guAttivo()) {
+        guTxt(guE.capT, "");
+        guE.capT.className = "t";
+        return;
+    }
+    if (sigillata) {
+        guTxt(guE.capT, guT.sigillata);
+        guE.capT.className = "t sig";
+        return;
+    }
+    guTxt(guE.capT, sec + guT.secondi);
+    guE.capT.className = (sec <= 5) ? "t urg" : "t";
 }
 
 function guAggCap() {
@@ -46128,7 +46163,22 @@ function guAggiorna(v, dt) {
     tot = v.fase_s || 0;
     resta = tot - (v.fase_t || 0);
     if (resta < 0) { resta = 0; }
-    guTimerDis(resta, tot, guGelo);
+    /* LA SCADENZA CHE CONTA NON E' LA FINE DELLA FASE (06/09). Nel voto
+       l urna si sigilla 5 secondi prima (nel ballottaggio 3): il motore
+       rifiuta la scelta, e il giocatore vedeva il conto scorrere come se
+       avesse ancora tempo — «a volte non mi fa votare». Adesso il numero e
+       la barra contano fino al SIGILLO, e quando scatta si legge
+       SIGILLATA invece di un cinque che non serve a niente. */
+    var marg = 0;
+    if (typeof LUPM !== "undefined" && LUPM) {
+        if (v.fase === "voto") { marg = LUPM.VOTO_GELO_S || 0; }
+        else if (v.fase === "ballo") { marg = LUPM.BALLO_GELO_S || 0; }
+    }
+    var restaU = resta - marg, totU = tot - marg;
+    if (restaU < 0) { restaU = 0; }
+    if (totU <= 0) { totU = tot; restaU = resta; }
+    guTimerDis(restaU, totU, guGelo);
+    guCapTempo(restaU, guGelo);
     guFatto = guFattoDaVista(v);
     guAggVolti();
     guAggBottoni();
@@ -51948,6 +51998,7 @@ var LUP_EN = {
     "una fiala sola per tutta la partita: scegli bene": "one vial for the whole game: choose well",
     "la casa che segni domani sara alla sbarra": "the house you mark will be in the dock tomorrow",
     "l urna e sigillata": "the urn is sealed", "ASTIENITI": "ABSTAIN", "nessuno": "nobody",
+    "SIGILLATA": "SEALED",
     "PRONTO": "READY", "PRONTO ✓": "READY ✓", "SCELTO ✓": "CHOSEN ✓",
     "non puoi sceglierlo adesso": "you cannot choose that now", "prima scegli un volto": "choose a face first",
     "tieni premuto per sigillare": "hold to seal",
@@ -52761,7 +52812,20 @@ var BIN_V_DIST = 3.0;                            /* m/s */
 var BIN_V_CAMERA = 15.5;                         /* m/s: il tetto dello SPOSTAMENTO vero del punto (cancello 5 del piano: 17) */
 var BIN_V_ALT = 0.45;                            /* rad/s in altezza (5-6 m/s di quota) */
 var BIN_SOGLIA_SCORRI = 0.61;                    /* 35 gradi: sotto, il binario non scorre */
-var BIN_DITO_S = 6.0;                            /* secondi di precedenza del dito */
+/* LA TORRE: dove va la camera quando comanda il dito (ordine del
+   proprietario, 06/09 sera: «non deve muoversi la camera ma solo ruotare,
+   la metterei al centro in alto e bloccata che puo solo ruotare, e il
+   movimento automatico si attiva solo se non tocchi lo schermo da un po»).
+   Il binario continua a girare sotto (le scene aggiornano theta/alt/dist
+   come sempre): la torre e' una FUSIONE sopra, cosi quando il dito molla
+   la presa la camera torna da sola all inquadratura della scena, senza
+   salti. Ferma in mezzo alla piazza a 6,5 m: i medaglioni stanno fra 2,2 e
+   4,2 m, quindi da li' si leggono le facce girandosi, non i tetti. */
+var BIN_TORRE_Y = 6.5;                           /* quota della torre (m) */
+var BIN_TORRE_TAU = 0.30;                        /* s per salirci e per tornare */
+var BIN_TORRE_D = 12.0;                          /* m: dove si posa la mira davanti */
+var BIN_TORRE_GIU = -1.05, BIN_TORRE_SU = 0.30;  /* rad: quanto si puo guardare giu e su */
+var BIN_DITO_S = 12.0;                           /* secondi di precedenza del dito: dopo tanto senza toccare, la scena si riprende la camera */
 var BIN_TAU_MIN = 0.25, BIN_TAU_MAX = 1.0;
 var BIN_DIST_RADURA = 5.0, BIN_ALT_RADURA = 0.18, BIN_THETA_RADURA = 172 * Math.PI / 180;
 var BIN_SALTO = 1.9;        /* il pezzo di raggio davanti alla mira che non si guarda (la parete del soggetto non e' un ostacolo) */
@@ -52825,6 +52889,8 @@ var BIN = {
   dito: { giu: false, id: -1, x0: 0, y0: 0, th0: 0, al0: 0, f0: 1, vel: 0, finoA: -99, pinch: 0, fov0: 46,
           camp: [], tGiu: -99999, xGiu: 0, yGiu: 0, mosso: 0, mossoPrec: 99, zoomVivo: -99, preso: false },
   taglioT: -99,        /* st.t dell ultimo taglio applicato (lo leggono i banchi) */
+  /* la torre: on = comanda il dito, k = quanto ci si e saliti (0..1) */
+  torre: { on: false, k: 0, yaw: 0, pitch: -0.18 },
   auto: 0,             /* rad/s: l orbita che gira da sola (la vecchia orbita "giro" del menu) */
   derivaFov: 0,        /* gradi/s di fov che si stringe dentro un atto (l asta); si azzera a ogni richiesta */
   rich: null,          /* l ultima richiesta grezza (pos, guarda, dur, opz): il campanile la rimette dopo il rintocco */
@@ -52846,6 +52912,7 @@ st.nebbiaK = 1;
 
 var binTmpA = new THREE.Vector3(), binTmpB = new THREE.Vector3(), binTmpC = new THREE.Vector3();
 var binTmpD = new THREE.Vector3(), binTmpE = new THREE.Vector3();
+var binTmpF = new THREE.Vector3(), binTmpG = new THREE.Vector3();
 /* i due vettori del campanile: l attesa della cella gira fuori dal ciclo,
    e non deve rubare i temporanei del passo */
 var campTmp1 = new THREE.Vector3(), campTmp2 = new THREE.Vector3();
@@ -53309,6 +53376,20 @@ function nebbiaInstalla(fog) {
   return fog;
 }
 
+/* la torre: il punto fermo in mezzo alla piazza, in alto */
+function binTorrePunto(out) {
+  return out.set(BIN.centro.x, BIN_TORRE_Y, BIN.centro.z);
+}
+/* dove guarda: yaw e pitch del dito, a BIN_TORRE_D metri davanti. Stesso
+   verso di binPunto (x = sin, z = cos), cosi il dito gira come girava il
+   binario e il gesto resta quello che il giocatore ha imparato. */
+function binTorreMira(p, out) {
+  var T = BIN.torre, cp = Math.cos(T.pitch);
+  return out.set(p.x + Math.sin(T.yaw) * BIN_TORRE_D * cp,
+                 p.y + Math.sin(T.pitch) * BIN_TORRE_D,
+                 p.z + Math.cos(T.yaw) * BIN_TORRE_D * cp);
+}
+
 /* ruota un punto attorno all asse verticale che passa per c, di ang radianti.
    La quota non si tocca: e' una giravolta sul piano del borgo. */
 function binRuotaAttorno(p, c, ang) {
@@ -53340,6 +53421,14 @@ function binPasso(dt) {
     D.vel *= Math.exp(-dt / 0.30);
     if (Math.abs(D.vel) < 0.02) { D.vel = 0; }
   }
+  /* l inerzia del rilascio, sulla torre, gira lo SGUARDO */
+  if (BIN.torre.on && !D.giu && D.vel !== 0 && dt > 0) {
+    BIN.torre.yaw = binWrap(BIN.torre.yaw + D.vel * dt);
+  }
+  /* IL MOVIMENTO AUTOMATICO TORNA SOLO DOPO UN PO CHE NON TOCCHI (ordine
+     del proprietario): finita la precedenza del dito si scende dalla
+     torre, e la scena si riprende la sua inquadratura con calma */
+  if (BIN.torre.on && !D.giu && D.vel === 0 && st.t > D.finoA) { BIN.torre.on = false; }
   /* l orbita del menu (D-16): theta avanza di auto*dt in QUESTO fotogramma
      e l obiettivo gli sta addosso. Messo solo nell obiettivo e inseguito
      col lerp (k = 1-exp(-dt/tau)) lo spostamento vero era auto*dt*k:
@@ -53497,6 +53586,42 @@ function binPasso(dt) {
   if (O.dFin > 0) { kVol = binClamp(Math.min(O.nebbiaK, O.nebbiaK * O.dFin / Math.max(0.5, pos.distanceTo(O.guarda))), 0.35, 1); }
   st.nebbiaK += (kVol - st.nebbiaK) * k;
   /* la camera */
+  /* ============ LA TORRE ============
+     Il binario ha appena posato la camera dove vuole la scena. Se comanda
+     il dito, la posizione si fonde con quella della torre (ferma, in mezzo
+     alla piazza) e la mira con lo sguardo del dito. La fusione va e torna
+     con la stessa costante di tempo: quando il dito molla, la camera
+     rientra nell inquadratura della scena da sola. */
+  var T = BIN.torre, kT;
+  if (T.on || T.k > 0.0005) {
+    kT = 1 - Math.exp(-dt / BIN_TORRE_TAU);
+    T.k += ((T.on ? 1 : 0) - T.k) * kT;
+    /* si scatta a 1 (e a 0) presto: l ultimo mezzo per cento e' mezzo
+       centimetro che nessuno vede, ma tiene la camera che striscia per
+       secondi mentre il giocatore la sta girando (misurato: 2,2 cm) */
+    if (T.k > 0.995) { T.k = 1; }
+    if (!T.on && T.k < 0.005) { T.k = 0; }
+    if (T.k > 0) {
+      binTorrePunto(binTmpF);                    /* dove sta la torre */
+      pos.lerp(binTmpF, T.k);
+      binTorreMira(binTmpF, binTmpG);            /* dove guarda il dito */
+      BIN.mira.lerp(binTmpG, T.k);
+      /* la vista e' del dito: il tetto di D-4 non la frena (e' l utente
+         che gira la testa, non la regia che sposta una scena) */
+      cam.position.copy(pos);
+      if (cam.up.x !== 0 || cam.up.y !== 1) { cam.up.set(0, 1, 0); }
+      cam.lookAt(BIN.mira);
+      if (Math.abs(cam.fov - BIN.fov) > 0.02) { cam.fov = BIN.fov; cam.updateProjectionMatrix(); }
+      if (!BIN.dirPrev) { BIN.dirPrev = new THREE.Vector3(); }
+      BIN.dirPrev.subVectors(BIN.mira, pos).normalize();
+      /* la POSIZIONE si muove solo mentre si sale o si scende dalla torre:
+         girandosi non si sposta un caster, e le ombre cotte restano cotte */
+      BIN.mossoPos = (T.k > 0 && T.k < 1) || Math.abs(dth) > 1e-4 || Math.abs(dal) > 1e-4 || Math.abs(ddi) > 1e-4;
+      BIN.mosso = true;
+      return;
+    }
+  }
+
   /* LA GARANZIA DEL TETTO DELLA VISTA. I due cicli qui sopra ACCORCIANO
      il passo della mira e quello del binario finche la vista sta sotto il
      tetto, ma sono approssimazioni a cinque e sei giri: misurato, restava
@@ -53550,6 +53675,8 @@ function binDoppioTocco() {
      senza questa riga: da 60 a 20 gradi in un colpo dopo un pinch) */
   BIN.fovNuovo = true;
   BIN.auto = 0;
+  /* il doppio tocco rida la camera alla scena: si scende dalla torre */
+  BIN.torre.on = false;
 }
 function ditoInstalla() {
   var el = $("#scena"), D = BIN.dito;
@@ -53577,15 +53704,29 @@ function ditoInstalla() {
       /* il dito PRENDE la camera da dov e' adesso, non da dove la scena
          la stava portando: un tween a meta' strada si abbandona qui */
       D.preso = true; D.th0 = BIN.theta; D.al0 = BIN.alt;
+      /* SI SALE SULLA TORRE. Lo sguardo parte da dove la camera sta
+         guardando ADESSO, cosi il primo fotogramma non salta: si alza solo
+         il punto di vista, mentre la mira resta dov e'. */
+      if (!BIN.torre.on) {
+        var dv = binTmpE.subVectors(BIN.mira, cam.position);
+        var dl = Math.sqrt(dv.x * dv.x + dv.z * dv.z);
+        BIN.torre.yaw = Math.atan2(dv.x, dv.z);
+        BIN.torre.pitch = binClamp(Math.atan2(dv.y, dl || 1e-6), BIN_TORRE_GIU, BIN_TORRE_SU);
+        BIN.torre.on = true;
+      }
+      D.th0 = BIN.torre.yaw; D.al0 = BIN.torre.pitch;
       /* e il fov resta quello di adesso: senza, il fov per fotogramma
          inseguiva la grandezza del soggetto della scena mentre il dito
          girava attorno (misurato: 46 -> 58 in un trascinamento) */
       BIN.obj.fov = BIN.fov; BIN.obj.dFin = 0; BIN.fovOff = 0; BIN.fovNuovo = false;
     }
-    BIN.obj.theta = binWrap(D.th0 - dx * 0.0075 * D.f0);
-    BIN.obj.alt = binClamp(D.al0 + dy * 0.0042 * D.f0, BIN_ALT_MIN, BIN_ALT_MAX);
+    /* sulla torre il dito gira lo SGUARDO: yaw di lato, pitch in su e in
+       giu. Gli stessi due fattori di prima (il gesto non cambia), ma
+       adesso muovono la testa invece di far camminare la camera. */
+    BIN.torre.yaw = binWrap(D.th0 - dx * 0.0075 * D.f0);
+    BIN.torre.pitch = binClamp(D.al0 - dy * 0.0042 * D.f0, BIN_TORRE_GIU, BIN_TORRE_SU);
     D.finoA = st.t + BIN_DITO_S;
-    D.camp.push({ t: ora(), th: BIN.obj.theta });
+    D.camp.push({ t: ora(), th: BIN.torre.yaw });
     if (D.camp.length > 16) { D.camp.shift(); }
   }
   function su() {
@@ -55361,7 +55502,10 @@ function sceneAttive() {
    NON contano: la panoramica gira solo la mira per tutto il giorno e
    contarla teneva le ombre a 16,5 passate/s a borgo fermo (giudice L2). */
 function camInMoto() {
-  return BIN.mossoPos || BIN.dito.giu;
+  /* sulla TORRE il dito gira solo lo sguardo: la camera non si sposta di
+     un millimetro, quindi nessun caster si muove e le ombre cotte non si
+     rifanno. E' la modalita' piu' leggera che ci sia */
+  return BIN.mossoPos || (BIN.dito.giu && !BIN.torre.on);
 }
 
 /* ===================== AVVIO ===================== */
