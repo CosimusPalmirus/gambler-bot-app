@@ -19405,7 +19405,11 @@ function mkMedaglione(opz) {
     G.userData.spegni = function () {
         stato.spento = true;
         disco.material.emissiveIntensity = 0;
-        disco.material.color.setHex(0x4a4458);
+        /* PIU SPENTO (07/09, ordine del proprietario: «la casa vittima con
+           il logo piu spento»). Era 0x4a4458, un grigio che di giorno si
+           leggeva ancora come un volto acceso: adesso e la faccia di uno
+           che non c e piu. */
+        disco.material.color.setHex(0x2b2736);
         anello.material.opacity = 0;
         anello.visible = false;
         tacche.visible = false;
@@ -19413,7 +19417,7 @@ function mkMedaglione(opz) {
         for (k = 0; k < tacche.children.length; k++) {
             tacche.children[k].material.opacity = 0;
         }
-        targa.material.opacity = 0.45;
+        targa.material.opacity = 0.28;
         targa.material.transparent = true;
     };
     G.userData.aggiorna = function (t, dt) {
@@ -29589,9 +29593,22 @@ function anImpronte(opz) {
         C.durata = tPosaFine + tResta + T_SBIADE;
         vistaAlta = inquadraAlta();
         C.camPos = vistaAlta.pos; C.camMira = vistaAlta.mira;
-        /* la prima camera parte subito: ha T_INIZIO per arrivare */
+        /* la prima camera parte subito. Anche qui la durata e' quella VERA:
+           l angolo di partenza dipende da dove l aveva lasciata la scena
+           prima e non ha nessun tetto, quindi T_INIZIO (0,7 s) e' un numero
+           di comodo. Se serve di piu', la prima scia aspetta. */
         scie[0].camFatta = true;
-        if (opz.regia) { opz.regia(scie[0].cam.pos, scie[0].cam.mira, T_INIZIO); }
+        if (opz.regia) {
+            var d0 = (typeof campDurata === "function") ? campDurata(scie[0].cam.mira) : T_INIZIO;
+            if (d0 < T_INIZIO) { d0 = T_INIZIO; }
+            opz.regia(scie[0].cam.pos, scie[0].cam.mira, d0);
+            if (d0 > T_INIZIO) {
+                var sl0 = d0 - T_INIZIO, q;
+                for (q = 0; q < scie.length; q++) { scie[q].t0 += sl0; scie[q].t1 += sl0; }
+                tPosaFine += sl0;
+                C.durata += sl0;
+            }
+        }
     };
 
     function posaOrme(T) {
@@ -29648,13 +29665,35 @@ function anImpronte(opz) {
        alta quando l ultima orma e' posata. Tutto allo stesso orologio
        delle orme, cosi' il banco di prova li vede nell ordine giusto. */
     function regiaAlTempo(T) {
-        var i, s;
+        var i, j, s, dCam, slitta;
         if (!opz.regia) { return; }
         for (i = 0; i < scie.length; i++) {
             s = scie[i];
             if (!s.camFatta && T >= s.t0 - T_ANTICIPO) {
                 s.camFatta = true;
-                opz.regia(s.cam.pos, s.cam.mira, 0.4);
+                /* LA DURATA VERA, E LA POSA CHE ASPETTA LA CAMERA (07/09).
+                   Qui si dichiaravano 0,4 s fissi, ma le case delle scie
+                   sono i seggi USCITI di stanotte e possono stare agli
+                   antipodi: la mira deve girare fino a 64 gradi e sul
+                   binario ha un tetto di 40 gradi/s (BIN_V_MIRA), cioe'
+                   1,5-2,0 s. Misurato: 9 delle 11 orme della seconda scia
+                   venivano posate FUORI dallo schermo, e la camera arrivava
+                   a scia gia' fatta (con quattro case: 2 richieste su 5 nel
+                   quadro). Adesso la durata la dice campDurata, la stessa
+                   funzione con cui il guscio misura il giro del campanile,
+                   e le scie che vengono dopo SLITTANO di quel tanto: la
+                   posa aspetta la camera invece di correrle sotto. Fra due
+                   case vicine campDurata da' poco e non slitta niente. */
+                dCam = (typeof campDurata === "function") ? campDurata(s.cam.mira) : 1.8;
+                opz.regia(s.cam.pos, s.cam.mira, dCam);
+                slitta = dCam - T_ANTICIPO;
+                if (slitta > 0) {
+                    for (j = i; j < scie.length; j++) {
+                        scie[j].t0 += slitta; scie[j].t1 += slitta;
+                    }
+                    tPosaFine += slitta;
+                    C.durata += slitta;
+                }
             }
         }
         if (!vistaAltaFatta && T >= tPosaFine && vistaAlta) {
@@ -41045,6 +41084,13 @@ function gmTick(S, dt) {
 function gmVotoAccusa(S, s, ax) {
     var b;
     if ((S.faseS - S.faseT) <= LUPM.VOTO_GELO_S) { return false; }
+    /* CHI E GIA ALLA SBARRA D UFFICIO NON HA SCHEDA (07/09). La regola c era
+       gia — gmChiudiAccusa salta il suo voto quando riempie l urna — ma
+       nessuno glielo impediva e nessuno glielo diceva: votava, il gioco gli
+       rispondeva di si, la sua scheda spariva allo spoglio. Adesso il no
+       arriva subito, e la vista porta senza_scheda perche la pagina possa
+       spiegarlo invece di sembrare rotta. */
+    if (S.imputatoUff !== null && S.imputatoUff !== undefined && s === S.imputatoUff) { return false; }
     b = gmInt(ax);
     if (b === null) { return false; }
     if (b === -1 || (gmSeggioValido(S, b) && S.ord[b].vivo && b !== s)) {
@@ -41497,6 +41543,9 @@ function gmVista(S, sg) {
            La pagina lo legge da qui, non lo rideduce (J1 05/09). */
         you.canale_chat = gmCanaleChat(S, s);
         you.puo_agire = gmPuoAgire(S, s);
+        /* oggi sei alla sbarra d ufficio: non voti (vedi gmVotoAccusa) */
+        you.senza_scheda = (S.imputatoUff !== null && S.imputatoUff !== undefined &&
+            s === S.imputatoUff && S.fase === "voto");
     } else {
         you.sg = -1; you.ruolo = null; you.vivo = false; you.fantasma = false;
         you.busta = null; you.offerta = null; you.branco = null;
@@ -44314,13 +44363,15 @@ var guT = {
         bersaglio: "LA PREDA", vedi: "LA LANTERNA", voto: "PRIMA CHIAMATA",
         ballo: "IL GIUDIZIO", giorno: "IL DIBATTITO", arringa: "LA DIFESA",
         morto: "IL FANTASMA", asta: "IL BANDITORE", nessuna: "",
-        proteggi: "LA PORTA CHIUSA", colpo: "LA FIALA", segna: "IL SEGNO"
+        proteggi: "LA PORTA CHIUSA", colpo: "LA FIALA", segna: "IL SEGNO",
+        inchioda: "LA CARTA INCHIODATA", nomina: "LA CHIAMATA", registro: "IL REGISTRO"
     },
     eti: {
         bersaglio: "COLPISCI", vedi: "SCRUTA", voto: "ACCUSA",
         ballo: "CONDANNA", giorno: "INDICA", arringa: "HO FINITO",
         morto: "", asta: "", nessuna: "",
-        proteggi: "CHIUDI", colpo: "VERSA", segna: "SEGNA"
+        proteggi: "CHIUDI", colpo: "VERSA", segna: "SEGNA",
+        inchioda: "INCHIODA", nomina: "NOMINA", registro: "LEGGI"
     },
     sug: {
         bersaglio: "scegli la casa che il branco colpisce stanotte",
@@ -44333,7 +44384,10 @@ var guT = {
         asta: "", nessuna: "",
         proteggi: "chiudi una porta per stanotte, anche la tua",
         colpo: "una fiala sola per tutta la partita: scegli bene",
-        segna: "la casa che segni domani sara alla sbarra"
+        segna: "la casa che segni domani sara alla sbarra",
+        inchioda: "inchioda la tua carta a una porta: domani quello parte accusato",
+        nomina: "chiama i lupi uno per uno: tutti giusti e il borgo vince, uno sbagliato e muori tu",
+        registro: "scegli la casa di cui vuoi leggere il registro dei rilanci"
     },
     gelo: "l urna e sigillata",
     sigillata: "SIGILLATA", secondi: " s",
@@ -45172,10 +45226,17 @@ function guScorriA(sg) {
 
 /* ---------- selezione e conferma (C20: due tempi, sempre) ---------- */
 
+/* I MODI IN CUI SI SCEGLIE UN VOLTO. Devono essere gli STESSI che produce
+   grPlanciaDa: mancavano inchioda (Marcatore), nomina (Capo Sala) e registro
+   (Esattore), e per quei tre la striscia dei volti veniva nascosta, guScegli
+   usciva subito e il tasto restava spento per sempre — tre poteri che non si
+   potevano giocare (trovato il 07/09). Chi aggiunge un modo alla regia lo
+   aggiunge QUI e nelle tre tabelle di testi. */
 function guAttivo() {
     return guModo === "bersaglio" || guModo === "vedi" || guModo === "voto" ||
         guModo === "ballo" || guModo === "giorno" ||
-        guModo === "proteggi" || guModo === "colpo" || guModo === "segna";
+        guModo === "proteggi" || guModo === "colpo" || guModo === "segna" ||
+        guModo === "inchioda" || guModo === "nomina" || guModo === "registro";
 }
 
 function guScegli(sg) {
@@ -45194,11 +45255,23 @@ function guConferma() {
     if (!guAttivo()) { return; }
     if (guGelo) { guToastDis(guT.gelo, 1800); return; }
     if (guSel === null) { guToastDis(guT.nonSel, 1800); return; }
-    var sg = guSel;
+    var sg = guSel, esito = true;
+    /* SI GUARDA COSA RISPONDE (07/09, ordine del proprietario: «a volte non
+       mi fa votare proprio»). Prima la risposta si buttava: se il motore o
+       il server dicevano no, il pannello scriveva SCELTO col tasto spento e
+       il seggio restava bloccato — per riprovare bisognava scegliere un
+       ALTRO volto, perche lo stesso voto non si poteva rimandare. Adesso
+       una mossa rifiutata lascia la plancia com era, pronta a riprovare;
+       il perche lo dice gia il toast di chi ha detto no. */
     if (guModo === "giorno") {
-        if (typeof guOpz.onDito === "function") { guOpz.onDito(sg); }
+        if (typeof guOpz.onDito === "function") { esito = guOpz.onDito(sg); }
     } else {
-        if (typeof guOpz.onConferma === "function") { guOpz.onConferma(sg); }
+        if (typeof guOpz.onConferma === "function") { esito = guOpz.onConferma(sg); }
+    }
+    if (esito === false) {
+        guAggVolti();
+        guAggBottoni();
+        return;
     }
     guConf = true;
     guFattoLoc = sg;
@@ -45225,9 +45298,13 @@ function guFattoDaVista(v) {
     else if (guModo === "colpo") { f = v.you.mio_colpo; }
     else if (guModo === "segna") { f = v.you.mio_segno; }
     else if (guModo === "voto" || guModo === "ballo") {
-        /* l astensione vale -1 come «non ho ancora votato»: qui la vista
-           non basta e serve la memoria locale della conferma */
-        f = guConf ? guFattoLoc : null;
+        /* LA VERITA E LA VISTA (07/09): you.mio_voto vale null se non hai
+           votato, -1 se ti sei astenuto, il seggio se hai accusato. La
+           memoria locale resta solo come ripiego per il fotogramma in volo
+           fra il tocco e la risposta: prima era l unica cosa guardata, e
+           un voto rifiutato restava scritto come dato. */
+        if (v.you.mio_voto !== undefined && v.you.mio_voto !== null) { f = v.you.mio_voto; }
+        else { f = guConf ? guFattoLoc : null; }
     } else if (guModo === "giorno") {
         k = String(v.you.sg);
         if (v.dita && v.dita[k] !== undefined && v.dita[k] !== null) { f = v.dita[k]; }
@@ -46280,8 +46357,34 @@ function guPlancia(modo, opz) {
         for (i = 0; i < guN; i++) { guAmm.push(i); }
     }
 
-    if (guModo === "nessuna" || guModo === "asta") {
+    /* IL PANNELLO MUTO (07/09, ordine del proprietario: «e un po tutto che
+       non si capisce quando devi fare cosa»). Per modo "nessuna" si
+       nascondeva TUTTO e si usciva: le righe scritte apposta per spiegare
+       perche non puoi agire — «Il borgo dorme. Anche tu.», «Parlano i due
+       alla sbarra.» — venivano calcolate e buttate via, e l imputato al
+       ballottaggio vedeva la plancia sparire nell istante in cui tutti
+       votano su di lui, senza una parola. E il tasto del Cassiere (RIMBORSA)
+       viveva dentro un pannello display:none: il suo potere non si poteva
+       proprio usare. Adesso: se c e una riga da leggere o un tasto da
+       premere, il pannello resta su con quelli.  */
+    if (guModo === "asta") {
         guMostra(guE.pan, false);
+        guRiposiziona();
+        return;
+    }
+    if (guModo === "nessuna") {
+        var qualcosa = !!(guOpz.extra || guOpz.suggerimento);
+        if (!qualcosa) {
+            guMostra(guE.pan, false);
+            guRiposiziona();
+            return;
+        }
+        guE.volti.style.display = "none";
+        guTxt(guE.detto, guOpz.suggerimento || "");
+        guMostra(guE.detto, !!guOpz.suggerimento);
+        guAggCap();
+        guAggBottoni();
+        guMostra(guE.pan, true);
         guRiposiziona();
         return;
     }
@@ -46329,8 +46432,26 @@ function guEvidenzia(sg, tipo) {
     guAggVolti();
 }
 
+/* i bolli sui volti. sg = -1 pulisce TUTTI quelli che non sono la morte:
+   pronto e imputato sono bolli di FASE, e la fase dopo non li vuole piu.
+   Prima si potevano togliere solo uno per uno, e nessuno lo faceva: dal
+   secondo giro il PRONTO restava addosso a chi lo aveva premuto al primo, e
+   l IMPUTATO restava sui due del ballottaggio anche dopo la grazia — due
+   innocenti marchiati in piazza per il resto della partita, in un gioco
+   dove il segnale pubblico E la sostanza (trovato il 07/09). */
 function guBadgePub(sg, tipo) {
     if (!guMont) { return; }
+    if (sg === -1) {
+        var k, resta = {};
+        for (k in guBadge) {
+            if (guBadge.hasOwnProperty(k) && (guBadge[k] === "morto" || guBadge[k] === "fantasma")) {
+                resta[k] = guBadge[k];
+            }
+        }
+        guBadge = resta;
+        guAggVolti();
+        return;
+    }
     if (!tipo) { delete guBadge[sg]; } else { guBadge[sg] = tipo; }
     guAggVolti();
 }
@@ -46737,6 +46858,7 @@ var grS = {
     imputati: [], condannato: -1, morti: {}, inRadura: false,
     fase: "", round: 0, pensiero: 0, firmaPlancia: "",
     copione: null, attoFatto: {}, hudVoluto: true,
+    notteFatto: {}, notteGiro: 0,      /* il copione della notte, momento per momento */
     arringaT: 0, arringaChi: 0, ultimoErr: "", seScenico: 12345,
     /* E1 (04/09): la pagina remota. remoto = il motore e LUPN (g_remoto.js),
        i bot non esistono, il tempo non si ferma e la regia insegue il
@@ -47179,6 +47301,46 @@ function grRegiaBallo(p, m, d) {
     grRegia(p, m, d, { taglioSeSporco: true });
 }
 
+/* la quota del binario che toglie dal quadro il PROPRIO medaglione: si
+   provano i gradini e si prende il primo che lo manda sotto il bordo, con
+   un margine del 5 per cento. Gli otto spigoli della scatola dell insegna
+   (disco r 0,52 fra 3,14 e 4,80) proiettati a mano: nessuna camera vera si
+   tocca, e il conto si fa una volta sola all apertura della panoramica. */
+var GR_ALT_PAN = [0.40, 0.46, 0.52, 0.58, 0.64, 0.70];
+function grAltPan(thetaMio, r, d) {
+    if (typeof binPunto !== "function" || typeof BIN === "undefined") { return 0.40; }
+    var mezzo = Math.tan(BIN_FOV0 * Math.PI / 360) * 1.05;
+    /* la mira della panoramica sta dall altra parte del paese, a mezza altezza */
+    var mira = new THREE.Vector3(-d.x * r * 0.5, 2.5, -d.z * r * 0.5);
+    var casaX = d.x * r, casaZ = d.z * r;
+    var i, j;
+    for (i = 0; i < GR_ALT_PAN.length; i++) {
+        var P = binPunto(thetaMio, GR_ALT_PAN[i], BIN.distBase, new THREE.Vector3());
+        var ax = mira.x - P.x, ay = mira.y - P.y, az = mira.z - P.z;
+        var al = Math.sqrt(ax * ax + ay * ay + az * az) || 1;
+        ax /= al; ay /= al; az /= al;
+        /* la destra e l alto del quadro attorno all asse */
+        var rx = az, rz = -ax, rl = Math.sqrt(rx * rx + rz * rz) || 1;
+        rx /= rl; rz /= rl;
+        var ux = -rz * ay, uy = rz * ax - rx * az, uz = rx * ay;
+        var ul = Math.sqrt(ux * ux + uy * uy + uz * uz) || 1;
+        ux /= ul; uy /= ul; uz /= ul;
+        var dentro = false;
+        for (j = 0; j < 8; j++) {
+            var wx = casaX + ((j & 1) ? 0.52 : -0.52);
+            var wy = (j & 2) ? 4.80 : 3.14;
+            var wz = casaZ + ((j & 4) ? 0.52 : -0.52);
+            var vx = wx - P.x, vy = wy - P.y, vz = wz - P.z;
+            var lungo = vx * ax + vy * ay + vz * az;
+            if (lungo <= 0.05) { continue; }              /* dietro le spalle: non si vede */
+            var su = (vx * ux + vy * uy + vz * uz) / lungo;
+            if (su > -mezzo) { dentro = true; break; }    /* sopra il bordo basso: si vede */
+        }
+        if (!dentro) { return GR_ALT_PAN[i]; }
+    }
+    return GR_ALT_PAN[GR_ALT_PAN.length - 1];
+}
+
 /* LA PANORAMICA DEL BORGO.
    Ordine del proprietario (03/09): la camera non deve restare piantata su
    una casa sola. Si parte DAVANTI ALLA PROPRIA porta, girati verso il
@@ -47202,8 +47364,23 @@ function grPanoramica(opz) {
        del pannello, con 0,16 starebbe in piena fascia. Da li si guarda
        il paese dall alto della propria porta; la corsa della mira e'
        identica, misurata dall occhio. */
-    /* 0,40 e non 0,36: misurato, a 0,36 il raggio dalla mira alla camera
-       passava a 9 cm dalla cima del proprio medaglione (4,18 m) */
+    /* LA QUOTA SI MISURA, NON SI SCEGLIE (07/09). Era 0,40, tarata su una
+       cima del medaglione a 4,18 m: la cima VERA, con la targa del nome,
+       sta a 4,80, e il proprio medaglione restava in primo piano a mangiarsi
+       mezzo schermo per tutta la panoramica — che e l inquadratura che si
+       guarda piu a lungo di ogni altra. Misurato prima della cura: 55 per
+       cento di schermo a cinque case, 42 a otto, 18 a dieci.
+       Adesso si sale finche la propria insegna esce dal quadro, e non un
+       gradino di piu: cosi a dieci case la camera resta bassa (0,46) e a
+       cinque sale quanto serve (0,64). */
+    /* 0,40: la quota resta quella cinematografica di sempre. Il problema
+       del proprio medaglione che si mangiava mezzo schermo (misurato: 55 per
+       cento a cinque case, 42 a otto, 18 a dieci) NON si cura salendo — per
+       togliercelo dal quadro servivano 8-10 m di quota, e la panoramica
+       diventava un volo d uccello, e a cinque case restava lo stesso al 7
+       per cento. Si cura togliendo di mezzo la PROPRIA insegna mentre la
+       panoramica gira: sei sopra la tua porta, il tuo distintivo non lo
+       devi guardare. Le altre restano tutte. */
     var thetaMio = Math.atan2(d.x, d.z), altMio = 0.40;
     /* la soglia di prima (dentro l anello, 1,7 m davanti alla porta):
        resta il metro della NEBBIA, perche dal binario le case stanno 4-5
@@ -47296,9 +47473,22 @@ function grPanoramica(opz) {
             st.camIgnora = null;
         }
     }
+    /* la propria insegna: via mentre la panoramica gira, e rimessa dopo.
+       Si tocca solo la sua visibilita, non la scena. */
+    function miaInsegna() {
+        var c = grCasa(grS.sg);
+        return (c && c.userData) ? c.userData.medaglione : null;
+    }
+    function insegnaMia(vis) {
+        var m = miaInsegna();
+        if (!m) { return; }
+        if (vis) { if (C.insegnaEra !== undefined) { m.visible = C.insegnaEra; C.insegnaEra = undefined; } }
+        else { if (C.insegnaEra === undefined) { C.insegnaEra = m.visible; } m.visible = false; }
+    }
     C.avvia = function () {
         C.t = 0; C.attivo = true;
         ignora(true);
+        insegnaMia(false);
         /* LA PARTENZA SI RACCORDA: la mira chiesta al tween e' quella
            dell istante zero della corsa (un capo dell arco), non il
            centro; prima il tween partiva verso il centro e il primo
@@ -47315,6 +47505,7 @@ function grPanoramica(opz) {
     C.riprendi = function () {
         C.attivo = true;
         ignora(true);
+        insegnaMia(false);
         opzBin.dVol = soglia.distanceTo(miraA(C.t));
         grRegia(occhio, miraA(C.t), 2.2, opzBin);
         return C;
@@ -47336,7 +47527,7 @@ function grPanoramica(opz) {
         else { st.camGuarda.lerp(p, Math.min(1, dt * 1.6)); }
         return false;
     };
-    C.smonta = function () { C.attivo = false; ignora(false); };
+    C.smonta = function () { C.attivo = false; ignora(false); insegnaMia(true); };
     return C;
 }
 
@@ -47965,6 +48156,7 @@ LUPR.avvia = function (opz) {
     grS.inRadura = false; grS.vittima = -1;
     grS.fase = ""; grS.round = 0; grS.pensiero = 0; grS.firmaPlancia = "";
     grS.copione = null; grS.attoFatto = {}; grS.hudVoluto = true;
+    grS.notteFatto = {}; grS.notteGiro = 0;
     grS.balloT = 0; grS.balloFermo = false; grS.balloAttesa = false;
     grS.votiBallo = []; grS.balloOpz = null; grS.on = true;
     grS.canale = null; grS.canaleUI = null;
@@ -48127,9 +48319,31 @@ LUPR.FRETTA_MAX_S = 3;
    piu di FRETTA_S secondi rispetto al server, ogni sipario nuovo dura al
    massimo FRETTA_MAX_S, e le scene in corso si chiudono al primo evento
    di fase successiva (grSaltaScene). */
+/* IL RITARDO NON SI CONTA CONTRO CHI STA RECITANDO (07/09, ordine del
+   proprietario: «mi pare che vengono tagliate delle scene sia nel
+   ballottaggio che una parte finale del linciaggio»).
+   Il ritardo e la distanza fra l ultimo fotogramma ARRIVATO dal server e
+   l ultimo PROMOSSO, e LUPN promuove solo quando il palco e libero: quindi
+   appena si apre un sipario il ritardo cresce di un secondo al secondo e a
+   6,0 s la scena si ammazza da sola. Il ballottaggio dura 16 s e
+   l esecuzione 36: si ghigliottinavano tutte e due, sempre, e proprio nel
+   punto in cui il motore manda spoglio e fase nella stessa infornata.
+   Qui si sconta il tempo che la regia ha speso APPOSTA (il sipario piu
+   avanti): cosi la fretta continua a proteggere dal ritardo VERO — rete
+   lenta, telefono che arranca, rientro da una pausa — e smette di
+   scambiare per ritardo una scena che sta andando bene. */
+function grScenaSpesa() {
+    var k, s, m = 0;
+    for (k in grS.scene) {
+        if (!grS.scene.hasOwnProperty(k)) { continue; }
+        s = grS.scene[k];
+        if (s && typeof s.t === "number" && s.t > m) { m = s.t; }
+    }
+    return m;
+}
 function grFretta() {
-    return !!(grS.remoto && grS.M && typeof grS.M.ritardo === "function" &&
-              grS.M.ritardo() > LUPR.FRETTA_S);
+    if (!(grS.remoto && grS.M && typeof grS.M.ritardo === "function")) { return false; }
+    return (grS.M.ritardo() - grScenaSpesa()) > LUPR.FRETTA_S;
 }
 LUPR.fretta = function () { return grFretta(); };
 /* lo stesso gesto del tasto "salta la scena" del banco */
@@ -48188,16 +48402,29 @@ function grAstaVia() {
 
 function grPulisci() {
     var c = grS.ctrl, k;
-    var chiavi = ["preda", "vis", "voto", "ballo", "fin", "scudo", "pan", "pot"];
+    /* "esec" c e adesso: grPulisci smontava tutto tranne l esecuzione, e la
+       ghigliottina continuava a girare sotto la scena nuova, prendendosi la
+       camera e calando il velo nero del rientro dalla radura in mezzo al
+       giorno (trovato il 07/09 nell audit). anEsecuzione ha smonta(). */
+    var chiavi = ["preda", "vis", "voto", "ballo", "fin", "scudo", "pan", "pot", "esec", "intro"];
     for (k = 0; k < chiavi.length; k++) {
         if (c[chiavi[k]]) {
             if (c[chiavi[k]].smonta) { c[chiavi[k]].smonta(); }
             c[chiavi[k]] = null;
         }
+        /* e il sipario di quel controllore se ne va con lui: smontato il
+           controllore, il sipario restava in grS.scene a tenere occupato il
+           palco fino alla scadenza (fino a 25 s per il ballo) con dentro un
+           fantasma. Il suo onFine non si chiama: la scena non e finita, e
+           stata tolta. */
+        if (grS.scene[chiavi[k]]) { delete grS.scene[chiavi[k]]; }
     }
     grS.balloOpz = null;
     grS.balloFermo = false;
     grS.balloAttesa = false;
+    /* la camera torna libera: se una scena l aveva inchiodata e muore per
+       strada, senza questa riga resterebbe bloccata per sempre */
+    if (typeof binSblocca === "function") { binSblocca(); }
     /* avanzi del banco di collaudo: il ciclo del guscio li tiene vivi */
     if (typeof st !== "undefined") {
         var slot = ["pPreda", "pVis", "pScudo", "voto", "ballo", "fin"], i;
@@ -48264,6 +48491,13 @@ function grAvanzaScene(dt, t) {
     var T = (typeof t === "number") ? t
         : ((typeof st !== "undefined" && typeof st.t === "number") ? st.t : 0);
     var c = grS.ctrl;
+    /* L INTRO: gira come le altre scene, e quando finisce alza il sipario,
+       che e il segnale per cui il mazzo e la carta possono entrare */
+    if (c.intro) {
+        if (c.intro.attivo) {
+            if (!c.intro.aggiorna(dt)) { LUPR.libera("intro"); }
+        } else { LUPR.libera("intro"); }
+    }
     /* il lupo che cammina: quando ha finito, comincia la caccia */
     if (c.lupoCam && c.lupoCam.attivo) {
         /* l ombra che gira la fa girare il ciclo del guscio: qui c e'
@@ -48324,6 +48558,225 @@ function grAvanzaScene(dt, t) {
 
 /* quello che vive fuori dai controllori: i cartigli dell asta, le
    voci finte delle arringhe, l ombra che passa di notte */
+/* ============================================================
+   IL COPIONE DELLA NOTTE (07/09/2026, ordine del proprietario: «durante la
+   notte narra alcune cose mentre i lupi e la lanterna o altri personaggi
+   fanno le loro scelte e dai il giusto tempo per farle»).
+   Prima la notte era: sei cose insieme al secondo zero, poi 25,8 secondi su
+   30 in cui non succedeva piu niente, e sempre la stessa frase in ogni
+   notte di ogni partita (misurato nell audit del 07/09).
+   Adesso c e un copione, costruito come quello dell asta (LUPA.copione +
+   grCartigli): momenti a FRAZIONE di fase, cosi vale anche in allenamento
+   dove la notte dura 18 s invece di 30. Regole che lo tengono onesto:
+   - non dice MAI chi sta facendo cosa: parla del buio, del vento, dell
+     acqua, di quante finestre restano accese (numeri pubblici);
+   - cambia con la notte: la prima e spaventata, la seconda ha imparato,
+     dalla terza in poi il borgo e stanco e ha una lista di nomi;
+   - le quattro GOCCE cadono sempre agli stessi istanti: sono l orologio
+     della notte, come le dieci campanate lo sono dell asta, e dopo due
+     partite dicono quanto manca senza guardare la barra;
+   - a chi non ha poteri (la maggioranza del tavolo) la voce da un compito,
+     non una attesa.
+   __VIVI__ diventa il numero dei vivi. */
+var GR_NOTTE = [
+    { t: 0.14, r: "ogni", it: "Prima goccia. Le imposte si chiudono, una per volta." },
+    { t: 0.28, r: "1",    it: "Tieni gli occhi aperti. Da adesso si sente tutto." },
+    { t: 0.28, r: "2",    it: "Il borgo ha imparato a contarsi. Adesso lo fa due volte." },
+    { t: 0.28, r: "3",    it: "Non c e piu niente da guardare, e guardiamo lo stesso." },
+    { t: 0.40, r: "ogni", it: "Seconda goccia. Ghiaia, due passi, poi piu niente." },
+    { t: 0.54, r: "1",    it: "La fontana continua a versare. E l unica qui che non ha paura." },
+    { t: 0.54, r: "2",    it: "Una finestra si spegne. Poi un altra. Nessuno vuole restare l ultimo acceso." },
+    { t: 0.54, r: "3",    it: "Dietro le imposte non dorme nessuno. Si ascolta." },
+    { t: 0.66, r: "1",    it: "Sul selciato bagnato i passi non si sentono. Comodo, per chi esce." },
+    { t: 0.66, r: "2",    it: "L acqua tiene il tempo. Il borgo no." },
+    { t: 0.66, r: "3",    it: "L acqua tiene il tempo. Il borgo no." },
+    { t: 0.86, r: "1",    it: "__VIVI__ finestre accese. Domani si contano." },
+    { t: 0.86, r: "2",    it: "__VIVI__ finestre accese. Domani si contano." },
+    { t: 0.86, r: "3",    it: "__VIVI__ finestre accese. Ormai ci si conta a memoria." },
+    { t: 0.92, r: "ogni", it: "Quarta goccia. Il buio si stringe: quello che va fatto, si fa adesso." }
+];
+/* la prima riga della notte resta quella di sempre al secondo zero (grT.notteVoce
+   per la prima notte), con due sorelle per le notti dopo */
+var GR_NOTTE_APRE = {
+    "1": "La luna conta le finestre accese. Una di troppo.",
+    "2": "Seconda notte. Stavolta le imposte erano chiuse prima del buio.",
+    "3": "Il borgo non ha piu paura. Ha sonno, e ha una lista di nomi."
+};
+function grNotteChiave(round) {
+    var r = (typeof round === "number") ? round : 1;
+    if (r <= 1) { return "1"; }
+    if (r === 2) { return "2"; }
+    return "3";
+}
+/* il copione della notte, letto sull orologio della fase: stessa forma di
+   grCartigli, con l aggiunta del round e dei numeri pubblici */
+function grNotteCopione(ft, fs, v) {
+    var i, a, testo, chiave = grNotteChiave(grS.round), q;
+    if (!(fs > 0)) { return; }
+    q = ft / fs;
+    for (i = 0; i < GR_NOTTE.length; i++) {
+        a = GR_NOTTE[i];
+        if (a.r !== "ogni" && a.r !== chiave) { continue; }
+        if (grS.notteFatto[i] || q < a.t) { continue; }
+        grS.notteFatto[i] = true;
+        /* si traduce il MODELLO e poi si riempie: la tabella inglese va
+           per frase intera, e una frase col numero gia dentro non la
+           troverebbe mai (e la stessa regola di grT.rimborsoScelto) */
+        testo = grRiempi(grL(a.it), "__VIVI__", String((v && v.vivi) ? v.vivi.length : grS.n));
+        grVoce(testo, 3400);
+        /* l ombra del lupo ripassa: la notte non deve mai essere ferma.
+           Non punta nessuno (preda null): e atmosfera, non un indizio */
+        if (a.t === 0.40 || a.t === 0.66) { grNotteOmbra(); }
+    }
+}
+function grNotteOmbra() {
+    if (!st || !st.ombraLupo || !st.ombraLupo.avvia) { return; }
+    if (st.ombraLupo.attivo) { return; }
+    /* un giro corto, da un settore diverso ogni volta: l ombra passa tre
+       volte per notte invece di una sola, e da un lato diverso */
+    var g = (grS.notteGiro = ((grS.notteGiro || 0) + 1) % 3);
+    var da = Math.PI * (0.30 + g * 0.62);
+    try { st.ombraLupo.avvia({ durata: 6.2, raggio: 4.6, angDa: da, angA: da + Math.PI * 1.05 }); }
+    catch (e) { /* la notte non si rompe per un ombra */ }
+}
+
+/* ============================================================
+   L INTRO: LA CONTA (07/09/2026, ordine del proprietario: la partita a
+   gratis inizia troppo improvvisamente, creiamo una breve intro in cui
+   vengono mostrati i partecipanti e viene consegnata la carta).
+   Prima fra il borgo e la carta in mano passavano ZERO secondi: nella
+   partita gratis il motore assegna i ruoli dentro gmCrea e la regia
+   distribuisce il mazzo al primo giro.
+   E un piano sequenza solo, senza tagli, dalla TORRE in mezzo alla piazza:
+   la camera non cammina, gira su se stessa e conta le case. Ogni casa che
+   arriva al centro del quadro accende la sua finestra; quando il giro e
+   finito il borgo e tutto acceso, una campanata lo spegne e resta accesa
+   una finestra sola: la tua. Poi il buio, e la carta.
+   Regole che lo tengono in piedi:
+   - la camera NON cambia mai posizione: solo giro e fov. Un carrello di
+     dodici secondi rifarebbe le ombre cotte a 20 Hz;
+   - i tempi stanno su un SIPARIO, che tiene in coda l evento del ruolo: la
+     carta arriva dopo, senza toccare il motore ne il server;
+   - tutto scala sul tempo della fase (26 s a soldi, 14 in allenamento): se
+     il tempo e poco si accorcia il giro, mai la carta;
+   - il dito non la interrompe: la camera e bloccata (binBlocca).
+   ============================================================ */
+var GR_INTRO_S = 22.0;          /* la durata piena; sotto si scala */
+function grIntro(secondi) {
+    var C = { t: 0, attivo: false, fatte: {}, accese: 0 };
+    var n = (typeof borgo !== "undefined" && borgo.length) ? borgo.length : grS.n;
+    var sg = grS.sg;
+    var scala = Math.max(0.45, Math.min(1, (secondi || GR_INTRO_S) / GR_INTRO_S));
+    var T = { conta: 2.0 * scala, giro: 12.0 * scala, fermo: 3.2 * scala,
+              buio: 1.8 * scala, stretta: 2.6 * scala, nero: 1.0 * scala };
+    var tCasa = [], i, thMio = 0;
+    for (i = 0; i < n; i++) {
+        if (borgo[i]) {
+            tCasa.push({ i: i, th: Math.atan2(borgo[i].position.x, borgo[i].position.z) });
+            if (i === sg) { thMio = Math.atan2(borgo[i].position.x, borgo[i].position.z); }
+        }
+    }
+    /* il giro parte da casa tua e ci torna: finisce dove deve finire */
+    function yawA(q) { return thMio + (q * Math.PI * 2); }
+    function luceCase(v) {
+        var k;
+        for (k = 0; k < n; k++) { if (borgo[k]) { borgo[k].userData.mulLuce = v; } }
+    }
+    C.avvia = function () {
+        C.t = 0; C.attivo = true; C.fatte = {}; C.accese = 0;
+        if (typeof binBlocca === "function") { binBlocca("intro"); }
+        if (typeof binTorreScena === "function") {
+            binTorreScena({ yaw: yawA(0), pitch: -0.16, fov: 46, secco: true });
+        }
+        luceCase(0);
+        grSnd("vento", true);
+        grTitolo(grT.ritoFase, grT.ritoTit);
+        grVoce(grL("Nessuna finestra accesa. Il borgo non si e ancora contato."), 3200);
+        return C;
+    };
+    C.aggiorna = function (dt) {
+        if (!C.attivo) { return false; }
+        C.t += dt;
+        var t = C.t, q, k;
+        if (t < T.conta) { return true; }
+        /* IL GIRO: la camera si volta, e ogni casa che passa si accende */
+        if (t < T.conta + T.giro) {
+            q = (t - T.conta) / T.giro;
+            if (typeof binTorreScena === "function") { binTorreScena({ yaw: yawA(q) }); }
+            for (k = 0; k < tCasa.length; k++) {
+                var qk = (k + 1) / (tCasa.length + 0.6);
+                if (q >= qk && !C.fatte["c" + k]) {
+                    C.fatte["c" + k] = true;
+                    C.accese++;
+                    if (borgo[tCasa[k].i]) { borgo[tCasa[k].i].userData.mulLuce = 1; }
+                    grSnd("tocco");
+                }
+            }
+            if (!C.fatte.voceGiro && q > 0.06) {
+                C.fatte.voceGiro = true;
+                grVoce(grL("Una finestra per volta. Chi si accende ha un nome."), 3200);
+            }
+            return true;
+        }
+        /* FERMO SU CASA TUA: il conto e finito */
+        if (t < T.conta + T.giro + T.fermo) {
+            if (typeof binTorreScena === "function") { binTorreScena({ yaw: thMio }); }
+            if (!C.fatte.conta) {
+                C.fatte.conta = true;
+                luceCase(1);
+                var vI = grS.M ? grS.M.vista(grS.sg) : null;
+                var kL = (vI && typeof vI.lupi_k === "number") ? vI.lupi_k : 2;
+                grVoce(grRiempi(grRiempi(grL("__N__ abitanti. __K__ hanno i denti."),
+                    "__N__", String(n)), "__K__", String(kL)), 3400);
+            }
+            return true;
+        }
+        /* LA CAMPANATA: si spegne tutto tranne casa tua */
+        if (t < T.conta + T.giro + T.fermo + T.buio) {
+            if (!C.fatte.buio) {
+                C.fatte.buio = true;
+                luceCase(0);
+                if (borgo[sg]) { borgo[sg].userData.mulLuce = 1; }
+                if (typeof st !== "undefined" && st.campanile && st.campanile.userData &&
+                        st.campanile.userData.suona) {
+                    try { st.campanile.userData.suona(1, 0.50); } catch (e) { /* niente */ }
+                }
+                grVoce(grL("Le finestre si spengono insieme. Ne resta una."), 3000);
+            }
+            return true;
+        }
+        /* LA STRETTA sul tuo medaglione */
+        if (t < T.conta + T.giro + T.fermo + T.buio + T.stretta) {
+            if (!C.fatte.stretta) {
+                C.fatte.stretta = true;
+                if (typeof binTorreScena === "function") {
+                    binTorreScena({ yaw: thMio, pitch: -0.06, fov: 20 });
+                }
+                grVoce(grL("Quella e casa tua. La targa dice il tuo nome."), 2800);
+            }
+            return true;
+        }
+        /* IL NERO, e poi la carta */
+        if (t < T.conta + T.giro + T.fermo + T.buio + T.stretta + T.nero) {
+            if (!C.fatte.nero) {
+                C.fatte.nero = true;
+                luceCase(0);
+                grVoce(grL("Le carte girano adesso. La tua e l ultima."), 2600);
+            }
+            return true;
+        }
+        C.attivo = false;
+        return false;
+    };
+    C.smonta = function () {
+        C.attivo = false;
+        luceCase(undefined);
+        if (typeof binTorreGiu === "function") { binTorreGiu(); }
+        if (typeof binSblocca === "function") { binSblocca("intro"); }
+    };
+    return C;
+}
+
 function grAtmosfera(dt) {
     var v;
     if (grS.fase === "asta" && grS.copione) {
@@ -48351,6 +48804,10 @@ function grAtmosfera(dt) {
             grS.ctrl.asta.aggiorna(dt,
                 (typeof st !== "undefined") ? st.t : 0, v.fase_t || 0);
         }
+    }
+    if (grS.fase === "notte") {
+        v = grS.M.vista(grS.sg);
+        grNotteCopione(v.fase_t || 0, v.fase_s || 0, v);
     }
     if (grS.fase === "arringa" && grS.imputati.length === 2) {
         grS.arringaT += dt;
@@ -48521,11 +48978,24 @@ function grPlanciaDa(v) {
                 for (i = 0; i < vivi.length; i++) {
                     if (vivi[i] !== grS.sg && grS.nominaScelti.indexOf(vivi[i]) < 0) { ammessi.push(vivi[i]); }
                 }
-                opz.etichetta = (grS.nominaScelti.length ? "SECONDO LUPO" : "PRIMO LUPO");
-                opz.suggerimento = grT.nominaArma;
-                opz.extra = "ANNULLA";
+                opz.etichetta = "AGGIUNGI";
+                opz.suggerimento = grS.nominaScelti.length
+                    ? ("Chiamati: " + grS.nominaScelti.length + ". Aggiungi un altro nome o premi CHIAMA.")
+                    : grT.nominaArma;
+                /* CHIAMA quando vuoi tu: il motore accetta solo se i nomi sono
+                   esattamente i lupi vivi, e quanti sono non lo sa nessuno */
+                opz.extra = grS.nominaScelti.length ? ("CHIAMA " + grS.nominaScelti.length) : "ANNULLA";
                 opz.onExtra = function () {
-                    grS.nominaArmata = false; grS.nominaScelti = []; grS.firmaPlancia = "";
+                    if (!grS.nominaScelti.length) {
+                        grS.nominaArmata = false; grS.firmaPlancia = "";
+                        return;
+                    }
+                    var esN = LUPR.azione("nomina", grS.nominaScelti[0],
+                        (grS.nominaScelti.length > 1) ? grS.nominaScelti[1] : -1, 0);
+                    if (esN !== false) {
+                        grS.nominaArmata = false; grS.nominaScelti = [];
+                    }
+                    grS.firmaPlancia = "";
                 };
                 opz.extra2 = String(grS.nominaScelti.length);
             } else {
@@ -48564,13 +49034,22 @@ function grPlanciaDa(v) {
             }
         }
     } else if (f === "voto") {
-        modo = "voto";
-        for (i = 0; i < vivi.length; i++) {
-            if (vivi[i] !== grS.sg) { ammessi.push(vivi[i]); }
+        /* CHI E GIA ALLA SBARRA D UFFICIO OGGI NON VOTA (07/09): il motore
+           gli dice di no (gmVotoAccusa) e la sua scheda non entra nell urna.
+           Prima nessuno glielo diceva: votava, gli si rispondeva di si, e la
+           scheda spariva allo spoglio. Adesso legge perche. */
+        if (you.vivo && you.senza_scheda) {
+            modo = "nessuna";
+            opz.suggerimento = "Sei gia alla sbarra: oggi la tua scheda non c e.";
+        } else {
+            modo = "voto";
+            for (i = 0; i < vivi.length; i++) {
+                if (vivi[i] !== grS.sg) { ammessi.push(vivi[i]); }
+            }
+            opz.etichetta = "ACCUSA";
+            opz.conAstensione = true;
+            opz.suggerimento = "Oggi votano tutti, anche chi non c e piu.";
         }
-        opz.etichetta = "ACCUSA";
-        opz.conAstensione = true;
-        opz.suggerimento = "Oggi votano tutti, anche chi non c e piu.";
     } else if (f === "arringa") {
         modo = (you.vivo && (v.imputati || []).indexOf(grS.sg) >= 0)
             ? "arringa" : "nessuna";
@@ -48619,17 +49098,19 @@ function grConferma(modo) {
         }
         if (modo === "inchioda") { return LUPR.azione("inchioda", sg, -1, 0); }
         if (modo === "nomina") {
-            /* si raccolgono tanti nomi quanti i lupi del tavolo, poi si
-               parla: il motore vuole i lupi VIVI tutti insieme */
-            var vN = grS.M.vista(grS.sg), kN = vN.lupi_k || 1;
-            if (grS.nominaScelti.indexOf(sg) < 0) { grS.nominaScelti.push(sg); }
-            grS.firmaPlancia = "";
-            if (grS.nominaScelti.length >= kN) {
-                var esN = LUPR.azione("nomina", grS.nominaScelti[0],
-                    (grS.nominaScelti.length > 1) ? grS.nominaScelti[1] : -1, 0);
-                grS.nominaArmata = false; grS.nominaScelti = [];
-                return esN;
+            /* SI AGGIUNGE UN NOME E BASTA (07/09). Prima si sparava la mossa
+               appena i nomi raccolti arrivavano a lupi_k — che e il numero di
+               lupi DISTRIBUITI a inizio partita e non scende mai — mentre il
+               motore pretende i lupi VIVI: dal momento in cui muore il primo
+               lupo la chiamata era rifiutata SEMPRE, e il potere non partiva
+               piu. Quanti lupi siano vivi non lo sa nessuno (i ruoli dei morti
+               restano segreti fino alla fine), e non e informazione che si
+               possa regalare: percio la decisione torna al giocatore, che
+               nomina chi vuole e poi preme CHIAMA. */
+            if (grS.nominaScelti.indexOf(sg) < 0 && grS.nominaScelti.length < 4) {
+                grS.nominaScelti.push(sg);
             }
+            grS.firmaPlancia = "";
             return true;
         }
         return false;
@@ -48794,6 +49275,13 @@ LUPR.smista = function (e) {
 
 function grEvFase(e) {
     grS.fase = e.fase;
+    /* I BOLLI DI FASE SE NE VANNO CON LA FASE (07/09). PRONTO e IMPUTATO
+       sono segnali di un momento, ma restavano appiccicati: dal secondo
+       giro il ✓ era addosso a chi aveva premuto al primo, e il ! restava
+       sui due del ballottaggio anche dopo la grazia — due innocenti
+       marchiati in piazza per il resto della partita. La morte no: quella
+       resta (badge(-1) tiene morto e fantasma). */
+    if (grUI().badge) { grUI().badge(-1, null); }
     /* IL SET DELL ASTA NON SOPRAVVIVE ALLA SUA FASE.
        Lo smontaggio stava solo nel ramo "rivela", che in partita gratis
        non arriva mai: banco, telo e banditore restavano piantati in
@@ -48814,10 +49302,24 @@ function grEvFase(e) {
         break;
     case "rito":
         grPulisci();
-        grTitolo(grT.ritoFase, grT.ritoTit);
-        grVoce(grT.ritoVoce, 4200);
-        grSnd("campana", 1);
         grEco(grS.M.vista(grS.sg));
+        /* L INTRO (07/09): solo nella partita GRATIS, dove il rito e tutto
+           quello che c e fra il borgo e la carta. A soldi il rito arriva
+           dopo l asta e ha gia il suo racconto. Il sipario tiene in coda
+           l evento del ruolo: mazzo e carta arrivano dopo l intro. */
+        var vRito = grS.M.vista(grS.sg);
+        var sRito = Math.max(6, (vRito.fase_s || GR_INTRO_S) - 3.5);
+        if (!grS.aSoldi && typeof grIntro === "function") {
+            grS.ctrl.intro = grIntro(Math.min(GR_INTRO_S, sRito));
+            LUPR.sipario("intro", sRito + 1.5, function () {
+                if (grS.ctrl.intro) { grS.ctrl.intro.smonta(); grS.ctrl.intro = null; }
+            });
+            grS.ctrl.intro.avvia();
+        } else {
+            grTitolo(grT.ritoFase, grT.ritoTit);
+            grVoce(grT.ritoVoce, 4200);
+            grSnd("campana", 1);
+        }
         break;
     case "notte": LUPR.scNotteViva(grS.round); break;
     case "alba": LUPR.scAlba(grS.round, grS.vittima); break;
@@ -49096,6 +49598,8 @@ LUPR.scAsta = function () {
 
 LUPR.scNotteViva = function (round) {
     grPulisci();
+    /* il copione di QUESTA notte riparte da capo */
+    grS.notteFatto = {};
     grSnd("vento", true);
     /* IL RICHIAMO: a ogni notte, non un ululato lontano appena
        accennato che nessuno sentiva */
@@ -49104,7 +49608,9 @@ LUPR.scNotteViva = function (round) {
     grTitolo(grT.notteFase, "Notte " + grRom(round || 1));
     if (typeof chatFase === "function") { chatFase("notte"); }
     if (typeof luceDelGiorno === "function") { luceDelGiorno(false, 2.4); }
-    grVoce(grT.notteVoce, 4200);
+    /* la riga d apertura cambia con la notte: la prima e spaventata, la
+       seconda ha imparato, dalla terza in poi il borgo e stanco */
+    grVoce(grL(GR_NOTTE_APRE[grNotteChiave(round)] || grT.notteVoce), 4200);
     if (typeof nebbiaCol !== "undefined" && nebbiaCol.setHex) {
         nebbiaCol.setHex(0x120e26);
     }
@@ -49455,9 +49961,29 @@ LUPR.scAlba = function (round, mortoSg) {
     if (mortoSg !== undefined && mortoSg !== null && mortoSg >= 0) {
         grChatRiga(null, grRiempi(grT.mortoNotte, "__NOME__",
             grNome(mortoSg)), "sistema");
+        /* LA CASA DELLA VITTIMA, INTERA (07/09, ordine del proprietario:
+           «ogni mattina se ci sta una vittima bisogna inquadrare per
+           intero la casa vittima con il logo piu spento»). Si guarda dal
+           binario, dalla sua parte, tirato indietro di 3,2 m: da li la
+           casa ci sta tutta, tetto e insegna comprese. Prima l alba non
+           inquadrava niente e la camera restava dove l aveva lasciata la
+           notte. */
+        grAlbaVittima(mortoSg);
     }
     grHud(true);
 };
+
+/* la casa di chi non ha aperto la finestra: tutta dentro il quadro, e
+   ferma li qualche secondo. Il medaglione lo ha gia spento LUPR.uccidi. */
+function grAlbaVittima(sg) {
+    var casa = grCasa(sg);
+    if (!casa || typeof binPunto !== "function") { return; }
+    var th = Math.atan2(casa.position.x, casa.position.z);
+    var dist = BIN.distBase + 3.2;
+    var occhio = binPunto(th, 0.30, dist, new THREE.Vector3());
+    var mira = new THREE.Vector3(casa.position.x, 2.25, casa.position.z);
+    grRegia(occhio, mira, 2.4, { theta: th, alt: 0.30, dist: dist, fov: 46, propri: [casa] });
+}
 
 LUPR.scGiorno = function (round) {
     grPulisci();
@@ -49578,6 +50104,7 @@ LUPR.scSbarra = function (due) {
         scuoti: function (f, d) { grScuoti(f, d); },
         onCondanna: null,
         onFine: function () {
+            if (typeof binSblocca === "function") { binSblocca("ballo"); }
             setTimeout(function () {
                 if (typeof tabChiudi === "function") { tabChiudi(); }
                 grHud();
@@ -49601,6 +50128,12 @@ LUPR.scSbarra = function (due) {
             }
         }
     }
+    /* LA CAMERA E DEL BALLOTTAGGIO, DA QUI ALLA FINE (07/09, ordine del
+       proprietario): va sui piedistalli e non si sposta piu — il dito non
+       la prende, il pinch non la stringe, l orbita non parte. Si sblocca
+       in onFine, in grPulisci e col cambio di fase, cosi non puo restare
+       chiusa se la scena muore per strada. */
+    if (typeof binBlocca === "function") { binBlocca("ballo"); }
     grS.ctrl.ballo.avvia();
     grS.balloT = 0;
     grS.balloFermo = false;
@@ -51999,6 +52532,22 @@ var LUP_EN = {
     "la casa che segni domani sara alla sbarra": "the house you mark will be in the dock tomorrow",
     "l urna e sigillata": "the urn is sealed", "ASTIENITI": "ABSTAIN", "nessuno": "nobody",
     "SIGILLATA": "SEALED",
+    /* il copione della notte (07/09) */
+    "Seconda notte. Stavolta le imposte erano chiuse prima del buio.": "Second night. This time the shutters were shut before dark.",
+    "Il borgo non ha piu paura. Ha sonno, e ha una lista di nomi.": "The village is not afraid any more. It is tired, and it has a list of names.",
+    "Prima goccia. Le imposte si chiudono, una per volta.": "First drop. The shutters close, one at a time.",
+    "Tieni gli occhi aperti. Da adesso si sente tutto.": "Keep your eyes open. From now on everything is heard.",
+    "Il borgo ha imparato a contarsi. Adesso lo fa due volte.": "The village has learned to count itself. Now it does it twice.",
+    "Non c e piu niente da guardare, e guardiamo lo stesso.": "There is nothing left to look at, and we look anyway.",
+    "Seconda goccia. Ghiaia, due passi, poi piu niente.": "Second drop. Gravel, two steps, then nothing.",
+    "La fontana continua a versare. E l unica qui che non ha paura.": "The fountain keeps pouring. It is the only one here with no fear.",
+    "Una finestra si spegne. Poi un altra. Nessuno vuole restare l ultimo acceso.": "A window goes dark. Then another. Nobody wants to be the last one lit.",
+    "Dietro le imposte non dorme nessuno. Si ascolta.": "Behind the shutters nobody is sleeping. They are listening.",
+    "Sul selciato bagnato i passi non si sentono. Comodo, per chi esce.": "On the wet cobbles footsteps make no sound. Handy, for whoever goes out.",
+    "L acqua tiene il tempo. Il borgo no.": "The water keeps time. The village does not.",
+    "__VIVI__ finestre accese. Domani si contano.": "__VIVI__ windows still lit. Tomorrow they get counted.",
+    "__VIVI__ finestre accese. Ormai ci si conta a memoria.": "__VIVI__ windows still lit. By now the village counts from memory.",
+    "Quarta goccia. Il buio si stringe: quello che va fatto, si fa adesso.": "Fourth drop. The dark is closing in: whatever has to be done, do it now.",
     "PRONTO": "READY", "PRONTO ✓": "READY ✓", "SCELTO ✓": "CHOSEN ✓",
     "non puoi sceglierlo adesso": "you cannot choose that now", "prima scegli un volto": "choose a face first",
     "tieni premuto per sigillare": "hold to seal",
@@ -52054,6 +52603,7 @@ var LUP_EN = {
     "Oggi votano tutti, anche chi non c e piu.": "Today everybody votes, even those who are gone.",
     "Hai la parola. Poi premi pronto.": "You have the floor. Then press ready.",
     "Parlano i due alla sbarra.": "The two in the dock are speaking.",
+    "Sei gia alla sbarra: oggi la tua scheda non c e.": "You are already in the dock: today you have no ballot.",
     "INCHIODA": "NAIL", "SECONDO LUPO": "SECOND WOLF", "PRIMO LUPO": "FIRST WOLF", "ANNULLA": "CANCEL",
     "NOMINA I LUPI": "NAME THE WOLVES", "RIVELATI": "REVEAL YOURSELF", "LEGGI": "READ", "REGISTRO €": "REGISTER €",
     "HAI PRESO IL POSTO": "YOU TOOK THE SEAT", "LA TUA BUSTA NON BASTAVA": "YOUR ENVELOPE WAS NOT ENOUGH",
@@ -52723,7 +53273,7 @@ var INSEGNE = ["G", "F", "C", "S", "L", "B", "N", "X", "O", "M"];
 var LUP_FACCE = [];
 var BORGO_MIN = 5, BORGO_MAX = 10, BORGO_N0 = 8;
 var sc, cam, ren, orologio, luci, borgo = [], robot = [], lupo, lampione,
-  fontana, selciato, nebbiaCol, arredo, patibolo, radura, reo;
+  fontana, selciato, nebbiaCol, arredo, patibolo, radura, reo, gemelliShader;
 /* L3: la camera sta in BIN (piu sotto); st.camGuarda resta come alias della
    sua mira. I vecchi campi della camera (giro, camA, camLibera, camDeriva)
    non esistono piu; i moduli pot_* scrivono ancora "giro = false" su st:
@@ -52821,10 +53371,15 @@ var BIN_SOGLIA_SCORRI = 0.61;                    /* 35 gradi: sotto, il binario 
    la presa la camera torna da sola all inquadratura della scena, senza
    salti. Ferma in mezzo alla piazza a 6,5 m: i medaglioni stanno fra 2,2 e
    4,2 m, quindi da li' si leggono le facce girandosi, non i tetti. */
-var BIN_TORRE_Y = 6.5;                           /* quota della torre (m) */
+/* 8,0 m e non 6,5: da 6,5 la casa piu vicina non ci sta nel quadro nemmeno
+   col fov al tetto (misurato: a cinque case servirebbero 63,7 gradi contro i
+   62 di BIN_FOV_MAX). A 8 m ci sta a n = 5, 8 e 10 (ordine del proprietario:
+   «deve essere piu grandangolare, la casa si deve vedere per intero»). */
+var BIN_TORRE_Y = 8.0;                           /* quota della torre (m) */
 var BIN_TORRE_TAU = 0.30;                        /* s per salirci e per tornare */
 var BIN_TORRE_D = 12.0;                          /* m: dove si posa la mira davanti */
 var BIN_TORRE_GIU = -1.05, BIN_TORRE_SU = 0.30;  /* rad: quanto si puo guardare giu e su */
+var BIN_TORRE_MARG = 1.10;                       /* il 10 per cento di aria attorno alla casa */
 var BIN_DITO_S = 12.0;                           /* secondi di precedenza del dito: dopo tanto senza toccare, la scena si riprende la camera */
 var BIN_TAU_MIN = 0.25, BIN_TAU_MAX = 1.0;
 var BIN_DIST_RADURA = 5.0, BIN_ALT_RADURA = 0.18, BIN_THETA_RADURA = 172 * Math.PI / 180;
@@ -52889,8 +53444,9 @@ var BIN = {
   dito: { giu: false, id: -1, x0: 0, y0: 0, th0: 0, al0: 0, f0: 1, vel: 0, finoA: -99, pinch: 0, fov0: 46,
           camp: [], tGiu: -99999, xGiu: 0, yGiu: 0, mosso: 0, mossoPrec: 99, zoomVivo: -99, preso: false },
   taglioT: -99,        /* st.t dell ultimo taglio applicato (lo leggono i banchi) */
+  bloccata: null,      /* se c e un nome, la camera e di quella scena e il dito non la tocca */
   /* la torre: on = comanda il dito, k = quanto ci si e saliti (0..1) */
-  torre: { on: false, k: 0, yaw: 0, pitch: -0.18 },
+  torre: { on: false, k: 0, yaw: 0, pitch: -0.18, fov: BIN_FOV0, scena: false },
   auto: 0,             /* rad/s: l orbita che gira da sola (la vecchia orbita "giro" del menu) */
   derivaFov: 0,        /* gradi/s di fov che si stringe dentro un atto (l asta); si azzera a ogni richiesta */
   rich: null,          /* l ultima richiesta grezza (pos, guarda, dur, opz): il campanile la rimette dopo il rintocco */
@@ -52962,6 +53518,25 @@ function binFovDa(dVol, dReale, fovMin) {
   return binClamp(f, fovMin || BIN_FOV_MIN, BIN_FOV_MAX);
 }
 function binFerma() { BIN.auto = 0; }
+/* LA CAMERA INCHIODATA A UNA SCENA (07/09, ordine del proprietario: «quando
+   ci sta il ballottaggio la camera deve andare automaticamente dove compaiono
+   i piedistalli e deve rimanere li fino alla fine e non puo essere spostata»).
+   Mentre e inchiodata: il dito non sale sulla torre e non muove niente (e se
+   c era sopra, scende), il pinch e l orbita del menu sono spenti, e le scene
+   continuano a comandare come sempre. Si sblocca da sola se chi l ha chiusa
+   se ne dimentica: il nome di chi la tiene sta in BIN.bloccata. */
+function binBlocca(chi) {
+  BIN.bloccata = chi || "scena";
+  BIN.auto = 0;
+  BIN.torre.on = false;
+  BIN.dito.giu = false; BIN.dito.id = -1; BIN.dito.vel = 0;
+  BIN.dito.finoA = -99;          /* la scena riprende subito il comando */
+}
+function binSblocca(chi) {
+  if (!BIN.bloccata) { return; }
+  if (chi && BIN.bloccata !== chi) { return; }
+  BIN.bloccata = null;
+}
 
 /* o discende da padre? (per st.camIgnora) */
 function camDentro(o, padre) {
@@ -53040,7 +53615,18 @@ function binOccluso(g, P, propri, marg) {
       if (ddx * ddx + ddz * ddz < BIN_PROPRIA * BIN_PROPRIA) { continue; }
       hd = (casa.userData && typeof casa.userData.profondita === "number") ? casa.userData.profondita * 0.5 : 0.70;
       if (binRaggioScatola(ox, oy, oz, dx, dy, dz, lung, casa.position.x, casa.position.z, casa.rotation.y, 0.95 + marg, hd + 0.35 + marg, -1.0, 2.75 + marg)) { return true; }
-      if (binRaggioCilindro(ox, oy, oz, dx, dy, dz, lung, casa.position.x, casa.position.z, 0.52 + marg, 2.19 - marg, 4.18 + marg)) { return true; }
+      /* IL MEDAGLIONE, NELLA SUA FORMA VERA (07/09). Era un cilindro solo,
+         r 0,52 da 2,19 a 4,18: grasso in basso e corto in alto. Fra 2,19 e
+         2,96 sotto il disco c e' solo il palo, un tondino r 0,035 (15 volte
+         piu' stretto): la camera si scansava da un ostacolo che non c e' —
+         e misurato, quella banda non ha mai fermato un fotogramma in tre
+         corse, quindi toglierla e' gratis. In alto invece la TARGA col nome
+         e' larga 1,72 m e arriva a 4,80: fuori dal cilindro. Misurato: 3,55 s
+         di partita in cui la targa copre il soggetto e il piano non la
+         vedeva. Adesso sono due cilindri, che e' la sagoma vera di un
+         cartello che si gira sempre verso di te: il disco e la targa. */
+      if (binRaggioCilindro(ox, oy, oz, dx, dy, dz, lung, casa.position.x, casa.position.z, 0.697 + marg, 2.963 - marg, 4.357 + marg)) { return true; }
+      if (binRaggioCilindro(ox, oy, oz, dx, dy, dz, lung, casa.position.x, casa.position.z, 0.858 + marg, 4.328 - marg, 4.801 + marg)) { return true; }
     }
   }
   if (typeof fontana !== "undefined" && fontana && fontana.visible && !binIgnorato(fontana)) {
@@ -53376,6 +53962,77 @@ function nebbiaInstalla(fog) {
   return fog;
 }
 
+/* IL FOV DELLA TORRE: quello che fa entrare una casa INTERA nel quadro
+   (ordine del proprietario, 07/09: «deve essere piu grandangolare, la casa
+   si deve vedere per intero»). Non si eredita piu quello della scena, che e
+   quasi sempre stretto (16-30 gradi) e mostrava una finestra e delle tegole.
+   Si misura sulla geometria vera: gli otto spigoli della scatola della casa
+   (larga 1,9, profonda quanto dice casa.userData.profondita, alta da terra a
+   2,75) piu la cima del medaglione (4,8 m), guardati dal punto della torre
+   con l asse puntato al centro della casa. In verticale conta l angolo cosi
+   com e; in orizzontale si divide per il rapporto dello schermo, che in
+   verticale e stretto (0,462): e quasi sempre la LARGHEZZA a legare.
+   Si calcola una volta quando nasce il borgo, non per fotogramma. */
+function binTorreFov() {
+  if (typeof borgo === "undefined" || !borgo || !borgo.length) { return BIN_FOV0; }
+  var asp = 0.462, i, j, casa, hd, ang, co, si, dx, dz;
+  var P = binTmpF.set(BIN.centro.x, BIN_TORRE_Y, BIN.centro.z);
+  var peggio = 0;
+  for (i = 0; i < borgo.length; i++) {
+    casa = borgo[i];
+    if (!casa) { continue; }
+    hd = (casa.userData && typeof casa.userData.profondita === "number") ? casa.userData.profondita * 0.5 : 0.70;
+    /* l asse: dalla torre al centro visivo della casa */
+    var ax = casa.position.x - P.x, ay = 2.40 - P.y, az = casa.position.z - P.z;
+    var al = Math.sqrt(ax * ax + ay * ay + az * az) || 1;
+    ax /= al; ay /= al; az /= al;
+    /* la destra e l alto del quadro attorno a quell asse */
+    var rx = az, rz = -ax, rl = Math.sqrt(rx * rx + rz * rz) || 1;
+    rx /= rl; rz /= rl;
+    var ux = ay * rz - 0, uy = az * rx - ax * rz, uz = 0 - ay * rx;
+    var ul = Math.sqrt(ux * ux + uy * uy + uz * uz) || 1;
+    ux /= ul; uy /= ul; uz /= ul;
+    ang = casa.rotation.y; co = Math.cos(ang); si = Math.sin(ang);
+    for (j = 0; j < 9; j++) {
+      var lx = (j & 1) ? 0.95 : -0.95, lz = (j & 2) ? (hd + 0.35) : -(hd + 0.35);
+      var py = (j & 4) ? 2.75 : 0.0;
+      if (j === 8) { lx = 0; lz = 0; py = 4.80; }      /* la cima del medaglione */
+      var wx = casa.position.x + lx * co + lz * si;
+      var wz = casa.position.z - lx * si + lz * co;
+      dx = wx - P.x; var dy = py - P.y; dz = wz - P.z;
+      var dl = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+      dx /= dl; dy /= dl; dz /= dl;
+      var lungo = dx * ax + dy * ay + dz * az;
+      if (lungo < 0.05) { lungo = 0.05; }
+      var qU = Math.abs(dx * ux + dy * uy + dz * uz) / lungo;      /* tangente verticale */
+      var qR = Math.abs(dx * rx + 0 * 0 + dz * rz) / lungo;        /* tangente orizzontale */
+      var tan = Math.max(qU, qR / asp);
+      if (tan > peggio) { peggio = tan; }
+    }
+  }
+  var f = 2 * Math.atan(peggio * BIN_TORRE_MARG) * 180 / Math.PI;
+  return binClamp(f, BIN_FOV0, BIN_FOV_MAX);
+}
+
+/* LA TORRE PER UNA SCENA (07/09). Fin qui ci saliva solo il dito; l intro
+   della partita e un piano sequenza da li, quindi serve la stessa porta
+   aperta al codice. Chi la usa la accompagna con binBlocca, se no il primo
+   tocco gliela porta via. */
+function binTorreScena(o) {
+  o = o || {};
+  BIN.torre.on = true;
+  BIN.torre.scena = true;      /* la tiene una scena: non scende da sola */
+  if (typeof o.yaw === "number") { BIN.torre.yaw = binWrap(o.yaw); }
+  if (typeof o.pitch === "number") { BIN.torre.pitch = binClamp(o.pitch, BIN_TORRE_GIU, BIN_TORRE_SU); }
+  if (typeof o.fov === "number") {
+    BIN.obj.fov = binClamp(o.fov, BIN_FOV_MIN, BIN_FOV_MAX);
+    BIN.obj.dFin = 0;
+    if (o.secco) { BIN.fov = BIN.obj.fov; BIN.fovOff = 0; BIN.fovNuovo = false; }
+    else { BIN.fovNuovo = true; }
+  }
+}
+function binTorreGiu() { BIN.torre.on = false; BIN.torre.scena = false; }
+
 /* la torre: il punto fermo in mezzo alla piazza, in alto */
 function binTorrePunto(out) {
   return out.set(BIN.centro.x, BIN_TORRE_Y, BIN.centro.z);
@@ -53428,7 +54085,9 @@ function binPasso(dt) {
   /* IL MOVIMENTO AUTOMATICO TORNA SOLO DOPO UN PO CHE NON TOCCHI (ordine
      del proprietario): finita la precedenza del dito si scende dalla
      torre, e la scena si riprende la sua inquadratura con calma */
-  if (BIN.torre.on && !D.giu && D.vel === 0 && st.t > D.finoA) { BIN.torre.on = false; }
+  /* la discesa automatica vale per il DITO: se sulla torre c e una
+     scena, scende quando lo dice lei (binTorreGiu) */
+  if (BIN.torre.on && !BIN.torre.scena && !D.giu && D.vel === 0 && st.t > D.finoA) { BIN.torre.on = false; }
   /* l orbita del menu (D-16): theta avanza di auto*dt in QUESTO fotogramma
      e l obiettivo gli sta addosso. Messo solo nell obiettivo e inseguito
      col lerp (k = 1-exp(-dt/tau)) lo spostamento vero era auto*dt*k:
@@ -53686,6 +54345,7 @@ function ditoInstalla() {
   el.style.touchAction = "none";
   function ora() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
   function giu(x, y, id) {
+    if (BIN.bloccata) { return; }      /* niente presa: la scena comanda */
     var t = ora();
     var doppio = (t - D.tGiu < 350) && Math.abs(x - D.xGiu) < 24 && Math.abs(y - D.yGiu) < 24 && D.mossoPrec < 24;
     D.tGiu = t; D.xGiu = x; D.yGiu = y; D.mosso = 0;
@@ -53697,6 +54357,7 @@ function ditoInstalla() {
   }
   function muovi(x, y) {
     if (!D.giu) { return; }
+    if (BIN.bloccata) { return; }      /* la camera e della scena */
     var dx = x - D.x0, dy = y - D.y0, d = Math.sqrt(dx * dx + dy * dy);
     if (d > D.mosso) { D.mosso = d; }
     if (D.mosso <= 8) { return; }
@@ -53718,7 +54379,13 @@ function ditoInstalla() {
       /* e il fov resta quello di adesso: senza, il fov per fotogramma
          inseguiva la grandezza del soggetto della scena mentre il dito
          girava attorno (misurato: 46 -> 58 in un trascinamento) */
-      BIN.obj.fov = BIN.fov; BIN.obj.dFin = 0; BIN.fovOff = 0; BIN.fovNuovo = false;
+      /* IL FOV NON SI EREDITA PIU DALLA SCENA (07/09). Congelare quello
+         che c era voleva dire salire sulla torre con 16-30 gradi in mano:
+         della casa si vedeva una finestra e delle tegole. Si prende quello
+         della torre, misurato sulle case vere, e ci si arriva con lo zoom
+         (fovNuovo lo mette nello scarto, che si spegne in 0,4 s). */
+      BIN.obj.fov = BIN.torre.fov || BIN_FOV0;
+      BIN.obj.dFin = 0; BIN.fovOff = 0; BIN.fovNuovo = true;
     }
     /* sulla torre il dito gira lo SGUARDO: yaw di lato, pitch in su e in
        giu. Gli stessi due fattori di prima (il gesto non cambia), ma
@@ -53743,6 +54410,7 @@ function ditoInstalla() {
     D.vel = v;
   }
   function zoom(f) {
+    if (BIN.bloccata) { return; }
     BIN.obj.fov = binClamp(f, BIN_FOV_MIN, BIN_FOV_MAX);
     BIN.obj.dFin = 0;
     D.zoomVivo = st.t;
@@ -54238,6 +54906,9 @@ function costruisciBorgo(n, nomi) {
     borgo.push(casa);
     sc.add(casa);
   }
+  /* il fov che fa entrare una casa INTERA guardandola dalla torre: si
+     misura adesso, a case costruite, e cambia col numero di case */
+  BIN.torre.fov = binTorreFov();
   /* L2 (B.2): il tetto del pool si fissa QUI, a case costruite: le luci
      fisse visibili in piazza (braciere, lampione, una per casa, la
      calata) piu' il margine delle scene: 6 punti (le quattro torce del
@@ -54333,6 +55004,59 @@ function costruisciDopoBorgo() {
       try { riscaldaRobot(); } catch (e) { if (window.__lupErr) { window.__lupErr("prova generale del robot (dopo la sonda): " + e); } }
     };
   }
+
+  /* ============ I QUATTRO GEMELLI MUTI (07/09) ============
+     Tre stalli veri, misurati, che non erano all ingresso ma DENTRO la
+     partita: 6-10 ms di compilazione shader ciascuno, nell istante in cui
+     una scena costruisce un materiale con una firma mai usata prima.
+       - le SCINTILLE della lama (patibolo.js:946), a nove secondi dentro
+         la scena del patibolo;
+       - la NUBE davanti alla luna dell epilogo (finale.js:298), che ha la
+         stessa firma dei solchi (finale.js:520) e dei graffi della caccia
+         (pot_preda.js:125): paga chi arriva primo;
+       - gli UCCELLI dell epilogo (finale.js:730), e la sagoma dello
+         Sciacallo (finale.js:815) quando vince lui.
+     Qui nascono quattro materiali con le stesse identiche firme, appesi a
+     un gruppo invisibile che non si smonta mai: dietro il velo di
+     caricamento si compilano loro, e in partita non si compila piu' niente.
+     Due dettagli pagati sul campo:
+       1. la mappa dev essere una texture LINEARE fatta apposta. Riusarne
+          una viva (pbTexLegno, che e sRGB) cambia la firma e ne restano
+          tre su cinque da compilare, piu' due programmi morti;
+       2. NON si allarga la radura ne' si chiama ren.compile con lei
+          visibile: rimetterebbe in conto la sua luce con ombra e
+          farebbe nascere 21 programmi inutili (misurato: 23 -> 44). */
+  (function () {
+    var cvG = document.createElement("canvas");
+    cvG.width = 2; cvG.height = 2;
+    var texG = new THREE.CanvasTexture(cvG);
+    var pg = new THREE.PlaneGeometry(1, 1);
+    var bg = new THREE.BufferGeometry();
+    bg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(9), 3));
+    function piano(due) {
+      var m = new THREE.MeshBasicMaterial({ map: texG, transparent: true, opacity: 0,
+        depthWrite: false, depthTest: false, fog: false });
+      if (due) { m.side = THREE.DoubleSide; }
+      return new THREE.Mesh(pg, m);
+    }
+    function punti(conNebbia) {
+      var m = new THREE.PointsMaterial({ size: 0.05, transparent: true, opacity: 0,
+        depthWrite: false, blending: THREE.AdditiveBlending });
+      if (!conNebbia) { m.fog = false; }
+      return new THREE.Points(bg, m);
+    }
+    gemelliShader = new THREE.Group();
+    gemelliShader.visible = false;
+    gemelliShader.add(piano(false));   /* nube, solchi, graffi */
+    gemelliShader.add(piano(true));    /* la sagoma dello Sciacallo */
+    gemelliShader.add(punti(true));    /* le scintille della lama */
+    gemelliShader.add(punti(false));   /* gli uccelli dell epilogo */
+    sc.add(gemelliShader);
+    if (st.luciScena && st.luciScena.riconta) { st.luciScena.riconta(); }
+    try { ren.compile(sc, cam); } catch (e) {
+      if (window.__lupErr) { window.__lupErr("gemelli muti: " + e); }
+    }
+  }());
 
   /* --- IL LUPO: esiste solo come ombra (regola del proprietario) --- */
   lupo = mkLupo({ braci: false, alone: false });
