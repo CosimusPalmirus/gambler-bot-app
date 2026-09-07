@@ -39731,7 +39731,7 @@ LUPM.FASE_S_PALESTRA = {
     /* L ASTA NON SI SCALA (03/09): dieci campanate da due secondi sono
        contratto con la scena e con la plancia, e a 30 s il rito si
        chiudeva alla quarta campanata. Ottanta anche in palestra. */
-    asta: 68, rivela: 8, rito: 14, notte: 18, alba: 8,
+    asta: 68, rivela: 8, rito: 26, notte: 18, alba: 8,
     voto: 18, arringa: 26, ballo: 13, verdetto: 8, epilogo: 15
 };
 LUPM.GIORNO_S = [120, 105, 90, 75];
@@ -47026,7 +47026,14 @@ function grInquadra(opz) {
         }
         return true;
     }
-    var B = grINQ_BANDA;
+    /* UN DITO DI MARGINE (07/09 sera). grInquadra puntava a far stare i
+       punti ESATTAMENTE dentro la banda che il banco poi controlla, e la
+       sbarra atterrava a 0,96 tondo: sul filo, e con la camera vera (che
+       ha il suo rapporto e il suo fov arrotondato) usciva di un pelo.
+       Adesso si mira due punti percentuali piu' dentro: la scena non
+       cambia, il filo non si tocca piu'. */
+    var B = [grINQ_BANDA[0] + 0.02, grINQ_BANDA[1] - 0.02,
+             grINQ_BANDA[2] + 0.02, grINQ_BANDA[3] - 0.02];
     var yc = (B[0] + B[1]) / 2;
     var v = new THREE.Vector3(), q = new THREE.Vector3();
     /* proietta tutti i punti con un fov dato: torna il rettangolo unione
@@ -48662,6 +48669,14 @@ function grNotteOmbra() {
    - il dito non la interrompe: la camera e bloccata (binBlocca).
    ============================================================ */
 var GR_INTRO_S = 22.0;          /* la durata piena; sotto si scala */
+/* la torre decide lei quanto guarda in basso e quanto e larga la lente:
+   dipendono dalla quota e dal numero di case, e cambiano insieme */
+function grTorrePitch() {
+    return (typeof BIN !== "undefined" && BIN && typeof BIN.torrePitch === "number") ? BIN.torrePitch : -0.90;
+}
+function grTorreFov() {
+    return (typeof BIN !== "undefined" && BIN && BIN.torre && BIN.torre.fov) ? BIN.torre.fov : 55;
+}
 function grIntro(secondi) {
     var C = { t: 0, attivo: false, fatte: {}, accese: 0 };
     var n = (typeof borgo !== "undefined" && borgo.length) ? borgo.length : grS.n;
@@ -48686,7 +48701,10 @@ function grIntro(secondi) {
         C.t = 0; C.attivo = true; C.fatte = {}; C.accese = 0;
         if (typeof binBlocca === "function") { binBlocca("intro"); }
         if (typeof binTorreScena === "function") {
-            binTorreScena({ yaw: yawA(0), pitch: -0.16, fov: 46, secco: true });
+            /* l inclinazione e la lente le chiede alla torre, non le scrive:
+               la quota della torre e cambiata (8 -> 12 m il 07/09 sera) e i
+               numeri a mano puntavano il cielo */
+            binTorreScena({ yaw: yawA(0), pitch: grTorrePitch(), fov: grTorreFov(), secco: true });
         }
         luceCase(0);
         grSnd("vento", true);
@@ -48750,7 +48768,9 @@ function grIntro(secondi) {
             if (!C.fatte.stretta) {
                 C.fatte.stretta = true;
                 if (typeof binTorreScena === "function") {
-                    binTorreScena({ yaw: thMio, pitch: -0.06, fov: 20 });
+                    /* la stretta finale sul tuo medaglione: mezza lente
+                       rispetto a quella di riposo, e un filo piu su */
+                    binTorreScena({ yaw: thMio, pitch: grTorrePitch() * 0.72, fov: grTorreFov() * 0.42 });
                 }
                 grVoce(grL("Quella e casa tua. La targa dice il tuo nome."), 2800);
             }
@@ -49528,7 +49548,13 @@ LUPR.scAsta = function () {
             scena: sc,
             case: (typeof borgo !== "undefined") ? borgo : [],
             seme: vAst ? vAst.seed_scenico : 1,
-            regia: function (p, m, d) { grRegia(p, m, d); },
+            /* IL PALCO E UN CARTELLONE, NON UN POSTO (07/09 sera). Dal
+               07/09 il fondo della lente e 24 gradi per far vedere dove
+               succedono le cose; ma qui non c e un dove: c e un palco con
+               dei numeri sopra, e a dieci case il binario sta a 21 m. Con
+               24 gradi il palco scendeva a 0,119 di quadro (misurato,
+               cancello 9 rosso). L asta si tiene la sua lente stretta. */
+            regia: function (p, m, d) { grRegia(p, m, d, { fovMin: (grS.n >= 10) ? 14 : 16 }); },
             voce: function (t2, ms) { grVoce(t2, ms); },
             lampo: function (ms) { grLampo(ms, "#ffd9a0"); },
             scuoti: function (f, d) { grScuoti(f, d); },
@@ -49982,7 +50008,13 @@ function grAlbaVittima(sg) {
     var dist = BIN.distBase + 3.2;
     var occhio = binPunto(th, 0.30, dist, new THREE.Vector3());
     var mira = new THREE.Vector3(casa.position.x, 2.25, casa.position.z);
-    grRegia(occhio, mira, 2.4, { theta: th, alt: 0.30, dist: dist, fov: 46, propri: [casa] });
+    /* LA DURATA VERA (07/09 sera). 2,4 s fissi bastavano a otto case ma non
+       a dieci, dove il binario e' a 13,3 m e il giro fino alla casa della
+       vittima puo essere mezzo borgo: la camera arrivava con la casa ancora
+       fuori dal quadro (cancello 1 rosso a n=10, misurato). campDurata e la
+       stessa funzione con cui il guscio misura il giro del campanile. */
+    var dAlba = (typeof campDurata === "function") ? Math.max(2.4, campDurata(mira)) : 2.4;
+    grRegia(occhio, mira, dAlba, { theta: th, alt: 0.30, dist: dist, fov: 46, propri: [casa] });
 }
 
 LUPR.scGiorno = function (round) {
@@ -53346,9 +53378,29 @@ function semeDaURL() {
    Costo per fotogramma: qualche decina di operazioni, un lookAt, e
    updateProjectionMatrix solo se il fov cambia di piu di 0,02 gradi.
    ============================================================ */
-var BIN_ALT_MIN = 0.16, BIN_ALT_MAX = 0.72;      /* rad: quota 3,2 .. 8,9 m a 8 case */
-var BIN_FOV_MIN = 16, BIN_FOV_MAX = 62, BIN_FOV0 = 46;
+/* IL FONDO DELLA QUOTA SCENDE (07/09 sera). Con 0,16 rad il binario non
+   poteva stare sotto 1,82 m di quota, e una scena che chiede uno sguardo IN
+   PIANO su un soggetto vicino (la caccia: 2,3 gradi) si ritrovava a
+   guardarlo da 18. Adesso il fondo e 0,10 rad = 1,14 m a otto case: ancora
+   ben sopra la testa di un robot (1,7 m dal suolo il medaglione, 2,75 il
+   colmo), quindi la camera non entra nel selciato ne dentro una casa (il
+   raggio non e cambiato: resta fuori dall anello). */
+var BIN_ALT_MIN = 0.10, BIN_ALT_MAX = 0.72;      /* rad: quota 1,1 .. 8,9 m a 8 case */
+/* LA LENTE PIU LARGA IN TUTTE LE SCENE (07/09 sera, ordine del
+   proprietario: «migliorare tanto i movimenti di cam di tutto», scelta
+   «ogni scena piu larga»). Il binario guarda il soggetto da circa tre
+   volte la distanza per cui la scena l aveva pensato, e binFovDa stringeva
+   la lente per tenerlo della stessa grandezza: quattordici richieste su
+   venti finivano sotto i 30 gradi e otto sbattevano su questo fondo di 16.
+   Sedici gradi e' un teleobiettivo: il soggetto e' grande ma non si capisce
+   dove sta ne cosa ha attorno. Adesso il fondo e 24: il soggetto occupa un
+   po meno (un robot passa dal 35 al 24 per cento dell altezza del quadro) e
+   si vede il posto in cui succede. Le scene che chiedono di loro una lente
+   piu stretta (opz.fovMin, D-6) restano padrone: questo e' solo il fondo di
+   chi non chiede niente. */
+var BIN_FOV_MIN = 24, BIN_FOV_MAX = 62, BIN_FOV0 = 46;
 var BIN_DIST_MAX = 20;                           /* le scene possono allontanare, mai avvicinare */
+var BIN_R_MIN = 4.2;                             /* il raggio piu stretto che il binario puo fare: sotto la camera e' addosso alla fontana */
 var BIN_DIST_EXTRA = 3.8;                        /* dist = borgoRaggio(n) + 3,8: 10,4 / 11,4 / 13,3 m */
 var BIN_V_THETA = 1.3;                           /* rad/s sul binario (75 gradi/s) */
 /* IL TETTO DELLA VISTA. Il piano (C.1 punto 4) chiede il p95 sotto i 40
@@ -53375,13 +53427,45 @@ var BIN_SOGLIA_SCORRI = 0.61;                    /* 35 gradi: sotto, il binario 
    col fov al tetto (misurato: a cinque case servirebbero 63,7 gradi contro i
    62 di BIN_FOV_MAX). A 8 m ci sta a n = 5, 8 e 10 (ordine del proprietario:
    «deve essere piu grandangolare, la casa si deve vedere per intero»). */
-var BIN_TORRE_Y = 8.0;                           /* quota della torre (m) */
+/* LA TORRE PIU IN ALTO E LA LENTE PIU LARGA (07/09 sera, ordine del
+   proprietario: «vorrei una cam in cui si vede da piu lontano, con la casa
+   per intero e piu da lontano»). Misurato sulla pagina di prima, a 8 case:
+   dalla torre a 8 m la casa stava a 9,4 m e si mangiava il 60 per cento
+   dell altezza dello schermo. Due cose insieme:
+     - la quota passa da 8 a 12 m: la casa va a 12,2 m (misurato a 5, 8 e
+       10 case: 11,7 / 12,2 / 13,5 m);
+     - la lente si apre a 55 gradi. Il fov calcolato da binTorreFov cadeva
+       SEMPRE sul fondo di 46 (il conto per far entrare la casa dava meno
+       di 46 e veniva alzato al minimo): il margine d aria non faceva
+       niente. Adesso il fondo della torre e 55 e l aria si sente.
+   Insieme la casa scende dal 60 al 34 per cento dello schermo, entra tutta
+   con l aria attorno e si vedono le case vicine. La camera resta FERMA in
+   mezzo alla piazza e gira soltanto (regola del proprietario, 06/09):
+   niente traslazione, quindi le ombre cotte non si rifanno. */
+var BIN_TORRE_Y = 12.0;                          /* quota della torre (m) */
+var BIN_TORRE_FOV = 55;                          /* il fondo della lente sulla torre */
 var BIN_TORRE_TAU = 0.30;                        /* s per salirci e per tornare */
 var BIN_TORRE_D = 12.0;                          /* m: dove si posa la mira davanti */
 var BIN_TORRE_GIU = -1.05, BIN_TORRE_SU = 0.30;  /* rad: quanto si puo guardare giu e su */
 var BIN_TORRE_MARG = 1.10;                       /* il 10 per cento di aria attorno alla casa */
 var BIN_DITO_S = 12.0;                           /* secondi di precedenza del dito: dopo tanto senza toccare, la scena si riprende la camera */
 var BIN_TAU_MIN = 0.25, BIN_TAU_MAX = 1.0;
+/* LA PARTENZA MORBIDA (07/09 sera, ordine del proprietario: «migliorare
+   tanto i movimenti di cam», scelta «piu lente, piu morbide»). Il modello
+   di prima e un inseguimento esponenziale: parte alla VELOCITA MASSIMA nel
+   primo fotogramma e poi rallenta. L arrivo era gia morbido, la partenza
+   no: era uno strappo. Qui i tetti di velocita (scorrimento, quota,
+   distanza, vista) si aprono con una curva a S nei primi 0,35 secondi di
+   ogni movimento nuovo, da un terzo al pieno. Non allunga il viaggio in
+   modo sensibile — i tetti mordono solo all inizio, dove lo scarto e
+   grande — e non tocca i tagli, che restano stacchi secchi. */
+/* MISURATA E RIDOTTA: con 0,35 s e un terzo di velocita la rampa si
+   mangiava un decimo di secondo di troppo, e l alba a dieci case — dove il
+   giro e' lungo e la durata dichiarata e' 2,4 s — arrivava con la casa
+   della vittima ancora fuori dal quadro (cancello 1 rosso, misurato). A
+   0,22 s e meta velocita la rampa costa al massimo un decimo di secondo di
+   viaggio e la morbidezza si sente lo stesso. */
+var BIN_MORBIDO_S = 0.22, BIN_MORBIDO_K0 = 0.55;
 var BIN_DIST_RADURA = 5.0, BIN_ALT_RADURA = 0.18, BIN_THETA_RADURA = 172 * Math.PI / 180;
 var BIN_SALTO = 1.9;        /* il pezzo di raggio davanti alla mira che non si guarda (la parete del soggetto non e' un ostacolo) */
 var BIN_PROPRIA = 2.6;      /* una casa a meno di tanto dalla mira E' il soggetto, non un ostacolo */
@@ -53446,7 +53530,10 @@ var BIN = {
   taglioT: -99,        /* st.t dell ultimo taglio applicato (lo leggono i banchi) */
   bloccata: null,      /* se c e un nome, la camera e di quella scena e il dito non la tocca */
   /* la torre: on = comanda il dito, k = quanto ci si e saliti (0..1) */
-  torre: { on: false, k: 0, yaw: 0, pitch: -0.18, fov: BIN_FOV0, scena: false },
+  /* l inclinazione di riposo si calcola a case costruite (binTorrePitch):
+     da 12 m di quota una casa sta 52 gradi sotto, e un numero scritto a
+     mano guarderebbe l orizzonte invece del borgo */
+  torre: { on: false, k: 0, yaw: 0, pitch: -0.90, fov: BIN_TORRE_FOV, scena: false },
   auto: 0,             /* rad/s: l orbita che gira da sola (la vecchia orbita "giro" del menu) */
   derivaFov: 0,        /* gradi/s di fov che si stringe dentro un atto (l asta); si azzera a ogni richiesta */
   rich: null,          /* l ultima richiesta grezza (pos, guarda, dur, opz): il campanile la rimette dopo il rintocco */
@@ -53747,6 +53834,7 @@ function binObiettivi(o) {
   /* la strada scelta dal traduttore (D2): verso forzato e altezza dell arco.
      Una richiesta che non li porta li AZZERA: il viaggio di prima e' finito */
   O.verso = o.verso || 0; O.arco = o.arco || 0;
+  BIN.morbidoT = 0;                 /* comincia un movimento: si riparte piano */
   if (o.alt !== undefined) { O.alt = binClamp(o.alt, BIN_ALT_MIN, BIN_ALT_MAX); }
   if (o.dist !== undefined) { O.dist = binClamp(o.dist, BIN.distBase, BIN_DIST_MAX); }
   if (o.fovMin !== undefined) { O.fovMin = o.fovMin; }
@@ -53800,6 +53888,114 @@ function versoCam(pos, guarda, durata, opz) {
   BIN.rich = { p: new THREE.Vector3(pos.x, pos.y, pos.z), m: new THREE.Vector3(guarda.x, guarda.y, guarda.z), d: dur, o: opz };
   binObiettivi(binTraduci(pos, guarda, dur, opz));
 }
+/* ============================================================
+   DOVE SI METTE LA CAMERA PER GUARDARLO COME LA SCENA HA CHIESTO
+   (07/09 sera, ordine del proprietario: «migliorare tanto i movimenti di
+   cam di tutto»).
+   Ogni scena chiede due cose: da quanto in alto guardare il soggetto
+   (l elevazione) e da quanto lontano. Fin qui l elevazione veniva presa
+   com era e applicata come QUOTA SUL BINARIO, che si misura dal centro del
+   borgo e non dal soggetto; e la distanza non veniva guardata affatto,
+   perche il binario ha il suo raggio fisso. Per un soggetto in mezzo alla
+   piazza le due cose coincidono; per uno vicino al bordo no, e usciva
+   tutt altra inquadratura. Misurato sulle quindici scene: la distanza
+   arrivava mediana DUE VOLTE E MEZZA quella chiesta (fino a undici volte),
+   e per rimettere il soggetto della sua grandezza il fov si stringeva —
+   quattordici richieste su venti finivano in TELEOBIETTIVO sotto i 30
+   gradi, otto al fondo scala di 16. Sono le inquadrature piatte e
+   schiacciate che non convincevano.
+   Qui si fa il conto giusto. Il binario resta un cerchio attorno al centro,
+   ma il suo RAGGIO e la sua QUOTA non sono piu' fissi: dato il verso
+   (theta), si cerca il punto di quel cerchio che vede il soggetto
+   esattamente dall elevazione e dalla distanza chieste. E' un conto chiuso,
+   non una ricerca:
+     l altezza la da' subito la richiesta:  y = mira.y + dVol*sin(el)
+     il raggio esce da una equazione di secondo grado, perche il punto deve
+     stare a dVol*cos(el) metri in orizzontale dal soggetto:
+       r^2 + 2*b*r + (|a|^2 - H^2) = 0,  a = centro - mira,  b = a . verso
+   Se non c e' soluzione (il soggetto e' troppo lontano perche' il cerchio
+   ci arrivi) si prende il punto piu' vicino possibile, che e' la
+   proiezione: meglio di niente e comunque meglio di oggi.
+   Alla fine due guardie: la quota e il raggio restano nei loro limiti, e il
+   punto non finisce addosso a una casa (si allarga il raggio finche' non e'
+   libero, e a distBase lo e' sempre per costruzione). */
+function binPostoDa(theta, guarda, pos, el, dVol, propri, out) {
+  out = out || {};
+  var c = BIN.centro, st2 = Math.sin(theta), ct = Math.cos(theta);
+  var H = dVol * Math.cos(el);                    /* la distanza ORIZZONTALE chiesta */
+  var ax = c.x - guarda.x, az = c.z - guarda.z;
+  var b = ax * st2 + az * ct, cc = ax * ax + az * az - H * H;
+  var disc = b * b - cc, r, rA, rB, rad;
+  if (disc >= 0) {
+    /* DUE SOLUZIONI, e non sono la stessa inquadratura: una tiene la
+       camera fra il centro e il soggetto (si filma la porta da dentro la
+       piazza), l altra oltre il soggetto (si filma da fuori, guardando
+       verso il borgo). Sceglie la richiesta: si prende quella dalla parte
+       dove la scena aveva messo la camera. */
+    rad = Math.sqrt(disc);
+    rA = -b + rad; rB = -b - rad;
+    var pA = Math.pow(c.x + st2 * rA - pos.x, 2) + Math.pow(c.z + ct * rA - pos.z, 2);
+    var pB = Math.pow(c.x + st2 * rB - pos.x, 2) + Math.pow(c.z + ct * rB - pos.z, 2);
+    r = (rB > BIN_R_MIN && pB < pA) ? rB : rA;
+  } else {
+    /* il cerchio non arriva cosi vicino: il punto piu' vicino possibile e
+       la proiezione. Piu' lontano del voluto, ma nella direzione giusta. */
+    r = -b;
+  }
+  /* IL BINARIO RESTA UN BINARIO. Provato a lasciarlo stringere fin dentro
+     la piazza per rispettare anche i METRI chiesti: l elevazione migliorava
+     ma la distanza peggiorava (mediana da 2,9 a 5,1 volte il voluto),
+     perche' il raggio che rispetta i metri esiste solo per i pochi versi
+     allineati col soggetto, e per tutti gli altri il conto finiva sulla
+     proiezione e poi veniva spinto fuori dalla guardia delle case. Il
+     raggio quindi resta quello di sempre (D-1: fuori dall anello, mai
+     dentro una casa) e si corregge l ANGOLO, che e' quello che fa
+     l inquadratura: i metri li aggiusta il fov, come ha sempre fatto. */
+  if (r < BIN.distBase) { r = BIN.distBase; }
+  if (r > BIN_DIST_MAX) { r = BIN_DIST_MAX; }
+  /* LA GUARDIA DELLE CASE: il punto non finisce addosso a un muro. La casa
+     SOGGETTO non conta (se la scena filma una porta, la camera ci va
+     vicino apposta: e' la stessa regola di binOccluso, propri + 2,6 m).
+     Allargare il raggio e' sempre una via d uscita: distBase sta fuori
+     dall anello delle case per costruzione. */
+  var giri = 0;
+  while (giri < 30 && r < BIN.distBase && binTroppoVicinoCasa(c.x + st2 * r, c.z + ct * r, guarda, propri)) {
+    r += 0.4; giri++;
+  }
+  /* L ELEVAZIONE ESATTA, sulla distanza che il binario riesce davvero a
+     fare: si misura l orizzontale vera da qui al soggetto e si sale di
+     quel tanto che serve. Cosi anche quando la distanza non si puo
+     rispettare, l ANGOLO da cui lo guardi e' quello chiesto — ed e'
+     l angolo, non i metri, a fare l inquadratura. */
+  var hx = ax + st2 * r, hz = az + ct * r;
+  var h = Math.sqrt(hx * hx + hz * hz);
+  if (h < 0.3) { h = 0.3; }
+  var yv = guarda.y + h * Math.tan(binClamp(el, -1.2, 1.2));
+  var alt = binClamp(Math.atan2(yv - c.y, r), BIN_ALT_MIN, BIN_ALT_MAX);
+  out.alt = alt;
+  out.dist = binClamp(r / Math.max(0.2, Math.cos(alt)), 1.0, BIN_DIST_MAX);
+  return out;
+}
+/* vero se un punto del selciato e' troppo addosso a una casa perche' la
+   camera ci stia (il cancello 2 vuole 2,10 m: qui 2,40 di margine). La
+   casa che si sta guardando non e' un ostacolo. */
+function binTroppoVicinoCasa(x, z, guarda, propri) {
+  if (typeof borgo === "undefined" || !borgo) { return false; }
+  var i, dx, dz, casa;
+  for (i = 0; i < borgo.length; i++) {
+    casa = borgo[i];
+    if (!casa || !casa.visible) { continue; }
+    if (propri && propri.indexOf(casa) >= 0) { continue; }
+    if (guarda) {
+      dx = guarda.x - casa.position.x; dz = guarda.z - casa.position.z;
+      if (dx * dx + dz * dz < BIN_PROPRIA * BIN_PROPRIA) { continue; }
+    }
+    dx = x - casa.position.x; dz = z - casa.position.z;
+    if (dx * dx + dz * dz < 5.76) { return true; }
+  }
+  return false;
+}
+
 function binTraduci(pos, guarda, dur, opz) {
   var c = BIN.centro, dist = BIN.distBase, fovMin = opz.fovMin || BIN_FOV_MIN;
   if (typeof opz.dist === "number") { dist = binClamp(opz.dist, BIN.distBase, BIN_DIST_MAX); }
@@ -53814,6 +54010,11 @@ function binTraduci(pos, guarda, dur, opz) {
   var altObj = (typeof opz.alt === "number") ? binClamp(opz.alt, BIN_ALT_MIN, BIN_ALT_MAX) : binClamp(el, BIN_ALT_MIN, BIN_ALT_MAX);
   var thetaOra = BIN.theta, thetaObj, thetaStar, i, k, th, P, d, occ, pen, best = null, bestPen = 1e9;
   var propri = opz.propri || null;
+  /* IL POSTO GIUSTO (07/09 sera): si calcola quota e raggio dalla
+     richiesta, verso per verso. Chi ha gia scelto lui il punto del binario
+     (la panoramica, grInquadra) non si tocca. */
+  var libero = (opz.alt === undefined && opz.dist === undefined);
+  var postoTmp = {}, altCand, distCand, altVinta = altObj, distVinta = dist;
   var rh = dist * Math.cos(altObj);
   var ox = guarda.x - c.x, oz = guarda.z - c.z;
   var hx = vx, hz = vz, hl = Math.sqrt(hx * hx + hz * hz);
@@ -53821,6 +54022,7 @@ function binTraduci(pos, guarda, dur, opz) {
   var fuori = (ox * ox + oz * oz) > 0.81 * rh * rh;
   if (typeof opz.theta === "number") {
     thetaObj = binWrap(opz.theta);
+    if (libero) { binPostoDa(thetaObj, guarda, pos, el, dVol, propri, postoTmp); altVinta = postoTmp.alt; distVinta = postoTmp.dist; }
   } else {
     if (aPicco || fuori) {
       /* a picco la direzione orizzontale non conta; e un soggetto FUORI
@@ -53840,7 +54042,9 @@ function binTraduci(pos, guarda, dur, opz) {
     for (k = -nk; k <= nk; k++) {
       th = thetaStar + k * passo;
       if (aPicco && k === nk) { break; }
-      P = binPunto(th, altObj, dist, binTmpA);
+      if (libero) { binPostoDa(th, guarda, pos, el, dVol, propri, postoTmp); altCand = postoTmp.alt; distCand = postoTmp.dist; }
+      else { altCand = altObj; distCand = dist; }
+      P = binPunto(th, altCand, distCand, binTmpA);
       d = P.distanceTo(guarda);
       /* con un margine di 30 cm: un theta che passa a un palmo da un
          medaglione (misurato: la visione a 0,56 m dal cilindro di 0,52)
@@ -53853,22 +54057,25 @@ function binTraduci(pos, guarda, dur, opz) {
          vincitore (l arco e il verso), non dentro la ricerca. */
       pen = 0.5 * d + (aPicco ? 0 : 9 * Math.abs(k * passo)) + (occ ? 30 : 0) + Math.abs(binWrap(th - thetaOra)) +
         8 * binPrimoPiano(P, guarda, binFovDa(dVol, d, fovMin), propri);
-      if (pen < bestPen) { bestPen = pen; best = { th: th, occ: occ }; }
+      if (pen < bestPen) { bestPen = pen; best = { th: th, occ: occ, alt: altCand, dist: distCand }; }
     }
     thetaObj = binWrap(best.th);
+    altVinta = best.alt; distVinta = best.dist;
     /* SCORRERE O NO (D-3): se il migliore sta entro 35 gradi da dove si
        e', e da qui non c e' niente in mezzo e la penale non e' peggiore
        di 4 m, il binario resta fermo: cambiano solo mira e fov. Le tre
        inquadrature del ballottaggio e le nove dell asta stanno cosi. */
     var dTh = Math.abs(binWrap(thetaObj - thetaOra));
     if (dTh > 1e-6 && (dTh <= BIN_SOGLIA_SCORRI || opz.scorri === false)) {
-      P = binPunto(thetaOra, altObj, dist, binTmpA);
+      if (libero) { binPostoDa(thetaOra, guarda, pos, el, dVol, propri, postoTmp); altCand = postoTmp.alt; distCand = postoTmp.dist; }
+      else { altCand = altObj; distCand = dist; }
+      P = binPunto(thetaOra, altCand, distCand, binTmpA);
       occ = binOccluso(guarda, P, propri, BIN_MARGINE);
       if (!occ) {
         d = P.distanceTo(guarda);
         pen = 0.5 * d + 9 * Math.abs(binWrap(thetaOra - thetaStar)) * (aPicco ? 0 : 1) +
           8 * binPrimoPiano(P, guarda, binFovDa(dVol, d, fovMin), propri);
-        if (opz.scorri === false || pen <= bestPen + 4) { thetaObj = thetaOra; }
+        if (opz.scorri === false || pen <= bestPen + 4) { thetaObj = thetaOra; altVinta = altCand; distVinta = distCand; }
       }
     }
   }
@@ -53878,6 +54085,7 @@ function binTraduci(pos, guarda, dur, opz) {
      lungo in arco. Si sceglie la prima strada pulita; se non ce n e'
      nessuna, quella con meno colpi (a pari colpi vince l arco, che costa
      mezzo secondo di salita invece di secondi di giro). */
+  altObj = altVinta; dist = distVinta;
   var verso = 0, arco = 0, taglioSporco = false, dTh0 = binWrap(thetaObj - thetaOra), lungo, c0, cA, cL, cLA;
   if (dur > 0.05 && Math.abs(dTh0) > BIN_PASSO_CAMP) {
     c0 = binTragittoOccluso(thetaOra, dTh0, BIN.alt, altObj, dist, guarda, propri, 0);
@@ -53937,6 +54145,16 @@ function binFovVoluto(pos) {
     d = pos.distanceTo(O.guarda);
     if (d < 0.5) { d = 0.5; }
     f = 2 * Math.atan(Math.tan(O.fov * Math.PI / 360) * O.dFin / d) * 180 / Math.PI;
+    /* LA LENTE NON PUO SPALANCARSI (07/09 sera). Il fov insegue la
+       distanza per tenere il soggetto della stessa grandezza mentre la
+       camera viaggia; da quando il posto sul binario e' quello giusto la
+       camera arriva molto piu vicino di prima, e la lente si apriva fino a
+       54 gradi (lo scudo) facendo diventare il soggetto un puntino dentro
+       un grandangolo. Adesso puo aprirsi al massimo di un terzo e
+       stringersi al massimo di un terzo rispetto a quella chiesta: se la
+       camera arriva piu vicina, il soggetto cresce — che e' quello che si
+       aspetta l occhio. */
+    f = binClamp(f, O.fov * 0.72, O.fov * 1.33);
   }
   return binClamp(f, O.fovMin || BIN_FOV_MIN, BIN_FOV_MAX);
 }
@@ -54011,7 +54229,27 @@ function binTorreFov() {
     }
   }
   var f = 2 * Math.atan(peggio * BIN_TORRE_MARG) * 180 / Math.PI;
-  return binClamp(f, BIN_FOV0, BIN_FOV_MAX);
+  return binClamp(f, BIN_TORRE_FOV, BIN_FOV_MAX);
+}
+
+/* L INCLINAZIONE DI RIPOSO DELLA TORRE (07/09 sera). Con la torre a 12 m
+   la casa non e' piu' davanti: e' 52 gradi sotto. Si punta al CENTRO
+   VISIVO di una casa (2,40 m da terra) sul raggio del borgo, cosi la
+   quota si puo cambiare senza rimettere a mano nessun numero. */
+function binTorrePitch() {
+  var r = 7.6, i, d;
+  if (typeof borgo !== "undefined" && borgo && borgo.length && borgo[0]) {
+    r = 0;
+    for (i = 0; i < borgo.length; i++) {
+      if (!borgo[i]) { continue; }
+      d = Math.sqrt(Math.pow(borgo[i].position.x - BIN.centro.x, 2) +
+                    Math.pow(borgo[i].position.z - BIN.centro.z, 2));
+      r += d;
+    }
+    r = r / borgo.length;
+  }
+  if (r < 1) { r = 7.6; }
+  return binClamp(-Math.atan2(BIN_TORRE_Y - 2.40, r), BIN_TORRE_GIU, BIN_TORRE_SU);
 }
 
 /* LA TORRE PER UNA SCENA (07/09). Fin qui ci saliva solo il dito; l intro
@@ -54069,6 +54307,10 @@ function binRuotaAttorno(p, c, ang) {
 function binPasso(dt) {
   var O = BIN.obj, D = BIN.dito, i;
   if (!(dt > 0)) { dt = 0; }
+  /* la curva a S della partenza morbida: 3u^2 - 2u^3 fra 0 e 1 */
+  BIN.morbidoT = (BIN.morbidoT || 0) + dt;
+  var uM = binClamp(BIN.morbidoT / BIN_MORBIDO_S, 0, 1);
+  var mrb = BIN_MORBIDO_K0 + (1 - BIN_MORBIDO_K0) * (uM * uM * (3 - 2 * uM));
   var pos = binTmpA, posNew = binTmpB, dirOld = BIN.dirPrev;
   binPunto(BIN.theta, BIN.alt, BIN.dist, pos);
   /* il dito: inerzia dopo il rilascio */
@@ -54115,7 +54357,7 @@ function binPasso(dt) {
   if (!ditoVivo) {
     /* 75 gradi/s, e comunque mai piu di 15,5 m/s di tangente (a dieci
        case il binario e' a 13,3 m: 1,3 rad/s sarebbero 17,3 m/s) */
-    var vTh = Math.min(BIN_V_THETA, 15.5 / Math.max(1, BIN.dist));
+    var vTh = Math.min(BIN_V_THETA, 15.5 / Math.max(1, BIN.dist)) * mrb;
     /* CON L ARCO SI SALE PRIMA DI SCORRERE (D2): l altezza puo salire di
        0,45 rad/s (D-4) e lo scorrimento correrebbe a 1,3: partendo insieme
        la camera passa dietro il medaglione mentre e' ancora bassa. Finche
@@ -54142,13 +54384,13 @@ function binPasso(dt) {
   if (!ditoVivo) {
     /* e l altezza non piu di 0,45 rad/s: con tau 0,25 una richiesta che
        sale di 0,35 rad partiva a 18 m/s (misurato, l esattore a dieci case) */
-    var vAl = (O.arco > 0) ? BIN_V_ALT_ARCO : BIN_V_ALT;
+    var vAl = ((O.arco > 0) ? BIN_V_ALT_ARCO : BIN_V_ALT) * mrb;
     if (dal > vAl * dt) { dal = vAl * dt; }
     if (dal < -vAl * dt) { dal = -vAl * dt; }
   }
   var ddi = (O.dist - BIN.dist) * k;
-  if (ddi > BIN_V_DIST * dt) { ddi = BIN_V_DIST * dt; }
-  if (ddi < -BIN_V_DIST * dt) { ddi = -BIN_V_DIST * dt; }
+  if (ddi > BIN_V_DIST * mrb * dt) { ddi = BIN_V_DIST * mrb * dt; }
+  if (ddi < -BIN_V_DIST * mrb * dt) { ddi = -BIN_V_DIST * mrb * dt; }
   /* IL TETTO VERO E' QUELLO DELLA CAMERA, non dei singoli comandi: theta,
      altezza e distanza hanno ognuno il suo tetto, ma sommati fanno piu di
      ognuno (misurato: nel patibolo, con la salita di un arco addosso a uno
@@ -54159,8 +54401,8 @@ function binPasso(dt) {
   if (!ditoVivo && dt > 0 && (dth || dal || ddi)) {
     binPunto(BIN.theta + dth, binClamp(BIN.alt + dal, BIN_ALT_MIN, BIN_ALT_MAX), BIN.dist + ddi, posNew);
     var vTot = pos.distanceTo(posNew) / dt;
-    if (vTot > BIN_V_CAMERA) {
-      var kV = BIN_V_CAMERA / vTot;
+    if (vTot > BIN_V_CAMERA * mrb) {
+      var kV = BIN_V_CAMERA * mrb / vTot;
       dth *= kV; dal *= kV; ddi *= kV;
     }
   }
@@ -54177,7 +54419,7 @@ function binPasso(dt) {
   var miraNew = binTmpC.copy(BIN.mira);
   var fM = (D.giu && D.mosso > 8) ? 0 : 1;
   var ang, s, dirNew = binTmpD;
-  var cap = BIN_V_MIRA * dt;
+  var cap = BIN_V_MIRA * mrb * dt;
   if (fM > 0) { miraNew.lerp(O.mira, kM); }
   if (!ditoVivo && dirOld && dt > 0) {
     /* prima la mira: se da sola gira la vista oltre il tetto, si accorcia il suo passo */
@@ -54909,6 +55151,8 @@ function costruisciBorgo(n, nomi) {
   /* il fov che fa entrare una casa INTERA guardandola dalla torre: si
      misura adesso, a case costruite, e cambia col numero di case */
   BIN.torre.fov = binTorreFov();
+  BIN.torre.pitch = binTorrePitch();
+  BIN.torrePitch = BIN.torre.pitch;
   /* L2 (B.2): il tetto del pool si fissa QUI, a case costruite: le luci
      fisse visibili in piazza (braciere, lampione, una per casa, la
      calata) piu' il margine delle scene: 6 punti (le quattro torce del
