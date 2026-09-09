@@ -22316,7 +22316,15 @@ function asTexContatore() {
     t.userData = { c: c };
     return t;
 }
+/* L INGLESE SULLA TARGA (09/09). Quello che si legge sulla targa del
+   banco non e' una texture dipinta: e' fillText su una tela, quindi si
+   traduce come tutto il resto della pagina. Il vocabolario e' quello del
+   guscio (lupL); nella vetrina, dove il guscio non c e, la funzione non
+   esiste e resta l italiano. */
+function asL(t) { return (typeof lupL === "function") ? lupL(String(t)) : String(t); }
 function asScriviContatore(tex, testo, sotto) {
+    testo = asL(testo);
+    if (sotto) { sotto = asL(sotto); }
     var c = tex.userData.c, x = c.getContext("2d");
     x.clearRect(0, 0, 512, 160);
     /* la targa: ottone scurito, come le insegne del borgo */
@@ -23442,7 +23450,7 @@ function anAsta(opz) {
         if (camp !== campanaVista) {
             campanaVista = camp;
             asScriviContatore(banco.userData.texContatore, String(prezzo),
-                              gel ? "FERMO" : "CAMPANATA " + camp);
+                              gel ? "FERMO" : (asL("CAMPANATA") + " " + camp));
             snd(gel ? "goccia" : "campana", 0.35 + camp * 0.05);
             if (zecchino) { asPosa(zecchino, gel ? "martello" : "presenta"); }
             if (typeof opz.scuoti === "function") { opz.scuoti(0.02, 0.18); }
@@ -40725,6 +40733,7 @@ function gmChiudiAccusa(S) {
     }
     valori.sort(function (a, b) { return b - a; });
 
+    var sorteg = [], pres;
     for (i = 0; i < valori.length; i++) {
         c = valori[i];
         grp = [];
@@ -40737,8 +40746,14 @@ function gmChiudiAccusa(S) {
         if (grp.length <= resto) {
             imputati = imputati.concat(grp);
         } else {
-            /* parita sull ultimo posto: sorteggio, mai il momento del tocco */
-            imputati = imputati.concat(S.rng.campione(grp, resto));
+            /* parita sull ultimo posto: sorteggio, mai il momento del tocco.
+               DA OGGI (08/09) SI DICE: chi e salito alla sbarra per sorteggio
+               esce nell evento, cosi la regia lo puo raccontare. In meta
+               delle partite qualcuno finiva sotto processo per un lancio di
+               dadi e nessuno glielo diceva mai. */
+            pres = S.rng.campione(grp, resto);
+            sorteg = sorteg.concat(pres);
+            imputati = imputati.concat(pres);
         }
     }
     /* il segno dell Inquisitore entra PRIMA dell annuncio: alla sbarra si
@@ -40751,7 +40766,7 @@ function gmChiudiAccusa(S) {
         gmEv(S, "imputato_ufficio", null, { sg: S.imputatoUff });
     }
     imputati.sort(function (a, b) { return a - b; });
-    gmEv(S, "imputati", null, { sg: gmLista(imputati) });
+    gmEv(S, "imputati", null, { sg: gmLista(imputati), sorte: gmLista(sorteg) });
     return imputati;
 }
 
@@ -41663,7 +41678,13 @@ LUPM.crea = function (opz) {
     opz = opz || {};
     var n = Math.floor(opz.n || 8);
 
-    var seedBig = gmSeedBig(opz.seed === undefined ? 0 : opz.seed);
+    /* seed O seme (08/09): il motore leggeva solo opz.seed e buttava via
+       opz.seme senza dire niente. Dieci banchi in casa scrivevano seme e
+       giravano tutti sul seme 0 — cioe sulla stessa identica stanza,
+       credendo di provarne quattrocento. In partita seed c e sempre e
+       vince lui, quindi l alias non cambia una virgola di quello che gira. */
+    var seedBig = gmSeedBig(opz.seed === undefined
+        ? (opz.seme === undefined ? 0 : opz.seme) : opz.seed);
     var scen = LUPM.rng(seedBig ^ BigInt("0xA5A5A5A5")).prossimo();
 
     /* Il cast si tira con un generatore SUO, staccato dalla partita:
@@ -42561,7 +42582,11 @@ var LUPB = (function () {
     ];
 
     /* alias: chi chiama con un sinonimo non deve ricevere il banco sbagliato */
+    /* "risposta" (08/09): si risponde a chi ci ha fatto una domanda col
+       nostro nome, ma senza difendersi da niente - quando non c e nessun
+       imputato una frase di difesa non ha senso */
     var ALIAS = { dubbio: "sospetto", morte: "lutto", silenzio: "vuoto",
+                  risposta: "vuoto",
                   vince: "vittoria", processo: "arringa" };
 
     /* indici delle frasi che NON nominano nessuno: servono quando
@@ -43619,6 +43644,10 @@ var LUPB = (function () {
                 out.push({ ev: "chat", tipo: d.tipo, sg: d.sg,
                            canale: (vista.fase === "arringa" ? "arringa" : "villaggio"),
                            testo: testo });
+                /* dopo aver risposto l orologio si rimette (08/09): la risposta
+                   puo saltare la coda, non il ritmo, se no due risposte dello
+                   stesso bot cadono nello stesso secondo */
+                if (m.piano) { m.piano.tChat = (vista.fase_t || 0) + 0.9; }
                 /* il conto delle battute lo tiene gbRegistra (ev "chat"):
                    contarlo anche qui spendeva due battute per una */
                 return;
@@ -43888,9 +43917,13 @@ var LUPB = (function () {
                             m.rispostaA = { chi: chi, tipo: "difesa" };
                         }
                     }
-                } else if (an.intento === "domanda" && (an.sg === bot.sg || an.sg < 0)) {
-                    /* una domanda diretta merita una risposta, non il silenzio */
-                    if (!m.rispostaA) { m.rispostaA = { chi: chi, tipo: "difesa" }; }
+                } else if (an.intento === "domanda" && an.sg === bot.sg) {
+                    /* una domanda diretta merita una risposta, non il silenzio.
+                       DIRETTA vuol dire col mio nome dentro (08/09): una domanda
+                       generica la prendevano sul personale tutti e sette i bot, e
+                       rispondevano nello stesso secondo — 28 righe in un secondo e
+                       poi 49 secondi di silenzio, misurati. */
+                    if (!m.rispostaA) { m.rispostaA = { chi: chi, tipo: "risposta" }; }
                 } else if (an.intento === "difesa" && an.sg >= 0 && an.sg !== chi) {
                     /* difende un altro: chi difende con foga si lega a lui */
                     m.insieme[chi] = (m.insieme[chi] || 0) + 1;
@@ -44525,6 +44558,16 @@ var guSel = null;        /* seggio scelto ma non confermato; -1 = astensione */
 var guFatto = null;      /* scelta gia confermata (verita presa dalla vista) */
 var guConf = false;      /* voto/ballo: ha confermato in questa fase */
 var guFattoLoc = null;
+/* IL RIPIEGO LOCALE HA UNA SCADENZA (08/09). Il commento qui sotto dice
+   che serve solo per il fotogramma in volo fra il tocco e la risposta, ma
+   non c era niente che lo facesse scadere: in partita ONLINE il ponte
+   risponde sempre di si per non far aspettare la plancia, e se poi il
+   motore vero rifiutava la mossa il tasto restava SCELTO per sempre.
+   Misurato dagli agenti. Due secondi bastano: e' il tempo di un giro
+   completo verso il server e ritorno, e guarisce da solo anche quando la
+   ricevuta si perde per strada. */
+var guFattoLocT = 0;
+var GU_LOC_MS = 2000;
 var guProntoLoc = false;
 var guEvid = {};
 var guBadge = {};
@@ -45002,6 +45045,14 @@ function guCostruisci() {
     cap.appendChild(guE.capS);
     guE.volti = guNodo("div", "");
     guE.volti.id = "luVolti";
+    /* LA LEGENDA DEI BOLLI (08/09). Sui volti compaiono quattro segni e
+       nessuno li spiega da nessuna parte. Due si capiscono dal contesto (il
+       ! lo dice la didascalia della sbarra, il spunta lo metti tu premendo
+       PRONTO); gli altri due no. La riga si accende solo quando c e almeno
+       uno dei due che nessuno spiega: meno rumore, stesso guadagno. */
+    guE.legenda = guNodo("div", "");
+    guE.legenda.id = "luLegenda";
+    guE.legenda.style.cssText = "font-size:11px;color:#8b7fb0;text-align:center;margin:2px 0 0;letter-spacing:.3px";
     guE.detto = guNodo("div", "");
     guE.detto.id = "luDetto";
     var fondo = guNodo("div", "");
@@ -45017,6 +45068,7 @@ function guCostruisci() {
     fondo.appendChild(guE.bCon);
     guE.pan.appendChild(cap);
     guE.pan.appendChild(guE.volti);
+    guE.pan.appendChild(guE.legenda);
     guE.pan.appendChild(guE.detto);
     guE.pan.appendChild(fondo);
 
@@ -45275,6 +45327,7 @@ function guConferma() {
     }
     guConf = true;
     guFattoLoc = sg;
+    guFattoLocT = guOra();
     guSuona("getto");
     guAggVolti();
     guAggBottoni();
@@ -45289,14 +45342,40 @@ function guPronto() {
 
 /* ---------- aggiornamenti per fotogramma ---------- */
 
+/* l orologio del ripiego: performance.now se c e, il calendario se no */
+function guOra() {
+    return (typeof performance !== "undefined" && performance.now)
+        ? performance.now() : (new Date()).getTime();
+}
+function guLocVale() { return guConf && (guOra() - guFattoLocT) < GU_LOC_MS; }
+
+/* COME E QUANDO E FINITA, per la lista dei ruoli (08/09) */
+var guFINE = { lincio: "linciato", notte: "sbranato", rogo: "bruciato",
+    nomina: "chiamato male", fiala: "avvelenato", vigilante: "giustiziato" };
+/* i numeri romani li sa gia la regia; qui il ripiego se non c e */
+function guRom(n) {
+    if (typeof grRom === "function") { return grRom(n); }
+    return String(n);
+}
+function guFineTesto(f) {
+    if (!f || !f.causa) { return ""; }
+    var c = guL(guFINE[f.causa] || String(f.causa));
+    var g = (f.notte ? guL("notte") : guL("giorno"));
+    return f.round ? (c + ", " + g + " " + guRom(f.round)) : c;
+}
+
 function guFattoDaVista(v) {
     var f = null, k;
-    if (!v || !v.you) { return guConf ? guFattoLoc : null; }
+    if (!v || !v.you) { return guLocVale() ? guFattoLoc : null; }
     if (guModo === "bersaglio") { f = v.you.mio_bersaglio; }
     else if (guModo === "vedi") { f = v.you.mio_scrutinio; }
     else if (guModo === "proteggi") { f = v.you.mio_scudo; }
     else if (guModo === "colpo") { f = v.you.mio_colpo; }
     else if (guModo === "segna") { f = v.you.mio_segno; }
+    /* IL MARCATORE (08/09): mancava il suo ramo, quindi inchiodava la carta
+       e il tasto non diventava mai SCELTO — l unico potere della notte senza
+       ricevuta. La verita sta nella vista come per tutti gli altri. */
+    else if (guModo === "inchioda") { f = v.you.mio_marchio; }
     else if (guModo === "voto" || guModo === "ballo") {
         /* LA VERITA E LA VISTA (07/09): you.mio_voto vale null se non hai
            votato, -1 se ti sei astenuto, il seggio se hai accusato. La
@@ -45304,11 +45383,11 @@ function guFattoDaVista(v) {
            fra il tocco e la risposta: prima era l unica cosa guardata, e
            un voto rifiutato restava scritto come dato. */
         if (v.you.mio_voto !== undefined && v.you.mio_voto !== null) { f = v.you.mio_voto; }
-        else { f = guConf ? guFattoLoc : null; }
+        else { f = guLocVale() ? guFattoLoc : null; }
     } else if (guModo === "giorno") {
         k = String(v.you.sg);
         if (v.dita && v.dita[k] !== undefined && v.dita[k] !== null) { f = v.dita[k]; }
-        else if (guConf) { f = guFattoLoc; }
+        else if (guLocVale()) { f = guFattoLoc; }
     }
     if (f === undefined) { f = null; }
     return f;
@@ -45357,8 +45436,24 @@ function guAggVolti() {
         }
         guTxt(c.__bg, tipo && guT.badge[tipo] ? guT.badge[tipo] : "");
         if (tipo) { cls += " hasbg"; }
+        if (tipo === "morto" || tipo === "fantasma") { guVisti[tipo] = true; }
         if (c.className !== cls) { c.className = cls; }
     }
+    guAggLegenda();
+}
+
+/* i due bolli che nessuno spiega: si nomina solo quello che si vede */
+var guVisti = {};
+function guAggLegenda() {
+    if (!guE.legenda) { return; }
+    var pezzi = [];
+    if (guVisti.morto) { pezzi.push(guT.badge.morto + " " + guL("morto")); }
+    if (guVisti.fantasma) { pezzi.push(guT.badge.fantasma + " " + guL("assente")); }
+    var t = pezzi.join("  " + String.fromCharCode(183) + "  ");
+    if (guE.legenda.__t === t) { return; }
+    guE.legenda.__t = t;
+    guTxt(guE.legenda, t);
+    guMostra(guE.legenda, !!t);
 }
 
 function guAggBottoni() {
@@ -45456,10 +45551,16 @@ function guCapTempo(resta, sigillata) {
 function guAggCap() {
     if (!guE.capK) { return; }
     /* L2 (B.4): stessa firma dei bottoni: si riscrive solo su cambio */
-    var firma = guModo + "|" + guGelo + "|" + (guOpz.suggerimento || "");
+    /* IL CAPPELLO PUO ARRIVARE DALLA SCENA (08/09). Per il modo "nessuna"
+       la tabella guT.cap non ha niente: il pannello mostrava una frase
+       sospesa, senza una parola che dicesse in che fase sei. Adesso la
+       regia puo passare il suo titolo, e la firma lo contiene, se no un
+       titolo che cambia a parita di modo non viene riscritto. */
+    var firma = guModo + "|" + guGelo + "|" + (guOpz.suggerimento || "") +
+        "|" + (guOpz.titolo || "");
     if (firma === guFirmaCap) { return; }
     guFirmaCap = firma;
-    guTxt(guE.capK, guT.cap[guModo] || "");
+    guTxt(guE.capK, guL(guOpz.titolo || "") || guT.cap[guModo] || "");
     guTxt(guE.capS, guGelo ? guT.gelo : (guOpz.suggerimento || guT.sug[guModo] || ""));
     if (guGelo) { guE.pan.classList.add("gelo"); } else { guE.pan.classList.remove("gelo"); }
 }
@@ -46558,9 +46659,11 @@ function guTaccuino(righe) {
     } else {
         for (i = 0; i < righe.length; i++) {
             r = righe[i] || {};
-            es = (r.esito === "lupo") ? "LUPO" : "non lupo";
+            /* il taccuino parla la lingua del giocatore (08/09): e l unica
+               prova che la Lanterna possiede, e restava in italiano */
+            es = (r.esito === "lupo") ? guL("LUPO") : guL("non lupo");
             d = guNodo("div", "r " + (r.esito === "lupo" ? "lupo" : "pulito"));
-            d.appendChild(guNodo("b", "", "notte " + (r.round !== undefined ? r.round : "?")));
+            d.appendChild(guNodo("b", "", guL("notte") + " " + (r.round !== undefined ? r.round : "?")));
             d.appendChild(document.createTextNode(
                 " · " + (r.nome ? String(r.nome) : guNome(r.sg)) + ": " + es));
             guE.righeTac.appendChild(d);
@@ -46594,7 +46697,7 @@ function guImpronte(righe) {
             } else {
                 nomi = [];
                 for (j = 0; j < (r.sgs || []).length; j++) { nomi.push(guNome(r.sgs[j])); }
-                d.appendChild(guNodo("b", "", "notte " + (r.round !== undefined ? r.round : "?")));
+                d.appendChild(guNodo("b", "", guL("notte") + " " + (r.round !== undefined ? r.round : "?")));
                 d.appendChild(document.createTextNode(
                     " · " + (nomi.length ? nomi.join(", ") : guT.impNessuno)));
             }
@@ -46624,7 +46727,7 @@ function guBranco(righe) {
                 d.appendChild(guNodo("b", "", r.da !== undefined ? guNome(r.da) : ""));
                 d.appendChild(document.createTextNode(
                     " · " + (r.testo !== undefined ? String(r.testo)
-                        : ("propone " + guNome(r.sg)))));
+                        : (guL("propone") + " " + guNome(r.sg)))));
             }
             guE.righeBra.appendChild(d);
         }
@@ -46674,7 +46777,19 @@ function guEsito(dati) {
             pal.style.background = "hsl(" + guTinta(r.sg) + ",42%,62%)";
             chi.appendChild(pal);
             chi.appendChild(guNodo("span", "nm", r.nome ? String(r.nome) : guNome(r.sg)));
-            chi.appendChild(guNodo("span", "rl", r.ruolo ? String(r.ruolo) : ""));
+            /* IL NOME DEL RUOLO, NON LA CHIAVE DEL MOTORE (08/09). Qui si
+               stampava "veggente", "villico", "caposala": le chiavi interne,
+               che in inglese restano italiane e che il gioco non ha mai usato
+               da nessun altra parte (la plancia dice LA LANTERNA, le carte
+               pure). Il ripiego sulla chiave resta, ma serve solo se un
+               giorno il motore mandasse un ruolo che qui non conosciamo. */
+            var rr = guT.ruoli[r.ruolo];
+            chi.appendChild(guNodo("span", "rl", rr ? rr.t : (r.ruolo ? String(r.ruolo) : "")));
+            /* e come e finita: senza questo la lista dice CHI era, mai come
+               e quando e morto, e la partita non si puo ricostruire */
+            if (r.fine && r.fine.causa) {
+                chi.appendChild(guNodo("span", "fn", guFineTesto(r.fine)));
+            }
             riga.appendChild(chi);
             pr = guNodo("span", "pr" + (r.premio ? "" : " zero"),
                 dati.gratis ? "" : ((r.premio ? "+" : "") + guFmt(r.premio || 0) +
@@ -46682,6 +46797,15 @@ function guEsito(dati) {
             riga.appendChild(pr);
             guE.eRighe.appendChild(riga);
         }
+    }
+    /* IL SEME DELLA PARTITA (08/09). Il server lo manda a fine partita
+       apposta perche chiunque possa ricontrollare come sono usciti i ruoli
+       e i sorteggi, e non lo mostrava nessuna schermata. Si puo selezionare
+       col dito per copiarlo. */
+    if (dati.seme) {
+        var sm = guNodo("div", "seme", guL("Seme della partita:") + " " + dati.seme);
+        sm.style.cssText = "font-size:11px;color:#8b7fb0;margin-top:10px;text-align:center;-webkit-user-select:text;user-select:text";
+        guE.eRighe.appendChild(sm);
     }
     guMostra(guE.esito, true);
 }
@@ -46807,7 +46931,8 @@ var grT = {
     carta: "Una carta inchiodata sulla porta di __NOME__: comincia il giorno con un accusa gia contro.",
     direttoreEv: "__NOME__ si alza: e il Direttore. Da oggi il suo voto pesa doppio.",
     rogo: "La lanterna ha bruciato __NOME__.",
-    nominaArma: "Tocca i lupi, uno alla volta. Se sbagli, muori.",
+    nominaArma: "Tocca i lupi, al massimo due, poi premi CHIAMA. Tutti giusti e il borgo vince subito; uno sbagliato e muori tu.",
+    nominaNo: "La chiamata non e passata: i nomi devono essere tutti e soli i lupi ancora vivi.",
     segno: "Hai segnato quella casa. Domani sara alla sbarra.",
     segnoUff: "__NOME__ sale alla sbarra d ufficio: qualcuno ha segnato la sua porta.",
     impronte: "Stanotte sono usciti di casa: __NOMI__.",
@@ -46830,12 +46955,26 @@ var grT = {
     visionePulito: "La lanterna non mente: __NOME__ e uno di noi.",
     sorte: "Il caso ti ha scelto: stanotte hai i denti.",
     offertaScoperta: "La tua busta non aveva copertura: offerta scoperta.",
-    rimborso: "Busta perdente: ti sono tornati __SAT__.",
+    rimborso: "Ti tornano indietro __SAT__ della busta. Fra poco saprai com e andata.",
     sigillo: "Tetto sigillato. Adesso guarda l orologio.",
     brancoNotte: "Sussurra al branco: stanotte si parla a gettoni.",
     chatChiusa: "Adesso non puoi parlare.",
     chatArringa: "Parlano solo i due alla sbarra.",
-    nonOra: "Non adesso.",
+    /* I MOTIVI DEL NO (08/09). Il motore sa dire di no in venticinque modi
+       diversi e la pagina ne diceva UNO SOLO, "Non adesso." — che per di
+       piu e quasi sempre falso: manda ad aspettare uno che potrebbe
+       aspettare in eterno (sei morto, la fiala e finita, non e il tuo
+       turno). Adesso il motivo si sceglie PRIMA di chiamare il motore,
+       leggendolo dalla vista, che porta gia tutto quello che serve e non
+       contiene niente di segreto. Il generico resta per i casi rari, ma
+       dice la verita: non e questione di tempo, e che non si puo. */
+    nonOra: "Questa mossa non si puo fare adesso.",
+    nonTua: "Non tocca a te adesso.",
+    nonMorto: "I morti non agiscono: possono solo votare.",
+    nonFinita: "La partita e finita.",
+    nonFiala: "La fiala e gia stata versata: una per partita.",
+    nonPortaIeri: "Non la stessa porta di ieri notte.",
+    nonLinea: "Linea persa: la tua mossa non parte. Aspetta.",
     urnaSigillata: "L urna e sigillata.",
     pronto: "__NOME__ ha finito di parlare.",
     difesa: "__NOME__ ha chiuso la sua difesa.",
@@ -47653,7 +47792,20 @@ function grHud(mostra) {
    quello che il giocatore ha davvero il diritto di sapere. Il fondo
    d asta resta sigillato fino all epilogo (astaChiusa = false). */
 function grEco(v) {
-    if (typeof ECO === "undefined" || !v) { return; }
+    if (!v) { return; }
+    /* LE MEMORIE DELLA FASE APERTA (08/09). Qui si tiene traccia di quello
+       che il giocatore aveva scelto MENTRE la fase era ancora aperta: la
+       vista dopo la chiusura porta gia il risultato del motore e non
+       distingue piu fra "ho scelto io" e "ha scelto il tempo scaduto". */
+    var yE = v.you || {};
+    if (v.fase === "notte") {
+        grS.mioScrutinioUlt = (yE.mio_scrutinio === undefined) ? null : yE.mio_scrutinio;
+        grS.mioScudoUlt = (yE.mio_scudo === undefined) ? null : yE.mio_scudo;
+    }
+    if (v.fase === "voto") {
+        grS.mioVotoUlt = (yE.mio_voto === undefined) ? null : yE.mio_voto;
+    }
+    if (typeof ECO === "undefined") { return; }
     ECO.n = v.n;
     ECO.B = grS.B;
     ECO.gratis = !grS.aSoldi;
@@ -48010,13 +48162,25 @@ function grSchede(tab, morti) {
     }
     return out;
 }
-function grConti(tab) {
-    var out = {}, i, r;
+/* IL TABELLONE CONTA COME IL MOTORE (08/09). Qui si contava una scheda a
+   testa, ma il motore pesa DUE il voto del Direttore che si e rivelato
+   (gmPesoVoto, g_motore.js:1004): il giocatore leggeva sul tabellone dei
+   numeri che non erano quelli che decidevano la partita, e chi vinceva lo
+   spoglio poteva non essere il primo della lista. Chi sia il Direttore
+   rivelato e pubblico per costruzione (v.direttore_sg): non si scopre
+   niente che il borgo non sappia gia. */
+function grConti(tab, dirSg) {
+    var out = {}, i, r, peso;
     if (!tab) { return out; }
+    if (dirSg === undefined) {
+        var vD = (grS.M && grS.M.vista) ? grS.M.vista(grS.sg) : null;
+        dirSg = (vD && vD.direttore_sg !== undefined) ? vD.direttore_sg : null;
+    }
     for (i = 0; i < tab.length; i++) {
         r = tab[i];
         if (!r || typeof r.a !== "number" || r.a < 0) { continue; }
-        out[r.a] = (out[r.a] || 0) + 1;
+        peso = (dirSg !== null && dirSg !== undefined && r.da === dirSg) ? 2 : 1;
+        out[r.a] = (out[r.a] || 0) + peso;
     }
     return out;
 }
@@ -48160,7 +48324,10 @@ LUPR.avvia = function (opz) {
 
     grS.letti = 0; grS.coda = []; grS.scene = {}; grS.sospId = 0;
     grS.pausaId = 0; grS.morti = {}; grS.imputati = []; grS.condannato = -1;
-    grS.inRadura = false; grS.vittima = -1;
+    grS.inRadura = false; grS.vittima = -1; grS.vittime = [];
+    /* il registro di come e quando ognuno e finito: senza questo la
+       lista finale dice CHI era e basta, e la partita non si ricostruisce */
+    grS.fine = {};
     grS.fase = ""; grS.round = 0; grS.pensiero = 0; grS.firmaPlancia = "";
     grS.copione = null; grS.attoFatto = {}; grS.hudVoluto = true;
     grS.notteFatto = {}; grS.notteGiro = 0;
@@ -48298,6 +48465,38 @@ LUPR.esitoRemoto = function (m) {
     if (grS.epilogoLista) { grEsito(grS.epilogoLista.vince, grS.epilogoLista); }
 };
 
+/* PERCHE IL MOTORE HA DETTO DI NO (08/09). Si legge dalla PROPRIA vista,
+   quindi non si scopre niente che il giocatore non sappia gia. Torna il
+   testo da mostrare, o null se non si sa dire meglio del generico. */
+function grMotivoNo(act, ax) {
+    var v = (grS.M && grS.M.vista) ? grS.M.vista(grS.sg) : null;
+    if (!v) { return null; }
+    var y = v.you || {};
+    if (v.over) { return grT.nonFinita; }
+    /* la linea: se il server non parla da piu di un secondo e mezzo, la
+       mossa non e stata rifiutata, non e proprio partita */
+    if (grS.remoto && grS.M.reteStato) {
+        var rs = grS.M.reteStato();
+        if (rs && rs.silenzio_s > 1.5) { return grT.nonLinea; }
+    }
+    if (!y.vivo && act !== "voto" && act !== "pronto") { return grT.nonMorto; }
+    if (act === "colpo" && y.colpo_speso) { return grT.nonFiala; }
+    if (act === "proteggi" && y.scudo_ultimo !== undefined &&
+            y.scudo_ultimo !== null && y.scudo_ultimo === ax) { return grT.nonPortaIeri; }
+    /* la mossa e di un altra fase: e il caso piu frequente dei venticinque */
+    if (LUPR.faseDiAzione && LUPR.faseDiAzione(act) &&
+            LUPR.faseDiAzione(act) !== v.fase) { return grT.nonTua; }
+    return null;
+}
+/* in quale fase vive ogni mossa: serve solo a scegliere il messaggio */
+LUPR.faseDiAzione = function (act) {
+    var F = { bersaglio: "notte", vedi: "notte", proteggi: "notte", colpo: "notte",
+        segna: "notte", rimborsa: "notte", inchioda: "notte", chat_l: "notte",
+        registro: "giorno", nomina: "giorno", rivela: "giorno", dito: "giorno",
+        sigilla: "asta" };
+    return F[act] || null;
+};
+
 LUPR.azione = function (act, ax, ay, power) {
     if (!grS.M) { return false; }
     var ok = grS.M.azione(grS.sg, act,
@@ -48305,7 +48504,10 @@ LUPR.azione = function (act, ax, ay, power) {
         (ay === undefined ? -1 : ay),
         (power === undefined ? 0 : power));
     if (!ok) {
-        grUI().toast(grS.M.gelo() ? grT.urnaSigillata : grT.nonOra, 2400);
+        var perche = null;
+        try { perche = grMotivoNo(act, (ax === undefined ? -1 : ax)); } catch (e) { perche = null; }
+        if (!perche) { perche = grS.M.gelo() ? grT.urnaSigillata : grT.nonOra; }
+        grUI().toast(grL(perche), 2600);
     } else {
         grSnd("tocco");
     }
@@ -48879,10 +49081,25 @@ function grDenaro() {
         grS.M.esitoDenaro(r[i].sg, true);
     }
 }
+/* UN CONTO CHE NON SCORRE E PEGGIO DI NESSUN CONTO (08/09). Misurato: per
+   il 19% della partita il numero in cima resta piantato sullo stesso
+   valore, perche la fase e gia cambiata ma il suo orologio non e ancora
+   partito — c e una scena sul palco. Un numero fermo sembra un gioco
+   piantato. Adesso in quei secondi barra e numero si spengono da soli
+   (fase_s a zero) e tornano pieni quando la scena finisce: la testata
+   intanto dice gia dove sei. La PLANCIA invece resta su: le mosse durante
+   la scena il motore le accetta davvero, e toglierla regalerebbe secondi. */
+function grVistaSenzaConto(v) {
+    var c = {}, k;
+    for (k in v) { if (v.hasOwnProperty(k)) { c[k] = v[k]; } }
+    c.fase_s = 0;
+    return c;
+}
 function grInterfaccia(dt) {
     var v = grS.M.vista(grS.sg);
     grCanaleDa(v);
     grPlanciaDa(v);
+    if (grOccupato() && !(v.fase_t > 0)) { v = grVistaSenzaConto(v); }
     grUI().aggiorna(v, dt);
 }
 
@@ -48933,7 +49150,12 @@ function grPlanciaDa(v) {
                 if (branco.indexOf(vivi[i]) < 0) { ammessi.push(vivi[i]); }
             }
             opz.etichetta = "COLPISCI";
-            opz.suggerimento = "Scegli la finestra che si spegne.";
+            /* se il branco e piu di uno, si dice PRIMA che una porta
+               sola non basta: quando le indicazioni divergono decide
+               la sorte, e nessuno lo sapeva */
+            opz.suggerimento = (branco && branco.length > 1)
+                ? "Scegli la casa che il branco colpisce stanotte. Se indicate porte diverse, decide la sorte."
+                : "Scegli la finestra che si spegne.";
         } else if (you.ruolo === "veggente") {
             modo = "vedi";
             for (i = 0; i < vivi.length; i++) {
@@ -48967,9 +49189,24 @@ function grPlanciaDa(v) {
         } else if (you.ruolo === "cassiere" && you.rimborso_speso === false &&
                    you.rimborso_scelto === null && typeof v.ultimo_caduto === "number") {
             modo = "nessuna";
-            opz.suggerimento = "L ultimo caduto e " + grNome(v.ultimo_caduto) + ". Una volta sola.";
-            opz.extra = "RIMBORSA " + grNome(v.ultimo_caduto).toUpperCase();
-            opz.onExtra = function () { LUPR.azione("rimborsa", -1, -1, 0); grS.firmaPlancia = ""; };
+            /* IL CASSIERE RIPORTA IN VITA (08/09). Il tasto diceva RIMBORSA
+               piu un nome: sembrava una faccenda di soldi, e nessuno capiva
+               che riporta al tavolo un morto. Il nome esce dal tasto (che
+               si spezzava a 390 px con un nome lungo) e va nella riga. */
+            opz.titolo = "LA NOTTE";
+            opz.suggerimento = grS.rimborsoArmato
+                ? "Premi ancora per riportarlo al tavolo."
+                /* modello + nome, non frase cucita: cosi si traduce */
+                : grRiempi("Riporti al tavolo __NOME__, l ultimo caduto: torna vivo all alba. Una sola volta in tutta la partita.",
+                    "__NOME__", grNome(v.ultimo_caduto));
+            opz.extra = "RIPORTA IN VITA";
+            opz.onExtra = function () {
+                /* due tocchi come RIVELATI: e irreversibile */
+                if (!grS.rimborsoArmato) { grS.rimborsoArmato = true; grS.firmaPlancia = ""; return; }
+                grS.rimborsoArmato = false;
+                LUPR.azione("rimborsa", -1, -1, 0);
+                grS.firmaPlancia = "";
+            };
         } else if (you.ruolo === "inquisitore" && !you.segno_perso) {
             modo = "segna";
             for (i = 0; i < vivi.length; i++) {
@@ -48981,6 +49218,9 @@ function grPlanciaDa(v) {
             modo = "nessuna";
             /* la stessa frase per tutti: dal di fuori nessuno deve capire
                chi stanotte ha qualcosa da fare e chi no */
+            /* LA NOTTE, uguale per tutti i ruoli senza potere: un cappello
+               diverso per ruolo direbbe al vicino che ruolo hai */
+            opz.titolo = "LA NOTTE";
             opz.suggerimento = "Il borgo dorme. Anche tu.";
         }
     } else if (f === "giorno") {
@@ -48989,7 +49229,11 @@ function grPlanciaDa(v) {
             if (vivi[i] !== grS.sg) { ammessi.push(vivi[i]); }
         }
         opz.etichetta = "INDICA";
-        opz.suggerimento = "Parla, indica, e quando basta premi pronto.";
+        /* il fantasma non puo ne parlare ne indicare ne premere pronto:
+           leggeva l ordine dei vivi senza avere i volti per eseguirlo */
+        opz.suggerimento = you.vivo
+            ? "Parla, indica, e quando basta premi pronto."
+            : "Sei un fantasma: leggi e ascolta. Torni a votare solo alla prima chiamata.";
         /* IL CAPO SALA: arma la nomina, poi tocca i lupi uno alla volta */
         if (you.vivo && you.ruolo === "caposala" && you.nomina_spesa === false) {
             if (grS.nominaArmata) {
@@ -48999,8 +49243,10 @@ function grPlanciaDa(v) {
                     if (vivi[i] !== grS.sg && grS.nominaScelti.indexOf(vivi[i]) < 0) { ammessi.push(vivi[i]); }
                 }
                 opz.etichetta = "AGGIUNGI";
+                /* NIENTE NUMERI CHE PROMETTONO: quanti lupi siano vivi non
+                   lo sa nessuno, e il motore accetta solo se sono TUTTI */
                 opz.suggerimento = grS.nominaScelti.length
-                    ? ("Chiamati: " + grS.nominaScelti.length + ". Aggiungi un altro nome o premi CHIAMA.")
+                    ? ("Chiamati: " + grS.nominaScelti.length + ". Devono essere TUTTI i lupi ancora vivi, ne uno di piu ne uno di meno.")
                     : grT.nominaArma;
                 /* CHIAMA quando vuoi tu: il motore accetta solo se i nomi sono
                    esattamente i lupi vivi, e quanti sono non lo sa nessuno */
@@ -49014,12 +49260,17 @@ function grPlanciaDa(v) {
                         (grS.nominaScelti.length > 1) ? grS.nominaScelti[1] : -1, 0);
                     if (esN !== false) {
                         grS.nominaArmata = false; grS.nominaScelti = [];
+                    } else {
+                        /* il motore dice di no quando i nomi non sono tutti e
+                           soli i lupi vivi: sembrava un problema di tempo */
+                        grUI().toast(grL(grT.nominaNo), 3200);
                     }
                     grS.firmaPlancia = "";
                 };
                 opz.extra2 = String(grS.nominaScelti.length);
             } else {
                 opz.extra = "NOMINA I LUPI";
+                opz.suggerimento = "NOMINA I LUPI: una volta sola in tutta la partita. Tutti giusti e il borgo vince subito; uno sbagliato e muori tu.";
                 opz.onExtra = function () {
                     grS.nominaArmata = true; grS.nominaScelti = []; grS.firmaPlancia = "";
                 };
@@ -49028,6 +49279,7 @@ function grPlanciaDa(v) {
         /* IL DIRETTORE: si dice a tutti, una volta */
         if (you.vivo && you.ruolo === "direttore" && v.direttore_sg === null) {
             opz.extra = "RIVELATI";
+            opz.suggerimento = "RIVELATI: da adesso il tuo voto pesa doppio, ma stanotte i lupi sanno dove venire.";
             opz.onExtra = function () { LUPR.azione("rivela", -1, -1, 0); grS.firmaPlancia = ""; };
         }
         /* IL REGISTRO DEI RILANCI: il terzo tasto e' dell Esattore. Lo
@@ -49047,6 +49299,7 @@ function grPlanciaDa(v) {
                 };
             } else {
                 opz.extra = "REGISTRO \u20AC";
+                opz.suggerimento = "REGISTRO: una volta sola, ti dice fin dove e salita la paletta di quella casa all asta.";
                 opz.onExtra = function () {
                     grS.registroArmato = true;
                     grS.firmaPlancia = "";
@@ -49060,6 +49313,7 @@ function grPlanciaDa(v) {
            scheda spariva allo spoglio. Adesso legge perche. */
         if (you.vivo && you.senza_scheda) {
             modo = "nessuna";
+            opz.titolo = "SEI ALLA SBARRA";
             opz.suggerimento = "Sei gia alla sbarra: oggi la tua scheda non c e.";
         } else {
             modo = "voto";
@@ -49073,6 +49327,7 @@ function grPlanciaDa(v) {
     } else if (f === "arringa") {
         modo = (you.vivo && (v.imputati || []).indexOf(grS.sg) >= 0)
             ? "arringa" : "nessuna";
+        opz.titolo = (modo === "arringa") ? "" : "LE ARRINGHE";
         opz.suggerimento = (modo === "arringa")
             ? "Hai la parola. Poi premi pronto." : "Parlano i due alla sbarra.";
     } else if (f === "ballo") {
@@ -49083,14 +49338,44 @@ function grPlanciaDa(v) {
             opz.etichetta = "CONDANNA";
             opz.conAstensione = true;
         } else {
+            /* CHI E ALLA SBARRA, E CHI GUARDA DA MORTO (08/09). Qui la
+               plancia spariva senza una parola proprio nell istante in cui
+               il borgo decide se impiccarti: e il momento piu importante
+               della partita per te, ed era l unico muto. */
             modo = "nessuna";
+            opz.titolo = "IL GIUDIZIO";
+            opz.suggerimento = you.vivo
+                ? "Sei tu alla sbarra. Adesso decidono gli altri: qui non c e niente da premere."
+                : "Sei un fantasma: al giudizio si guarda e basta.";
         }
     } else {
+        /* LE FASI CHE SI GUARDANO E BASTA (08/09): rito, rivela, alba e
+           verdetto avevano la plancia vuota per costruzione. Non c e niente
+           da premere ed e giusto — ma «non c e niente da premere» va detto,
+           se no sembra che il gioco si sia piantato. */
         modo = you.vivo ? "nessuna" : "morto";
+        if (you.vivo) {
+            opz.suggerimento = {
+                rito: "Le carte si distribuiscono. Guarda la tua: e l unica cosa che sai per certo. Qui non si tocca niente.",
+                rivela: "Le buste si aprono. Fra poco saprai chi sei.",
+                alba: "Si conta chi manca. Qui non si tocca niente.",
+                verdetto: "La sentenza. Qui non si tocca piu niente."
+            }[f] || "";
+            opz.titolo = { rito: "IL RITO", rivela: "LE BUSTE",
+                alba: "L ALBA", verdetto: "IL VERDETTO" }[f] || "";
+        }
     }
 
-    var firma = modo + "|" + ammessi.join(",") + "|" + (v.gelo ? 1 : 0) +
-        "|" + (you.vivo ? 1 : 0) + "|" + (opz.extra || "") + "|" + (opz.extra2 || "");
+    /* LA FIRMA CONTIENE ANCHE LA FASE E LA RIGA (08/09). Prima erano solo
+       modo, ammessi, gelo, vivo ed extra: due fasi diverse che danno lo
+       stesso modo — la notte di un villico e il giorno di un fantasma, il
+       ballottaggio dell imputato e l arringa — avevano la STESSA firma, e la
+       plancia non si ridisegnava. Il risultato misurato: la riga della notte
+       («Il borgo dorme. Anche tu.») non e mai arrivata a schermo in nessuna
+       partita, e chi era alla sbarra si teneva addosso la riga di prima. */
+    var firma = f + "|" + modo + "|" + ammessi.join(",") + "|" + (v.gelo ? 1 : 0) +
+        "|" + (you.vivo ? 1 : 0) + "|" + (opz.extra || "") + "|" + (opz.extra2 || "") +
+        "|" + (opz.suggerimento || "");
     if (firma === grS.firmaPlancia) { return; }
     grS.firmaPlancia = firma;
 
@@ -49127,7 +49412,11 @@ function grConferma(modo) {
                restano segreti fino alla fine), e non e informazione che si
                possa regalare: percio la decisione torna al giocatore, che
                nomina chi vuole e poi preme CHIAMA. */
-            if (grS.nominaScelti.indexOf(sg) < 0 && grS.nominaScelti.length < 4) {
+            /* AL MOTORE NE PARTONO DUE (08/09): la chiamata passa
+               scelti[0] e scelti[1] e basta, quindi il tasto non puo
+               promettere quattro nomi. Con piu di due lupi vivi il
+               potere non si puo giocare, ed e una regola del motore. */
+            if (grS.nominaScelti.indexOf(sg) < 0 && grS.nominaScelti.length < 2) {
                 grS.nominaScelti.push(sg);
             }
             grS.firmaPlancia = "";
@@ -49182,7 +49471,10 @@ LUPR.smista = function (e) {
         break;
     case "br": grEvProposta(e); break;
     case "gl": grEvGettone(e); break;
-    case "visione": LUPR.scVisione(e.sg, e.esito); break;
+    case "visione":
+        grAutopilota("vedi", e.sg);
+        LUPR.scVisione(e.sg, e.esito);
+        break;
     case "morte": grEvMorte(e); break;
     case "pronto":
         grUI().badge(e.sg, "pronto");
@@ -49194,7 +49486,39 @@ LUPR.smista = function (e) {
         break;
     case "dito": grEvDito(e); break;
     case "spoglio": grEvSpoglio(e); break;
-    case "imputati": LUPR.scSbarra(e.sg || e.imputati || []); break;
+    case "imputati":
+        /* IL SORTEGGIO SI DICE (08/09). Quando due o piu pareggiano per
+           l ultimo posto alla sbarra, chi ci sale lo decide un lancio di
+           dadi del motore. Succede in meta delle partite e non lo sapeva
+           nessuno: uno finiva sotto processo e sembrava una decisione del
+           borgo. Adesso il motore dichiara chi e salito a sorte e qui si
+           racconta, prima che la scena della sbarra si apra. */
+        /* I CONTI DEL VOTO (08/09). Il voto vero non lasciava NESSUNA riga:
+           l unica traccia scritta era il dito, che e un altra cosa. A fine
+           partita non si poteva sapere chi aveva preso quanti voti. Si
+           scrive qui e non dentro lo spoglio: li la riga finirebbe nel
+           brusio mentre la scena dei gettoni sta ancora volando. */
+        if (grS.contiUlt) {
+            var pezzi = [], kC;
+            for (kC in grS.contiUlt) {
+                if (grS.contiUlt.hasOwnProperty(kC) && grS.contiUlt[kC] > 0) {
+                    pezzi.push({ i: parseInt(kC, 10), n: grS.contiUlt[kC] });
+                }
+            }
+            pezzi.sort(function (a, b) { return b.n - a.n || a.i - b.i; });
+            if (pezzi.length) {
+                grChatRiga(null, grRiempi(grL("Prima chiamata: __CONTI__."), "__CONTI__",
+                    pezzi.map(function (x) { return grNome(x.i) + " " + x.n; }).join(", ")), "sistema");
+            }
+            grS.contiUlt = null;
+        }
+        if (e.sorte && e.sorte.length) {
+            grChatRiga(null, grRiempi(grL("Pareggio di dita per l ultimo posto alla sbarra. Ha deciso il sorteggio: sale __NOME__."),
+                "__NOME__", grNomi(e.sorte)), "sistema");
+            grVoce(grL("Un pareggio, e la sorte ha scelto chi sale."), 3200);
+        }
+        LUPR.scSbarra(e.sg || e.imputati || []);
+        break;
     case "nessun_lincio": LUPR.scGrazia(e.motivo); break;
     /* ---- il mazzo del villaggio ---- */
     case "notte_muta":
@@ -49203,6 +49527,10 @@ LUPR.smista = function (e) {
         break;
     case "scudo":
         grUI().toast(grT.scudo, 3000);
+        /* QUANDO HA SCELTO IL MOTORE, NON TU (08/09). Se il tempo scade il
+           motore sceglie da solo, e la scena partiva identica a quella di
+           una scelta fatta: il giocatore credeva di aver deciso lui. */
+        grAutopilota("scudo", e.sg);
         LUPR.scScudo(e.sg);
         break;
     case "fiala":
@@ -49288,6 +49616,14 @@ LUPR.smista = function (e) {
     case "sveglio":
         grUI().badge(e.sg, null);
         break;
+    /* IL GUASTO (08/09): dopo tre passi rotti di fila il motore chiude la
+       stanza per non lasciare i soldi dentro una partita che non finisce
+       mai. Era l unico evento del motore senza un caso qui: la partita si
+       spegneva e lo schermo non diceva niente. */
+    case "guasto":
+        grUI().toast(grL("La partita si e interrotta per un guasto. Nessuna posta e andata persa."), 6000);
+        grChatRiga(null, grL("La partita si e interrotta per un guasto."), "sistema");
+        break;
     case "epilogo": LUPR.scEpilogo(e.vince, e); break;
     default: break;
     }
@@ -49341,7 +49677,12 @@ function grEvFase(e) {
             grSnd("campana", 1);
         }
         break;
-    case "notte": LUPR.scNotteViva(grS.round); break;
+    case "notte":
+        /* i morti di stanotte cominciano da zero (08/09): se la notte
+           non fa vittime, l alba rinominava quello di ieri */
+        grS.vittima = -1; grS.vittime = []; grS.propNotte = [];
+        LUPR.scNotteViva(grS.round);
+        break;
     case "alba": LUPR.scAlba(grS.round, grS.vittima); break;
     case "giorno": LUPR.scGiorno(grS.round); break;
     case "voto":
@@ -49370,6 +49711,19 @@ function grEvFase(e) {
     case "verdetto":
         grTitolo(grT.verdettoFase, "Il verdetto");
         grSnd("verdetto");
+        /* LA SENTENZA, SUBITO (08/09). Il motore la decide con lo spoglio,
+           ma la scena del ballottaggio tiene il palco altri otto secondi:
+           era gia deciso e nessuno lo diceva. Qui comincia il vuoto, e qui
+           si scrive. In parita o con la grazia non si scrive niente: ci
+           pensa gia scGrazia. */
+        if (grS.esitoGiud) {
+            grChatRiga(null, grRiempi(grRiempi(grRiempi(
+                grL("Il borgo condanna __NOME__ con __N__ voti su __TOT__."),
+                "__NOME__", grNome(grS.esitoGiud.sg)),
+                "__N__", String(grS.esitoGiud.n)),
+                "__TOT__", String(grS.esitoGiud.tot)), "sistema");
+            grS.esitoGiud = null;
+        }
         break;
     case "epilogo":
         grTitolo(grT.epilogoFase, "Si fanno i conti");
@@ -49440,7 +49794,26 @@ function grEvRuolo(e) {
     }
 }
 
+/* LE MEMORIE DELLA NOTTE E DEL VOTO (08/09): quello che il giocatore aveva
+   scelto mentre la fase era ancora aperta. Servono per capire, quando
+   arriva l esito, se ha deciso lui o se ha deciso il tempo scaduto. Le
+   riempie grEco a ogni fotogramma; qui si leggono e basta. */
+function grAutopilota(che, sg) {
+    var ult = (che === "vedi") ? grS.mioScrutinioUlt : grS.mioScudoUlt;
+    if (ult === undefined) { return; }
+    var T = {
+        vedi: ["La lanterna si e accesa da sola: il tempo era scaduto.",
+               "La tua casa non era piu buona: la lanterna ne ha scelta un altra."],
+        scudo: ["La porta si e chiusa da sola: il tempo era scaduto.",
+                "Quella porta non si poteva richiudere: se ne e chiusa un altra."]
+    }[che];
+    if (ult === null) { grChatRiga(null, grL(T[0]), "sistema"); }
+    else if (ult !== sg) { grChatRiga(null, grL(T[1]), "sistema"); }
+}
+
 function grEvProposta(e) {
+    if (!grS.propNotte) { grS.propNotte = []; }
+    if (grS.propNotte.indexOf(e.sg) < 0) { grS.propNotte.push(e.sg); }
     grUI().evidenzia(e.sg, "proposta");
     /* guBranco vuole il SEGGIO in da (fa lui il nome): col nome si leggeva "seggio Hugo" */
     grUI().branco([{ da: e.da, sg: e.sg, nome: grNome(e.sg) }]);
@@ -49470,17 +49843,50 @@ function grEvMorte(e) {
     /* lo Sciacallo bruciato dalla lanterna: il rogo, non le unghiate */
     if (e.come === "rogo") { LUPR.scRogo(e.sg); return; }
     grS.vittima = e.sg;
+    if (grS.propNotte && grS.propNotte.length > 1 && grS.propNotte.indexOf(e.sg) >= 0) {
+        grChatRiga(null, grRiempi(grL("Il branco non era d accordo: fra le porte indicate ha deciso la sorte. Stanotte si e bussato da __NOME__."),
+            "__NOME__", grNome(e.sg)), "branco");
+    }
+    /* piu di una finestra puo restare chiusa nella stessa notte (la
+       fiala del dottore, il vigilante): prima ne veniva raccontata una
+       sola e l altra spariva */
+    if (!grS.vittime) { grS.vittime = []; }
+    if (grS.vittime.indexOf(e.sg) < 0) { grS.vittime.push(e.sg); }
     LUPR.scPreda(e.sg, null);
 }
 function grEvSpoglio(e) {
     if (e.atto === "accusa") {
         var imp = grSbircia("imputati");
+        /* LE SCHEDE CHE NON SONO STATE MESSE (08/09). Chi non fa in tempo a
+           votare lascia una scheda bianca, e non lo sapeva nessuno: ne lui
+           ne il borgo. Il numero pubblico non regala niente (il tabellone
+           arriva gia a tutti), e la riga privata la scrive chi ha visto
+           null nella propria vista mentre la fase era ancora voto. */
+        var bianche = 0, bi;
+        for (bi = 0; bi < (e.tab || []).length; bi++) {
+            if (e.tab[bi] && typeof e.tab[bi].a === "number" && e.tab[bi].a < 0) { bianche++; }
+        }
+        if (bianche > 0) {
+            grChatRiga(null, grRiempi(grL("Schede bianche: __N__."), "__N__", String(bianche)), "sistema");
+        }
+        grS.contiUlt = grConti(e.tab);
+        if (grS.mioVotoUlt === null) {
+            grChatRiga(null, grL("Non hai messo la scheda: il tempo e scaduto."), "sistema");
+        }
+        grS.mioVotoUlt = undefined;
         LUPR.scAccusa(e.tab, imp ? (imp.sg || imp.imputati || []) : []);
         return;
     }
     /* l esito viene con lo spoglio: sbirciare in coda non funzionava,
        perche la morte il motore la emette una fase dopo */
     var esito = e.esito || { tipo: "nessuno", motivo: "parita" };
+    if (esito.tipo === "lincio" && typeof esito.sg === "number") {
+        var cG = grConti(e.tab), valide = 0, kG;
+        for (kG = 0; kG < (e.tab || []).length; kG++) {
+            if (e.tab[kG] && typeof e.tab[kG].a === "number" && e.tab[kG].a >= 0) { valide++; }
+        }
+        grS.esitoGiud = { sg: esito.sg, n: cG[esito.sg] || 0, tot: valide };
+    } else { grS.esitoGiud = null; }
     LUPR.scSpoglioGiudizio(e.tab, esito);
 }
 
@@ -49985,8 +50391,18 @@ LUPR.scAlba = function (round, mortoSg) {
         st.ombraLupo.ferma();
     }
     if (mortoSg !== undefined && mortoSg !== null && mortoSg >= 0) {
-        grChatRiga(null, grRiempi(grT.mortoNotte, "__NOME__",
-            grNome(mortoSg)), "sistema");
+        /* SE LE FINESTRE CHIUSE SONO DUE, SI DICONO TUTTE E DUE (08/09).
+           Prima la regia teneva un solo posto per il morto della notte, e
+           quando la notte ne faceva due (la fiala del dottore, il
+           vigilante) il secondo non veniva raccontato mai. */
+        var vt = (grS.vittime && grS.vittime.length > 1) ? grS.vittime : null;
+        if (vt) {
+            grChatRiga(null, grRiempi(grRiempi(grL("Stamattina due finestre sono rimaste chiuse: __A__ e __B__."),
+                "__A__", grNome(vt[0])), "__B__", grNome(vt[1])), "sistema");
+        } else {
+            grChatRiga(null, grRiempi(grT.mortoNotte, "__NOME__",
+                grNome(mortoSg)), "sistema");
+        }
         /* LA CASA DELLA VITTIMA, INTERA (07/09, ordine del proprietario:
            «ogni mattina se ci sta una vittima bisogna inquadrare per
            intero la casa vittima con il logo piu spento»). Si guarda dal
@@ -50392,6 +50808,8 @@ function grEsito(vince, e) {
             sg: i, nome: grNome(i),
             ruolo: ruoli[i] || "villico",
             morto: !vivo,
+            /* come e quando: lo legge guFineTesto (g_ui.js) */
+            fine: (grS.fine && grS.fine[i]) ? grS.fine[i] : null,
             premio: premi[i] || 0,
             offerta: offerte[i] || 0
         });
@@ -50404,8 +50822,29 @@ function grEsito(vince, e) {
         rake: (od && typeof od.rake_cent === "number") ? od.rake_cent : ((e && e.rake) ? e.rake : 0),
         tuoPremio: premi[grS.sg] || 0,
         /* D-22: su un tavolo gratis non si stampa una cifra */
-        gratis: !grS.aSoldi
+        gratis: !grS.aSoldi,
+        /* IL SEME (08/09). Il server lo manda a fine partita apposta perche
+           la partita sia ricontrollabile, e non lo mostrava nessuna
+           schermata. Solo da overDati: mai da uno snapshot, perche il
+           generatore e invertibile ed e per questo che la scena ne usa uno
+           separato. */
+        seme: (od && od.seme !== undefined && od.seme !== null) ? String(od.seme) : ""
     };
+    /* I RUOLI RESTANO SCRITTI (08/09). Il pannello dei conti li mostra una
+       volta sola: chiuso quello, chi era chi non si puo piu rivedere, e la
+       partita si chiude senza sapere se avevi ragione. Qui la stessa lista
+       si versa anche in chat, dove resta insieme al racconto. Una volta
+       sola: ci pensa la guardia grS.epilogoGiocato. */
+    var pezziR = [], iR, rr, fnR;
+    for (iR = 0; iR < righe.length; iR++) {
+        rr = (typeof LUPX !== "undefined" && LUPX && LUPX.nome)
+            ? String(LUPX.nome(righe[iR].ruolo)) : righe[iR].ruolo;
+        fnR = righe[iR].morto ? grL("morto") : grL("vivo");
+        pezziR.push((iR === grS.sg ? grL("Tu") : righe[iR].nome) + ": " + rr + " (" + fnR + ")");
+    }
+    if (pezziR.length) {
+        grChatRiga(null, grL("I RUOLI") + " - " + pezziR.join(". ") + ".", "sistema");
+    }
     if (typeof LUPU !== "undefined" && LUPU && typeof LUPU.esito === "function") {
         LUPU.esito(dati);
         return;
@@ -50427,6 +50866,9 @@ LUPR.uccidi = function (sg, causa) {
     var casa = grCasa(sg);
     if (grS.morti[sg]) { return; }
     grS.morti[sg] = causa || "notte";
+    if (!grS.fine) { grS.fine = {}; }
+    grS.fine[sg] = { causa: causa || "notte", round: grS.round || 1,
+        notte: (grS.fase === "notte" || grS.fase === "alba") };
     if (casa && casa.userData) {
         casa.userData.viva = false;
         if (casa.userData.luce) { casa.userData.luce.intensity = 0; }
@@ -52635,6 +53077,116 @@ var LUP_EN = {
     "Oggi votano tutti, anche chi non c e piu.": "Today everybody votes, even those who are gone.",
     "Hai la parola. Poi premi pronto.": "You have the floor. Then press ready.",
     "Parlano i due alla sbarra.": "The two in the dock are speaking.",
+    "Seme della partita:": "Game seed:",
+    "assente": "away",
+    "Il branco non era d accordo: fra le porte indicate ha deciso la sorte. Stanotte si e bussato da __NOME__.": "The pack did not agree: chance chose between the doors you pointed at. Tonight the knock fell on __NOME__.",
+    "Scegli la casa che il branco colpisce stanotte. Se indicate porte diverse, decide la sorte.": "Choose the house the pack strikes tonight. If you point at different doors, chance decides.",
+    "Il borgo condanna __NOME__ con __N__ voti su __TOT__.": "The village condemns __NOME__ with __N__ votes out of __TOT__.",
+    "I RUOLI": "THE ROLES",
+    "Tu": "You",
+    "vivo": "alive",
+    "morto": "dead",
+    "Riporti al tavolo __NOME__, l ultimo caduto: torna vivo all alba. Una sola volta in tutta la partita.": "You bring __NOME__ back to the table, the last to fall: alive at dawn. Once in the whole game.",
+    "LA NOTTE": "THE NIGHT",
+    "LE ARRINGHE": "THE PLEAS",
+    "SEI ALLA SBARRA": "YOU ARE ON TRIAL",
+    "RIPORTA IN VITA": "BRING BACK TO LIFE",
+    "Premi ancora per riportarlo al tavolo.": "Press again to bring them back to the table.",
+    "Ti tornano indietro __SAT__ della busta. Fra poco saprai com e andata.": "__SAT__ comes back to you from your envelope. You will know how it went in a moment.",
+    "LUPO": "WOLF",
+    "non lupo": "not a wolf",
+    "propone": "proposes",
+    "sei un <b>GAMBLER</b>": "you are a <b>GAMBLER</b>",
+    "sei <b>__RUOLO__</b>": "you are <b>__RUOLO__</b>",
+    "sei un <b>LUPO DEL BANCO</b>": "you are a <b>HOUSE WOLF</b>",
+    "partita gratis": "free game",
+    "Restano <b>__N__ gambler</b> e siete in <b>__K__</b>. Vi basta arrivare a pari numero: mancano <b>__M__</b> notti buone.": "There are <b>__N__ gamblers</b> left and <b>__K__</b> of you. You only need to even the count: <b>__M__</b> good nights to go.",
+    "partita gratis · nessun piatto, solo la caccia": "free game · no pot, just the hunt",
+    "Tra noi ci sono <b>__K__ lupi</b>, usciti a sorte: nessuno ha pagato per esserlo.": "There are <b>__K__ wolves</b> among us, drawn by chance: nobody paid to be one.",
+    "E uno <b>sciacallo</b>, che gioca per se.": "And a <b>jackal</b>, who plays for himself.",
+    "Siamo in <b>__N__</b> a cercarli.": "There are <b>__N__</b> of us looking for them.",
+    "partita gratis · in palio solo il borgo": "free game · the village is the only prize",
+    "Sul tavolo ci sono <b>__T__</b> di poste dei gambler. Se il branco vince, il piatto e vostro: <b>__Q__</b> a testa.": "There is <b>__T__</b> of gambler money on the table. If the pack wins, the pot is yours: <b>__Q__</b> each.",
+    "Attento che gira anche uno <b>sciacallo</b>: non e dei vostri.": "Watch out, a <b>jackal</b> is around too: he is not one of yours.",
+    "hai pagato __X__ per sederti qui · gia al netto del banco": "you paid __X__ to sit here · already net of the house",
+    "Tra noi ci sono <b>__K__ lupi</b>": "There are <b>__K__ wolves</b> among us",
+    ", e hanno pagato <b>__S__</b> in piu all asta per esserlo.": ", and they paid <b>__S__</b> extra at the auction to be so.",
+    ", entrati per sorte: nessun sovrapprezzo.": ", drawn by chance: no premium paid.",
+    "E c e uno <b>sciacallo</b>: il suo posto non era in vendita, e se arriva vivo alla fine il piatto se lo prende tutto lui.": "And there is a <b>jackal</b>: his seat was not for sale, and if he is alive at the end he takes the whole pot.",
+    "Se ripuliamo il tavolo: <b>__M__</b> da dividere.": "If we clear the table: <b>__M__</b> to share.",
+    "oggi siamo in __N__ a dividere · fanno __Q__ a testa": "__N__ of us sharing today · that is __Q__ each",
+    "Prima chiamata: __CONTI__.": "First call: __CONTI__.",
+    "linciato": "hanged",
+    "sbranato": "taken",
+    "bruciato": "burned",
+    "chiamato male": "wrongly called",
+    "avvelenato": "poisoned",
+    "giustiziato": "executed",
+    "notte": "night",
+    "giorno": "day",
+    "Stamattina due finestre sono rimaste chiuse: __A__ e __B__.": "Two windows stayed shut this morning: __A__ and __B__.",
+    "Schede bianche: __N__.": "Blank ballots: __N__.",
+    "Non hai messo la scheda: il tempo e scaduto.": "You did not cast your ballot: time ran out.",
+    "La lanterna si e accesa da sola: il tempo era scaduto.": "The lantern lit itself: your time had run out.",
+    "La tua casa non era piu buona: la lanterna ne ha scelta un altra.": "Your house was no longer valid: the lantern picked another one.",
+    "La porta si e chiusa da sola: il tempo era scaduto.": "The door closed by itself: your time had run out.",
+    "Quella porta non si poteva richiudere: se ne e chiusa un altra.": "That door could not be closed again: another one was closed.",
+    "Pareggio di dita per l ultimo posto alla sbarra. Ha deciso il sorteggio: sale __NOME__.": "A tie for the last seat in the dock. The draw decided: __NOME__ goes up.",
+    "Un pareggio, e la sorte ha scelto chi sale.": "A tie, and chance chose who goes up.",
+    "La partita si e interrotta per un guasto. Nessuna posta e andata persa.": "The game stopped because of a fault. No stake was lost.",
+    "La partita si e interrotta per un guasto.": "The game stopped because of a fault.",
+    "Sei tu alla sbarra. Adesso decidono gli altri: qui non c e niente da premere.": "You are the one on trial. The others decide now: there is nothing to press here.",
+    "Sei un fantasma: al giudizio si guarda e basta.": "You are a ghost: at the verdict you only watch.",
+    "Sei un fantasma: leggi e ascolta. Torni a votare solo alla prima chiamata.": "You are a ghost: read and listen. You only vote again at the first call.",
+    "Le carte si distribuiscono. Guarda la tua: e l unica cosa che sai per certo. Qui non si tocca niente.": "The cards are being dealt. Look at yours: it is the only thing you know for sure. Nothing to touch here.",
+    "Le buste si aprono. Fra poco saprai chi sei.": "The envelopes are opening. In a moment you will know who you are.",
+    "Si conta chi manca. Qui non si tocca niente.": "The village counts who is missing. Nothing to touch here.",
+    "La sentenza. Qui non si tocca piu niente.": "The sentence. Nothing left to touch.",
+    "IL GIUDIZIO": "THE VERDICT",
+    "IL RITO": "THE RITE",
+    "LE BUSTE": "THE ENVELOPES",
+    "L ALBA": "DAWN",
+    "IL VERDETTO": "THE VERDICT",
+    "Tocca i lupi, al massimo due, poi premi CHIAMA. Tutti giusti e il borgo vince subito; uno sbagliato e muori tu.": "Tap the wolves, two at most, then press CALL. All correct and the village wins at once; one wrong and you die.",
+    "La chiamata non e passata: i nomi devono essere tutti e soli i lupi ancora vivi.": "The call did not go through: the names must be all and only the wolves still alive.",
+    "NOMINA I LUPI: una volta sola in tutta la partita. Tutti giusti e il borgo vince subito; uno sbagliato e muori tu.": "NAME THE WOLVES: once in the whole game. All correct and the village wins at once; one wrong and you die.",
+    "RIVELATI: da adesso il tuo voto pesa doppio, ma stanotte i lupi sanno dove venire.": "REVEAL: from now your vote counts double, but tonight the wolves know where to come.",
+    "REGISTRO: una volta sola, ti dice fin dove e salita la paletta di quella casa all asta.": "LEDGER: once only, it tells you how high that house kept its paddle up at the auction.",
+    "LA CARTA INCHIODATA": "THE NAILED CARD",
+    "LA CHIAMATA": "THE CALL",
+    "IL REGISTRO": "THE LEDGER",
+    "NOMINA": "NAME",
+    "inchioda la tua carta a una porta: domani quello parte accusato": "nail your card to a door: tomorrow that one starts out accused",
+    "chiama i lupi uno per uno: tutti giusti e il borgo vince, uno sbagliato e muori tu": "call the wolves one by one: all right and the village wins, one wrong and you die",
+    "scegli la casa di cui vuoi leggere il registro dei rilanci": "pick the house whose bidding ledger you want to read",
+    "colpiamo": "let us strike",
+    "aspetta": "hold on",
+    "occhio alla veggente": "watch out for the lantern",
+    "Il banco apre. Le buste sono vuote finche non le riempite.": "The house opens. The envelopes stay empty until you fill them.",
+    "In vendita:": "For sale:",
+    "La ceralacca si chiude. Adesso parla il banditore.": "The wax is sealed. Now the auctioneer speaks.",
+    "Il prezzo sale. Le palette cadono. Nessuno sa di chi sono.": "The price climbs. The paddles fall. Nobody knows whose they are.",
+    "Fermi. Ne restano": "Hold. There remain",
+    "VENDUTO. Pagano tutti lo stesso prezzo:": "SOLD. Everyone pays the same price:",
+    "La luna cerca una casa. Stanotte cerca la tua.": "The moon is looking for a house. Tonight it is looking for yours.",
+    "Le finestre si spengono. Da adesso, qualcuno mente.": "The windows go dark. From now on, someone is lying.",
+    "Nessuna finestra accesa. Il borgo non si e ancora contato.": "Not a window lit. The village has not counted itself yet.",
+    "Una finestra per volta. Chi si accende ha un nome.": "One window at a time. Whoever lights up has a name.",
+    "__N__ abitanti. __K__ hanno i denti.": "__N__ souls. __K__ have teeth.",
+    "Le finestre si spengono insieme. Ne resta una.": "The windows go out together. One is left.",
+    "Quella e casa tua. La targa dice il tuo nome.": "That one is your house. The plate says your name.",
+    "Le carte girano adesso. La tua e l ultima.": "The cards are dealt now. Yours is the last.",
+    "Manca il motore remoto (g_remoto.js): la partita non parte.": "The remote engine (g_remoto.js) is missing: the game cannot start.",
+    "Manca il motore (g_motore.js): la partita non parte.": "The engine (g_motore.js) is missing: the game cannot start.",
+    "seme": "seed",
+    "scritto in console": "written to the console",
+    "Questa mossa non si puo fare adesso.": "That move is not allowed right now.",
+    "Non tocca a te adesso.": "Not your turn right now.",
+    "I morti non agiscono: possono solo votare.": "The dead do not act: they can only vote.",
+    "La partita e finita.": "The game is over.",
+    "La fiala e gia stata versata: una per partita.": "The vial is already spent: one per game.",
+    "Non la stessa porta di ieri notte.": "Not the same door as last night.",
+    "Linea persa: la tua mossa non parte. Aspetta.": "Connection lost: your move is not going through. Hold on.",
     "Sei gia alla sbarra: oggi la tua scheda non c e.": "You are already in the dock: today you have no ballot.",
     "INCHIODA": "NAIL", "SECONDO LUPO": "SECOND WOLF", "PRIMO LUPO": "FIRST WOLF", "ANNULLA": "CANCEL",
     "NOMINA I LUPI": "NAME THE WOLVES", "RIVELATI": "REVEAL YOURSELF", "LEGGI": "READ", "REGISTRO €": "REGISTER €",
@@ -52652,6 +53204,13 @@ var LUP_EN = {
     "parla al borgo…": "talk to the village…", "sussurra al branco…": "whisper to the pack…",
     "è notte: il villaggio dorme": "it is night: the village sleeps",
     "COSTRUZIONE DEL MONDO…": "BUILDING THE WORLD…",
+    /* 09/09: la targa del banco d asta (asScriviContatore la disegna sulla
+       tela, non e' una texture) e l etichetta del microfono */
+    "IL PIATTO": "THE POT", "SI PARTE DA": "STARTS AT",
+    "SIGILLATO": "SEALED", "IL FONDO": "THE FUND",
+    "voce ON": "voice ON", "branco ON": "pack ON", "voce OFF": "voice OFF",
+    "il <b>villaggio</b>": "the <b>village</b>",
+    "Il Borgo del Lupo": "The Wolf's Village",
     "— cala la notte: la chat del villaggio si chiude —": "— night falls: the village chat closes —",
     "— sorge il giorno: il villaggio puo parlare —": "— day breaks: the village may speak —",
     /* J3: la veglia dei morti */
@@ -53206,6 +53765,9 @@ var LUPG = (function () {
                     if (o.etichetta) { o.etichetta = lupL(o.etichetta); }
                     if (o.suggerimento) { o.suggerimento = lupL(o.suggerimento); }
                     if (o.extra) { o.extra = lupL(o.extra); }
+                    /* il cappello della plancia (08/09): da oggi la scena lo
+                       puo passare, e va tradotto come gli altri */
+                    if (o.titolo) { o.titolo = lupL(o.titolo); }
                 }
                 return a;
             });
@@ -53234,6 +53796,19 @@ var LUPG = (function () {
         el = $("#lChiudi"); if (el) { el.textContent = lupL(el.textContent); }
         el = $(".tocca"); if (el) { el.textContent = lupL(el.textContent); }
         el = $("#cIn"); if (el && el.placeholder) { el.placeholder = lupL(el.placeholder); }
+        /* 09/09: la schermata di caricamento e il titolo della pagina. Il
+           caricamento e' la prima cosa che si vede, e restava italiana
+           anche col vocabolario carico. */
+        el = document.querySelector("#caricamento b");
+        if (el) { el.textContent = lupL(el.textContent); }
+        el = document.querySelector("#caricamento span");
+        if (el) { el.textContent = lupL(el.textContent); }
+        if (document.title) { document.title = lupL(document.title); }
+        /* 09/09: i due segnaposto scritti nell HTML. Li riscrivono
+           aggiornaSoldi e chatStato appena la partita parte, ma prima di
+           allora (il caricamento, l asta) sono quello che si legge. */
+        el = $("#sRuolo"); if (el) { el.innerHTML = lupL(el.innerHTML); }
+        el = $("#cCanale"); if (el) { el.innerHTML = lupL(el.innerHTML); }
         /* chatStato riscrive canale e segnaposto a ogni fase: si avvolge */
         if (typeof window.chatStato === "function" && !window.chatStato.__lupgL) {
             var orig = window.chatStato;
@@ -53241,6 +53816,10 @@ var LUPG = (function () {
                 var r = orig.apply(this, arguments);
                 var c = $("#cIn");
                 if (c && c.placeholder) { c.placeholder = lupL(c.placeholder); }
+                /* 09/09: anche l etichetta del microfono, che chatStato
+                   riscrive a ogni fase come il canale */
+                var ev = $("#eVoce");
+                if (ev) { ev.textContent = lupL(ev.textContent); }
                 var cc = $("#cCanale");
                 if (cc) {
                     cc.innerHTML = cc.innerHTML
@@ -53683,6 +54262,56 @@ function binRaggioCilindro(ox, oy, oz, dx, dy, dz, lung, cx, cz, r, y0, y1) {
   if (ya > yb) { s = ya; ya = yb; yb = s; }
   return (yb > y0 && ya < y1);
 }
+/* LA PIASTRA DEL MEDAGLIONE (09/09): disco + targa, piatti, girati verso
+   la camera sull asse verticale. cx/cz vengono dalla casa, il centro sta a
+   3,66 (BIN_MED_Y). Per una casa VIVA la normale punta a P (il ciclo la
+   gira li'); per una casa morta il ciclo non la gira piu', e la normale si
+   legge dalla rotazione vera del gruppo. */
+var BIN_MED_Y = 3.66;      /* quota del centro del medaglione */
+var BIN_MED_R = 0.697;     /* raggio del disco (misurato sulle mesh) */
+var BIN_TAR_W = 0.858;     /* mezza larghezza della targa */
+var BIN_TAR_Y0 = 4.328, BIN_TAR_Y1 = 4.801;
+var BIN_PIASTRA_RADE2 = 0.0144;   /* 0,12 al quadrato: sotto tanto coseno la piastra e' di taglio */
+/* IL BORDO. La piastra non e' una figura matematica: ha la cornice di
+   metallo (spessa 7 cm), lo spessore, e un raggio che passa sul filo del
+   bordo copre il soggetto lo stesso. Misurato senza questo margine, sei
+   fotogrammi su 1.311 avevano un colpo VERO (il bordo di sotto della
+   targa) che il modello non vedeva; con 5 cm non ne sfugge piu' nessuno e
+   i falsi allarmi restano zero. */
+var BIN_PIASTRA_ORLO = 0.05;
+function binPiastra(ox, oy, oz, dx, dy, dz, lung, casa, P, marg) {
+  var cx = casa.position.x, cz = casa.position.z;
+  var nx, nz, a;
+  if (casa.userData && casa.userData.viva) {
+    nx = P.x - cx; nz = P.z - cz;
+  } else {
+    a = casa.rotation.y + ((casa.userData && casa.userData.medaglione) ? casa.userData.medaglione.rotation.y : 0);
+    nx = Math.sin(a); nz = Math.cos(a);
+  }
+  /* SENZA RADICE (09/09): la normale non si normalizza. Il t del piano non
+     la sente (il fattore si semplifica fra numeratore e denominatore) e
+     larghezza e coseno si confrontano al quadrato contro nl2. Misurato: con
+     la radice binPasso saliva da 0,134 a 0,179 ms/fr e sfondava il tetto di
+     0,15 del cancello 10. */
+  var nl2 = nx * nx + nz * nz;
+  if (nl2 < 1e-12) { return false; }
+  var den = dx * nx + dz * nz;
+  if (den * den < BIN_PIASTRA_RADE2 * nl2) { return false; }
+  var t = ((cx - ox) * nx + (cz - oz) * nz) / den;
+  if (t <= 0 || t >= lung) { return false; }
+  var qy = oy + dy * t;
+  /* w moltiplicato per la lunghezza della normale: i confronti sono tutti
+     al quadrato contro nl2, cosi non serve dividere */
+  var wl = (ox + dx * t - cx) * nz - (oz + dz * t - cz) * nx;
+  var orlo = BIN_PIASTRA_ORLO + marg;
+  var h = qy - BIN_MED_Y, r = BIN_MED_R + orlo;
+  if (wl * wl + h * h * nl2 <= r * r * nl2) { return true; }
+  if (qy >= BIN_TAR_Y0 - orlo && qy <= BIN_TAR_Y1 + orlo) {
+    var W = BIN_TAR_W + orlo;
+    if (wl * wl <= W * W * nl2) { return true; }
+  }
+  return false;
+}
 /* vero se fra la mira g e il punto P c e' una casa (non propria), il suo
    medaglione o la fontana. propri: case che sono il soggetto. */
 function binOccluso(g, P, propri, marg) {
@@ -53702,18 +54331,25 @@ function binOccluso(g, P, propri, marg) {
       if (ddx * ddx + ddz * ddz < BIN_PROPRIA * BIN_PROPRIA) { continue; }
       hd = (casa.userData && typeof casa.userData.profondita === "number") ? casa.userData.profondita * 0.5 : 0.70;
       if (binRaggioScatola(ox, oy, oz, dx, dy, dz, lung, casa.position.x, casa.position.z, casa.rotation.y, 0.95 + marg, hd + 0.35 + marg, -1.0, 2.75 + marg)) { return true; }
-      /* IL MEDAGLIONE, NELLA SUA FORMA VERA (07/09). Era un cilindro solo,
-         r 0,52 da 2,19 a 4,18: grasso in basso e corto in alto. Fra 2,19 e
-         2,96 sotto il disco c e' solo il palo, un tondino r 0,035 (15 volte
-         piu' stretto): la camera si scansava da un ostacolo che non c e' —
-         e misurato, quella banda non ha mai fermato un fotogramma in tre
-         corse, quindi toglierla e' gratis. In alto invece la TARGA col nome
-         e' larga 1,72 m e arriva a 4,80: fuori dal cilindro. Misurato: 3,55 s
-         di partita in cui la targa copre il soggetto e il piano non la
-         vedeva. Adesso sono due cilindri, che e' la sagoma vera di un
-         cartello che si gira sempre verso di te: il disco e la targa. */
-      if (binRaggioCilindro(ox, oy, oz, dx, dy, dz, lung, casa.position.x, casa.position.z, 0.697 + marg, 2.963 - marg, 4.357 + marg)) { return true; }
-      if (binRaggioCilindro(ox, oy, oz, dx, dy, dz, lung, casa.position.x, casa.position.z, 0.858 + marg, 4.328 - marg, 4.801 + marg)) { return true; }
+      /* IL MEDAGLIONE E' UNA PIASTRA, NON UN CILINDRO (09/09). Il 07/09
+         disco e targa sono diventati due cilindri, "la sagoma vera di un
+         cartello che si gira sempre verso di te". Ma il cartello si gira
+         verso la CAMERA, non lungo il raggio che va al soggetto: il
+         cilindro e' il volume che la piastra spazzerebbe girando su se
+         stessa, quindi la contiene sempre — non perde un colpo vero, ma se
+         li inventa. Misurato col Raycaster contro le mesh vere
+         (_r_muro_vero.js, n = 8): su 143 fotogrammi accusati, 85 non hanno
+         nessun colpo vero, e ognuno di quelli paga un arco della camera che
+         scavalca un ostacolo che non c e'.
+         Adesso la piastra si misura per quello che e': il piano che la
+         contiene (normale verso il punto della camera che si sta
+         giudicando, che e' dove la piastra sara' girata quando la camera ci
+         arriva), il disco r 0,697 attorno al centro a 3,66 e il rettangolo
+         della targa (mezza larghezza 0,858, quota 4,328-4,801). Misure
+         prese sulle mesh vere a 5, 8 e 10 case (_r_med_geo.js). Quando il
+         raggio rade la piastra (|coseno| < 0,12) la sagoma e' lo spessore,
+         2-3 cm: non e' un ostacolo. */
+      if (binPiastra(ox, oy, oz, dx, dy, dz, lung, casa, P, marg)) { return true; }
     }
   }
   if (typeof fontana !== "undefined" && fontana && fontana.visible && !binIgnorato(fontana)) {
@@ -55362,10 +55998,14 @@ function ecoVal(v) {
 /* Il nome che il giocatore legge nel pannello dei conti. Il registro dei
    ruoli (g_ruoli.js) e' la sola fonte: qui non si tiene una seconda
    lista, o il giorno che nasce un ruolo questa resta indietro. */
+/* la striscia dei conti in inglese (08/09): si traduce il modello, poi si
+   infilano i numeri. ecoL passa dal vocabolario del guscio se c e. */
+function ecoL(t) { return (typeof lupL === "function") ? lupL(t) : t; }
+function ecoR(t, a, b) { return String(t).split(a).join(b); }
 function ecoNomeRuolo() {
     var n = ECO.ruoloNome;
-    if (!n || n === "Gambler") { return "sei un <b>GAMBLER</b>"; }
-    return "sei <b>" + String(n).toUpperCase() + "</b>";
+    if (!n || n === "Gambler") { return ecoL("sei un <b>GAMBLER</b>"); }
+    return ecoR(ecoL("sei <b>__RUOLO__</b>"), "__RUOLO__", String(n).toUpperCase());
 }
 
 function ecoNum(v) {
@@ -55391,7 +56031,7 @@ function aggiornaSoldi() {
      saldo, si mostra a che notte siamo */
   if ($("#hDx")) {
     $("#hDx").innerHTML = ECO.gratis
-      ? "🌙 partita gratis"
+      ? ("🌙 " + ecoL("partita gratis"))
       : "🧰 " + ecoVal(800);
   }
 
@@ -55405,21 +56045,22 @@ function aggiornaSoldi() {
       'letter-spacing:1px"> vivi</span>';
     if (ECO.ruolo === "lupo") {
       box.className = "lupo";
-      $("#sRuolo").innerHTML = "sei un <b>LUPO DEL BANCO</b>";
-      $("#sGola").innerHTML = "Restano <b>" + viviGambler + " gambler</b>" +
-        " e siete in <b>" + ECO.lupi + "</b>. Vi basta arrivare a pari " +
-        "numero: mancano <b>" + mancano + "</b> notti buone.";
+      $("#sRuolo").innerHTML = ecoL("sei un <b>LUPO DEL BANCO</b>");
+      $("#sGola").innerHTML = ecoR(ecoR(ecoR(ecoL(
+        "Restano <b>__N__ gambler</b> e siete in <b>__K__</b>. Vi basta arrivare a pari numero: mancano <b>__M__</b> notti buone."),
+        "__N__", String(viviGambler)), "__K__", String(ECO.lupi)), "__M__", String(mancano));
       $("#sSotto").textContent =
-        "partita gratis · nessun piatto, solo la caccia";
+        ecoL("partita gratis · nessun piatto, solo la caccia");
     } else {
       box.className = "";
       $("#sRuolo").innerHTML = ecoNomeRuolo();
-      $("#sGola").innerHTML = "Tra noi ci sono <b>" + ECO.lupi + " lupi</b>," +
-        " usciti a sorte: nessuno ha pagato per esserlo." +
-        (ECO.sciacallo ? " E uno <b>sciacallo</b>, che gioca per se." : "") +
-        " Siamo in <b>" + viviGambler + "</b> a cercarli.";
+      $("#sGola").innerHTML = ecoR(ecoL(
+        "Tra noi ci sono <b>__K__ lupi</b>, usciti a sorte: nessuno ha pagato per esserlo."),
+        "__K__", String(ECO.lupi)) +
+        (ECO.sciacallo ? (" " + ecoL("E uno <b>sciacallo</b>, che gioca per se.")) : "") +
+        " " + ecoR(ecoL("Siamo in <b>__N__</b> a cercarli."), "__N__", String(viviGambler));
       $("#sSotto").textContent =
-        "partita gratis · in palio solo il borgo";
+        ecoL("partita gratis · in palio solo il borgo");
     }
     return;
   }
@@ -55433,31 +56074,30 @@ function aggiornaSoldi() {
 
   if (ECO.ruolo === "lupo") {
     box.className = "lupo";
-    $("#sRuolo").innerHTML = "sei un <b>LUPO DEL BANCO</b>";
+    $("#sRuolo").innerHTML = ecoL("sei un <b>LUPO DEL BANCO</b>");
     var quotaLupo = Math.floor(piatto * (1 - ECO.rake) / ECO.lupi);
-    $("#sGola").innerHTML = "Sul tavolo ci sono <b>" + ecoNum(ECO.n * ECO.B) +
-      "</b> di poste dei gambler. Se il branco vince, il piatto e' vostro: " +
-      "<b>" + ecoNum(quotaLupo) + "</b> a testa." +
+    $("#sGola").innerHTML = ecoR(ecoR(ecoL(
+      "Sul tavolo ci sono <b>__T__</b> di poste dei gambler. Se il branco vince, il piatto e vostro: <b>__Q__</b> a testa."),
+      "__T__", ecoNum(ECO.n * ECO.B)), "__Q__", ecoNum(quotaLupo)) +
       (ECO.sciacallo
-        ? " Attento che gira anche uno <b>sciacallo</b>: non e dei vostri."
+        ? (" " + ecoL("Attento che gira anche uno <b>sciacallo</b>: non e dei vostri."))
         : "");
-    $("#sSotto").textContent = "hai pagato " + ecoVal(ECO.B + ECO.offerte[0]) +
-      " per sederti qui \u00b7 gia\u0300 al netto del banco";
+    $("#sSotto").textContent = ecoR(ecoL("hai pagato __X__ per sederti qui \u00b7 gia al netto del banco"),
+      "__X__", ecoVal(ECO.B + ECO.offerte[0]));
   } else {
     box.className = "";
     $("#sRuolo").innerHTML = ecoNomeRuolo();
     var montepremi = Math.floor(buyinLupi * (1 - ECO.rake));
     var quota = Math.floor(montepremi / viviGambler);
-    $("#sGola").innerHTML = "Tra noi ci sono <b>" + ECO.lupi + " lupi</b>" +
-      (S > 0 ? ", e hanno pagato <b>" + ecoNum(S) + "</b> in piu all asta " +
-        "per esserlo." : ", entrati per sorte: nessun sovrapprezzo.") +
+    $("#sGola").innerHTML = ecoR(ecoL("Tra noi ci sono <b>__K__ lupi</b>"), "__K__", String(ECO.lupi)) +
+      (S > 0 ? ecoR(ecoL(", e hanno pagato <b>__S__</b> in piu all asta per esserlo."), "__S__", ecoNum(S))
+             : ecoL(", entrati per sorte: nessun sovrapprezzo.")) +
       (ECO.sciacallo
-        ? " E c e uno <b>sciacallo</b>: il suo posto non era in vendita, " +
-          "e se arriva vivo alla fine il piatto se lo prende tutto lui."
+        ? (" " + ecoL("E c e uno <b>sciacallo</b>: il suo posto non era in vendita, e se arriva vivo alla fine il piatto se lo prende tutto lui."))
         : "") +
-      " Se ripuliamo il tavolo: <b>" + ecoNum(montepremi) + "</b> da dividere.";
-    $("#sSotto").textContent = "oggi siamo in " + viviGambler +
-      " a dividere \u00b7 fanno " + ecoVal(quota) + " a testa";
+      " " + ecoR(ecoL("Se ripuliamo il tavolo: <b>__M__</b> da dividere."), "__M__", ecoNum(montepremi));
+    $("#sSotto").textContent = ecoR(ecoR(ecoL("oggi siamo in __N__ a dividere \u00b7 fanno __Q__ a testa"),
+      "__N__", String(viviGambler)), "__Q__", ecoVal(quota));
   }
 }
 function scRuolo() {
