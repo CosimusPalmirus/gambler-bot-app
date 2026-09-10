@@ -19422,8 +19422,12 @@ function mkMedaglione(opz) {
         for (k = 0; k < tacche.children.length; k++) {
             tacche.children[k].material.opacity = 0;
         }
-        targa.material.opacity = 0.28;
-        targa.material.transparent = true;
+        /* IL NOME RESTA LEGGIBILE (10/09). Il 07/09 il proprietario ha
+           chiesto "la casa vittima con il logo piu spento": il LOGO. La
+           targa col nome invece e' l unica cosa che dice CHI e' morto, e
+           al 28 per cento non si leggeva — proprio nel fotogramma in cui
+           il gioco deve gridarlo. Resta piena; a spegnersi e' la faccia. */
+        targa.material.opacity = 1;
     };
     G.userData.aggiorna = function (t, dt) {
         if (stato.spento) { return; }
@@ -39768,11 +39772,14 @@ LUPM.MOSSE = ["sigilla", "bersaglio", "vedi", "voto", "pronto", "dito", "chat_l"
               "rimborsa", "nomina", "inchioda", "rivela"];
 
 /* Durate fedeli al Python: e la tabella che il banco confronta. */
+/* ALBA 12 dal 10/09: con otto secondi due case non ci stanno (il giro
+   dell alba fa tre secondi e mezzo a morto, e le notti con due o tre morti
+   esistono: la fiala del dottore, il vigilante). */
 LUPM.FASE_S = {
     /* 68 dal 03/09 sera: l atto del marchio (12 s di ombra lupo o
        gambler) e' stato tolto; dopo il martelletto restano tra-noi e
        alba zero, e i ruoli arrivano con le carte della fase rivela */
-    asta: 68, rivela: 10, rito: 26, notte: 30, alba: 8,
+    asta: 68, rivela: 10, rito: 26, notte: 30, alba: 12,
     voto: 25, arringa: 60, ballo: 15, verdetto: 8, epilogo: 15
 };
 /* Durate da palestra: con sette bot il dibattito lungo e tempo morto. */
@@ -39789,7 +39796,7 @@ LUPM.FASE_S_PALESTRA = {
        erano pochi per la fase in cui uno impara il gioco: dentro ci sta una
        scena di caccia e il tempo di leggere la plancia. La notte fedele,
        quella dei tavoli veri, resta 30. */
-    asta: 68, rivela: 8, rito: 26, notte: 26, alba: 8,
+    asta: 68, rivela: 8, rito: 26, notte: 26, alba: 12,
     voto: 18, arringa: 26, ballo: 13, verdetto: 8, epilogo: 15
 };
 LUPM.GIORNO_S = [120, 105, 90, 75];
@@ -48710,7 +48717,7 @@ function grPulisci() {
        ghigliottina continuava a girare sotto la scena nuova, prendendosi la
        camera e calando il velo nero del rientro dalla radura in mezzo al
        giorno (trovato il 07/09 nell audit). anEsecuzione ha smonta(). */
-    var chiavi = ["preda", "vis", "voto", "ballo", "fin", "scudo", "pan", "pot", "esec", "intro"];
+    var chiavi = ["preda", "vis", "voto", "ballo", "fin", "scudo", "pan", "pot", "esec", "intro", "alba"];
     for (k = 0; k < chiavi.length; k++) {
         if (c[chiavi[k]]) {
             if (c[chiavi[k]].smonta) { c[chiavi[k]].smonta(); }
@@ -48801,6 +48808,12 @@ function grAvanzaScene(dt, t) {
         if (c.intro.attivo) {
             if (!c.intro.aggiorna(dt)) { LUPR.libera("intro"); }
         } else { LUPR.libera("intro"); }
+    }
+    /* IL GIRO DELL ALBA (10/09): visita la casa di ogni morto della notte */
+    if (c.alba) {
+        if (c.alba.attivo) {
+            if (!c.alba.aggiorna(dt)) { LUPR.libera("alba"); }
+        } else { LUPR.libera("alba"); }
     }
     /* il lupo che cammina: quando ha finito, comincia la caccia */
     if (c.lupoCam && c.lupoCam.attivo) {
@@ -50602,37 +50615,103 @@ LUPR.scAlba = function (round, mortoSg) {
     if (typeof st !== "undefined" && st.ombraLupo && st.ombraLupo.ferma) {
         st.ombraLupo.ferma();
     }
-    if (mortoSg !== undefined && mortoSg !== null && mortoSg >= 0) {
-        /* SE LE FINESTRE CHIUSE SONO DUE, SI DICONO TUTTE E DUE (08/09).
-           Prima la regia teneva un solo posto per il morto della notte, e
-           quando la notte ne faceva due (la fiala del dottore, il
-           vigilante) il secondo non veniva raccontato mai. */
-        var vt = (grS.vittime && grS.vittime.length > 1) ? grS.vittime : null;
-        if (vt) {
-            grChatRiga(null, grRiempi(grRiempi(grL("Stamattina due finestre sono rimaste chiuse: __A__ e __B__."),
-                "__A__", grNome(vt[0])), "__B__", grNome(vt[1])), "sistema");
-        } else {
-            grChatRiga(null, grRiempi(grT.mortoNotte, "__NOME__",
-                grNome(mortoSg)), "sistema");
-        }
-        /* LA CASA DELLA VITTIMA, INTERA (07/09, ordine del proprietario:
-           «ogni mattina se ci sta una vittima bisogna inquadrare per
-           intero la casa vittima con il logo piu spento»). Si guarda dal
-           binario, dalla sua parte, tirato indietro di 3,2 m: da li la
-           casa ci sta tutta, tetto e insegna comprese. Prima l alba non
-           inquadrava niente e la camera restava dove l aveva lasciata la
-           notte. */
-        grAlbaVittima(mortoSg);
+    /* TUTTI I MORTI DELLA NOTTE, UNO PER UNO (10/09, ordine del
+       proprietario: "quando una casa viene attaccata e uccisa si deve vedere
+       per intera e deve essere super chiaro chi e' morto quella notte,
+       calcola che possono morire anche in piu di uno in una notte").
+       Misurato prima di toccare niente (_r_alba_morti.js): con due morti la
+       camera ne inquadrava UNO, con tre la riga in chat diceva "due" e ne
+       nominava due — il terzo non esisteva da nessuna parte — e a voce non
+       si diceva niente. */
+    var vt = [];
+    if (grS.vittime && grS.vittime.length) { vt = grS.vittime.slice(0); }
+    else if (mortoSg !== undefined && mortoSg !== null && mortoSg >= 0) { vt = [mortoSg]; }
+    if (vt.length) {
+        grChatRiga(null, grAlbaRiga(vt), "sistema");
+        grS.ctrl.alba = grAlbaGiro(vt);
+        if (grS.ctrl.alba) { grS.ctrl.alba.avvia(); }
     }
     grHud(true);
 };
+
+/* LA RIGA DELL ALBA, col numero vero (10/09). Prima esistevano solo il
+   caso "uno" e il caso "due", e con tre morti si leggeva ancora "due
+   finestre" con due nomi su tre. */
+function grAlbaRiga(vt) {
+    var i, nomi = [];
+    for (i = 0; i < vt.length; i++) { nomi.push(grNome(vt[i])); }
+    if (nomi.length === 1) {
+        return grRiempi(grT.mortoNotte, "__NOME__", nomi[0]);
+    }
+    if (nomi.length === 2) {
+        return grRiempi(grRiempi(grL("Stamattina due finestre sono rimaste chiuse: __A__ e __B__."),
+            "__A__", nomi[0]), "__B__", nomi[1]);
+    }
+    /* tre o piu': "A, B e C". La congiunzione sta DENTRO il modello: una
+       voce di vocabolario che vale la sola lettera "e" tradurrebbe per
+       sbaglio qualunque altra "e" del gioco. */
+    var ultimo = nomi.pop();
+    return grRiempi(grRiempi(grRiempi(
+        grL("Stamattina __N__ finestre sono rimaste chiuse: __CHI__ e __ULT__."),
+        "__N__", String(nomi.length + 1)), "__CHI__", nomi.join(", ")), "__ULT__", ultimo);
+}
+
+/* IL GIRO DELL ALBA (10/09): una casa alla volta, inquadrata intera, col
+   nome scritto in grande mentre la camera ci sta sopra. Si spalma sul tempo
+   della fase; con un morto solo e' l inquadratura di prima, tenuta di piu'. */
+function grAlbaGiro(vt) {
+    var C = { t: 0, attivo: false, i: -1, fatte: {} };
+    var resta = 8;
+    if (grS.M && typeof grS.M.faseResta === "function") {
+        try { resta = Math.max(4, grS.M.faseResta() - 0.8); } catch (e) { resta = 8; }
+    }
+    /* fra 2,6 e 4,2 secondi a testa: sotto non si fa in tempo a leggere il
+       nome, sopra si sta fermi su una casa senza motivo. Il tetto serve
+       anche a difendersi da faseResta() di una fase che non e' l alba (una
+       scena rigiocata fuori posto teneva 22 secondi su una casa sola). */
+    var slot = Math.min(4.2, Math.max(2.6, resta / Math.max(1, vt.length)));
+    C.avvia = function () {
+        C.t = 0; C.attivo = true; C.i = -1; C.fatte = {};
+        return C;
+    };
+    C.aggiorna = function (dt) {
+        if (!C.attivo) { return false; }
+        C.t += dt;
+        var j = Math.floor(C.t / slot);
+        if (j >= vt.length) { C.attivo = false; return false; }
+        if (j !== C.i) {
+            C.i = j;
+            grAlbaVittima(vt[j]);
+            /* IL NOME IN GRANDE, non solo in chat: e' la cosa che il
+               giocatore deve portarsi in piazza */
+            grVoce(grRiempi(grL("__NOME__ non ha aperto la finestra."),
+                "__NOME__", grNome(vt[j])), Math.max(2000, slot * 850));
+            if (vt.length > 1) {
+                grUI().toast(grRiempi(grRiempi(grRiempi(
+                    grL("Morto __K__ di __N__: __NOME__"),
+                    "__K__", String(j + 1)), "__N__", String(vt.length)),
+                    "__NOME__", grNome(vt[j])), 2400);
+            }
+            grSnd("tocco");
+        }
+        return true;
+    };
+    C.smonta = function () { C.attivo = false; };
+    return C;
+}
 
 /* la casa di chi non ha aperto la finestra: tutta dentro il quadro, e
    ferma li qualche secondo. Il medaglione lo ha gia spento LUPR.uccidi. */
 function grAlbaVittima(sg) {
     var casa = grCasa(sg);
     if (!casa || typeof binPunto !== "function") { return; }
-    var th = Math.atan2(casa.position.x, casa.position.z);
+    /* NON DI PIATTO DALLA SCHIENA (10/09). Il binario passa fuori
+       dall anello delle case, quindi da qui la casa si guarda per forza dal
+       retro (misurato: coseno -1 con la facciata). Di piatto si vede una
+       parete sola e un tetto; spostandosi di 32 gradi si vedono il fianco e
+       lo spigolo, e la casa si legge come una casa. Il verso e' quello che
+       allontana dal centro del borgo, cosi non si finisce dietro la vicina. */
+    var th = Math.atan2(casa.position.x, casa.position.z) + (((sg % 2) === 0) ? 0.56 : -0.56);
     var dist = BIN.distBase + 3.2;
     var occhio = binPunto(th, 0.30, dist, new THREE.Vector3());
     var mira = new THREE.Vector3(casa.position.x, 2.25, casa.position.z);
@@ -53425,6 +53504,11 @@ var LUP_EN = {
     /* 10/09: la plancia del morto, l allerta su di te, e le battute
        dell intro (GR_INTRO_APRE / _CASA / _CHIUDE in g_regia.js) */
     "SEI MORTO": "YOU ARE DEAD",
+    /* 10/09: l alba che racconta tutti i morti della notte */
+    "Stamattina __N__ finestre sono rimaste chiuse: __CHI__ e __ULT__.":
+        "__N__ windows stayed shut this morning: __CHI__ and __ULT__.",
+    "__NOME__ non ha aperto la finestra.": "__NOME__ did not open the window.",
+    "Morto __K__ di __N__: __NOME__": "Dead __K__ of __N__: __NOME__",
     "Sei fuori dal gioco: leggi e ascolta. Puoi parlare solo con gli altri morti, e torni a votare alla prima chiamata.":
         "You are out of the game: read and listen. You can only talk to the other dead, and you vote again at the first call.",
     "E questa e casa TUA. Guardala bene: e' quella che devi difendere.":
@@ -54580,13 +54664,12 @@ var BIN_PIASTRA_RADE2 = 0.0144;   /* 0,12 al quadrato: sotto tanto coseno la pia
 var BIN_PIASTRA_ORLO = 0.05;
 function binPiastra(ox, oy, oz, dx, dy, dz, lung, casa, P, marg) {
   var cx = casa.position.x, cz = casa.position.z;
-  var nx, nz, a;
-  if (casa.userData && casa.userData.viva) {
-    nx = P.x - cx; nz = P.z - cz;
-  } else {
-    a = casa.rotation.y + ((casa.userData && casa.userData.medaglione) ? casa.userData.medaglione.rotation.y : 0);
-    nx = Math.sin(a); nz = Math.cos(a);
-  }
+  /* 10/09: la piastra guarda SEMPRE il punto di camera. Fino a stamattina il
+     ciclo girava il medaglione solo per le case VIVE, e qui c era il ramo
+     della casa morta che leggeva la rotazione congelata. Adesso il ciclo lo
+     gira anche da morto (se no all alba, che la casa del morto la guarda da
+     dietro, restava un anello vuoto): un ramo solo, e sempre giusto. */
+  var nx = P.x - cx, nz = P.z - cz;
   /* SENZA RADICE (09/09): la normale non si normalizza. Il t del piano non
      la sente (il fattore si semplifica fra numeratore e denominatore) e
      larghezza e coseno si confrontano al quadrato contro nl2. Misurato: con
@@ -57257,9 +57340,15 @@ function cicloPasso(dt) {
 
   /* finestre che respirano + medaglioni reattivi alla voce */
   for (i = 0; i < borgo.length; i++) {
-    if (!borgo[i].userData.viva) { continue; }
+    /* IL MEDAGLIONE GIRA ANCHE DA MORTO (10/09). Prima il giro saltava le
+       case morte: il loro medaglione restava girato dove si trovava, e
+       siccome disco e targa sono a faccia singola, chi lo guardava dal
+       retro non vedeva NIENTE — solo la cornice di metallo, che e' un toro.
+       All alba, che la casa del morto la guarda proprio da dietro, restava
+       un anello vuoto sospeso sulla piazza (misurato con _r_alba_dove.js).
+       E il nome del morto e' scritto li' sopra: e' l unico posto dove sta. */
     if (borgo[i].userData.medaglione) {
-      borgo[i].userData.medaglione.userData.aggiorna(st.t, dt);
+      if (borgo[i].userData.viva) { borgo[i].userData.medaglione.userData.aggiorna(st.t, dt); }
       /* billboard SOLO sull asse verticale: la targa resta dritta */
       /* L2 (B.6): un solo vettore per tutte le case e tutti i fotogrammi,
          non un new per casa per fotogramma (480 allocazioni al secondo
