@@ -39779,7 +39779,7 @@ LUPM.FASE_S = {
     /* 68 dal 03/09 sera: l atto del marchio (12 s di ombra lupo o
        gambler) e' stato tolto; dopo il martelletto restano tra-noi e
        alba zero, e i ruoli arrivano con le carte della fase rivela */
-    asta: 68, rivela: 10, rito: 26, notte: 30, alba: 12,
+    asta: 68, rivela: 10, rito: 26, notte: 30, alba: 14,
     voto: 25, arringa: 60, ballo: 15, verdetto: 8, epilogo: 15
 };
 /* Durate da palestra: con sette bot il dibattito lungo e tempo morto. */
@@ -39796,7 +39796,7 @@ LUPM.FASE_S_PALESTRA = {
        erano pochi per la fase in cui uno impara il gioco: dentro ci sta una
        scena di caccia e il tempo di leggere la plancia. La notte fedele,
        quella dei tavoli veri, resta 30. */
-    asta: 68, rivela: 8, rito: 26, notte: 26, alba: 12,
+    asta: 68, rivela: 8, rito: 26, notte: 26, alba: 14,
     voto: 18, arringa: 26, ballo: 13, verdetto: 8, epilogo: 15
 };
 LUPM.GIORNO_S = [120, 105, 90, 75];
@@ -40530,7 +40530,9 @@ function gmRisolviNotte(S) {
                 S.scudi.push({ round: S.round, sg: b });
                 /* privato al solo guardiano: un segnale pubblico direbbe
                    al borgo che al tavolo c e uno scudo, e a chi e andato */
-                gmEv(S, "scudo", [i], { sg: b });
+                /* solo se non l ha gia' mandata il gesto del giocatore:
+                   qui resta il caso dell autopilota, che e' notizia d alba */
+                if (S.scudoEvR !== S.round) { gmEv(S, "scudo", [i], { sg: b }); }
             }
             break;
         }
@@ -40569,7 +40571,7 @@ function gmRisolviNotte(S) {
            scoprira mai chi ha ammazzato (D18) */
         for (i = 0; i < S.n; i++) {
             if (S.ord[i].ruolo === "dottore") {
-                gmEv(S, "fiala", [i], { sg: b });
+                if (S.colpoEvR !== S.round) { gmEv(S, "fiala", [i], { sg: b }); }
                 break;
             }
         }
@@ -40615,7 +40617,7 @@ function gmRisolviNotte(S) {
                nemmeno alzato il dito */
             if (b !== null && b !== undefined && S.ord[b].vivo && b !== i) {
                 S.imputatoUff = b;
-                gmEv(S, "segno", [i], { sg: b });
+                if (S.segnoEvR !== S.round) { gmEv(S, "segno", [i], { sg: b }); }
             }
             break;
         }
@@ -41220,6 +41222,11 @@ function gmAzione(S, sg, act, ax, ay, power) {
         if (gmSeggioValido(S, b) && S.ord[b].vivo && b !== S.scudoUltimo) {
             gmTocco(S, s);
             S.scudoScelta = b;
+            /* LA RICEVUTA ESCE ADESSO, NON A FINE NOTTE (10/09). Vedi
+               _p_notte_subito.py: e' la ricevuta di una scelta tua, non un
+               esito, e nascendo nella risoluzione finiva recitata all alba. */
+            gmEv(S, "scudo", [s], { sg: b });
+            S.scudoEvR = S.round;
             return true;
         }
         return false;
@@ -41230,6 +41237,9 @@ function gmAzione(S, sg, act, ax, ay, power) {
         if (gmSeggioValido(S, b) && S.ord[b].vivo && b !== s) {
             gmTocco(S, s);
             S.colpo.scelta = b;
+            /* la ricevuta della fiala esce adesso (10/09) */
+            gmEv(S, "fiala", [s], { sg: b });
+            S.colpoEvR = S.round;
             return true;
         }
         return false;
@@ -41240,6 +41250,9 @@ function gmAzione(S, sg, act, ax, ay, power) {
         if (gmSeggioValido(S, b) && S.ord[b].vivo && b !== s) {
             gmTocco(S, s);
             S.segnoScelta = b;
+            /* la ricevuta del segno esce adesso (10/09) */
+            gmEv(S, "segno", [s], { sg: b });
+            S.segnoEvR = S.round;
             return true;
         }
         return false;
@@ -41804,6 +41817,10 @@ LUPM.crea = function (opz) {
         /* --- i poteri del mazzo del villaggio --- */
         scudoScelta: null,          /* la porta che il Guardiano chiude */
         scudoUltimo: null,          /* mai la stessa due notti di fila */
+        /* 10/09: il round in cui la ricevuta della notte e' gia' uscita col
+           gesto del giocatore. Alla risoluzione si emette solo se il motore
+           ha scelto al posto suo (autopilota). */
+        scudoEvR: -1, colpoEvR: -1, segnoEvR: -1,
         scudi: [],                  /* la storia, per il banco */
         colpo: { usato: false, scelta: null },   /* la fiala del Dottore */
         /* L ESATTORE: le impronte di ogni notte ({round, sgs}) e il
@@ -49724,6 +49741,10 @@ LUPR.smista = function (e) {
         break;
     case "scudo":
         grUI().toast(grT.scudo, 3000);
+        /* 10/09: adesso la ricevuta arriva col gesto, quindi puo' arrivare
+           piu' di una volta per notte (se cambi porta). La scena col viaggio
+           di camera si fa una volta per round; se cambi, si sposta solo la
+           cupola. */
         /* QUANDO HA SCELTO IL MOTORE, NON TU (08/09). Se il tempo scade il
            motore sceglie da solo, e la scena partiva identica a quella di
            una scelta fatta: il giocatore credeva di aver deciso lui. */
@@ -49877,7 +49898,7 @@ function grEvFase(e) {
     case "notte":
         /* i morti di stanotte cominciano da zero (08/09): se la notte
            non fa vittime, l alba rinominava quello di ieri */
-        grS.vittima = -1; grS.vittime = []; grS.propNotte = [];
+        grS.vittima = -1; grS.vittime = []; grS.propNotte = []; grS.predaMostrata = [];
         LUPR.scNotteViva(grS.round);
         break;
     case "alba": LUPR.scAlba(grS.round, grS.vittima); break;
@@ -50290,6 +50311,11 @@ LUPR.scNotteViva = function (round) {
 
 LUPR.scPreda = function (sg, opz) {
     opz = opz || {};
+    /* CHI L HA GIA' AVUTA (10/09): la caccia E' la casa attaccata, inquadrata
+       e sbranata. Il giro dell alba non deve rifare lo stesso viaggio di
+       camera su quella casa: gli basta dire il nome. */
+    if (!grS.predaMostrata) { grS.predaMostrata = []; }
+    if (grS.predaMostrata.indexOf(sg) < 0) { grS.predaMostrata.push(sg); }
     grPulisci();
     grUccidiGrafica(sg);
     var casa = grCasa(sg);
@@ -50670,6 +50696,13 @@ function grAlbaGiro(vt) {
        anche a difendersi da faseResta() di una fase che non e' l alba (una
        scena rigiocata fuori posto teneva 22 secondi su una casa sola). */
     var slot = Math.min(4.2, Math.max(2.6, resta / Math.max(1, vt.length)));
+    /* chi ha gia' avuto la caccia non si va a rivedere: si nomina e basta,
+       in due secondi. Se no l alba diventa il doppio di quello che serve. */
+    var gia = grS.predaMostrata || [];
+    function slotDi(sg) { return (gia.indexOf(sg) >= 0) ? 2.0 : slot; }
+    var inizi = [], acc = 0, q0;
+    for (q0 = 0; q0 < vt.length; q0++) { inizi.push(acc); acc += slotDi(vt[q0]); }
+    var durTot = acc;
     C.avvia = function () {
         C.t = 0; C.attivo = true; C.i = -1; C.fatte = {};
         return C;
@@ -50677,11 +50710,13 @@ function grAlbaGiro(vt) {
     C.aggiorna = function (dt) {
         if (!C.attivo) { return false; }
         C.t += dt;
-        var j = Math.floor(C.t / slot);
-        if (j >= vt.length) { C.attivo = false; return false; }
+        if (C.t >= durTot) { C.attivo = false; return false; }
+        var j = 0, q1;
+        for (q1 = vt.length - 1; q1 >= 0; q1--) { if (C.t >= inizi[q1]) { j = q1; break; } }
         if (j !== C.i) {
             C.i = j;
-            grAlbaVittima(vt[j]);
+            /* il viaggio di camera solo per chi non l ha gia' avuto */
+            if (gia.indexOf(vt[j]) < 0) { grAlbaVittima(vt[j]); }
             /* IL NOME IN GRANDE, non solo in chat: e' la cosa che il
                giocatore deve portarsi in piazza */
             grVoce(grRiempi(grL("__NOME__ non ha aperto la finestra."),
