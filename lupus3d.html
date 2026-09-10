@@ -185,6 +185,11 @@ body{background:#08060f;font-family:var(--body);color:var(--lavanda);
 #chat.veglia #scrivi input{border-color:#3f6f80;color:#cfeaf3}
 #righe .sistema{font-family:var(--mono);font-size:10.5px;letter-spacing:1px;
   color:var(--metallo2);color:#8f8a9e;text-align:center;padding:6px 0}
+/* QUELLO CHE RIGUARDA TE (10/09): il dito e i voti addosso a te non sono
+   una riga di cronaca, sono un avviso. */
+#righe .allarme{font-weight:800;letter-spacing:.6px;text-align:center;
+  color:#ffd0d8;background:rgba(190,58,84,.22);border:1px solid #8e3550;
+  border-radius:10px;padding:8px 10px;margin:2px 0}
 #scrivi{display:flex;gap:8px;padding:10px 12px calc(12px + max(env(safe-area-inset-bottom),var(--lu-sab,0px)))}
 #scrivi input{flex:1;background:#241e3d;border:1px solid var(--muro);
   border-radius:13px;color:var(--luna);font-size:15px;padding:13px 14px;min-width:0}
@@ -37406,6 +37411,9 @@ function anFinale(opz) {
     var colLuna0 = 0xc9c2da, opLuna0 = 1, trLuna0 = true;
     var c0r = 0.788, c0g = 0.761, c0b = 0.855;   /* 0xc9c2da, riletti a runtime */
     var solePos0 = new THREE.Vector3();
+    /* com era la luna prima del finale: scala, quota e raggi del sole. Il
+       colore lo teneva gia' colLuna0. */
+    var lunaScala0 = null, lunaY0 = null, raggiOp0 = null;
     var lunaGira = true, rollio = 0;
     var RAP = 0.9032;                            /* 560/620 della tela sciacallo */
     var basePos = new THREE.Vector3();
@@ -37882,6 +37890,35 @@ function anFinale(opz) {
             if (q >= 1) { C.fatto.caldo = true; }
         }
 
+        /* IL DISCO DIVENTA UN SOLE (10/09). Il colore da solo non bastava:
+           restava una luna ridipinta. Qui il disco si gonfia, sale sopra i
+           tetti del fondale e si accende, sullo stesso tempo del calore. */
+        if (L && T > TSOL[2]) {
+            if (lunaScala0 === null) {
+                lunaScala0 = L.scale.x;
+                lunaY0 = L.position.y;
+                if (typeof st !== "undefined" && st.soleRaggi && st.soleRaggi.material) {
+                    raggiOp0 = st.soleRaggi.material.opacity;
+                }
+            }
+            /* curva a S sui due movimenti: un sole non parte di scatto */
+            var qS = ram(T, TSOL[2], 2.20);
+            qS = qS * qS * (3 - 2 * qS);
+            L.scale.setScalar(lunaScala0 * (1 + 0.34 * qS));
+            var qY = ram(T, TSOL[2], 3.00);
+            qY = qY * qY * (3 - 2 * qY);
+            L.position.y = lunaY0 + 2.50 * qY;
+            /* di notte il disco e' velato: da sole torna pieno */
+            if (L.material && L.material.transparent) {
+                L.material.opacity = opLuna0 + (1 - opLuna0) * qS;
+            }
+            /* e i raggi del sole vero, se la scena ce li ha, entrano
+               mentre il disco cresce */
+            if (typeof st !== "undefined" && st.soleRaggi && st.soleRaggi.material && raggiOp0 !== null) {
+                st.soleRaggi.material.opacity = raggiOp0 + (0.85 - raggiOp0) * qS;
+                st.soleRaggi.visible = true;
+            }
+        }
         if (!C.fatto.alba && T > 7.70) { C.fatto.alba = true; fnSnd("alba"); }
         if (!C.fatto.camp && T > 8.10) {
             C.fatto.camp = true;
@@ -38340,6 +38377,13 @@ function anFinale(opz) {
             L.material.opacity = opLuna0;
             L.material.transparent = trLuna0;
         }
+        /* 10/09: la luna gonfia e alzata torna com era, o la partita dopo
+           nasce con un sole al posto della luna */
+        if (L && lunaScala0 !== null) { L.scale.setScalar(lunaScala0); L.position.y = lunaY0; }
+        if (typeof st !== "undefined" && st.soleRaggi && st.soleRaggi.material && raggiOp0 !== null) {
+            st.soleRaggi.material.opacity = raggiOp0;
+        }
+        lunaScala0 = null; lunaY0 = null; raggiOp0 = null;
         if (typeof st !== "undefined" && st.soleMesh && solePos0.lengthSq() > 0) {
             st.soleMesh.position.copy(solePos0);
             if (st.soleAlone) { st.soleAlone.position.copy(solePos0); }
@@ -39739,7 +39783,13 @@ LUPM.FASE_S_PALESTRA = {
     /* L ASTA NON SI SCALA (03/09): dieci campanate da due secondi sono
        contratto con la scena e con la plancia, e a 30 s il rito si
        chiudeva alla quarta campanata. Ottanta anche in palestra. */
-    asta: 68, rivela: 8, rito: 26, notte: 18, alba: 8,
+    /* LA NOTTE A 26 (10/09, ordine del proprietario: "rallenta un po le
+       azioni dei bot durante la notte se no finisce subito la notte, dammi
+       il tempo di capire i tempi naturali del gioco"). Diciotto secondi
+       erano pochi per la fase in cui uno impara il gioco: dentro ci sta una
+       scena di caccia e il tempo di leggere la plancia. La notte fedele,
+       quella dei tavoli veri, resta 30. */
+    asta: 68, rivela: 8, rito: 26, notte: 26, alba: 8,
     voto: 18, arringa: 26, ballo: 13, verdetto: 8, epilogo: 15
 };
 LUPM.GIORNO_S = [120, 105, 90, 75];
@@ -42972,8 +43022,14 @@ var LUPB = (function () {
             p.offerta = (r.f() < 0.25) ? 0 : gbTaglio(q, lim);
             p.tSigillo = fin.t0 + fin.durata * (0.25 + r.f() * 0.50);
         } else if (vista.fase === "notte") {
-            p.tAtto = S * (0.18 + r.f() * 0.30);
-            p.tAccordo = S * (0.62 + r.f() * 0.15);
+            /* PIU' TARDI E PIU' SPARSI (10/09). Con 0,18 + 0,30 le azioni
+               della notte cadevano tutte nel primo terzo — a diciotto
+               secondi di notte, fra il terzo e il nono — e il resto della
+               notte era vuoto: sembrava che la notte finisse appena
+               cominciata. Adesso cadono fra il 30 e il 64 per cento, e
+               l accordo fra i lupi si sposta dietro di conseguenza. */
+            p.tAtto = S * (0.30 + r.f() * 0.34);
+            p.tAccordo = S * (0.70 + r.f() * 0.16);
         } else if (vista.fase === "giorno") {
             p.tDito = S * gbLim(0.30 + tr.dito * 0.30 + r.f() * 0.18, 0.30, 0.86);
             /* la seconda occhiata cade DOPO il primo dito di quasi tutti,
@@ -44395,7 +44451,7 @@ var guT = {
     cap: {
         bersaglio: "LA PREDA", vedi: "LA LANTERNA", voto: "PRIMA CHIAMATA",
         ballo: "IL GIUDIZIO", giorno: "IL DIBATTITO", arringa: "LA DIFESA",
-        morto: "IL FANTASMA", asta: "IL BANDITORE", nessuna: "",
+        morto: "SEI MORTO", asta: "IL BANDITORE", nessuna: "",
         proteggi: "LA PORTA CHIUSA", colpo: "LA FIALA", segna: "IL SEGNO",
         inchioda: "LA CARTA INCHIODATA", nomina: "LA CHIAMATA", registro: "IL REGISTRO"
     },
@@ -44413,7 +44469,7 @@ var guT = {
         ballo: "i due alla sbarra: uno solo sale al patibolo",
         giorno: "parla, indica un sospetto, poi premi PRONTO",
         arringa: "tocca a te difenderti: parla in chat",
-        morto: "sei un fantasma del borgo: leggi tutto, voti solo la prima chiamata",
+        morto: "Sei fuori dal gioco: leggi e ascolta. Puoi parlare solo con gli altri morti, e torni a votare alla prima chiamata.",
         asta: "", nessuna: "",
         proteggi: "chiudi una porta per stanotte, anche la tua",
         colpo: "una fiala sola per tutta la partita: scegli bene",
@@ -44999,6 +45055,18 @@ function guStile() {
         "#luEsito .r .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;",
         "  color:var(--luna)}",
         "#luEsito .r.morto{opacity:.55}",
+        /* LA PLANCIA DEL MORTO (10/09, ordine del proprietario: "quando sei
+           morto la plancia deve cambiare e deve essere chiarissimo che sei
+           morto"). Prima era identica a quella dei vivi, con una riga
+           piccola in mezzo: adesso il pannello si spegne, prende una
+           fascia, e il cappello grida. */
+        "#luPan.tomba{background:linear-gradient(180deg,#1a1524,#120e1c);border-color:#4a4458}",
+        "#luPan.tomba .cap .k{color:#c9c2dd;letter-spacing:2px}",
+        "#luPan.tomba .cap .s{color:#8f8a9e}",
+        "#luPan.tomba #luDetto{color:#cfc8e2}",
+        "#luPan.tomba .fascia{display:block}",
+        "#luPan .fascia{display:none;height:3px;margin:0 0 6px;border-radius:2px;" +
+            "background:repeating-linear-gradient(135deg,#4a4458 0 8px,#2a2436 8px 16px)}",
         "#luEsito .r .rl{font-family:var(--mono);font-size:10px;letter-spacing:1px;",
         "  color:var(--muro-luce)}",
         "#luEsito .r.lupo .rl{color:#e8a0b2}",
@@ -45043,6 +45111,7 @@ function guCostruisci() {
     cap.appendChild(guE.capK);
     cap.appendChild(guE.capT);
     cap.appendChild(guE.capS);
+    guE.fascia = guNodo("div", "fascia");
     guE.volti = guNodo("div", "");
     guE.volti.id = "luVolti";
     /* LA LEGENDA DEI BOLLI (08/09). Sui volti compaiono quattro segni e
@@ -45066,6 +45135,7 @@ function guCostruisci() {
     fondo.appendChild(guE.bSec);
     fondo.appendChild(guE.bTer);
     fondo.appendChild(guE.bCon);
+    guE.pan.appendChild(guE.fascia);
     guE.pan.appendChild(cap);
     guE.pan.appendChild(guE.volti);
     guE.pan.appendChild(guE.legenda);
@@ -45395,7 +45465,14 @@ function guFattoDaVista(v) {
 
 function guAggVolti() {
     var i, c, sg, o, tipo, vivo, v = guVista;
-    if (!guE.chips) { return; }
+    /* LA LEGENDA E' DI QUESTO FOTOGRAMMA (10/09). `guVisti` non si azzerava
+       mai: bastava un volto morto una volta in tutta la partita e la riga
+       "X morto" restava accesa per sempre — anche nelle fasi senza volti,
+       dove resta sola in mezzo alla plancia e sembra che il morto sia tu.
+       Misurato con _r_primi_secondi.js: da vivo, alla prima alba, volti
+       nascosti e legenda visibile. */
+    guVisti = {};
+    if (!guE.chips) { guAggLegenda(); return; }
     for (i = 0; i < guE.chips.length; i++) {
         c = guE.chips[i];
         sg = c.__sg;
@@ -45446,6 +45523,8 @@ function guAggVolti() {
 var guVisti = {};
 function guAggLegenda() {
     if (!guE.legenda) { return; }
+    /* se i volti non sono a schermo la legenda non ha niente da spiegare */
+    if (guE.volti && guE.volti.offsetHeight === 0) { guVisti = {}; }
     var pezzi = [];
     if (guVisti.morto) { pezzi.push(guT.badge.morto + " " + guL("morto")); }
     if (guVisti.fantasma) { pezzi.push(guT.badge.fantasma + " " + guL("assente")); }
@@ -45561,7 +45640,15 @@ function guAggCap() {
     if (firma === guFirmaCap) { return; }
     guFirmaCap = firma;
     guTxt(guE.capK, guL(guOpz.titolo || "") || guT.cap[guModo] || "");
-    guTxt(guE.capS, guGelo ? guT.gelo : (guOpz.suggerimento || guT.sug[guModo] || ""));
+    /* 10/09: da morto la riga sta SOTTO, grande (guE.detto). Scriverla anche
+       nel cappello la stampava due volte nella stessa plancia. */
+    /* 10/09: nelle plance SENZA VOLTI (il morto, e tutte le fasi che si
+       guardano e basta) la riga sta SOTTO, grande, in guE.detto. Scriverla
+       anche nel cappello la stampava DUE VOLTE nello stesso pannello — si
+       vedeva nel rito, nella notte, nell alba e nel verdetto. */
+    var senzaVolti = (guModo === "morto" || guModo === "nessuna");
+    guTxt(guE.capS, guGelo ? guT.gelo
+        : (senzaVolti ? "" : (guOpz.suggerimento || guT.sug[guModo] || "")));
     if (guGelo) { guE.pan.classList.add("gelo"); } else { guE.pan.classList.remove("gelo"); }
 }
 
@@ -46483,6 +46570,11 @@ function guPlancia(modo, opz) {
         guE.volti.style.display = "none";
         guTxt(guE.detto, guOpz.suggerimento || "");
         guMostra(guE.detto, !!guOpz.suggerimento);
+        /* 10/09: qui i volti non ci sono, quindi la legenda dei bolli non ha
+           niente da spiegare. Senza questa riga restava quella della fase
+           prima (e "X morto" da solo sembra detto a te). */
+        guVisti = {};
+        guAggLegenda();
         guAggCap();
         guAggBottoni();
         guMostra(guE.pan, true);
@@ -46501,6 +46593,9 @@ function guPlancia(modo, opz) {
     } else {
         guMostra(guE.detto, false);
     }
+    /* 10/09: la plancia del morto si deve riconoscere a colpo d occhio */
+    if (guModo === "morto") { guE.pan.classList.add("tomba"); }
+    else { guE.pan.classList.remove("tomba"); }
 
     guAggCap();
     guAggVolti();
@@ -48870,6 +48965,49 @@ function grNotteOmbra() {
      il tempo e poco si accorcia il giro, mai la carta;
    - il dito non la interrompe: la camera e bloccata (binBlocca).
    ============================================================ */
+/* LE BATTUTE DELL INTRO (10/09, ordine del proprietario: "fai anche
+   qualche narrazione divertente durante l intro, fanne tante cosi' che ogni
+   volta e' diversa"). Si pescano col seme della partita: la stessa partita
+   si rigioca identica, due partite diverse raccontano due storie diverse.
+   Quelle delle case hanno __NOME__ dentro. */
+var GR_INTRO_APRE = [
+    "Nessuna finestra accesa. Il borgo non si e ancora contato.",
+    "Il borgo dorme e non sa che stanotte qualcuno non si sveglia.",
+    "Si comincia col buio, come tutte le cose che finiscono male.",
+    "Nessuno ha ancora detto una bugia. Diamo tempo al tempo.",
+    "Il campanile ha suonato le nove. Nessuno ha aperto la porta.",
+    "Otto porte chiuse, e dietro una c e qualcosa che non e una persona.",
+    "Il vento gira. Il borgo si conta una finestra alla volta.",
+    "Prima che qualcuno accusi qualcun altro, guardiamoci in faccia.",
+    "Il borgo e piccolo. Le voci corrono, i lupi anche.",
+    "Da qui sembrano tutti brava gente. Da qui."
+];
+var GR_INTRO_CASA = [
+    "__NOME__ accende la finestra. Dice sempre di dormire poco.",
+    "In casa di __NOME__ la luce e accesa. Nessuno sa perche.",
+    "__NOME__: uno che quando parla, tutti guardano da un altra parte.",
+    "__NOME__ e sveglio. Sveglio come chi ha qualcosa da fare.",
+    "Casa di __NOME__. Il cane non abbaia mai. Chissa.",
+    "__NOME__ ha messo il chiavistello. Buon segno o pessimo segno.",
+    "__NOME__ e alla finestra. Saluta. Saluta troppo.",
+    "Qui abita __NOME__, che giura di non aver visto niente. Gia adesso.",
+    "__NOME__ ha ancora la cena in tavola. Non ha avuto fame.",
+    "__NOME__: mani in tasca, sguardo dritto. Prendetene nota.",
+    "La finestra di __NOME__ si accende per ultima. Sara un caso.",
+    "__NOME__ e in piedi. Alle nove di sera, in piedi.",
+    "__NOME__ ha lasciato la porta accostata. Fiducia o invito.",
+    "Casa __NOME__: dentro si sente ridere. Ridere, stasera.",
+    "__NOME__ e uno di quelli che contano i vicini. Uno per uno.",
+    "__NOME__ dice che stanotte dorme profondo. Vedremo."
+];
+var GR_INTRO_CHIUDE = [
+    "Le carte girano adesso. La tua e l ultima.",
+    "Adesso le carte. Poi il buio, e si vedra chi resta.",
+    "Il borgo si e contato. Da domani si conta chi manca.",
+    "Le carte sono in mano al banditore. Nessuno guardi quella del vicino.",
+    "Da qui in poi, nel borgo, tutti mentono almeno una volta.",
+    "Il conto e fatto. Che vinca chi mente meglio."
+];
 var GR_INTRO_S = 22.0;          /* la durata piena; sotto si scala */
 /* la torre decide lei quanto guarda in basso e quanto e larga la lente:
    dipendono dalla quota e dal numero di case, e cambiano insieme */
@@ -48884,15 +49022,44 @@ function grIntro(secondi) {
     var n = (typeof borgo !== "undefined" && borgo.length) ? borgo.length : grS.n;
     var sg = grS.sg;
     var scala = Math.max(0.45, Math.min(1, (secondi || GR_INTRO_S) / GR_INTRO_S));
-    var T = { conta: 2.0 * scala, giro: 12.0 * scala, fermo: 3.2 * scala,
-              buio: 1.8 * scala, stretta: 2.6 * scala, nero: 1.0 * scala };
-    var tCasa = [], i, thMio = 0;
-    for (i = 0; i < n; i++) {
-        if (borgo[i]) {
-            tCasa.push({ i: i, th: Math.atan2(borgo[i].position.x, borgo[i].position.z) });
-            if (i === sg) { thMio = Math.atan2(borgo[i].position.x, borgo[i].position.z); }
+    /* IL TEMPO STA NEL GIRO (10/09). Da 12 a 17 secondi, presi dalle code:
+       il fermo su casa tua, la stretta e il nero erano secondi in cui non
+       si guardava niente di nuovo, mentre il giro e' l unico pezzo in cui
+       si vedono i nomi e le facce degli altri. */
+    var T = { conta: 1.4 * scala, giro: 17.0 * scala, fermo: 1.4 * scala,
+              buio: 1.2 * scala, stretta: 1.8 * scala, nero: 0.8 * scala };
+    var R = grRnd((grS.seScenico | 0) + 7717);
+    /* SENZA RIPETERSI DENTRO LA STESSA INTRO (10/09): pescando a caso da
+       sedici battute, con otto case, due uguali capitano quasi sempre
+       (misurato al primo giro: "mani in tasca" e "saluta troppo" due volte).
+       Si mescola la lista una volta e si scorre. */
+    function mescola(lista) {
+        var a = lista.slice(0), i2, j2, q2;
+        for (i2 = a.length - 1; i2 > 0; i2--) {
+            j2 = Math.floor(R.f() * (i2 + 1)) % (i2 + 1);
+            q2 = a[i2]; a[i2] = a[j2]; a[j2] = q2;
         }
+        return a;
     }
+    var mazzoCasa = mescola(GR_INTRO_CASA), usate = 0;
+    function pesca(lista) { return lista[Math.floor(R.f() * lista.length) % lista.length]; }
+    function battutaCasa() { return mazzoCasa[(usate++) % mazzoCasa.length]; }
+    var tCasa = [], i, thMio = 0;
+    if (borgo[sg]) { thMio = Math.atan2(borgo[sg].position.x, borgo[sg].position.z); }
+    /* LE CASE IN ORDINE DI GIRO, con lo yaw SROTOLATO (10/09): si parte da
+       casa tua e si gira sempre nello stesso verso, senza saltare il
+       passaggio da -pi a +pi. Prima l ordine era quello dell array e lo
+       yaw veniva da una frazione di giro: bastava una casa fuori posto e
+       la camera saltava indietro. */
+    for (i = 0; i < n; i++) {
+        if (!borgo[i]) { continue; }
+        var th0 = Math.atan2(borgo[i].position.x, borgo[i].position.z);
+        var d0 = th0 - thMio;
+        while (d0 < 0) { d0 += Math.PI * 2; }
+        while (d0 >= Math.PI * 2) { d0 -= Math.PI * 2; }
+        tCasa.push({ i: i, th: th0, d: d0, yaw: thMio + d0 });
+    }
+    tCasa.sort(function (a, b) { return a.d - b.d; });
     /* il giro parte da casa tua e ci torna: finisce dove deve finire */
     function yawA(q) { return thMio + (q * Math.PI * 2); }
     function luceCase(v) {
@@ -48911,7 +49078,7 @@ function grIntro(secondi) {
         luceCase(0);
         grSnd("vento", true);
         grTitolo(grT.ritoFase, grT.ritoTit);
-        grVoce(grL("Nessuna finestra accesa. Il borgo non si e ancora contato."), 3200);
+        grVoce(grL(pesca(GR_INTRO_APRE)), 3200);
         return C;
     };
     C.aggiorna = function (dt) {
@@ -48919,22 +49086,39 @@ function grIntro(secondi) {
         C.t += dt;
         var t = C.t, q, k;
         if (t < T.conta) { return true; }
-        /* IL GIRO: la camera si volta, e ogni casa che passa si accende */
+        /* IL GIRO A SCATTI (10/09): per ogni casa la camera si volta e poi
+           si FERMA addosso, cosi' il nome sulla targa e la faccia sul
+           medaglione si leggono davvero. Prima era una spazzata continua:
+           a otto case, un secondo e mezzo di passaggio a testa. */
         if (t < T.conta + T.giro) {
-            q = (t - T.conta) / T.giro;
-            if (typeof binTorreScena === "function") { binTorreScena({ yaw: yawA(q) }); }
-            for (k = 0; k < tCasa.length; k++) {
-                var qk = (k + 1) / (tCasa.length + 0.6);
-                if (q >= qk && !C.fatte["c" + k]) {
-                    C.fatte["c" + k] = true;
-                    C.accese++;
-                    if (borgo[tCasa[k].i]) { borgo[tCasa[k].i].userData.mulLuce = 1; }
-                    grSnd("tocco");
-                }
-            }
-            if (!C.fatte.voceGiro && q > 0.06) {
-                C.fatte.voceGiro = true;
-                grVoce(grL("Una finestra per volta. Chi si accende ha un nome."), 3200);
+            var nC = tCasa.length || 1;
+            var slot = T.giro / nC;
+            var j = Math.floor((t - T.conta) / slot);
+            if (j > nC - 1) { j = nC - 1; }
+            var u = ((t - T.conta) - j * slot) / slot;
+            /* il 40 per cento dello slot per voltarsi, il 60 per guardare */
+            var uM = (u < 0.40) ? (u / 0.40) : 1;
+            uM = uM * uM * (3 - 2 * uM);          /* curva a S: parte e arriva morbida */
+            var yDa = (j === 0) ? yawA(0) : tCasa[j - 1].yaw;
+            var yA = tCasa[j].yaw;
+            if (typeof binTorreScena === "function") { binTorreScena({ yaw: yDa + (yA - yDa) * uM }); }
+            /* IL NOME PRIMA DELLA CASA (10/09): la battuta parte quando la
+               camera COMINCIA a voltarsi verso quella casa, non quando ci
+               arriva. Detta all arrivo, per mezzo secondo si leggeva il nome
+               della casa precedente sopra la targa di questa (visto in uno
+               scatto: targa LANTERNAIA, riga "Casa di DrSlot"). */
+            if (!C.fatte["c" + j]) {
+                C.fatte["c" + j] = true;
+                C.accese++;
+                if (borgo[tCasa[j].i]) { borgo[tCasa[j].i].userData.mulLuce = 1; }
+                grSnd("tocco");
+                /* casa TUA ha la sua riga: e' l unica che il giocatore deve
+                   riconoscere, e sentirsi dare del "saluta troppo" da soli
+                   non aiuta a capire quale sia */
+                grVoce(tCasa[j].i === sg
+                    ? grL("E questa e casa TUA. Guardala bene: e' quella che devi difendere.")
+                    : grRiempi(grL(battutaCasa()), "__NOME__", grNome(tCasa[j].i)),
+                    Math.max(1600, slot * 1000));
             }
             return true;
         }
@@ -48983,7 +49167,7 @@ function grIntro(secondi) {
             if (!C.fatte.nero) {
                 C.fatte.nero = true;
                 luceCase(0);
-                grVoce(grL("Le carte girano adesso. La tua e l ultima."), 2600);
+                grVoce(grL(pesca(GR_INTRO_CHIUDE)), 2600);
             }
             return true;
         }
@@ -49827,9 +50011,36 @@ function grEvGettone(e) {
 }
 function grEvDito(e) {
     grUI().evidenzia(e.a, "dito");
+    /* IL DITO CONTRO DI TE NON E' UNA RIGA COME LE ALTRE (10/09, ordine del
+       proprietario). Prima era la stessa riga grigia di sistema per tutti, e
+       che il dito fosse puntato addosso a te si capiva solo leggendo il
+       nome, in mezzo al brusio. */
+    if (e.a === grS.sg) {
+        grSnd("battito", 0.9);
+        grChatRiga(null, grRiempi(grL("__NOME__ PUNTA IL DITO CONTRO DI TE."),
+            "__NOME__", grNome(e.da)), "allarme");
+        grUI().toast(grRiempi(grL("__NOME__ ti punta il dito contro."),
+            "__NOME__", grNome(e.da)), 3200);
+        return;
+    }
     grSnd("tocco");
     grChatRiga(null, grNome(e.da) + " punta il dito contro " + grNome(e.a),
         "sistema");
+}
+/* QUANTI HANNO VOTATO TE, e chi (10/09). Il tabellone dello spoglio dice
+   tutto di tutti; questa riga dice la sola cosa che riguarda te, e la dice
+   forte. Il ballottaggio ha gia' la sua ("Sei tu alla sbarra"): qui si parla
+   della PRIMA CHIAMATA. */
+function grVotiSuDiTe(tab) {
+    var i, chi = [], n = 0;
+    if (!(tab instanceof Array)) { return; }
+    for (i = 0; i < tab.length; i++) {
+        if (tab[i] && tab[i].a === grS.sg) { n++; chi.push(grNome(tab[i].da)); }
+    }
+    if (!n) { return; }
+    grChatRiga(null, grRiempi(grRiempi(grL("TI HANNO VOTATO IN __N__: __CHI__."),
+        "__N__", String(n)), "__CHI__", chi.join(", ")), "allarme");
+    grUI().toast(grRiempi(grL("Ti hanno votato in __N__."), "__N__", String(n)), 3600);
 }
 function grEvMorte(e) {
     if (e.come === "lincio") {
@@ -49870,6 +50081,7 @@ function grEvSpoglio(e) {
             grChatRiga(null, grRiempi(grL("Schede bianche: __N__."), "__N__", String(bianche)), "sistema");
         }
         grS.contiUlt = grConti(e.tab);
+        grVotiSuDiTe(e.tab);
         if (grS.mioVotoUlt === null) {
             grChatRiga(null, grL("Non hai messo la scheda: il tempo e scaduto."), "sistema");
         }
@@ -53209,6 +53421,83 @@ var LUP_EN = {
     "IL PIATTO": "THE POT", "SI PARTE DA": "STARTS AT",
     "SIGILLATO": "SEALED", "IL FONDO": "THE FUND",
     "voce ON": "voice ON", "branco ON": "pack ON", "voce OFF": "voice OFF",
+    "solo ascolto": "listening only",
+    /* 10/09: la plancia del morto, l allerta su di te, e le battute
+       dell intro (GR_INTRO_APRE / _CASA / _CHIUDE in g_regia.js) */
+    "SEI MORTO": "YOU ARE DEAD",
+    "Sei fuori dal gioco: leggi e ascolta. Puoi parlare solo con gli altri morti, e torni a votare alla prima chiamata.":
+        "You are out of the game: read and listen. You can only talk to the other dead, and you vote again at the first call.",
+    "E questa e casa TUA. Guardala bene: e' quella che devi difendere.":
+        "And this is YOUR house. Take a good look: that is the one you have to defend.",
+    "Nessuna finestra accesa. Il borgo non si e ancora contato.":
+        "Not a window lit. The village has not counted itself yet.",
+    "Il borgo dorme e non sa che stanotte qualcuno non si sveglia.":
+        "The village sleeps, and does not know that tonight someone will not wake up.",
+    "Si comincia col buio, come tutte le cose che finiscono male.":
+        "We start in the dark, like everything that ends badly.",
+    "Nessuno ha ancora detto una bugia. Diamo tempo al tempo.":
+        "Nobody has told a lie yet. Give it time.",
+    "Il campanile ha suonato le nove. Nessuno ha aperto la porta.":
+        "The bell tower struck nine. Nobody opened a door.",
+    "Otto porte chiuse, e dietro una c e qualcosa che non e una persona.":
+        "Doors shut, and behind one of them there is something that is not a person.",
+    "Il vento gira. Il borgo si conta una finestra alla volta.":
+        "The wind turns. The village counts itself one window at a time.",
+    "Prima che qualcuno accusi qualcun altro, guardiamoci in faccia.":
+        "Before anyone accuses anyone else, let us look at each other.",
+    "Il borgo e piccolo. Le voci corrono, i lupi anche.":
+        "The village is small. Word travels fast, and so do wolves.",
+    "Da qui sembrano tutti brava gente. Da qui.":
+        "From up here they all look like good people. From up here.",
+    "__NOME__ accende la finestra. Dice sempre di dormire poco.":
+        "__NOME__ lights the window. Always says they sleep badly.",
+    "In casa di __NOME__ la luce e accesa. Nessuno sa perche.":
+        "The light is on at __NOME__'s. Nobody knows why.",
+    "__NOME__: uno che quando parla, tutti guardano da un altra parte.":
+        "__NOME__: when they speak, everyone looks the other way.",
+    "__NOME__ e sveglio. Sveglio come chi ha qualcosa da fare.":
+        "__NOME__ is awake. Awake like someone with something to do.",
+    "Casa di __NOME__. Il cane non abbaia mai. Chissa.":
+        "__NOME__'s house. The dog never barks. Who knows.",
+    "__NOME__ ha messo il chiavistello. Buon segno o pessimo segno.":
+        "__NOME__ has bolted the door. A good sign, or a very bad one.",
+    "__NOME__ e alla finestra. Saluta. Saluta troppo.":
+        "__NOME__ is at the window. Waving. Waving a bit too much.",
+    "Qui abita __NOME__, che giura di non aver visto niente. Gia adesso.":
+        "__NOME__ lives here, and already swears they saw nothing.",
+    "__NOME__ ha ancora la cena in tavola. Non ha avuto fame.":
+        "__NOME__ still has dinner on the table. Wasn't hungry.",
+    "__NOME__: mani in tasca, sguardo dritto. Prendetene nota.":
+        "__NOME__: hands in pockets, eyes straight ahead. Take note.",
+    "La finestra di __NOME__ si accende per ultima. Sara un caso.":
+        "__NOME__'s window lights up last. Surely a coincidence.",
+    "__NOME__ e in piedi. Alle nove di sera, in piedi.":
+        "__NOME__ is on their feet. Nine in the evening, on their feet.",
+    "__NOME__ ha lasciato la porta accostata. Fiducia o invito.":
+        "__NOME__ left the door ajar. Trust, or an invitation.",
+    "Casa __NOME__: dentro si sente ridere. Ridere, stasera.":
+        "__NOME__'s place: you can hear laughing inside. Laughing, tonight.",
+    "__NOME__ e uno di quelli che contano i vicini. Uno per uno.":
+        "__NOME__ is one of those who count the neighbours. One by one.",
+    "__NOME__ dice che stanotte dorme profondo. Vedremo.":
+        "__NOME__ says they will sleep deeply tonight. We shall see.",
+    "Le carte girano adesso. La tua e l ultima.":
+        "The cards go round now. Yours is the last one.",
+    "Adesso le carte. Poi il buio, e si vedra chi resta.":
+        "Now the cards. Then the dark, and we shall see who is left.",
+    "Il borgo si e contato. Da domani si conta chi manca.":
+        "The village has counted itself. From tomorrow we count who is missing.",
+    "Le carte sono in mano al banditore. Nessuno guardi quella del vicino.":
+        "The cards are in the auctioneer's hands. Nobody peek at your neighbour's.",
+    "Da qui in poi, nel borgo, tutti mentono almeno una volta.":
+        "From here on, in this village, everyone lies at least once.",
+    "Il conto e fatto. Che vinca chi mente meglio.":
+        "The count is done. May the best liar win.",
+    /* 10/09: l allerta quando il dito o i voti sono addosso a te */
+    "__NOME__ PUNTA IL DITO CONTRO DI TE.": "__NOME__ IS POINTING AT YOU.",
+    "__NOME__ ti punta il dito contro.": "__NOME__ is pointing at you.",
+    "TI HANNO VOTATO IN __N__: __CHI__.": "__N__ VOTED FOR YOU: __CHI__.",
+    "Ti hanno votato in __N__.": "__N__ voted for you.",
     "il <b>villaggio</b>": "the <b>village</b>",
     "Il Borgo del Lupo": "The Wolf's Village",
     "— cala la notte: la chat del villaggio si chiude —": "— night falls: the village chat closes —",
@@ -54021,10 +54310,20 @@ var BIN_SOGLIA_SCORRI = 0.61;                    /* 35 gradi: sotto, il binario 
    con l aria attorno e si vedono le case vicine. La camera resta FERMA in
    mezzo alla piazza e gira soltanto (regola del proprietario, 06/09):
    niente traslazione, quindi le ombre cotte non si rifanno. */
-var BIN_TORRE_Y = 12.0;                          /* quota della torre (m) */
+/* PIU' LONTANA E MENO IN ALTO (10/09, ordine del proprietario: "e' troppo
+   in alto ma davvero troppo, mettila piu' lontano e meno in alto"). Da 12 m
+   in mezzo alla piazza una casa si guardava da 51,6 gradi sotto. Dal centro
+   pero' "piu' lontano" non esiste, e abbassarsi avvicina: la camera doveva
+   uscire dal centro. Adesso il perno resta in mezzo e la camera sta DIETRO
+   di BIN_TORRE_R_K volte il raggio dell anello: a otto case la casa che
+   guardi passa da 7,6 a 12,2 m davanti, la distanza vera resta 12,4 m e
+   l inclinazione scende da 51,6 a 12,1 gradi.
+   BIN_TORRE_R_K a 0 rimette la torre ferma in mezzo alla piazza. */
+var BIN_TORRE_Y = 5.0;                           /* quota della torre (m) */
+var BIN_TORRE_R_K = 0.60;                        /* il braccio, in frazioni del raggio del borgo */
 var BIN_TORRE_FOV = 55;                          /* il fondo della lente sulla torre */
 var BIN_TORRE_TAU = 0.30;                        /* s per salirci e per tornare */
-var BIN_TORRE_D = 12.0;                          /* m: dove si posa la mira davanti */
+var BIN_TORRE_D = 12.0;                          /* m: dove si posa la mira davanti (di riposo: binTorreD lo rifa' sul borgo vero) */
 var BIN_TORRE_GIU = -1.05, BIN_TORRE_SU = 0.30;  /* rad: quanto si puo guardare giu e su */
 var BIN_TORRE_MARG = 1.10;                       /* il 10 per cento di aria attorno alla casa */
 var BIN_DITO_S = 12.0;                           /* secondi di precedenza del dito: dopo tanto senza toccare, la scena si riprende la camera */
@@ -54830,11 +55129,26 @@ function nebbiaInstalla(fog) {
 function binTorreFov() {
   if (typeof borgo === "undefined" || !borgo || !borgo.length) { return BIN_FOV0; }
   var asp = 0.462, i, j, casa, hd, ang, co, si, dx, dz;
-  var P = binTmpF.set(BIN.centro.x, BIN_TORRE_Y, BIN.centro.z);
-  var peggio = 0;
+  /* 10/09: si misura dal BRACCIO, non dal centro, e solo sulla casa che si
+     sta guardando. Con la camera arretrata le case che restano di fianco
+     stanno a due metri e mezzo e chiederebbero una lente da 120 gradi, ma
+     nel quadro non ci sono: la regola del proprietario ("la casa si deve
+     vedere per intero") parla di quella che guardi. Per simmetria basta una
+     casa: da qualunque parte ti giri la geometria e' la stessa. */
+  var R0 = binTorreBraccio();
+  var P = binTmpF.set(BIN.centro.x, BIN_TORRE_Y, BIN.centro.z - R0);
+  var peggio = 0, sceltaD = 1e9, scelta = null;
+  for (i = 0; i < borgo.length; i++) {
+    if (!borgo[i]) { continue; }
+    /* la casa piu' vicina all asse dello sguardo (yaw 0 = verso +z) */
+    var vz = borgo[i].position.z - P.z, vx = borgo[i].position.x - P.x;
+    var vl = Math.sqrt(vx * vx + vz * vz) || 1;
+    var fuori = Math.abs(vx) / vl;
+    if (vz > 0 && fuori < sceltaD) { sceltaD = fuori; scelta = borgo[i]; }
+  }
   for (i = 0; i < borgo.length; i++) {
     casa = borgo[i];
-    if (!casa) { continue; }
+    if (!casa || (scelta && casa !== scelta)) { continue; }
     hd = (casa.userData && typeof casa.userData.profondita === "number") ? casa.userData.profondita * 0.5 : 0.70;
     /* l asse: dalla torre al centro visivo della casa */
     var ax = casa.position.x - P.x, ay = 2.40 - P.y, az = casa.position.z - P.z;
@@ -54872,20 +55186,28 @@ function binTorreFov() {
    la casa non e' piu' davanti: e' 52 gradi sotto. Si punta al CENTRO
    VISIVO di una casa (2,40 m da terra) sul raggio del borgo, cosi la
    quota si puo cambiare senza rimettere a mano nessun numero. */
-function binTorrePitch() {
-  var r = 7.6, i, d;
+/* il raggio dell anello delle case: la media, cosi vale a 5, 8 e 10 case */
+function binBorgoR() {
+  var r = 7.6, i, d, n = 0;
   if (typeof borgo !== "undefined" && borgo && borgo.length && borgo[0]) {
     r = 0;
     for (i = 0; i < borgo.length; i++) {
       if (!borgo[i]) { continue; }
       d = Math.sqrt(Math.pow(borgo[i].position.x - BIN.centro.x, 2) +
                     Math.pow(borgo[i].position.z - BIN.centro.z, 2));
-      r += d;
+      r += d; n++;
     }
-    r = r / borgo.length;
+    r = n ? (r / n) : 7.6;
   }
-  if (r < 1) { r = 7.6; }
-  return binClamp(-Math.atan2(BIN_TORRE_Y - 2.40, r), BIN_TORRE_GIU, BIN_TORRE_SU);
+  return (r < 1) ? 7.6 : r;
+}
+/* il braccio della torre: quanto la camera sta DIETRO al perno */
+function binTorreBraccio() { return binBorgoR() * BIN_TORRE_R_K; }
+/* quanto e' lontana davanti la casa che stai guardando: il braccio piu' il
+   raggio dell anello. E' anche dove si posa la mira. */
+function binTorreD() { return binTorreBraccio() + binBorgoR(); }
+function binTorrePitch() {
+  return binClamp(-Math.atan2(BIN_TORRE_Y - 2.40, binTorreD()), BIN_TORRE_GIU, BIN_TORRE_SU);
 }
 
 /* LA TORRE PER UNA SCENA (07/09). Fin qui ci saliva solo il dito; l intro
@@ -54907,18 +55229,28 @@ function binTorreScena(o) {
 }
 function binTorreGiu() { BIN.torre.on = false; BIN.torre.scena = false; }
 
-/* la torre: il punto fermo in mezzo alla piazza, in alto */
+/* la torre: il perno resta in mezzo alla piazza, la camera sta DIETRO di
+   un braccio rispetto a dove guarda (10/09). Con BIN_TORRE_R_K a 0 torna il
+   palo fermo in mezzo alla piazza. */
 function binTorrePunto(out) {
-  return out.set(BIN.centro.x, BIN_TORRE_Y, BIN.centro.z);
+  var R = BIN.torreR;
+  if (R === undefined) { R = BIN.torreR = binTorreBraccio(); }
+  var y = BIN.torre.yaw;
+  return out.set(BIN.centro.x - Math.sin(y) * R, BIN_TORRE_Y, BIN.centro.z - Math.cos(y) * R);
 }
 /* dove guarda: yaw e pitch del dito, a BIN_TORRE_D metri davanti. Stesso
    verso di binPunto (x = sin, z = cos), cosi il dito gira come girava il
    binario e il gesto resta quello che il giocatore ha imparato. */
 function binTorreMira(p, out) {
   var T = BIN.torre, cp = Math.cos(T.pitch);
-  return out.set(p.x + Math.sin(T.yaw) * BIN_TORRE_D * cp,
-                 p.y + Math.sin(T.pitch) * BIN_TORRE_D,
-                 p.z + Math.cos(T.yaw) * BIN_TORRE_D * cp);
+  /* 10/09: la mira si posa sulla casa che stai guardando (braccio + anello),
+     non piu' a dodici metri fissi: con la camera arretrata dodici metri
+     cadevano in mezzo alla piazza */
+  var D = BIN.torreD;
+  if (D === undefined) { D = BIN.torreD = binTorreD(); }
+  return out.set(p.x + Math.sin(T.yaw) * D * cp,
+                 p.y + Math.sin(T.pitch) * D,
+                 p.z + Math.cos(T.yaw) * D * cp);
 }
 
 /* ruota un punto attorno all asse verticale che passa per c, di ang radianti.
@@ -55151,9 +55483,13 @@ function binPasso(dt) {
       if (Math.abs(cam.fov - BIN.fov) > 0.02) { cam.fov = BIN.fov; cam.updateProjectionMatrix(); }
       if (!BIN.dirPrev) { BIN.dirPrev = new THREE.Vector3(); }
       BIN.dirPrev.subVectors(BIN.mira, pos).normalize();
-      /* la POSIZIONE si muove solo mentre si sale o si scende dalla torre:
-         girandosi non si sposta un caster, e le ombre cotte restano cotte */
-      BIN.mossoPos = (T.k > 0 && T.k < 1) || Math.abs(dth) > 1e-4 || Math.abs(dal) > 1e-4 || Math.abs(ddi) > 1e-4;
+      /* 10/09: con il braccio, girandosi la camera FA IL GIRO del perno,
+         quindi si sposta e le ombre cotte vanno rifatte. Col braccio a zero
+         (torre ferma in mezzo alla piazza) vale la regola di prima: girando
+         non si muove un caster ed e' la modalita' piu' leggera che c e'. */
+      BIN.mossoPos = (T.k > 0 && T.k < 1) || Math.abs(dth) > 1e-4 || Math.abs(dal) > 1e-4 || Math.abs(ddi) > 1e-4 ||
+        (BIN.torreR > 0.01 && Math.abs(binWrap(T.yaw - (T.yawPrec === undefined ? T.yaw : T.yawPrec))) > 1e-4);
+      T.yawPrec = T.yaw;
       BIN.mosso = true;
       return;
     }
@@ -55786,6 +56122,10 @@ function costruisciBorgo(n, nomi) {
   }
   /* il fov che fa entrare una casa INTERA guardandola dalla torre: si
      misura adesso, a case costruite, e cambia col numero di case */
+  /* 10/09: prima del fov e del pitch vanno rifatti braccio e distanza, che
+     dipendono dal numero di case */
+  BIN.torreR = binTorreBraccio();
+  BIN.torreD = binTorreD();
   BIN.torre.fov = binTorreFov();
   BIN.torre.pitch = binTorrePitch();
   BIN.torrePitch = BIN.torre.pitch;
@@ -56806,9 +57146,18 @@ function chatStato() {
   $("#cVia").style.opacity = puo ? "1" : ".4";
   var eti = $("#eVoce");
   if (eti) {
-    eti.textContent = st.vociFinte
-      ? (notte && lupo ? "branco ON" : "voce ON")
-      : (notte && !lupo ? "muto: notte" : "voce OFF");
+    /* DA MORTO IL MICROFONO DICE CHE ASCOLTI E BASTA (10/09, ordine del
+       proprietario: "chat vocale e chat testuale generale devono essere
+       disattivate, rimangono in lettura e ascolto"). Nella partita coi bot
+       LUPV non c e', e questa etichetta diceva "voce OFF" — che sembra un
+       interruttore da riaccendere, non una regola del gioco.
+       ATTENZIONE: la "seduta" e' il Medium VIVO, che di notte parla coi
+       morti: lui non e' in sola ascolto. */
+    eti.textContent = (CHAT.canale === "veglia")
+      ? "solo ascolto"
+      : (st.vociFinte
+        ? (notte && lupo ? "branco ON" : "voce ON")
+        : (notte && !lupo ? "muto: notte" : "voce OFF"));
   }
   $("#bVoce").className = "tondo" + (st.vociFinte ? " acceso" :
     (notte && !lupo ? " spento" : ""));
@@ -57113,7 +57462,7 @@ function camInMoto() {
   /* sulla TORRE il dito gira solo lo sguardo: la camera non si sposta di
      un millimetro, quindi nessun caster si muove e le ombre cotte non si
      rifanno. E' la modalita' piu' leggera che ci sia */
-  return BIN.mossoPos || (BIN.dito.giu && !BIN.torre.on);
+  return BIN.mossoPos || (BIN.dito.giu && (!BIN.torre.on || BIN.torreR > 0.01));
 }
 
 /* ===================== AVVIO ===================== */
