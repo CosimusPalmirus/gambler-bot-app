@@ -47801,6 +47801,36 @@ function grScuoti(f, d) {
         scuotiCamera(cam, f, d);
     }
 }
+/* ============================================================
+   QUANDO SUCCEDE A TE (11/09, skill "game feel")
+   Un pacchetto solo, tre livelli, cosi' il gioco resta proporzionato. Si
+   chiama SOLO per le cose che riguardano il giocatore: se ogni dito puntato
+   scuotesse lo schermo, in una piazza da otto non si capirebbe piu' quando
+   riguarda te.
+   I numeri stanno nella scala che il gioco usa gia': il martelletto
+   dell asta e' 0,16, la campana 0,02.
+   ============================================================ */
+var GR_TOCCA = {
+    piccolo: { f: 0.050, d: 0.22 },
+    medio:   { f: 0.090, d: 0.34 },
+    grande:  { f: 0.160, d: 0.55, lampo: 90, colore: "#1b0a12" }
+};
+/* chi ha chiesto meno movimento al telefono non prende scosse. Il lampo
+   resta: dura 90 ms e non si muove. */
+function grMenoMoto() {
+    try {
+        return !!(window.matchMedia &&
+            window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    } catch (e) { return false; }
+}
+function grTocca(livello, forte) {
+    var T = GR_TOCCA[livello];
+    if (!T) { return; }
+    var k = (typeof forte === "number" && forte > 0) ? Math.min(1.8, forte) : 1;
+    if (!grMenoMoto()) { grScuoti(T.f * k, T.d); }
+    if (T.lampo) { grLampo(T.lampo, T.colore); }
+}
+
 /* il lampo a tutto schermo: bianco per la veggente, nero al patibolo */
 function grLampo(ms, colore) {
     var app = grEl("#app");
@@ -50068,6 +50098,7 @@ function grEvDito(e) {
        nome, in mezzo al brusio. */
     if (e.a === grS.sg) {
         grSnd("battito", 0.9);
+        grTocca("piccolo");
         grChatRiga(null, grRiempi(grL("__NOME__ PUNTA IL DITO CONTRO DI TE."),
             "__NOME__", grNome(e.da)), "allarme");
         grUI().toast(grRiempi(grL("__NOME__ ti punta il dito contro."),
@@ -50091,9 +50122,17 @@ function grVotiSuDiTe(tab) {
     if (!n) { return; }
     grChatRiga(null, grRiempi(grRiempi(grL("TI HANNO VOTATO IN __N__: __CHI__."),
         "__N__", String(n)), "__CHI__", chi.join(", ")), "allarme");
+    /* piu' sono, piu' si sente: un voto e' un dispetto, quattro sono una
+       condanna. Il tetto sta dentro grTocca. */
+    grTocca("medio", 0.7 + n * 0.3);
     grUI().toast(grRiempi(grL("Ti hanno votato in __N__."), "__N__", String(n)), 3600);
 }
 function grEvMorte(e) {
+    /* LA TUA MORTE (11/09). Fin qui la regia non chiedeva MAI se il morto
+       fossi tu: la casa che cade era la stessa scena per tutti. E' il
+       momento piu' importante della partita per chi lo subisce, ed era
+       l unico senza un colpo. Una volta sola, prima della scena. */
+    if (e.sg === grS.sg) { grTocca("grande"); }
     if (e.come === "lincio") {
         grS.condannato = e.sg;
         LUPR.scPatibolo(e.sg);
