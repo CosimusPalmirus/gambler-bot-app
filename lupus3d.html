@@ -49126,8 +49126,13 @@ function grIntro(secondi) {
             var j = Math.floor((t - T.conta) / slot);
             if (j > nC - 1) { j = nC - 1; }
             var u = ((t - T.conta) - j * slot) / slot;
-            /* il 40 per cento dello slot per voltarsi, il 60 per guardare */
-            var uM = (u < 0.40) ? (u / 0.40) : 1;
+            /* IL 55 PER CENTO PER VOLTARSI (10/09). Col 40 la virata fra due
+               case (45 gradi a otto case) durava 0,84 s e toccava punte di
+               80 gradi/s: misurate, sono la meta' dei fotogrammi veloci di
+               tutta la partita. Col 55 la punta scende sotto i 60 e restano
+               comunque 0,95 s fermi sulla casa, che e' quello che serve per
+               leggere nome e faccia. */
+            var uM = (u < 0.55) ? (u / 0.55) : 1;
             uM = uM * uM * (3 - 2 * uM);          /* curva a S: parte e arriva morbida */
             var yDa = (j === 0) ? yawA(0) : tCasa[j - 1].yaw;
             var yA = tCasa[j].yaw;
@@ -49152,9 +49157,21 @@ function grIntro(secondi) {
             }
             return true;
         }
-        /* FERMO SU CASA TUA: il conto e finito */
+        /* FERMO SU CASA TUA: il conto e finito. Il giro ha lasciato la
+           camera sull ULTIMA casa; tornare a casa tua e' altri 45 gradi (a
+           otto case). Chiedendoli di colpo, il tetto di velocita' della
+           torre li ricuce in due decimi a 184 gradi/s — l ultimo scatto
+           rimasto in tutta la partita (10/09). Qui il cerchio si CHIUDE:
+           gli ultimi gradi si spalmano sul fermo, e la camera arriva a casa
+           tua camminando, nello stesso verso di tutto il giro. */
         if (t < T.conta + T.giro + T.fermo) {
-            if (typeof binTorreScena === "function") { binTorreScena({ yaw: thMio }); }
+            if (typeof binTorreScena === "function") {
+                var uF = (t - T.conta - T.giro) / Math.max(0.001, T.fermo);
+                if (uF > 1) { uF = 1; }
+                uF = uF * uF * (3 - 2 * uF);
+                var yUlt = tCasa.length ? tCasa[tCasa.length - 1].yaw : thMio;
+                binTorreScena({ yaw: yUlt + (yawA(1) - yUlt) * uF });
+            }
             if (!C.fatte.conta) {
                 C.fatte.conta = true;
                 luceCase(1);
@@ -54441,7 +54458,14 @@ var BIN_SOGLIA_SCORRI = 0.61;                    /* 35 gradi: sotto, il binario 
 var BIN_TORRE_Y = 5.0;                           /* quota della torre (m) */
 var BIN_TORRE_R_K = 0.60;                        /* il braccio, in frazioni del raggio del borgo */
 var BIN_TORRE_FOV = 55;                          /* il fondo della lente sulla torre */
-var BIN_TORRE_TAU = 0.30;                        /* s per salirci e per tornare */
+/* 0,65 e non 0,30 (10/09): la fusione fra il binario e il braccio della
+   torre copre otto-dieci metri, e a 0,30 s il primo fotogramma faceva
+   30-47 m/s — un sobbalzo al primo tocco e alla discesa (misurato con
+   _r_cam_strana.js: 20,7 m/s ancora alla discesa dell intro, sopra il tetto
+   di 17 del cancello 5). A 0,65 il picco scende sotto i 14 m/s e il salire
+   sulla torre si sente come un movimento, non come uno strattone. Chi vuole
+   essere gia' li' chiede `secco`, che e' uno stacco dichiarato. */
+var BIN_TORRE_TAU = 0.65;                        /* s per salirci e per tornare */
 var BIN_TORRE_D = 12.0;                          /* m: dove si posa la mira davanti (di riposo: binTorreD lo rifa' sul borgo vero) */
 var BIN_TORRE_GIU = -1.05, BIN_TORRE_SU = 0.30;  /* rad: quanto si puo guardare giu e su */
 var BIN_TORRE_MARG = 1.10;                       /* il 10 per cento di aria attorno alla casa */
@@ -54530,7 +54554,10 @@ var BIN = {
   /* l inclinazione di riposo si calcola a case costruite (binTorrePitch):
      da 12 m di quota una casa sta 52 gradi sotto, e un numero scritto a
      mano guarderebbe l orizzonte invece del borgo */
-  torre: { on: false, k: 0, yaw: 0, pitch: -0.90, fov: BIN_TORRE_FOV, scena: false },
+  /* yawR: lo yaw che DISEGNA. Insegue `yaw` con un tetto di velocita', se
+     no un cambio di scena sposta la camera di tre metri e mezzo in un
+     fotogramma (10/09: misurati 441 m/s e 10.421 gradi/s). */
+  torre: { on: false, k: 0, yaw: 0, yawR: 0, pitch: -0.90, pitchR: -0.90, fov: BIN_TORRE_FOV, scena: false },
   auto: 0,             /* rad/s: l orbita che gira da sola (la vecchia orbita "giro" del menu) */
   derivaFov: 0,        /* gradi/s di fov che si stringe dentro un atto (l asta); si azzera a ogni richiesta */
   rich: null,          /* l ultima richiesta grezza (pos, guarda, dur, opz): il campanile la rimette dopo il rintocco */
@@ -55344,8 +55371,67 @@ function binTorreScena(o) {
     if (o.secco) { BIN.fov = BIN.obj.fov; BIN.fovOff = 0; BIN.fovNuovo = false; }
     else { BIN.fovNuovo = true; }
   }
+  /* SECCO VUOL DIRE STACCO, ANCHE PER LA POSIZIONE (10/09). Fin qui `secco`
+     valeva solo per la lente: la camera ci arrivava con la fusione della
+     torre (0,30 s), che dal binario al braccio sono otto-dieci metri —
+     misurati 47 m/s nei primi fotogrammi dell intro, cioe' una smorfia
+     invece di uno stacco. Chi chiede `secco` vuole essere GIA' li: la torre
+     si prende tutta subito, e lo stacco si DICHIARA, perche' i banchi che
+     misurano le velocita' devono sapere che li' non c e' un movimento. */
+  if (o.secco) {
+    BIN.torre.k = 1;
+    BIN.torre.yawR = BIN.torre.yaw;
+    BIN.torre.pitchR = BIN.torre.pitch;
+    BIN.dirPrev = null;
+    BIN.mosso = true; BIN.mossoPos = true;
+    BIN.taglioT = st.t;
+    if (typeof st !== "undefined") { st.ombreSporche = true; }
+  }
 }
 function binTorreGiu() { BIN.torre.on = false; BIN.torre.scena = false; }
+
+/* LO YAW CHE DISEGNA (10/09). `BIN.torre.yaw` e' quello CHIESTO — dal dito,
+   o da una scena che salta da una casa all altra. `yawR` e' quello che si
+   disegna: insegue il primo con un tetto di velocita' preso dal tetto di
+   spostamento del binario (15,5 m/s sul braccio), cosi' un salto di scena si
+   ricuce in due decimi invece di teletrasportare la camera. A torre spenta
+   (k = 0) i due coincidono: chi la accende la trova gia' puntata. */
+function binTorreYawR() {
+  var T = BIN.torre;
+  if (T.yawR === undefined) { T.yawR = T.yaw; }
+  return T.yawR;
+}
+/* ANCHE IL PITCH (10/09). La stretta finale dell intro cambiava
+   l inclinazione di colpo: la camera resta ferma e lo sguardo gira di tre
+   gradi in un fotogramma — misurati 384 gradi/s con salto ZERO, che e' lo
+   scatto piu' visibile di tutti perche' non c e' nessun movimento a
+   giustificarlo. Tetto: 1,2 rad/s (69 gradi/s). */
+var BIN_TORRE_V_PITCH = 1.2;
+function binTorrePitchR() {
+  var T = BIN.torre;
+  if (T.pitchR === undefined) { T.pitchR = T.pitch; }
+  return T.pitchR;
+}
+function binTorrePitchPasso(dt) {
+  var T = BIN.torre;
+  if (T.pitchR === undefined) { T.pitchR = T.pitch; }
+  if (!(T.k > 0) || !(dt > 0)) { T.pitchR = T.pitch; return; }
+  var d = T.pitch - T.pitchR, p = BIN_TORRE_V_PITCH * dt;
+  if (d > p) { d = p; } else if (d < -p) { d = -p; }
+  T.pitchR += d;
+}
+function binTorreYawPasso(dt) {
+  var T = BIN.torre;
+  if (T.yawR === undefined) { T.yawR = T.yaw; }
+  if (!(T.k > 0) || !(dt > 0)) { T.yawR = T.yaw; return; }
+  var R = BIN.torreR;
+  if (R === undefined) { R = BIN.torreR = binTorreBraccio(); }
+  var vMax = (R > 0.2) ? (BIN_V_CAMERA / R) : 12;
+  if (vMax < 2.0) { vMax = 2.0; }
+  var d = binWrap(T.yaw - T.yawR), p = vMax * dt;
+  if (d > p) { d = p; } else if (d < -p) { d = -p; }
+  T.yawR = binWrap(T.yawR + d);
+}
 
 /* la torre: il perno resta in mezzo alla piazza, la camera sta DIETRO di
    un braccio rispetto a dove guarda (10/09). Con BIN_TORRE_R_K a 0 torna il
@@ -55353,22 +55439,22 @@ function binTorreGiu() { BIN.torre.on = false; BIN.torre.scena = false; }
 function binTorrePunto(out) {
   var R = BIN.torreR;
   if (R === undefined) { R = BIN.torreR = binTorreBraccio(); }
-  var y = BIN.torre.yaw;
+  var y = binTorreYawR();
   return out.set(BIN.centro.x - Math.sin(y) * R, BIN_TORRE_Y, BIN.centro.z - Math.cos(y) * R);
 }
 /* dove guarda: yaw e pitch del dito, a BIN_TORRE_D metri davanti. Stesso
    verso di binPunto (x = sin, z = cos), cosi il dito gira come girava il
    binario e il gesto resta quello che il giocatore ha imparato. */
 function binTorreMira(p, out) {
-  var T = BIN.torre, cp = Math.cos(T.pitch);
+  var T = BIN.torre, pR = binTorrePitchR(), cp = Math.cos(pR), yR = binTorreYawR();
   /* 10/09: la mira si posa sulla casa che stai guardando (braccio + anello),
      non piu' a dodici metri fissi: con la camera arretrata dodici metri
      cadevano in mezzo alla piazza */
   var D = BIN.torreD;
   if (D === undefined) { D = BIN.torreD = binTorreD(); }
-  return out.set(p.x + Math.sin(T.yaw) * D * cp,
-                 p.y + Math.sin(T.pitch) * D,
-                 p.z + Math.cos(T.yaw) * D * cp);
+  return out.set(p.x + Math.sin(yR) * D * cp,
+                 p.y + Math.sin(pR) * D,
+                 p.z + Math.cos(yR) * D * cp);
 }
 
 /* ruota un punto attorno all asse verticale che passa per c, di ang radianti.
@@ -55589,6 +55675,8 @@ function binPasso(dt) {
     if (T.k > 0.995) { T.k = 1; }
     if (!T.on && T.k < 0.005) { T.k = 0; }
     if (T.k > 0) {
+      binTorreYawPasso(dt);                      /* lo yaw che disegna insegue quello chiesto */
+      binTorrePitchPasso(dt);
       binTorrePunto(binTmpF);                    /* dove sta la torre */
       pos.lerp(binTmpF, T.k);
       binTorreMira(binTmpF, binTmpG);            /* dove guarda il dito */
@@ -55606,8 +55694,8 @@ function binPasso(dt) {
          (torre ferma in mezzo alla piazza) vale la regola di prima: girando
          non si muove un caster ed e' la modalita' piu' leggera che c e'. */
       BIN.mossoPos = (T.k > 0 && T.k < 1) || Math.abs(dth) > 1e-4 || Math.abs(dal) > 1e-4 || Math.abs(ddi) > 1e-4 ||
-        (BIN.torreR > 0.01 && Math.abs(binWrap(T.yaw - (T.yawPrec === undefined ? T.yaw : T.yawPrec))) > 1e-4);
-      T.yawPrec = T.yaw;
+        (BIN.torreR > 0.01 && Math.abs(binWrap(T.yawR - (T.yawPrec === undefined ? T.yawR : T.yawPrec))) > 1e-4);
+      T.yawPrec = T.yawR;
       BIN.mosso = true;
       return;
     }
