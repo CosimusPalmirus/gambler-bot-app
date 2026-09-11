@@ -25989,7 +25989,7 @@ function anFiala(opz) {
     }
     function dice(txt, ms) { if (opz.voce) { try { opz.voce(txt, ms); } catch (e) { return; } } }
     function scuoti(f, d) { if (opz.scuoti) { try { opz.scuoti(f, d); } catch (e) { return; } } }
-    function regia(p, m, d) { if (opz.regia) { try { opz.regia(p, m, d); } catch (e) { return; } } }
+    function regia(p, m, d, o) { if (opz.regia) { try { opz.regia(p, m, d, o); } catch (e) { return; } } }
 
     /* ---------- LE MISURE DELLE DUE PORTE, LETTE DALLA GEOMETRIA ----------
        _monta.py riscrive hPorta e wPorta (1.20/0.64 -> 1.78/0.74): una
@@ -26354,6 +26354,58 @@ function anFiala(opz) {
         regia(pos, mira, PASSO);
     }
 
+    /* LA CORSA SENZA MURI (11/09, scelta del proprietario: "riscrivi le due
+       scene"). La corsa di sopra chiede sette tappe a mezzo metro da terra
+       davanti alla porta, sbieche verso la piazza: il traduttore le porta sul
+       binario prolungandole, cioe' DALL ALTRA PARTE della piazza, e ogni
+       passo spostava la camera di 44-68 gradi. Misurato (_r_strada.js):
+       nessuna delle sette strade era pulita, e il cancello 3 contava 22
+       fotogrammi (1,05 s) con il corpo delle case 4 e 5 davanti.
+       Adesso prima si CERCA sul binario il punto da cui la porta si vede
+       davvero: dalla parte in cui guarda lei (i graffi sono a faccia sola),
+       senza case in mezzo, piu' basso possibile. Poi la corsa non viaggia:
+       resta su quel punto e STRINGE, un passo alla volta, dall obiettivo
+       largo alla porta intera, con la scossa e il suono del passo. Lo stacco
+       iniziale c era gia'. Se la ricerca non trova niente resta la corsa di
+       prima. */
+    var vistaC = null;
+    function cercaVistaCorsa() {
+        var nD, oD, pts = [], sx, sy, mira;
+        if (!opz.inquadra || !portaBer || !casa) { return null; }
+        casa.updateMatrixWorld(true);
+        nD = normaleDi(portaBer, new THREE.Vector3(0, 0, 1));
+        oD = portaBer.localToWorld(new THREE.Vector3(0, 0, 0));
+        for (sx = -1; sx <= 1; sx += 2) {
+            for (sy = 0; sy <= 1; sy++) {
+                pts.push(portaBer.localToWorld(new THREE.Vector3(sx * MB.WP * 0.5,
+                    0.25 + sy * (MB.HP - 0.25), MB.ZA)));
+            }
+        }
+        mira = portaBer.localToWorld(new THREE.Vector3(0, MB.HP * 0.55, MB.ZA));
+        return opz.inquadra({ punti: [pts], mira: mira,
+            azimut: Math.atan2(oD.x + nD.x * 6, oD.z + nD.z * 6), apertura: 1.75,
+            elev: 0.16, propri: [casa], faccia: { p: oD, n: nD, min: 0.30 } });
+    }
+    /* l obiettivo della corsa: largo alla partenza, la porta intera
+       all arrivo; stringe sempre piu' in fretta, come chi prende la rincorsa */
+    function fovCorsa(k) {
+        var f1 = vistaC.fov, f0 = Math.min(62, vistaC.fov * 2.3);
+        return f0 + (f1 - f0) * k * k;
+    }
+    function corsaFerma(i) {
+        var k = (i + 1) / N_PASSI, mira = vistaC.mira.clone(), tg, lato;
+        if (i < N_PASSI - 1) {
+            /* l ondeggio del passo, sempre piu' piccolo: in orizzontale
+               lungo il muro, e su e giu' */
+            tg = new THREE.Vector3(vistaC.mira.z - vistaC.occhio.z, 0, vistaC.occhio.x - vistaC.mira.x).normalize();
+            lato = ((i % 2 === 0) ? 1 : -1) * 0.07 * (1 - k);
+            mira.addScaledVector(tg, lato);
+            mira.y += ((i % 2 === 0) ? -0.04 : 0.03) * (1 - k);
+        }
+        regia(vistaC.occhio, mira, PASSO, { theta: vistaC.theta, alt: vistaC.alt,
+            dist: vistaC.dist, fov: fovCorsa(k), propri: [casa] });
+    }
+
     /* ---------- IL COPIONE: i colpi secchi ---------- */
     var ev = [];
     function ae(t, fn) { ev.push({ t: t, f: fn, fatto: false }); }
@@ -26374,8 +26426,16 @@ function anFiala(opz) {
         ae(T_TRA + 0.9, function () { snd("ringhio"); scuoti(0.05, 0.6); });
         ae(T_TRA + 1.8, function () { scuoti(0.09, 0.7); });
         ae(T_COR, function () {
-            /* stacco sulla piazza, basso, lontano: da qui parte la corsa */
-            vaiBer(5.6, 0.55, 0.62, 0.9, 0.01);
+            /* stacco sul punto della corsa, obiettivo largo: da qui si
+               stringe sulla porta */
+            vistaC = cercaVistaCorsa();
+            if (vistaC) {
+                regia(vistaC.occhio, vistaC.mira, 0.01, { theta: vistaC.theta, alt: vistaC.alt,
+                    dist: vistaC.dist, fov: fovCorsa(0), propri: [casa] });
+            } else {
+                /* il ripiego: stacco sulla piazza, basso, lontano */
+                vaiBer(5.6, 0.55, 0.62, 0.9, 0.01);
+            }
             snd("ringhio");
         });
         /* i passi: ravvicinati, ognuno e' una tappa della camera (vedi
@@ -26383,7 +26443,10 @@ function anFiala(opz) {
            T_COR + 0.10 + 6 * 0.26 + 0.26 = 6.92, prima dell attacco */
         for (i = 0; i < N_PASSI; i++) {
             ae(T_COR + 0.10 + i * PASSO, (function (j) {
-                return function () { corsaPasso(j); snd("passo"); scuoti(0.028, 0.10); };
+                return function () {
+                    if (vistaC) { corsaFerma(j); } else { corsaPasso(j); }
+                    snd("passo"); scuoti(0.028, 0.10);
+                };
             })(i));
         }
         ae(T_ATT, function () { snd("fiato"); });
@@ -29616,9 +29679,13 @@ function anImpronte(opz) {
            di comodo. Se serve di piu', la prima scia aspetta. */
         scie[0].camFatta = true;
         if (opz.regia) {
-            var d0 = (typeof campDurata === "function") ? campDurata(scie[0].cam.mira) : T_INIZIO;
-            if (d0 < T_INIZIO) { d0 = T_INIZIO; }
-            opz.regia(scie[0].cam.pos, scie[0].cam.mira, d0);
+            /* LA PRIMA E' UNO STACCO (11/09). La scena si apre sempre dopo
+               un altra scena, da dove quella ha lasciato la camera: il
+               viaggio fin qui poteva essere mezzo borgo, e anche quando il
+               traduttore lo giudicava pulito sfiorava una targa (2
+               fotogrammi misurati). Si apre gia' sulla prima porta. */
+            var d0 = T_INIZIO;
+            opz.regia(scie[0].cam.pos, scie[0].cam.mira, 0.01);
             if (d0 > T_INIZIO) {
                 var sl0 = d0 - T_INIZIO, q;
                 for (q = 0; q < scie.length; q++) { scie[q].t0 += sl0; scie[q].t1 += sl0; }
@@ -29681,6 +29748,13 @@ function anImpronte(opz) {
     /* i cambi di camera: uno per scia, poco prima che parta, e la vista
        alta quando l ultima orma e' posata. Tutto allo stesso orologio
        delle orme, cosi' il banco di prova li vede nell ordine giusto. */
+    /* LO STACCO INVECE DEL MURO (11/09, scelta del proprietario: "riscrivi
+       le due scene"). Le soste sulle scie erano pulite; a coprire erano i
+       VIAGGI sul binario da una porta all altra, che passano dietro le case
+       (misurato: 19 fotogrammi, 0,94 s, corpi e targhe delle case 3, 4, 5).
+       E' la regola firmata il 06/09 per la sbarra: se esiste una strada
+       pulita la camera viaggia, se non esiste STACCA sulla porta dopo. */
+    var SENZA_MURO = { taglioSeSporco: true };
     function regiaAlTempo(T) {
         var i, j, s, dCam, slitta;
         if (!opz.regia) { return; }
@@ -29702,7 +29776,7 @@ function anImpronte(opz) {
                    posa aspetta la camera invece di correrle sotto. Fra due
                    case vicine campDurata da' poco e non slitta niente. */
                 dCam = (typeof campDurata === "function") ? campDurata(s.cam.mira) : 1.8;
-                opz.regia(s.cam.pos, s.cam.mira, dCam);
+                opz.regia(s.cam.pos, s.cam.mira, dCam, SENZA_MURO);
                 slitta = dCam - T_ANTICIPO;
                 if (slitta > 0) {
                     for (j = i; j < scie.length; j++) {
@@ -29715,7 +29789,10 @@ function anImpronte(opz) {
         }
         if (!vistaAltaFatta && T >= tPosaFine && vistaAlta) {
             vistaAltaFatta = true;
-            opz.regia(vistaAlta.pos, vistaAlta.mira, 1.2);
+            /* e la nebbia della vista alta si misura sui quindici metri per
+               cui le orme sono state disegnate (IL METRO, in testa): dal
+               binario si guardano da 16,6 e il fattore scendeva a 0,79 */
+            opz.regia(vistaAlta.pos, vistaAlta.mira, 1.2, { taglioSeSporco: true, dVol: 15 });
         }
     }
 
@@ -39801,6 +39878,19 @@ LUPM.FASE_S_PALESTRA = {
 };
 LUPM.GIORNO_S = [120, 105, 90, 75];
 LUPM.GIORNO_S_PALESTRA = [60, 50, 45, 40];
+/* LA FORCA STA DENTRO IL VERDETTO (11/09). La morte dell impiccato si
+   scriveva nell ultimo tick del verdetto, nello stesso tick che apre la
+   notte: la forca (16,3 s misurati nella pagina) andava in scena per forza
+   dentro la notte, e col server vero, che non aspetta la regia, la notte
+   arrivava a schermo 17 s tardi su 26 (_r_ritardo_remoto.js). Adesso, con
+   una condanna, il verdetto dura questi secondi in piu', la morte cade
+   dove prima finiva il verdetto e la notte comincia a forca finita. */
+LUPM.PATIBOLO_S = 17;
+/* LO SPOGLIO STA DENTRO L ARRINGA (11/09), per la stessa ragione: lo spoglio
+   della prima chiamata esce a fine voto e la regia lo recita (11,6 s misurati
+   a otto seggi) quando sul server l arringa e' gia' partita. Col server vero
+   la difesa arrivava a schermo 11,7 s tardi e ne restavano 9 su 26. */
+LUPM.SPOGLIO_S = 12;
 
 /* La lista dei ruoli non e piu scritta a mano: la porta il registro
    (g_ruoli.js). Se il registro non e montato restano i tre di sempre,
@@ -40159,6 +40249,13 @@ function gmVai(S, fase) {
             S.faseS = LUPM.FASE_S.asta;
             S.nfeedAsta0 = S.feed.length;
         }
+        /* con una condanna il verdetto si tiene anche la forca */
+        S.lincioFatto = false;
+        if (fase === "verdetto" && S.esitoVerdetto && S.esitoVerdetto.tipo === "lincio") {
+            S.faseS += LUPM.PATIBOLO_S;
+        }
+        /* e l arringa si tiene lo spoglio che la apre */
+        if (fase === "arringa") { S.faseS += LUPM.SPOGLIO_S; }
     }
     gmEv(S, "fase", null, { fase: fase, round: S.round, durata: S.faseS });
 
@@ -41015,6 +41112,12 @@ function gmPasso(S, dt) {
         var t36 = (Ac && typeof Ac.A3_T0 === "number") ? Ac.A3_T0 : 36;
         if (S.faseT >= t36) { gmChiudiAsta(S); }
     }
+    /* la morte dell impiccato cade dove prima finiva il verdetto: il resto
+       della fase e' la forca (LUPM.PATIBOLO_S) */
+    if (S.fase === "verdetto" && !S.lincioFatto && S.esitoVerdetto &&
+            S.esitoVerdetto.tipo === "lincio" && S.faseT >= S.faseSTab.verdetto) {
+        gmLincio(S, S.esitoVerdetto);
+    }
 
     if (S.faseT < S.faseS) { return; }
     f = S.fase;
@@ -41087,15 +41190,8 @@ function gmPasso(S, dt) {
     } else if (f === "verdetto") {
         es = S.esitoVerdetto || { tipo: "nessuno", motivo: "zero_voti" };
         if (es.tipo === "lincio") {
-            /* la memoria del Medium si scrive PRIMA della morte: dopo il
-               ruolo del morto e ancora li, ma la riga la scrive chi ha
-               visto il verdetto, non chi legge la lapide */
-            S.ultimoLinciato = { sg: es.sg,
-                                 lupo: (S.ord[es.sg].ruolo === "lupo" ||
-                                        S.ord[es.sg].ruolo === "marcatore"),
-                                 round: S.round };
-            gmMortoSuSegno(S, es.sg);
-            gmMuori(S, es.sg, "lincio");
+            /* di solito e' gia' morto a meta' fase; qui resta la rete */
+            if (!S.lincioFatto) { gmLincio(S, es); }
         } else {
             S.ultimoLinciato = null;
             gmEv(S, "nessun_lincio", null, { motivo: es.motivo });
@@ -41111,6 +41207,20 @@ function gmPasso(S, dt) {
     } else if (f === "epilogo") {
         S.over = true;
     }
+}
+
+/* la morte dell impiccato (una volta sola per verdetto) */
+function gmLincio(S, es) {
+    S.lincioFatto = true;
+    /* la memoria del Medium si scrive PRIMA della morte: dopo il
+       ruolo del morto e ancora li, ma la riga la scrive chi ha
+       visto il verdetto, non chi legge la lapide */
+    S.ultimoLinciato = { sg: es.sg,
+                         lupo: (S.ord[es.sg].ruolo === "lupo" ||
+                                S.ord[es.sg].ruolo === "marcatore"),
+                         round: S.round };
+    gmMortoSuSegno(S, es.sg);
+    gmMuori(S, es.sg, "lincio");
 }
 
 function gmTick(S, dt) {
@@ -41848,6 +41958,7 @@ LUPM.crea = function (opz) {
         tab: [],
         tabAtto: null,
         esitoVerdetto: null,
+        lincioFatto: false,
         pronto: gmZeri(n, false),
         dita: gmZeri(n, null),
 
@@ -47344,6 +47455,13 @@ function grInquadra(opz) {
         for (ie = 0; ie < alts.length; ie++) {
             var alt = alts[ie];
             binPunto(theta, alt, dist, pos);
+            /* LA FACCIA (11/09, la corsa della fiala): una porta si guarda
+               dalla parte in cui guarda lei. Senza, la ricerca poteva
+               scegliere un quadro pulito che vede il muro da dietro. */
+            if (opz.faccia) {
+                v.set(pos.x - opz.faccia.p.x, 0, pos.z - opz.faccia.p.z).normalize();
+                if (v.x * opz.faccia.n.x + v.z * opz.faccia.n.z < (opz.faccia.min || 0.3)) { continue; }
+            }
             mira.copy(mira0);
             fov = BIN_FOV0;
             /* la mira in verticale si aggiusta finche il gruppo sta al
@@ -47385,7 +47503,7 @@ function grInquadra(opz) {
                (si vede anche il coperchio): 0,22 per radiante di altezza in
                piu, 0,06 per radiante di scostamento dalla direzione voluta,
                0,15 se i soggetti si coprono a vicenda */
-            candidati.push({ theta: theta, alt: alt, fov: fov, mira: mira.clone(), occhio: pos.clone(), h: r.h,
+            candidati.push({ theta: theta, alt: alt, dist: dist, fov: fov, mira: mira.clone(), occhio: pos.clone(), h: r.h,
                 corrente: (ia === iCorr),
                 /* e 0,10 per ogni medaglione in primo piano (binPrimoPiano) */
                 punteggio: r.h - Math.abs(passiAz[ia]) * 0.06 - (alt - altObj) * 0.22 - r.sovr * 0.15 -
@@ -48110,9 +48228,24 @@ function grScadenze(dt) {
         LUPR.libera(k);
     }
 }
+/* LA FORCA NON FERMA IL MOTORE LOCALE (11/09). Dall 11/09 il verdetto
+   contiene la forca (LUPM.PATIBOLO_S): il server vero la lascia correre
+   dentro la fase. Il motore locale invece si fermava a ogni sipario, e i
+   diciassette secondi diventavano un vuoto dopo il rientro dalla radura.
+   In remoto non cambia niente: li' il motore e' LUPN e il tempo e' del
+   server. */
+function grOccupatoMotore() {
+    var k;
+    for (k in grS.scene) {
+        if (!grS.scene.hasOwnProperty(k)) { continue; }
+        if (k === "esec" && !grS.remoto) { continue; }
+        return true;
+    }
+    return false;
+}
 /* il motore avanza solo a palco libero: unica divergenza dal Python */
 function grSincronizza() {
-    var occ = grOccupato() || grS.coda.length > 0;
+    var occ = grOccupatoMotore() || grS.coda.length > 0;
     if (occ && !grS.sospId) {
         grS.sospId = grS.M.sospendi("sipario");
     } else if (!occ && grS.sospId) {
@@ -48823,7 +48956,7 @@ LUPR.aggiorna = function (dt, t) {
         }
         grAvanzaScene(dt, t);
         grAtmosfera(dt);
-        if (!grOccupato() && grS.coda.length === 0 && !grS.M.over) {
+        if (!grOccupatoMotore() && grS.coda.length === 0 && !grS.M.over) {
             grPensiero(dt);
             grS.M.tick(dt);
         }
@@ -50551,7 +50684,23 @@ function grPotere(nome, opz) {
     /* L3 (D-6): il fov minimo per scena; i gemelli guardano un filo a
        terra da 17 m (0,71 della grandezza con 16 gradi) */
     var fovMinPot = (nome === "anGemelli") ? { fovMin: 12 } : null;
-    opz.regia = function (p2, m2, d2) { grRegia(p2, m2, d2, fovMinPot); };
+    /* il quarto argomento (11/09): chi ha gia scelto il punto del binario
+       (theta, alt, dist, fov) o vuole lo stacco invece del muro
+       (taglioSeSporco, la regola della sbarra del 06/09) */
+    opz.regia = function (p2, m2, d2, o2) {
+        var o = null, k;
+        if (fovMinPot || o2) {
+            o = {};
+            if (fovMinPot) { for (k in fovMinPot) { if (fovMinPot.hasOwnProperty(k)) { o[k] = fovMinPot[k]; } } }
+            if (o2) { for (k in o2) { if (o2.hasOwnProperty(k)) { o[k] = o2[k]; } } }
+        }
+        grRegia(p2, m2, d2, o);
+    };
+    /* la ricerca dell inquadratura sul binario, per le scene che devono
+       sapere DA DOVE si vede il loro soggetto prima di chiederlo */
+    opz.inquadra = function (o3) {
+        try { return grInquadra(o3 || {}); } catch (e) { return null; }
+    };
     opz.titolo = function (f2, t2) { grTitolo(f2, t2); };
     grS.ctrl.pot = F(opz);
     if (grS.ctrl.pot && grS.ctrl.pot.avvia) { grS.ctrl.pot.avvia(); }
