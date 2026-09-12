@@ -55235,7 +55235,49 @@ function pgBarAxis(curX){
   // racchetta fara' comunque per inerzia: il comando molla PRIMA di arrivare
   // invece di frenare dopo essere passato oltre.
   var _bpr=RTD._sc&&RTD._sc.pgPred,_bv=(_bpr&&_bpr.vx)||0;
-  var _de=d-_bv*pgLead();
+  // ══ IL FRENO ERA TARATO SU UNA RACCHETTA CHE NON ESISTE (12/09/2026) ══
+  // Il proprietario, 12/09, dopo una partita vera in lobby: «uno dei due ha la
+  // racchetta che si muove da sola a destra e sinistra e si controlla a
+  // fatica». Non e' latenza e non e' un secondo comando: e' QUESTA riga.
+  //
+  // `_de` e' l'errore da cui nasce il comando, e gli si toglie «lo spazio che
+  // la racchetta fara' comunque per inerzia» — cioe' lo spazio di ARRESTO.
+  // Quello spazio pero' era stimato `_bv*pgLead()`, e `pgLead()` non e' uno
+  // spazio di arresto: e' il RITARDO DELLA RETE (0,085 + rtt/2, tappato a
+  // 0,17 s). A racchetta lanciata (8 unita'/s) vale da 0,72 a 1,36 unita'.
+  //
+  // Lo spazio di arresto VERO del motore si calcola, e non e' un'opinione. La
+  // racchetta vive in `arcade_rt.Pong.tick`:
+  //     vx += (mx*PAD_SPD - vx) * min(1, PAD_ACC*dt)      PAD_ACC=16
+  //     x  += vx*dt                                       dt = 0,05 (20 Hz)
+  // Con dt=0,05 il fattore e' min(1, 16*0,05) = 0,80, quindi a comando zero
+  // di velocita' ne resta il 20% a ogni tick, e lo spazio percorso fino
+  // all'arresto e' la somma geometrica:
+  //     dt * v * (0,2 / 0,8) = v * 0,0125
+  // A 8 unita'/s sono 0,100 unita'. Il freno ne toglieva da SETTE a TREDICI
+  // volte tanto: il comando si spegneva un'unita' intera prima del bersaglio,
+  // la racchetta si fermava corta, e l'isteresi (0,13 per ripartire) lo
+  // riaccendeva subito dopo. Su un telefono a 30 fps quel ciclo si chiude una
+  // volta per fotogramma: la racchetta vibra a destra e a sinistra col dito
+  // FERMO, ed e' esattamente la segnalazione — la stessa gia' arrivata il
+  // 30/07 e mai riprodotta in laboratorio («le racchette si muovono da sole e
+  // a scatti, la palla no», la sonda `netDiag` qui sopra nacque per quello).
+  //
+  // MISURATO (`_levelup/pong_racchetta/`, banco a DUE PAGINE VERE su un server
+  // vero, e anello chiuso con questa stessa funzione estratta da qui):
+  // dito FERMO, telefono a 30 fps — cammino della racchetta disegnata da
+  // 6,55 unita' con 149 inversioni a 0,29 con 2, e distanza dal dito da 1,52
+  // unita' a 0,13. A dito che insegue, la distanza cala a ogni ritardo
+  // provato (0..240 ms di rtt). Col dito fermo e la rete perfetta il comando
+  // resta identico a oggi: il termine e' PIU' PICCOLO, quindi non accende
+  // nulla che oggi fosse spento.
+  //
+  // ⚠️ E IL RITARDO DELLA RETE NON SPARISCE: continua a essere trattato dove
+  // gli compete, cioe' nell'isteresi (0,045 / 0,13) e nella riconciliazione
+  // morbida della predizione. Toglierlo DA QUI e' il punto: il ritardo della
+  // rete non e' una distanza, e usarlo come distanza e' l'errore.
+  // 0.0125 = dt*(1-a)/a con dt=0,05 e a=min(1, PAD_ACC*dt)=0,80.
+  var _de=d-_bv*0.0125;
   // ISTERESI: per fermarsi basta 0.045, per RIPARTIRE serve 0.13. Senza,
   // ogni correzione del server (che arriva vecchia di un giro di rete) fa
   // ripartire il comando per un frame — ed e' esattamente lo scatto.
@@ -55906,6 +55948,30 @@ function pgBalls(plp,raw,sx,sy,MW,MH,flipP,out){
       // l'Hermite sul rimbalzo puo' sforare di qualche pixel: la palla non esce MAI dal campo
       if(wx<0.22)wx=0.22;else if(wx>MW-0.22)wx=MW-0.22;
       if(wy<-0.4)wy=-0.4;else if(wy>MH+0.4)wy=MH+0.4;
+      /* ⚡ PONG CCD CLIENT 12/09/2026 — E NEMMENO OLTRE LA RACCHETTA.
+         Il client non simula collisioni: interpola fra due snapshot del
+         server. Ma l'Hermite fra il tick PRIMA del rimbalzo e quello DOPO ha
+         le tangenti opposte, e una cubica con le tangenti opposte SFORA:
+         disegna la palla oltre il punto di inversione e poi la fa tornare
+         indietro. Il punto di inversione e' proprio il piano di contatto
+         della racchetta, quindi lo sforo si vede come la palla che entra
+         DENTRO la barra della racchetta e ne riesce — cioe' esattamente
+         «a volte la palla passa attraverso la racchetta», ma solo in pagina:
+         il server aveva gia' deciso il rimbalzo.
+         MISURATO (_levelup/pong/banco_client.mjs, le funzioni vere estratte
+         da questo file, i 21 stream registrati dal client vero il 30/07):
+         48 fotogrammi su 9.627 (0,50%) disegnano la palla oltre il piano, 4
+         (0,04%) la disegnano dentro la barra, sforo peggiore 0,352 unita' —
+         piu' di un raggio e mezzo di palla.
+         Il piano sta a 0,6 + (0,22+0,18) = 1,0 unita' dal fondo (arcade_rt.py,
+         _paddle_bounce), e il server durante uno scambio non manda MAI la
+         palla oltre: la rimette a 0,41 dalla racchetta. Quindi se TUTTI E DUE
+         gli snapshot del segmento stanno dalla parte giusta, la curva
+         disegnata non ha nessun diritto di passare dall'altra: si taglia li'.
+         Se invece uno dei due e' gia' oltre, quella palla e' un PUNTO in volo
+         e deve passare davvero — e infatti non si tocca. */
+      if(A[1]<=MH-1.0&&B[1]<=MH-1.0&&wy>MH-1.0)wy=MH-1.0;
+      else if(A[1]>=1.0&&B[1]>=1.0&&wy<1.0)wy=1.0;
     }else{wx=B[0];wy=B[1];}
     var spd=Math.sqrt(B[2]*B[2]+B[3]*B[3]),ux=0,uy=0;
     if(spd>0.001){
