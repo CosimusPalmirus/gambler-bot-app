@@ -40886,6 +40886,98 @@ function dlStartMatch(mode,eur){
     }).catch(function(e){ toast('Network error','err'); dlCloseOverlay(); });
 }
 var _dlPoll=null,_dlPollStart=0;
+// AVVIO DA LOBBY (12/09/2026): «ci stiamo infilando in una partita proprio
+// adesso». La alza `dlRndEnter` per la durata di un `go('duel')` — che gira
+// tutto sincrono, `initDuel` compreso — e la legge `initDuel`, che in
+// quell'istante non deve ritirare il risultato in sospeso.
+var _dlEntrando=0;
+
+// ══ L'AVVISO «PARTITA IN CORSO» (12/09/2026) ═══════════════════════════════
+// DECISIONE DEL PROPRIETARIO: all'apertura dell'app NON si entra da soli nella
+// partita viva. Parole sue: «solo avviso ma con tasto che ti porta alla
+// partita».
+// ⚠️ QUESTO NON E' IL CASO DELL'AVVIO. Chi sta sulla cartolina della lobby
+//    quando la partita PARTE viene portato dentro subito e da solo: quello non
+//    e' un rientro, e' il via, e lo fa `dlRndEnter` (patch su `proceed`).
+//    Questo avviso copre l'ALTRA meta': l'app riaperta con una partita gia'
+//    viva, il caso che il `pop` di `/duel/app_status` lasciava scoperto.
+// ⚠️ NON E' UN TOAST, ED E' UNA SCELTA. La posta e' sul tavolo: un messaggio
+//    che sparisce da solo dopo due secondi non e' il posto dove dire una cosa
+//    che costa soldi. Resta finche' la partita e' viva o finche' lo si chiude.
+// ⚠️ NON COPRE I COMANDI: si appoggia SOPRA la barra in basso MISURANDOLA
+//    (`.bnav` non dichiara un'altezza propria, la fanno i bottoni dentro, e
+//    c'e' solo sulle cinque radici — `body.gb-nav-on`), e si toglie di mezzo
+//    da solo mentre si sta sui duelli, cioe' proprio dove si gioca.
+var _dlAvvGioco='', _dlAvvOff=0, _dlAvvTimer=null;
+function dlAvvisoPartita(g){
+  if(_dlAvvOff)return;
+  _dlAvvGioco=String(g||''); if(!_dlAvvGioco)return;
+  var en=(typeof GB_LANG!=='undefined'&&GB_LANG==='en');
+  var el=document.getElementById('dl-avviso');
+  if(!el){ el=document.createElement('div'); el.id='dl-avviso'; document.body.appendChild(el); }
+  var nav=document.querySelector('.bnav');
+  var hn=(nav&&document.body.classList.contains('gb-nav-on'))?(nav.offsetHeight||0):0;
+  el.setAttribute('style','position:fixed;left:10px;right:10px;bottom:'+(hn+12)+'px;'
+    +'z-index:8500;display:flex;align-items:center;gap:10px;padding:10px 12px;'
+    +'border-radius:14px;border:1px solid rgba(255,215,0,.55);'
+    +'background:linear-gradient(165deg,#1b1406,#0a0e1a);'
+    +'box-shadow:0 10px 30px rgba(0,0,0,.6);');
+  var nome=(typeof dlModeName==='function')?dlModeName(_dlAvvGioco):_dlAvvGioco;
+  el.innerHTML='<div style="flex:1;min-width:0;">'
+    +'<div style="font-family:Orbitron,sans-serif;font-weight:800;color:#ffd700;font-size:11px;letter-spacing:1.5px;">'
+    +(en?'GAME IN PROGRESS':'PARTITA IN CORSO')+'</div>'
+    // ⚠️ LA RIGA VA A CAPO, NON SI TRONCA. Al primo giro era `white-space:nowrap`
+    //    con l'ellissi, e su un telefono da 402 px si leggeva «BATTAGLIA NAVALE
+    //    · la t...»: tagliava via PROPRIO la mezza frase che dice che i soldi
+    //    sono sul tavolo, cioe' la ragione per cui questo avviso esiste.
+    //    Visto in fotografia, non dedotto.
+    +'<div style="color:#cfd6e6;font-size:11px;margin-top:2px;line-height:1.3;">'
+    +nome+(en?' · your stake is on the table':' · la tua posta è sul tavolo')+'</div></div>'
+    +'<button id="dl-avviso-vai" onclick="dlAvvisoVai()" style="flex:none;padding:9px 12px;border-radius:10px;border:0;'
+    +'background:linear-gradient(135deg,#ffd700,#ff9d00);color:#11131a;font-weight:800;font-size:12px;">'
+    +(en?'GO TO GAME':'VAI ALLA PARTITA')+'</button>'
+    +'<button id="dl-avviso-x" onclick="dlAvvisoChiudi()" aria-label="'+(en?'Close':'Chiudi')+'" '
+    +'style="flex:none;width:30px;height:30px;border-radius:9px;border:1px solid rgba(255,255,255,.18);'
+    +'background:rgba(255,255,255,.06);color:#cfd6e6;font-size:14px;">✕</button>';
+  el.style.display='flex';
+}
+function dlAvvisoNascondi(){var el=document.getElementById('dl-avviso');if(el)el.style.display='none';}
+// IL TASTO PASSA DALLA STESSA STRADA DELL'AVVIO (`dlRndEnter` -> `go('duel')`
+// -> montaggio), non da una seconda scorciatoia che un domani diverge da
+// quella: e' la strada gia' misurata dal banco.
+function dlAvvisoVai(){
+  var g=_dlAvvGioco;
+  dlAvvisoNascondi();
+  if(g&&typeof dlRndEnter==='function')dlRndEnter(g,{});
+}
+// LA X VALE PER QUESTA APERTURA. Riaprendo l'app, se la partita e' ancora
+// viva, l'avviso torna — ed e' voluto: quei soldi sono ancora sul tavolo.
+function dlAvvisoChiudi(){
+  _dlAvvOff=1;
+  if(_dlAvvTimer){clearInterval(_dlAvvTimer);_dlAvvTimer=null;}
+  var el=document.getElementById('dl-avviso');
+  if(el&&el.parentNode)el.parentNode.removeChild(el);
+}
+// «finche' la partita e' viva» e' una promessa, e questa e' la riga che la
+// mantiene: ogni 30 s si richiede, e quando la partita non c'e' piu' l'avviso
+// se ne va da solo e smette pure di chiedere.
+function dlAvvisoTick(){
+  if(_dlAvvOff||!S.userId)return;
+  fetch(BACKEND+'/duel/dove_sono',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},
+    body:JSON.stringify({user_id:S.userId})})
+    .then(function(r){return r.json();}).then(function(d){
+      if(_dlAvvOff)return;
+      if(!d||!d.gioco){
+        var e0=document.getElementById('dl-avviso');
+        if(e0&&e0.parentNode)e0.parentNode.removeChild(e0);
+        if(_dlAvvTimer){clearInterval(_dlAvvTimer);_dlAvvTimer=null;}
+        return;
+      }
+      _dlAvvGioco=d.gioco;
+      if(CUR==='duel'){dlAvvisoNascondi();return;}
+      dlAvvisoPartita(d.gioco);
+    }).catch(function(){});
+}
 function dlStartPoll(mode){
   dlStopPoll(); _dlPollStart=Date.now();
   _dlPoll=setInterval(function(){
@@ -43442,6 +43534,27 @@ function dlRndEnter(game, info){
     go('arc');
     return;
   }
+  // ══ AVVIO DA LOBBY (12/09/2026) — LA SCHERMATA CHE MANCAVA ═══════════════
+  // I SEI DUELLI DEL BACKEND (poker duello, blackjack, roulette russa,
+  // battaglia navale, scacchi, morra cinese) non hanno una schermata propria:
+  // si montano nell'overlay `#pvp-modal`, che vive DENTRO `#duel`
+  // (index.html:12502..12859). Chi arriva qui dalla CARTOLINA DELLA LOBBY sta
+  // su `#lobby`, e `.screen{display:none}` toglie dal rendering tutto il
+  // sottoalbero, `position:fixed` compreso. Misura del banco: overlay con la
+  // classe `show` addosso e rettangolo 0x0 px. Cioe' la partita parte, il
+  // client la monta, e il giocatore continua a guardare la cartolina — il
+  // difetto detto dal proprietario il 12/09: «devi tipo andare indietro per
+  // vedere la partita».
+  // ⚠️ E NON ERA SOLO INVISIBILE: ERA FERMA. Il poll di ognuno dei sei esce
+  //    su `if(CUR!=='duel')` (dlBsStartPoll e i suoi cinque fratelli), quindi
+  //    il tavolo restava pure congelato — e su un gioco a turni vuol dire
+  //    perdere il turno con la posta gia' sul tavolo.
+  // ⚠️ I TRE RAMI QUI SOPRA LA SCHERMATA LA CAMBIANO GIA' (glad, tank, RTD):
+  //    questo e' il quarto, ed era l'unico che non lo faceva.
+  // ⚠️ IL `go` STA PRIMA DEL MONTAGGIO, e solo se serve davvero: rifare
+  //    `go('duel')` stando gia' sui duelli rilancerebbe `initDuel` sotto la
+  //    partita. `_dlEntrando` copre quell'attimo, vedi la nota in `initDuel`.
+  if(CUR!=='duel'){ _dlEntrando=1; go('duel'); _dlEntrando=0; }
   // Drop into the matched game (state-fetch + game-specific reset).
   function proceed(){
     if(game==='cards'){ DLPKD.bet=DLRND.bet; DLPKD.shown=false; DLPKD.vsShown=true; DLPKD.held=[false,false,false,false,false]; DLPKD.sig=''; dlRndFetchEnter('/duel/pkd_state', dlPkdEnter); }
@@ -44688,8 +44801,15 @@ function initDuel(){
   dlLoadIncoming();
   dlLoadRecent();
   dlTrnBanner();   // TORNEO: banner prossimo torneo (cache 60s)
+  // ⚠️ AVVIO DA LOBBY (12/09/2026): NON MENTRE SI STA ENTRANDO.
+  //    `/duel/app_status` non e' una lettura, e' un RITIRO: il backend fa
+  //    `_DUEL_MATCHES.pop(uid)` (backend.py:9363), consegna il `matched` una
+  //    volta sola e poi lo butta. Se `dlRndEnter` ci ha appena portati qui per
+  //    montare una partita, questa sonda toglierebbe di mezzo un risultato che
+  //    serve, e `dlShowResult` scriverebbe sopra l'overlay del tavolo che si
+  //    sta montando in questo istante.
   // pick up a result that may have landed while away (a challenge we sent got accepted)
-  if(S.userId){
+  if(S.userId&&!_dlEntrando){
     fetch(BACKEND+'/duel/app_status',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId,mode:'dice'})})
       .then(function(r){return r.json();}).then(function(d){ if(d&&d.status==='done')dlShowResult(d); }).catch(function(){});
   }
@@ -94327,6 +94447,33 @@ function init(){
           if(box){box.classList.add('flash');try{box.scrollIntoView({behavior:'smooth',block:'center'});}catch(_s){}}
         },350);
       },400);
+    }
+    // ══ IL RIGIOCO DELLO STATO ALL'INGRESSO (12/09/2026) ═══════════════════
+    // IL VIA PUO' ARRIVARE QUANDO IL CLIENT NON C'E'. Il `matched` dei sei
+    // duelli del backend si ritira UNA VOLTA SOLA (`_DUEL_MATCHES.pop`,
+    // backend.py:9363): se la partita comincia mentre l'app e' chiusa — o
+    // mentre questa pagina da 7 MB si sta ancora caricando — quel messaggio se
+    // lo prende il vuoto, e riaprendo si atterra sulla home con la posta gia'
+    // sul tavolo. La cura non e' rigiocare il messaggio (che sarebbe fragile):
+    // e' che chi apre CHIEDA LUI dove si trova. `/duel/dove_sono` risponde col
+    // nome del gioco vivo leggendo sei dizionari, e non muove un satoshi.
+    // ⚠️ E QUI NON SI ENTRA DA SOLI — DECISIONE DEL PROPRIETARIO (12/09):
+    //    «solo avviso ma con tasto che ti porta alla partita». Quindi niente
+    //    cambio di schermata a sorpresa: compare `dlAvvisoPartita`, che resta
+    //    finche' la partita e' viva e porta dentro SOLO se lo si tocca.
+    //    Il cambio di schermata automatico resta dov'e' giusto: all'AVVIO
+    //    vero, cioe' per chi sta sulla cartolina quando la partita parte —
+    //    li' non e' un rientro, e' il via.
+    // ⚠️ NON PARTE SE UN DEEP LINK HA GIA' DECISO: `lmt` e' la lobby, `tmt` il
+    //    torneo. Quelle strade sanno gia' dove portare.
+    // ⚠️ PAGINA NUOVA SU SERVER VECCHIO: se la rotta non c'e', la risposta non
+    //    porta `gioco` e non compare nessun avviso — si resta esattamente
+    //    com'e' oggi. Nessun campo nuovo di protocollo, in nessuna direzione.
+    if(S.userId&&!lmt&&!tmt){
+      setTimeout(function(){
+        dlAvvisoTick();
+        if(!_dlAvvTimer)_dlAvvTimer=setInterval(dlAvvisoTick,30000);
+      },1200);
     }
   }catch(e){}
 }
