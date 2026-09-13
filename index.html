@@ -50084,6 +50084,7 @@ function gldOnMsg(m){
     // B-list reset: slow-mo/KO-cam/decal/soglie zona/ready-ping/heartbeat
     GLD.vt=0;GLD.slowUntil=0;GLD.koCam=null;GLD._koK=0;GLD.decalN=0;
     GLD._ant=null;GLD._antD=0;GLD._antT=0;GLD._stopQ=null;GLD.stopUntil=0;GLD._predHold=0;GLD._shHeld=0;GLD._buf=null;GLD._seatKs=null;   // 11/09 audit
+    GLD._camT=null;   // 13/09 CAMMINA: zona morta della camera, riparte sul nuovo gladiatore
     GLD._three=false;GLD.zone1=false;GLD.zone2=false;GLD._cdPrev={};GLD._lastSt=-1;GLD._pilTick=0;
     GLD.heartOn=false;try{TWS.heart(false);}catch(e){}
     gldShowMatch();gldMatchFound();gldTutorial();TWS.play('sting');
@@ -50677,8 +50678,11 @@ function gldShowMatch(){
     function(x,y){
       var m=Math.hypot(x,y);
       if(m<0.18){GLD.joy.on=false;GLD.joy.mx=0;GLD.joy.my=0;return;}
-      var t=Math.min(1,(m-0.18)/0.82); t=t*t*(3-2*t);
-      var k=t/m; GLD.joy.on=true;GLD.joy.mx=x*k;GLD.joy.my=y*k;
+      // 13/09 CAMMINA (B, come il C8 del Turf dell'11/09): la velocita' piena arriva a meta'
+      // spinta. Prima smoothstep su tutta la corsa: a 30 px di pollice (spinta 0,39) il 16% della
+      // velocita' (0,55 celle/s) mentre il gladiatore si girava del tutto -> "si gira ma non cammina".
+      var t=Math.min(1,(m-0.18)/0.27);
+      var k=(0.35+0.65*t)/m; GLD.joy.on=true;GLD.joy.mx=x*k;GLD.joy.my=y*k;
     },
     function(){GLD.joy.on=false;GLD.joy.mx=0;GLD.joy.my=0;},76);   // move-stick Colosseo grande (190px) + overlay sull'arena
   // 29/07: la levetta con la spada GIRAVA e basta. Ha un'arma disegnata sul
@@ -51210,7 +51214,17 @@ function gldFrame(){gldDiagFrame();
   }
   // follow camera clampata all'estensione baked
   var camTX=0,camTY=0;
-  if(GLD.pred.ok){camTX=GLD.pred.x;camTY=GLD.pred.y;}
+  if(GLD.pred.ok){camTX=GLD.pred.x;camTY=GLD.pred.y;
+    // 13/09 CAMMINA: ZONA MORTA della camera. Con lo zoom C1 (44 px per cella) la camera
+    // inseguiva il mio gladiatore al 100%: restava INCHIODATO al centro dello schermo e sotto
+    // scorreva solo la sabbia (misurato: 0,0-0,4 celle di spostamento a schermo su 6 di
+    // cammino, contro 5-6 celle prima del rilascio). Il proprietario: «si gira ma non cammina».
+    // Ora il gladiatore si muove davvero sullo schermo dentro un riquadro centrale, e la
+    // camera lo segue solo quando ne esce.
+    if(!GLD.spec){var _ct=GLD._camT||(GLD._camT={x:camTX,y:camTY}),_dzx=(W*0.20)/zs,_dzy=(H*0.14)/zs;
+      if(camTX-_ct.x>_dzx)_ct.x=camTX-_dzx;else if(_ct.x-camTX>_dzx)_ct.x=camTX+_dzx;
+      if(camTY-_ct.y>_dzy)_ct.y=camTY-_dzy;else if(_ct.y-camTY>_dzy)_ct.y=camTY+_dzy;
+      camTX=_ct.x;camTY=_ct.y;}}
   if(!GLD.spec)camTY+=(H*0.10)/zs;   // 11/09 C1: i comandi coprono il basso: il MIO gladiatore sta un po' piu' su
   // B3: KO-cam 450ms — bias verso la vittima PRIMA del clamp + zoom kick non persistente
   var kc=GLD.koCam;GLD._koK=0;
@@ -51223,6 +51237,9 @@ function gldFrame(){gldDiagFrame();
   var limX=Math.max(0,EXT-halfVX), limY=Math.max(0,EXT-halfVY);
   camTX=Math.max(-limX,Math.min(limX,camTX));
   camTY=Math.max(-limY,Math.min(limY,camTY));
+  // 13/09 CAMMINA: il centro della zona morta non esce dai limiti della camera (senza KO-cam),
+  // se no tornando indietro dal bordo si camminerebbe "a vuoto" prima che la camera riparta
+  if(GLD._camT&&!kc){var _off=GLD.spec?0:(H*0.10)/zs;GLD._camT.x=Math.max(-limX,Math.min(limX,GLD._camT.x));GLD._camT.y=Math.max(-limY,Math.min(limY,GLD._camT.y+_off))-_off;}
   var cf=Math.min(1,9*dt);
   GLD.cam.x+=(camTX-GLD.cam.x)*cf;GLD.cam.y+=(camTY-GLD.cam.y)*cf;
   ctx.save();
