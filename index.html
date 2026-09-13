@@ -56940,7 +56940,34 @@ function pgLerp(now){
         (racchetta 60 ms). Oltre 1,5 unita' (una decisione cambiata) si salta.
    La predizione pgPred resta: guida il comando della barra (pgBarAxis) e la
    manopola. Il server non cambia di una riga. Spettatori: niente di nuovo. */
-var PG_B3_MAX=0.40;          // anticipo massimo disegnabile (s): oltre, la racchetta resta indietro del resto
+var PG_B3_MAX=0.40;
+/* ══ LA PRESA VISIVA (13/09/2026) ═══════════════════════════════════════════
+   Il proprietario ha scelto D8 (b). Con la barra che comanda la racchetta vera
+   (patch «ferma») la racchetta arriva precisa, e la parata all'ultimo arriva al
+   FILO del tempo molto piu' spesso: MISURATO, salti grossi della palla da 6 a 27
+   e passaggi visivi da 0,2 a 1,4% su 7 giri a coppie. Sono i rimbalzi che la
+   pagina indovina sul mio piano PRIMA che il server li decida: quando il
+   verdetto dipende da un tick di ritardo del comando, a volte si sbaglia.
+   LA PRESA: se al contatto sul MIO piano, oltre l'ultimo snapshot, il verdetto
+   e' incerto (la racchetta rigiocata col comando arrivato 30 ms prima o dopo decide
+   diverso, o il margine e' sotto 0,10 u), la palla disegnata si FERMA sul piano finche'
+   lo snapshot del server con quel tick non arriva; poi riparte dal piano con la
+   traiettoria vera (rimbalzo o punto). Non si indovina piu' niente.
+   - al massimo PG_PRESA_MAX secondi; oltre, si riparte con la stima;
+   - la presa finisce appena il tick del contatto e' negli snapshot: la palla non
+     resta mai ferma quando il server ha gia' deciso;
+   - il tempo passato fermi si recupera dopo, a mezzo secondo al secondo (la
+     palla corre un poco di piu' per 0,1-0,6 s): nessun teletrasporto. */
+var PG_PRESA_MAX=0.30;
+// il dubbio: la racchetta rigiocata col comando arrivato PG_PRESA_DUBBIO ms prima o
+// dopo decide diverso, oppure il margine e' sotto PG_PRESA_MARGINE unita'
+var PG_PRESA_DUBBIO=30,PG_PRESA_MARGINE=0.10;
+function pgB3Mg(E0,E1,xc,u,mz){   // margine della regola spazzata di _paddle_bounce (>0 colpisce)
+  var pxr=E1[0];
+  if(Math.abs(xc-pxr)<mz)return mz-Math.abs(xc-pxr);
+  var pxu=E0[0]+(E1[0]-E0[0])*u,lo=pxu<pxr?pxu:pxr,hi=pxu<pxr?pxr:pxu;
+  return mz-(xc<lo?lo-xc:(xc>hi?xc-hi:0));
+}          // anticipo massimo disegnabile (s): oltre, la racchetta resta indietro del resto
 function pgB3(){
   var sc=RTD._sc||(RTD._sc={});
   return sc.pgB3||(sc.pgB3={h:[],pm:{},om:{},oq:[],O:1e18,lt:-1,cal:-1e9,calT:0,fs:0,
@@ -57056,7 +57083,7 @@ function pgB3Cal(B,now,MW){
 }
 // la traccia della MIA racchetta ai tick che finiscono fra kA e kB: nota fino
 // all'orizzonte kH (snapshot), rigiocata oltre coi comandi e con cal
-function pgB3Traccia(B,kA,kB,kH,cal,MW){
+function pgB3Traccia(B,kA,kB,kH,cal,MW,sh){   // sh: LA PRESA VISIVA (13/09/2026), cal spostato di sh ms senza media
   var T={},k,a,b,x,vx,pw,mx,lo,hi,base=null;
   for(k=kA-1;k<=kB;k++){
     if(k<=kH&&B.pm[k]){
@@ -57066,7 +57093,7 @@ function pgB3Traccia(B,kA,kB,kH,cal,MW){
       T[k]=[a[0],vx,a[1],a[2],a[3]];base=T[k];
     }else if(base){
       x=base[0];vx=base[1];pw=base[2];
-      mx=pgB3Cmd(B,k*0.05,cal);
+      mx=sh?pgB3Cmd1(B.h,k*50+B.O-cal-sh):pgB3Cmd(B,k*0.05,cal);   // LA PRESA VISIVA (13/09/2026)
       vx+=(mx*8.0-vx)*0.8;x+=vx*0.05;
       lo=pw/2;hi=MW-pw/2;
       if(x<lo){x=lo;vx=0;}else if(x>hi){x=hi;vx=0;}
@@ -57096,7 +57123,7 @@ function pgB3Idx(S,bi,hint,nB){
   // rimbalzato, e la retta all'indietro esce dal campo
   return (bj>=0&&bd<2.5+2*Math.abs(dt)*Math.sqrt(L[bj][2]*L[bj][2]+L[bj][3]*L[bj][3]))?bj:-1;
 }
-function pgB3Palla(B,bi,tb,kH,cal,seat,MW,MH,T,hint){
+function pgB3Palla(B,bi,tb,kH,cal,seat,MW,MH,T,hint,U){   // U: LA PRESA VISIVA (13/09/2026), registro del contatto incerto
   var s=RTD.snaps,n=s?s.length:0,i,S=null,P=null,Q=null,q;
   if(!n)return null;
   var tH=kH*0.05;
@@ -57139,6 +57166,15 @@ function pgB3Palla(B,bi,tb,kH,cal,seat,MW,MH,T,hint){
         if(!ok)continue;
         var dy=y-y0,sS=Math.abs(dy)<1e-12?0:(yc-y0)/dy;sS=sS<0?0:(sS>1?1:sS);
         var xc=x0+(x-x0)*sS,mz=E1[2]/2+R,pxr=E1[0];
+        // LA PRESA VISIVA (13/09/2026): contatto sul MIO piano oltre l'ultimo snapshot
+        if(mine&&U&&kn>kH&&!U.rec){
+          var uu=(si+sS*st)/ns,mg=pgB3Mg(E0,E1,xc,uu,mz),dm=null,dp=null;
+          var Em1=U.Tm&&U.Tm[kn],Em0=U.Tm&&U.Tm[kn-1]||Em1,Ep1=U.Tp&&U.Tp[kn],Ep0=U.Tp&&U.Tp[kn-1]||Ep1;
+          if(Em1)dm=pgB3Mg(Em0,Em1,xc,uu,mz);
+          if(Ep1)dp=pgB3Mg(Ep0,Ep1,xc,uu,mz);
+          U.rec={tc:k*0.05+(si+sS*st)*sub,xc:xc,yc:yc,kc:kn,u:uu,
+                 inc:Math.abs(mg)<PG_PRESA_MARGINE||(dm!=null&&(dm>0)!==(mg>0))||(dp!=null&&(dp>0)!==(mg>0))};
+        }
         if(Math.abs(xc-pxr)>=mz){
           var u=(si+sS*st)/ns,pxu=E0[0]+(E1[0]-E0[0])*u,l2=pxu<pxr?pxu:pxr,h2=pxu<pxr?pxr:pxu;
           if(!(l2-mz<xc&&xc<h2+mz))continue;
@@ -57213,6 +57249,8 @@ function pgB3Frame(now){
   var hv=B.h.length?B.h[B.h.length-1]:null,jm=RTD.joy&&RTD.joy.on?RTD.joy.mx:0,virt=false;
   if(hv&&jm!==hv[1]){B.h.push([Math.max(now,hv[0]+33),jm]);virt=true;}
   var T=pgB3Traccia(B,kA,Math.max(kD,kH)+1,kH,B.cal,MW);
+  // LA PRESA VISIVA (13/09/2026): la stessa racchetta con il comando arrivato PG_PRESA_DUBBIO ms prima e dopo
+  var Tm=pgB3Traccia(B,kA,Math.max(kD,kH)+1,kH,B.cal,MW,-PG_PRESA_DUBBIO),Tp=pgB3Traccia(B,kA,Math.max(kD,kH)+1,kH,B.cal,MW,PG_PRESA_DUBBIO);
   var X=pgB3X(T,tD);
   if(X==null){if(virt)B.h.pop();return null;}
   var key=kH+':'+B.cal,To=null,Xo;
@@ -57223,11 +57261,49 @@ function pgB3Frame(now){
   }
   if(virt)B.h.pop();
   B.offP*=Math.exp(-dt/0.06);if(Math.abs(B.offP)<1e-4)B.offP=0;
-  B.fr={T:T,To:To,kH:kH,kHo:B.kTH,calo:B.kCal,cambio:!!To,tD:tD,tO:tO,D:D,G:D-B.Es,dt:dt};
+  B.fr={T:T,To:To,kH:kH,kHo:B.kTH,calo:B.kCal,cambio:!!To,tD:tD,tO:tO,D:D,G:D-B.Es,dt:dt,Tm:Tm,Tp:Tp};   // Tm,Tp: LA PRESA VISIVA (13/09/2026)
   B.key=key;B.kTH=kH;B.kCal=B.cal;B.D=D;B.tD=tD;
+  // SONDA DAL CAMPO — LA BARRA COMANDA LA RACCHETTA VERA (13/09/2026). Il proprietario:
+  // «ogni tanto lagga troppo». Sul banco non si riproduce: si misura sul suo
+  // telefono. Ogni 5 s (al massimo 12 per partita) un {t:'clog',at:'pgb3'} che il
+  // server scrive nel log: fps, rtt, cal, anticipo D, il buco piu' lungo fra due
+  // snapshot, i fotogrammi lunghi (> 50 ms) e le correzioni grandi della racchetta.
+  // Solo lettura: non cambia niente del gioco.
+  var SQ=B.sq||(B.sq={t0:now,f:0,lf:0,gap:0,cor:0,n:0,lr:0});
+  SQ.f++;if(dt>0.05)SQ.lf++;if(Math.abs(B.offP)>0.3)SQ.cor++;
+  var lsr=RTD.snaps&&RTD.snaps.length?RTD.snaps[RTD.snaps.length-1].rx:null;
+  if(lsr!=null&&lsr!==SQ.lr){if(SQ.lr&&lsr-SQ.lr>SQ.gap)SQ.gap=lsr-SQ.lr;SQ.lr=lsr;}
+  if(now-SQ.t0>=5000&&SQ.n<12){
+    try{if(RTD.ws&&RTD.ws.readyState===1)RTD.ws.send(JSON.stringify({t:'clog',at:'pgb3',
+      fps:Math.round(SQ.f*1000/(now-SQ.t0)),rtt:Math.round(RTD._rtt||0),cal:B.cal,D:Math.round(D*1000),
+      gap:Math.round(SQ.gap),lunghi:SQ.lf,cor:SQ.cor,lite:RTD.lite?1:0}));}catch(_sq){}
+    SQ.n++;SQ.t0=now;SQ.f=0;SQ.lf=0;SQ.gap=0;SQ.cor=0;
+  }
   B.dbg={tD:+tD.toFixed(4),tO:+tO.toFixed(4),D:+D.toFixed(4),cal:B.cal,O:+B.O.toFixed(1),x:+X.toFixed(4),tb:[]};
   var i0=Math.ceil(tD*20-1e-9);
-  return [X+B.offP,T[i0]?T[i0][1]:0];
+  // LA PRESA VISIVA (13/09/2026) — ANCHE LA RACCHETTA ASPETTA. MISURATO sulla prima
+  // versione: con la sola palla ferma, la racchetta disegnata (che scorre al tempo
+  // del comando) le arrivava SOTTO durante la presa, e se il server diceva «punto»
+  // la palla ripartiva ATTRAVERSO la racchetta (13 passaggi su 994, tutti in una
+  // presa). Quindi, finche' la palla aspetta il verdetto, la racchetta disegnata non
+  // supera il bordo della palla dal lato da cui arrivava. Al verdetto: se e' un
+  // colpo la racchetta scatta al suo posto insieme al rimbalzo; se e' un punto
+  // scivola al suo posto in 60 ms mentre la palla passa accanto.
+  var Dx=X+B.offP,PP=B.presaPad;
+  if(PP&&PP.kc<=kH){                                    // il verdetto e' arrivato: si decide QUI, nello stesso fotogramma della palla
+    var a1=B.pm[PP.kc],a0=B.pm[PP.kc-1]||a1;
+    B.presaEsito=(a1&&pgB3Mg([a0[0]],[a1[0]],PP.xc,PP.u,PP.mz)>0)?1:0;
+    B.presaPad=null;PP=null;
+  }
+  if(PP){
+    if(PP.side>0){if(Dx<PP.xc+PP.mz+0.01)Dx=PP.xc+PP.mz+0.01;}
+    else{if(Dx>PP.xc-PP.mz-0.01)Dx=PP.xc-PP.mz-0.01;}
+    B.padClamp=Dx;
+  }else if(B.padClamp!=null){
+    if(B.presaEsito===1)B.offP=0;else B.offP=B.padClamp-X;
+    B.padClamp=null;Dx=X+B.offP;
+  }
+  return [Dx,T[i0]?T[i0][1]:0,X];
 }
 // la racchetta dell'AVVERSARIO all'istante tO (dagli snapshot; oltre l'ultimo al
 // massimo un tick con la sua velocita')
@@ -57292,8 +57368,44 @@ function pgAvanti(bi,wx,wy,seat,MW,MH,spd,nB){
       else tb=tO;
     }else tb=tO+(GE[bi]!=null?GE[bi]:G);                // oltre il mio piano (punto)
   }
-  var q=pgB3Palla(B,bi,tb,F.kH,B.cal,seat,MW,MH,F.T,hint);
-  if(!q){FB[bi]=1;return null;}
+  // LA PRESA VISIVA (13/09/2026): la palla aspetta il verdetto sul piano
+  var LG=B.lg||(B.lg=[]),Lg=LG[bi]||(LG[bi]={L:0,h:null,skip:-1});
+  var U={Tm:F.Tm,Tp:F.Tp,rec:null},tbE=tb-Lg.L,hold=false;
+  var q=pgB3Palla(B,bi,tbE,F.kH,B.cal,seat,MW,MH,F.T,hint,U);
+  if(!q){FB[bi]=1;if(Lg.h&&B.presaPad&&B.presaPad.bi===bi){B.presaPad=null;B.presaEsito=0;}Lg.h=null;return null;}
+  // (la presa comincia SOLO nel fotogramma in cui la palla disegnata arriva sul
+  //  piano: se il dubbio nasce dopo, quando la palla e' gia' ripartita, tornare
+  //  indietro sul piano sarebbe uno scatto — MISURATO nella seconda versione)
+  // (una presa cominciata resta finche' arriva il verdetto o scade il tempo, anche se
+  //  nel frattempo il dubbio sparisce: MISURATO, lasciarla prima faceva ripartire la
+  //  palla con la stima mentre la racchetta era ancora trattenuta)
+  var inPresa=Lg.h&&U.rec&&U.rec.kc===Lg.h.kc;
+  if(U.rec&&U.rec.kc!==Lg.skip&&tbE>U.rec.tc&&(inPresa||(U.rec.inc&&(Lg.pt==null||Lg.pt<=U.rec.tc+1e-6)))){
+    if(tbE-U.rec.tc<=PG_PRESA_MAX){
+      hold=true;
+      if(!Lg.h||Lg.h.kc!==U.rec.kc){
+        // il lato da cui arriva la racchetta: la sua x a inizio del tick del contatto
+        var Es=F.T[U.rec.kc-1]||F.T[U.rec.kc],sd=Es?(Es[0]-U.rec.xc):((RTD._sc.pgDrawX||0)-U.rec.xc);
+        Lg.h={tc:U.rec.tc,kc:U.rec.kc};
+        B.presaPad={xc:U.rec.xc,mz:(Es?Es[2]:1.7)/2+0.22,side:sd>=0?1:-1,bi:bi,kc:U.rec.kc,u:U.rec.u};
+      }
+      q=[U.rec.xc,U.rec.yc,0,0];
+    }
+    else Lg.skip=U.rec.kc;                             // troppo lunga: si riparte con la stima
+  }
+  if(!hold&&Lg.h){                                     // rilascio: si riparte DAL PIANO
+    Lg.L+=Math.max(0,tbE-Lg.h.tc);Lg.skip=Lg.h.kc;
+    tbE=tb-Lg.L;
+    if(B.presaPad&&B.presaPad.bi===bi){                // (rilascio per tempo scaduto: il verdetto e' la stima)
+      var qv=pgB3Palla(B,bi,Lg.h.tc+0.03,F.kH,B.cal,seat,MW,MH,F.T,hint);
+      B.presaEsito=(qv&&qv[3]*(seat===0?1:-1)<0)?1:0;  // 1 = colpo (la palla torna indietro)
+      B.presaPad=null;
+    }
+    Lg.h=null;
+    q=pgB3Palla(B,bi,tbE,F.kH,B.cal,seat,MW,MH,F.T,hint)||q;
+  }
+  if(!hold&&Lg.L>0){Lg.L-=F.dt*0.5;if(Lg.L<0)Lg.L=0;}
+  if(B.dbg){B.dbg.pv=B.dbg.pv||[];B.dbg.pv[bi]=hold?[Lg.h.kc,Math.round((tbE-Lg.h.tc)*1000)]:(Lg.L>0?[0,-Math.round(Lg.L*1000)]:0);}
   // difesa: se lo snapshot parla di un'ALTRA palla (multipalla + cieco riordinano
   // gli indici) la posizione e' lontana dalla curva di sempre -> non si tocca niente
   if(Math.abs(q[0]-wx)+Math.abs(q[1]-wy)>Math.max(2.5,1.0+2.5*(spd||0)*F.D*2.5)){B.offB[bi]=null;FB[bi]=1;return null;}
@@ -57302,7 +57414,7 @@ function pgAvanti(bi,wx,wy,seat,MW,MH,spd,nB){
   // riconosciuta): la differenza si assorbe come una correzione, senza scatto
   if(FB[bi]){FB[bi]=0;var fx=wx-q[0],fy=wy-q[1];if(Math.abs(fx)+Math.abs(fy)<3.0){o[0]=fx;o[1]=fy;}else{o[0]=0;o[1]=0;}}
   if(F.cambio&&F.kHo>=0){
-    var qo=pgB3Palla(B,bi,tb,F.kHo,F.calo,seat,MW,MH,F.To,hint);
+    var qo=hold?null:pgB3Palla(B,bi,tbE,F.kHo,F.calo,seat,MW,MH,F.To,hint);   // LA PRESA VISIVA (13/09/2026)
     if(qo){
       var ex=qo[0]-q[0]+o[0],ey=qo[1]-q[1]+o[1];
       if(Math.abs(ex)+Math.abs(ey)<1.5){o[0]=ex;o[1]=ey;}else{o[0]=0;o[1]=0;}
@@ -57310,7 +57422,8 @@ function pgAvanti(bi,wx,wy,seat,MW,MH,spd,nB){
   }
   var kd=Math.exp(-F.dt/0.10);
   o[0]*=kd;o[1]*=kd;
-  if(B.dbg)B.dbg.tb[bi]=+tb.toFixed(4);
+  Lg.pt=hold?Lg.h.tc:tbE;
+  if(B.dbg)B.dbg.tb[bi]=+(hold?Lg.h.tc:tbE).toFixed(4);   // LA PRESA VISIVA (13/09/2026): l'istante della palla DISEGNATA
   return [q[0]+o[0],q[1]+o[1]];
 }
 function pgBalls(plp,raw,sx,sy,MW,MH,flipP,out){
@@ -73845,7 +73958,22 @@ function rtdDrawPong(ctx,raw,lp,now,w,hh){
       // PALLA E RACCHETTA NEL TEMPO DEL COMANDO (13/09/2026): il DISEGNO della mia
       // racchetta e' l'ultimo snapshot coi comandi spediti rigiocati (pgB3Frame).
       var _fx=pgB3Frame(now);
-      if(_fx){px0=_fx[0];RTD._sc.pgDrawX=px0;RTD._sc.pgDrawVx=_fx[1];}
+      if(_fx){px0=_fx[0];RTD._sc.pgDrawX=px0;RTD._sc.pgDrawVx=_fx[1];
+        /* LA BARRA COMANDA LA RACCHETTA VERA (13/09/2026) — il proprietario, dopo
+           il rilascio di B3: «quando ti fermi dopo un movimento la racchetta si
+           continua a muovere a destra e sinistra». MISURATO (analizza_ferma.mjs,
+           dito che corre 4,2 u e poi resta fermo 2 s): la racchetta VERA del server
+           dopo l'arrivo sbandava fino a 0,55 u. C'era anche prima, ma si disegnava
+           la predizione (piu' lenta e liscia); B3 disegna quella vera.
+           La causa: il comando della barra (pgBarAxis) guardava pgPred, una
+           racchetta con un'altra fisica che il comando lo sente subito, mentre il
+           server lo sente dopo rtt: un comando chiuso sulla racchetta sbagliata
+           insegue. La cura: pgPred (per il comando e la manopola) diventa la
+           racchetta DISEGNATA da B3, cioe' quella del server all'istante in cui
+           conta il comando di adesso, con la sua velocita' vera. Il comando frena
+           con lo spazio di arresto vero. pgBarAxis non cambia di un carattere.
+           Dopo: sbandata 0,07-0,09 u, racchetta del server 0-0,3 inversioni. */
+        prp.x=(_fx[2]!=null?_fx[2]:_fx[0]);prp.vx=_fx[1];}   // (_fx[2]: la racchetta rigiocata senza ritocchi del disegno)
       else{px0=prp.x;RTD._sc.pgDrawX=null;if(RTD._sc.pgB3)RTD._sc.pgB3.fr=null;}
     }else if(LPp[r[0]]){
       px0=LPp[r[0]][1];                            // smooth opponent between ticks
