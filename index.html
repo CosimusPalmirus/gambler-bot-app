@@ -40913,7 +40913,16 @@ var dlGameMeta={
     how:'A wheel spins and randomly picks a live duel — Poker, Blackjack, Russian Roulette, RPS or Battleship — then you play it for real.'}
 };
 function dlGameDur(m){ return (dlGameMeta[m]||{}).dur||'~6s'; }
-function dlModalHTML(html){ var ov=document.getElementById('pvp-overlay'),m=document.getElementById('pvp-modal'); if(m)m.innerHTML=html; if(ov)ov.classList.add('show'); }
+function dlModalHTML(html){ var ov=document.getElementById('pvp-overlay'),m=document.getElementById('pvp-modal');
+  // LA CASELLA DELLA CHAT DEL MATCH SOPRAVVIVE AL RIDISEGNO (14/09/2026): il
+  // tavolo si rifa' con innerHTML a ogni colpo; se un giorno la casella torna
+  // nel tavolo, chi sta scrivendo non perde testo e tastiera a meta' parola.
+  var ci=m&&m.querySelector('.trn-ch-duel .trn-ch-in'),cv=null,cf=false,cs=0,ce=0;
+  if(ci){cv=ci.value;cf=(document.activeElement===ci);try{cs=ci.selectionStart;ce=ci.selectionEnd;}catch(_e){}}
+  if(m)m.innerHTML=html;
+  if(ci&&m){var ni=m.querySelector('.trn-ch-duel .trn-ch-in');
+    if(ni){ni.value=cv||'';if(cf){try{ni.focus({preventScroll:true});ni.setSelectionRange(cs,ce);}catch(_e){}}}}
+  if(ov)ov.classList.add('show'); }
 function dlCloseOverlay(){ dlStopPoll(); var ov=document.getElementById('pvp-overlay'); if(ov)ov.classList.remove('show'); }
 function dlHand(h){ return (h||[]).map(function(c){ var red=(c.s==='♥'||c.s==='♦'); return '<span class="pvp-card'+(red?' red':'')+'">'+c.r+c.s+'</span>'; }).join(''); }
 
@@ -41534,7 +41543,11 @@ function dlReveal(d){
 //    giocava era l'unico a non poter leggere il tifo rivolto a lui. Si riusa
 //    la chat del torneo com'e' — stesso canale, stessa socket, nessun
 //    protocollo nuovo — e si aggiunge solo l'unica cosa che serviva: montarla.
-function dlDuelChatMonta(){
+function dlDuelChatMonta(d){
+  // il canale del match si prende SUBITO dalla vista che si sta disegnando
+  // (14/09/2026): prima arrivava solo al primo poll, e al round 2 per un giro
+  // il tavolo restava sul canale del match del round 1
+  try{ if(d)dlTourMid(d); }catch(e){}
   try{ if(typeof gldConnect==='function')gldConnect(); }catch(e){}
   try{ trnChatSub(); trnChatPaint(); }catch(e){}
 }
@@ -41840,7 +41853,7 @@ function dlBjBoard(d,ancora){
   // SOLO LETTURA: chi e' al tavolo legge il tifo, non lo scrive
   if(d.tour)html+='<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>';
   dlModalHTML(html);
-  if(d.tour)dlDuelChatMonta();
+  if(d.tour)dlDuelChatMonta(d);
   if(playing&&d.your_turn){ DLBJ.deadline=d.deadline_ms||0; dlBjStartTick(); } else { dlBjStopTick(); }
 }
 function dlBjAfterDone(d){
@@ -42031,7 +42044,8 @@ function dlRrGunSVG(){
 // rivolto a lui. Si riusa la chat del torneo cosi' com'e' — stesso canale,
 // stessa socket, nessun protocollo nuovo — e si aggiunge solo l'unica cosa che
 // serviva davvero: appenderla qui sotto.
-function dlRrChatMonta(){
+function dlRrChatMonta(d){
+  try{ if(d)dlTourMid(d); }catch(e){}
   try{ if(typeof gldConnect==='function')gldConnect(); }catch(e){}
   try{ trnChatSub(); trnChatPaint(); }catch(e){}
 }
@@ -42152,7 +42166,7 @@ function dlRrBoard(d){
   // SOLO LETTURA: chi e' al tavolo legge il tifo, non lo scrive
   if(d.tour)html+='<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>';
   dlModalHTML(html);
-  if(d.tour)dlRrChatMonta();
+  if(d.tour)dlRrChatMonta(d);
   // IL RIDISEGNO E' CIO CHE RADDRIZZAVA L ARMA. dlModalHTML rifa tutto con
   // innerHTML: l <img> nuova nasce senza transform, il palco senza aim-down e
   // senza le variabili della bocca. Quindi qui si RIMETTE la posa e si RIARMA
@@ -42798,7 +42812,7 @@ function dlRpsBoard(d,ancora){
   // SOLO LETTURA: chi e' al tavolo legge il tifo, non lo scrive
   if(d.tour)html+='<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>';
   dlModalHTML(html);
-  if(d.tour)dlDuelChatMonta();
+  if(d.tour)dlDuelChatMonta(d);
   if(playing&&!picked){ DLRPS.deadline=d.deadline_ms||0; dlRpsStartTick(); } else { dlRpsStopTick(); }
 }
 function dlRpsAfterDone(d){
@@ -43956,7 +43970,7 @@ function dlChBoard(d,ancora){
   // SOLO LETTURA: chi e' al tavolo legge il tifo, non lo scrive
   if(d.tour)html+='<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>';
   dlModalHTML(html);
-  if(d.tour)dlDuelChatMonta();
+  if(d.tour)dlDuelChatMonta(d);
   dlChBindBoard(document.getElementById('ch-board'));
   if(playing) dlChStartTick(); else dlChStopTick();
 }
@@ -44306,7 +44320,7 @@ function dlBsPlacement(d){
   // SOLO LETTURA: chi e' al tavolo legge il tifo, non lo scrive
   if(d&&d.tour)html+='<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>';
   dlModalHTML(html);
-  if(d&&d.tour)dlDuelChatMonta();
+  if(d&&d.tour)dlDuelChatMonta(d);
   // paint placed ships + wire tap-to-place
   DLBS.ships.forEach(function(s){ dlBsPaintShip('dlbs-place', dlBsCells(s), s.horiz, false); });
   for(var r=0;r<BS_N;r++)for(var c=0;c<BS_N;c++){ (function(r,c){ var el=document.getElementById('dlbs-place-'+r+'-'+c); if(!el)return; el.onclick=function(){ dlBsTryPlace(r,c); }; })(r,c); }
@@ -44337,7 +44351,7 @@ function dlBsWaiting(d){
     // SOLO LETTURA: e' l'attesa piu' lunga del gioco (l'altro sta ancora
     // schierando), ed e' proprio li' che chi gioca vuole leggere il tifo
     ((d&&d.tour)?'<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>':''));
-  if(d&&d.tour)dlDuelChatMonta();
+  if(d&&d.tour)dlDuelChatMonta(d);
 }
 // ── BATTLE phase ──
 function dlBsBoard(d,ancora){
@@ -44374,7 +44388,7 @@ function dlBsBoard(d,ancora){
   // SOLO LETTURA: chi e' al tavolo legge il tifo, non lo scrive
   if(d.tour)html+='<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>';
   dlModalHTML(html);
-  if(d.tour)dlDuelChatMonta();
+  if(d.tour)dlDuelChatMonta(d);
   dlBsRenderFireGrid(d, playing&&yourTurn);
   dlBsRenderOwnGrid(d);
   if(playing&&yourTurn){ DLBS.deadline=d.deadline_ms||0; dlBsStartTick(); } else dlBsStopTick();
@@ -44621,7 +44635,7 @@ function dlPkdBoard(d, holdResult, ancora){
   // il montaggio sta QUI e non nel chiamante di proposito: `dlPkdRevealThenDone`
   // ridisegna il tavolo due volte a 1,7s di distanza, e la chat va riagganciata
   // dopo ENTRAMBE le volte.
-  if(d.tour)dlDuelChatMonta();
+  if(d.tour)dlDuelChatMonta(d);
   if(playing&&!youDrawn){ for(var i=0;i<5;i++){ if(DLPKD.held[i]){ var el=document.getElementById('dlpkd-c'+i); if(el)el.classList.add('held'); } } DLPKD.deadline=d.deadline_ms||0; dlPkdStartTick(); } else dlPkdStopTick();
 }
 function dlPkdDraw(){
@@ -49965,7 +49979,7 @@ function initGlad(){
   else if(GLD.pendingWatch)gldShowSpecWait();
   else gldShowLobby();
   if(GLD.inTimer)clearInterval(GLD.inTimer);
-  GLD.inTimer=setInterval(gldPump,50);
+  GLD.inTimer=setInterval(gldPumpTick,16);   // 14/09 FEEL P: la pompa decide lei quando mandare (vedi gldPumpTick)
 }
 function gldConnect(){
   if(GLD.ws&&(GLD.ws.readyState===0||GLD.ws.readyState===1))return;
@@ -49991,10 +50005,22 @@ function gldConnect(){
   };
   ws.onerror=function(){if(GLD.ui==='match'||GLD.ui==='search')wsNetBanner('glad',1);};
 }
+// 14/09 FEEL S: SPECIALE E FENDENTE DRITTI. Misurato: premuto lo speciale, la levetta di movimento
+// continuava a mandare la mira ogni 50 ms e il server (gladiator_rt ROT_CAP 2,2 rad/s in carica)
+// girava il gladiatore di 19-38 gradi in 0,55 s: la spinta partiva storta e il disegno ancora di piu'.
+// Ora alla pressione si manda la direzione di QUEL momento e fino alla fine del colpo non cambia.
+function gldLockDir(){var A=GLD.aim,J=GLD.joy,m;
+  if(A.on&&(m=Math.hypot(A.ax,A.ay))>0.05)return [A.ax/m,A.ay/m];
+  if(J.on&&(m=Math.hypot(J.mx,J.my))>0.05)return [J.mx/m,J.my/m];
+  var s=GLD._aimSent;if(s&&(m=Math.hypot(s[0],s[1]))>0.25)return [s[0]/m,s[1]/m];
+  var an=GLD.anim&&GLD.anim[GLD.myId];return an?[Math.cos(an.fa),Math.sin(an.fa)]:null;}
+function gldLock(d){if(!d)return;GLD._lkDir=d;gldSend({t:'aim',ax:d[0],ay:d[1],on:1});GLD._aimHold=performance.now()+300;GLD._aimLk={t:performance.now(),seen:0};}
 function gldSend(o){if(o&&(o.t==='in'||o.t==='aim'))_gdInv++;
+  if(o&&o.t==='aim'&&o.on&&window.GLD)GLD._aimSent=[o.ax,o.ay];   // 14/09 FEEL S
   if(GLD.wsOk){try{GLD.ws.send(JSON.stringify(o));}catch(e){}}}
 function gldOnMsg(m){
   var t=m.t;
+  if(t==='pong'){gldNetPong(m);return;}   // 14/09 FEEL P: giro di rete misurato
   if(t==='hello_ok'){
     if(m.rate)GLD.rate=m.rate;
     if(GLD.pendingTicket){gldSend({t:'join_ticket',ticket:GLD.pendingTicket});GLD.pendingTicket=null;gldShowSearch();return;}
@@ -50009,7 +50035,10 @@ function gldOnMsg(m){
     // CHAT SPETTATORI: iscrizione al canale a ogni (ri)connessione — hub,
     // spettatore o gladiatore del torneo. Il server risponde col backlog.
     // 27/07: via trnChatSub, che sa QUALE torneo (il canale e' per tid)
-    if(CUR==='torneo'||GLD.spec||GLD.tour){TRN.chatSubbed=0;trnChatSub();}
+    // …e chi e' al TAVOLO di un match del binario duelli (14/09/2026): se la
+    // socket si riapre mentre gioca, senza questo si riiscriveva solo al
+    // prossimo colpo, e nel frattempo il tifo del match non arrivava
+    if(CUR==='torneo'||GLD.spec||GLD.tour||(CUR==='duel'&&TRN.duelMid)){TRN.chatSubbed=0;trnChatSub();}
     return;
   }
   if(t==='watch_list'){if(typeof trnOnWatchList==='function')trnOnWatchList(m.rooms||[]);return;}
@@ -50085,6 +50114,7 @@ function gldOnMsg(m){
     GLD.vt=0;GLD.slowUntil=0;GLD.koCam=null;GLD._koK=0;GLD.decalN=0;
     GLD._ant=null;GLD._antD=0;GLD._antT=0;GLD._stopQ=null;GLD.stopUntil=0;GLD._predHold=0;GLD._shHeld=0;GLD._buf=null;GLD._seatKs=null;   // 11/09 audit
     GLD._camT=null;   // 13/09 CAMMINA: zona morta della camera, riparte sul nuovo gladiatore
+    if(GLD.nt){GLD.nt.off=null;GLD.nt.ok=false;GLD.nt.hn=0;GLD.nt.ox=GLD.nt.oy=0;}GLD._lg=null;GLD._lkDir=null;GLD._aimLk=null;GLD._kick=null;   // 14/09 FEEL P: il tempo del server riparte da 0 a ogni partita
     GLD._three=false;GLD.zone1=false;GLD.zone2=false;GLD._cdPrev={};GLD._lastSt=-1;GLD._pilTick=0;
     GLD.heartOn=false;try{TWS.heart(false);}catch(e){}
     gldShowMatch();gldMatchFound();gldTutorial();TWS.play('sting');
@@ -50296,7 +50326,9 @@ function gldAct(a){
     else if(a==='dodge'&&(y.dodge_cd||0)>0.12)rej=true;
     else if(a==='special'&&(y.spec_cd||0)>0.12)rej=true;
     if(rej)gldDeny(a);
+    if(a==='special'&&!rej)gldLock(gldLockDir());   // 14/09 FEEL S: la direzione dello speciale si blocca QUI
   }
+  if(a==='dodge'&&gldPred2())gldSend({t:'in',mx:GLD.joy.on?GLD.joy.mx:0,my:GLD.joy.on?GLD.joy.my:0});   // 14/09 FEEL P: la schivata va dove punta il dito ADESSO
   gldSend({t:'act',a:a});
   // 11/09 C5-bis: il buffer ora e' nel SERVER (gladiator_rt S2, 0.20 s): il client non rispedisce
   // piu' niente, altrimenti un reinvio durante la carica del colpo in memoria ne accoda un altro.
@@ -50310,6 +50342,13 @@ function gldAct(a){
   else if(_lib&&a==='special'&&(_y0.spec_cd||0)<=0.05){GLD._ant={a:a,t:performance.now()};GLD._antT=performance.now();gldSnd('charge',0.9);}
   else if(_lib&&a==='dodge'&&(_y0.dodge_cd||0)<=0.05){GLD._antD=performance.now();GLD._antT=performance.now();}
   if(_y0.has_pilum&&a==='atk')GLD._ant=null;   // col pilum l'atk e' il lancio: niente carica di spada finta
+  // 14/09 FEEL P: il gesto parte in pagina (posa, velocita', spinta) se e' lecito ADESSO secondo la
+  // pagina; il server lo conferma o lo rifiuta (gldLgCheck) e la predizione si riallinea da sola
+  if(gldPred2()&&(a==='atk'||a==='special'||a==='dodge')&&!(a==='atk'&&_y0.has_pilum)){var _nw=performance.now();
+    if(gldLgFree(a,_nw)){var _dd;
+      if(a==='dodge'){var _jm=Math.hypot(GLD.joy.mx,GLD.joy.my);if(GLD.joy.on&&_jm>0.2)_dd=[GLD.joy.mx/_jm,GLD.joy.my/_jm];else{var _fq=(GLD.anim[GLD.myId]||{}).fa||0;_dd=[Math.cos(_fq),Math.sin(_fq)];}}
+      else _dd=GLD._lkDir||gldLockDir2();
+      GLD._lg={a:a,t:_nw,dir:_dd,seen:0};}}
 }
 function gldDeny(a){ // B10a: flash rosso 150ms + clank smorzato + haptic
   var id={atk:'gld-b-atk',special:'gld-b-spec',dodge:'gld-b-dodge',shield:'gld-b-shield'}[a];
@@ -50333,6 +50372,7 @@ function gldPump(){
   if(GLD.ui!=='match'||GLD.spec)return;   // TORNEO: spettatori senza input
   if(GLD.joy.on){gldSend({t:'in',mx:GLD.joy.mx,my:GLD.joy.my});GLD.sentZero=false;}
   else if(!GLD.sentZero){gldSend({t:'in',mx:0,my:0});GLD.sentZero=true;}
+  GLD._inS=[GLD.joy.on?1:0,GLD.joy.mx,GLD.joy.my];   // 14/09 FEEL P: ultimo comando spedito (gldInChanged)
   // 29/07 — MIRA BLOCCATA DURANTE IL COLPO. Camminando, il ramo "mira =
   // piedi" qui sotto riscriveva la direzione ogni 50ms: il fendente lanciato
   // con la levetta tornava verso dove stavi andando. Finche' il colpo e' in
@@ -50356,10 +50396,10 @@ function gldPump(){
       ||!!(_pl&&(_pl[0]|0)===4&&String(_pl[5])===String(GLD.myId)));
     if(_atk)_lk.seen=1;
     var _lkA=performance.now()-_lk.t;
-    if((_lk.seen&&!_atk)||_lkA>(_lk.seen?1200:450))GLD._aimLk=null;
+    if((_lk.seen&&!_atk)||_lkA>(_lk.seen?1200:450+((GLD.nt&&GLD.nt.rtt)||GLD._rttEst||0))){GLD._aimLk=null;GLD._lkDir=null;}   // 14/09 FEEL S: a rete lenta il colpo si vede tardi
     else GLD._aimHold=performance.now()+120;
   }
-  if(GLD._aimHold&&performance.now()<GLD._aimHold){gldSend({t:'aim',ax:GLD.aim.ax,ay:GLD.aim.ay,on:1});GLD.sentAimZero=false;}
+  if(GLD._aimHold&&performance.now()<GLD._aimHold){var _lkd=(GLD._aimLk&&GLD._lkDir)?GLD._lkDir:null;gldSend({t:'aim',ax:_lkd?_lkd[0]:GLD.aim.ax,ay:_lkd?_lkd[1]:GLD.aim.ay,on:1});GLD.sentAimZero=false;}   // 14/09 FEEL S
   else if(GLD.aim.on){gldSend({t:'aim',ax:GLD.aim.ax,ay:GLD.aim.ay,on:1});GLD.sentAimZero=false;}
   else if(GLD.joy.on){gldSend({t:'aim',ax:GLD.joy.mx,ay:GLD.joy.my,on:1});GLD.sentAimZero=false;}
   else if(!GLD.sentAimZero){gldSend({t:'aim',on:0});GLD.sentAimZero=true;}
@@ -50376,6 +50416,7 @@ function gldOnSnap(m){
   m.idx=idx;
   GLD.snaps.push(m);if(GLD.snaps.length>7)GLD.snaps.shift();
   GLD.lastRaw=m;GLD.you=m.you||GLD.you;
+  gldNetSnap(m);gldLgCheck(m);   // 14/09 FEEL P: orologio del server + il mio gesto confermato/rifiutato
   if(m.r!=null)GLD.r=m.r;GLD.sd=!!m.sd;
   if(m.viewers!=null&&m.viewers!==GLD.viewers){   // TORNEO: contatore spettatori in broadcast — DOM solo quando cambia (no write 20x/s)
     GLD.viewers=m.viewers;
@@ -50466,7 +50507,7 @@ function gldFeedEvent(e){
     else if(e.victim===me)gldBanner('🛡️ PARRY!','Ti hanno parato il colpo — sei stordito!',1600);
   }
   else if(k==='block'){gldSnd('block',0.7);gldCrowd('block');var pb=gldPosOf(e.who);if(pb)gldFxAdd('spark',pb[0],pb[1],380,null,'#cfd6dd');}
-  else if(k==='dodge'){gldSnd('scatto',e.who===me?0.9:0.5);gldCrowd('dodge');}
+  else if(k==='dodge'){if(!(e.who===me&&GLD._dodgeSnd&&performance.now()-GLD._dodgeSnd<900))gldSnd('scatto',e.who===me?0.9:0.5);gldCrowd('dodge');}   // 14/09 FEEL F: la mia l'ho gia' sentita
   else if(k==='stun'){
     gldSnd('stun',0.8);
     // B4: finestra di punish — se lo stordito non sei tu e sei in range, stampa PUNISCILO!
@@ -50647,6 +50688,7 @@ function gldShowMatch(){
   try{GBMusic.stop();}catch(e){}   // B18: MAI musica durante il match (letto folla)
   var el=document.getElementById('gld-body');if(!el)return;
   el.classList.add('gld-fit');   // VIEWPORT-FIT: arena riempie, controlli in overlay, niente scroll
+  GLD._hud={};   // 14/09 FEEL H: DOM nuovo, cache dell'HUD vuota
   el.innerHTML=''
     +'<div class="gld-hud">'
     +'<div class="twr-hp" id="gld-hp-me"></div>'
@@ -50677,14 +50719,14 @@ function gldShowMatch(){
   twrStickInit('gld-joy','gld-knob',
     function(x,y){
       var m=Math.hypot(x,y);
-      if(m<0.18){GLD.joy.on=false;GLD.joy.mx=0;GLD.joy.my=0;return;}
+      if(m<0.18){GLD.joy.on=false;GLD.joy.mx=0;GLD.joy.my=0;if(typeof gldPumpTick==='function'&&gldPred2())gldPumpTick();return;}
       // 13/09 CAMMINA (B, come il C8 del Turf dell'11/09): la velocita' piena arriva a meta'
       // spinta. Prima smoothstep su tutta la corsa: a 30 px di pollice (spinta 0,39) il 16% della
       // velocita' (0,55 celle/s) mentre il gladiatore si girava del tutto -> "si gira ma non cammina".
       var t=Math.min(1,(m-0.18)/0.27);
-      var k=(0.35+0.65*t)/m; GLD.joy.on=true;GLD.joy.mx=x*k;GLD.joy.my=y*k;
+      var k=(0.35+0.65*t)/m; GLD.joy.on=true;GLD.joy.mx=x*k;GLD.joy.my=y*k;if(typeof gldPumpTick==='function'&&gldPred2())gldPumpTick();   // 14/09 FEEL P: il comando parte nell'istante del dito
     },
-    function(){GLD.joy.on=false;GLD.joy.mx=0;GLD.joy.my=0;},76);   // move-stick Colosseo grande (190px) + overlay sull'arena
+    function(){GLD.joy.on=false;GLD.joy.mx=0;GLD.joy.my=0;if(typeof gldPumpTick==='function'&&gldPred2())gldPumpTick();},76);   // 14/09 FEEL P: l'arresto parte subito   // move-stick Colosseo grande (190px) + overlay sull'arena
   // 29/07: la levetta con la spada GIRAVA e basta. Ha un'arma disegnata sul
   // pomello, quindi la si spinge verso il nemico aspettandosi il colpo — che
   // non arrivava mai (gladiator_rt.set_aim: "right stick = facing only, no
@@ -50703,11 +50745,14 @@ function gldShowMatch(){
       // TAP (toccata senza spinta): 11/09 C4 — fendente verso il nemico piu' vicino DAVANTI
       // (gldAutoMira), altrimenti dritto. Col S1 del server la direzione vale all'avvio.
       if(!GLD.aim.on){var _tg=gldAutoMira();
-        if(_tg){gldSend({t:'aim',ax:_tg[0],ay:_tg[1],on:1});GLD._aimHold=performance.now()+300;GLD._aimLk={t:performance.now(),seen:0};}
+        if(_tg){gldSend({t:'aim',ax:_tg[0],ay:_tg[1],on:1});GLD._aimHold=performance.now()+300;GLD._aimLk={t:performance.now(),seen:0};
+          if(!(GLD.you&&GLD.you.has_pilum))GLD._lkDir=_tg;}   // 14/09 FEEL S: prima la pompa rimandava la VECCHIA mira della levetta
+        else if(!(GLD.you&&GLD.you.has_pilum))gldLock(gldLockDir());   // 14/09 FEEL S: tocco senza bersaglio: dritto dove guardi, e resta
         gldAct('atk');return;}
       // l'ULTIMA direzione deve partire PRIMA del colpo: gldPump gira ogni
       // 50ms e arriverebbe tardi, menando verso dove si guardava un attimo fa
       gldSend({t:'aim',ax:GLD.aim.ax,ay:GLD.aim.ay,on:1});
+      var _ra=Math.hypot(GLD.aim.ax,GLD.aim.ay);GLD._lkDir=(_ra>0.01&&!(GLD.you&&GLD.you.has_pilum))?[GLD.aim.ax/_ra,GLD.aim.ay/_ra]:null;   // 14/09 FEEL S
       GLD.aim.on=false;
       // e per la durata del colpo i piedi non riscrivono la direzione:
       // _aimHold (timer) serve al canale di RETE, il LATCH serve al DISEGNO.
@@ -50902,6 +50947,8 @@ function gldBtnCd(id,cd,max){
     if(rb){rb.classList.add('ready');setTimeout(function(){rb.classList.remove('ready');},300);}
     TWS.play('ping',0.5);
   }
+  // 14/09 FEEL H: si scrive nel DOM solo se cambia (prima: stile e ridisegno dei tasti a ogni snapshot, 20 volte al secondo)
+  var _hk=f<=0?'0':String(Math.round(f*48)),_hc=GLD._hud||(GLD._hud={});if(_hc[id]===_hk)return;_hc[id]=_hk;
   if(el){if(f<=0){el.style.display='none';}else{el.style.display='block';el.style.background='conic-gradient(rgba(0,0,0,.6) '+(f*360).toFixed(0)+'deg, rgba(0,0,0,0) 0)';}}
   var b=document.getElementById(id);if(b)b.style.opacity=f>0?'0.55':'1';
 }
@@ -50910,9 +50957,10 @@ function gldHud(m){
   var you=m.you||{};
   var hp=you.hp||0,s='';
   for(var i=0;i<4;i++)s+=(i<hp)?'<span class="twr-h">❤️</span>':'<span class="twr-h off">🖤</span>';
-  var a=document.getElementById('gld-hp-me');if(a)a.innerHTML=s;
+  var _hc=GLD._hud||(GLD._hud={});
+  if(_hc.hp!==s){_hc.hp=s;var a=document.getElementById('gld-hp-me');if(a)a.innerHTML=s;}   // 14/09 FEEL H
   var al=0;(m.p||[]).forEach(function(r){if(r[7]&1)al++;});
-  var ac=document.getElementById('gld-alive');if(ac)ac.textContent='⚔ '+al+((typeof GB_LANG!=='undefined'&&GB_LANG==='en')?' ALIVE':' VIVI');
+  var _alt='⚔ '+al+((typeof GB_LANG!=='undefined'&&GB_LANG==='en')?' ALIVE':' VIVI');if(_hc.al!==_alt){_hc.al=_alt;var ac=document.getElementById('gld-alive');if(ac)ac.textContent=_alt;}
   if(al===3&&!GLD._three){GLD._three=true;gldBanner('⚔️ 3 RIMASTI','',2000);gldSnd('corno',0.8);}   // B8: corno a 3 vivi
   if(GLD.feedRows.length){ // B8: fade-out righe kill-feed dopo 4s
     var nowMs=Date.now(),n0=GLD.feedRows.length;
@@ -50920,16 +50968,17 @@ function gldHud(m){
     if(GLD.feedRows.length!==n0)gldFeed();
   }
   var zc=document.getElementById('gld-zone');
-  if(zc){
+  var _zk=m.sd?'sd':((m.r!=null?m.r:GLD.r).toFixed(1));
+  if(zc&&_hc.z!==_zk){_hc.z=_zk;
     if(m.sd){zc.textContent='🔥 MORTE IMPROVVISA';zc.classList.add('hot');}
     else{zc.textContent='⭕ '+((m.r!=null?m.r:GLD.r).toFixed(1));zc.classList.toggle('hot',(m.r!=null?m.r:GLD.r)<3.4);}
   }
   gldBtnCd('gld-b-spec',you.spec_cd,4.5);
   gldBtnCd('gld-b-dodge',you.dodge_cd,1.6);
   var sb=document.getElementById('gld-b-shield');
-  if(sb)sb.style.boxShadow=you.parry_ready?'0 0 14px rgba(120,255,180,.85)':'none';
+  if(sb&&_hc.pr!==!!you.parry_ready){_hc.pr=!!you.parry_ready;sb.style.boxShadow=you.parry_ready?'0 0 14px rgba(120,255,180,.85)':'none';}
   var cb=document.getElementById('gld-charge');
-  if(cb){var c=you.charge||0;cb.style.width=(c*100).toFixed(0)+'%';cb.style.opacity=(you.st===GLD_ST.SPEC_WIND?'1':'0');}
+  if(cb){var c=you.charge||0,_ck=(c*100).toFixed(0)+'|'+(you.st===GLD_ST.SPEC_WIND?1:0);if(_hc.ch!==_ck){_hc.ch=_ck;cb.style.width=(c*100).toFixed(0)+'%';cb.style.opacity=(you.st===GLD_ST.SPEC_WIND?'1':'0');}}
   // pilum: the ATT button becomes LANCIA while holding (input reuses act:'atk')
   var hasP=!!you.has_pilum;
   if(hasP!==GLD._hadPilum){
@@ -51151,6 +51200,101 @@ function gldStartRaf(){
   GLD.raf=requestAnimationFrame(loop);
 }
 function gldStopRaf(){if(GLD.raf){cancelAnimationFrame(GLD.raf);GLD.raf=null;}gldBed(false);GLD.heartOn=false;try{TWS.heart(false);}catch(e){}}
+// ── 14/09 FEEL P · PREDIZIONE CON RICONCILIAZIONE (solo pagina: il server resta l'autorita') ──
+// PRIMA il mio gladiatore camminava col dito ma veniva TIRATO al 16% per fotogramma verso l'ultima
+// posizione del server, vecchia di un giro di rete: velocita' piena dopo 250/317/400/483 ms e
+// frenata in 223/349/431/515 ms (rtt 0/60/130/216, misurato), 0,23-0,95 celle di scivolata al
+// rilascio, e il tiro dipendeva dagli Hz dello schermo. ORA il disegno si confronta con la SUA
+// storia nell'istante che il server ha davvero simulato (tempo del server + giro di rete misurato
+// col ping) e corregge solo l'errore vero, spalmato in ~90 ms. Nessun dato nuovo dal server,
+// nessun comando diverso: staccare la rete non cambia niente di cio' che il server decide.
+function gldPred2(){return !window.GLD_PRED_V1;}
+function gldNt(){return GLD.nt||(GLD.nt={rs:[],rtt:0,off:null,offT:0,ht:new Float64Array(128),hx:new Float64Array(128),hy:new Float64Array(128),hn:0,hi:0,x:0,y:0,ox:0,oy:0,ok:false,snap:null,pingT:0,pings:0,err:0,lf:0});}
+function gldNetPong(m){var N=gldNt(),ts=+m.ts;if(!(ts>0))return;var s=performance.now()-ts;if(!(s>=0&&s<3000))return;
+  N.rs.push(s);if(N.rs.length>8)N.rs.shift();N.rtt=Math.min.apply(null,N.rs);}
+function gldNetPing(now){var N=gldNt();if(now-N.pingT<(N.pings<8?250:1000))return;N.pingT=now;N.pings++;gldSend({t:'ping',ts:now});}
+// orologio del server: minimo di (arrivo - tempo del server), che sale piano se gli orologi divergono
+function gldNetSnap(m){var N=gldNt(),tm=+m.time;if(!(tm>=0)||!m.rx)return;var s=m.rx-tm*1000;
+  if(N.off==null||s<N.off)N.off=s;else N.off+=(m.rx-N.offT)*0.01;N.offT=m.rx;}
+// istante LOCALE dei comandi che questo snapshot ha gia' contato: tick del server - andata + 25 ms
+// (il tick applica l'ultimo comando a tutti i 50 ms appena passati: in media e' 25 ms "avanti")
+function gldNetAlign(m){var N=gldNt(),tm=+m.time;
+  if(N.off!=null&&N.rs.length&&tm>=0)return tm*1000+N.off-N.rtt+25;
+  return (m.rx||performance.now())-(GLD._rttEst||150)+25;}
+function gldColBlock(x,y){if(Math.hypot(x,y)>GLD.r0+0.5)return true;var C=GLD.cols||[],r=GLD.r;
+  for(var i=0;i<C.length;i++){var c=C[i];if(Math.hypot(c[0],c[1])+c[2]>r)continue;if(Math.hypot(x-c[0],y-c[1])<c[2]+0.42)return true;}return false;}
+// il MIO gesto, secondo la pagina, con le durate di gladiator_rt: [stato, ms, velocita'] (velocita'
+// negativa = spinta in celle/s lungo la direzione bloccata: speciale 1,8/0,15, schivata 2,2/0,18)
+var GLD_LG={atk:[[1,320,0.6],[2,100,0],[3,250,0.6]],special:[[7,550,0.3],[8,150,-12]],dodge:[[6,180,-12.2222]]},GLD_LGD={atk:670,special:700,dodge:180};
+function gldLgNow(now){var g=GLD._lg;if(!g)return null;var ph=GLD_LG[g.a],age=now-g.t,a0=0;
+  for(var i=0;i<ph.length;i++){if(age<a0+ph[i][1])return {st:ph[i][0],ph:(age-a0)/ph[i][1],k:ph[i][2]};a0+=ph[i][1];}
+  return {st:-1,ph:0,k:1};}
+function gldLgSet(a){var s=a==='atk'?[1,2,3]:(a==='special'?[7,8]:[6]);return s;}
+// a ogni snapshot: il server l'ha visto? l'ha rifiutato? e' finito anche la'?
+function gldLgCheck(m){var g=GLD._lg,y=m.you;if(!g||!y)return;var S=GLD_ST,st=y.st,now=m.rx||performance.now();
+  if(st===S.STUN||st===S.DEAD||y.alive===false){GLD._lg=null;return;}
+  var inS=gldLgSet(g.a).indexOf(st)>=0;if(inS)g.seen=1;
+  var N=gldNt(),lim=(N.rtt||GLD._rttEst||150)*2+300;
+  if(!g.seen&&now-g.t>lim)GLD._lg=null;
+  else if(g.seen&&!inS&&now-g.t>=GLD_LGD[g.a]){if(!g.outT)g.outT=now;else if(now-g.outT>160)GLD._lg=null;}}   // il disegno degli altri e' 85 ms indietro: la coda si nasconde finche' non e' passata anche li'
+// il mio gesto e' lecito ADESSO? (lo stato del server e' vecchio di un giro: un mio gesto gia'
+// finito in pagina non tiene occupato; le ricariche si scalano del tempo passato + andata)
+function gldLgFree(a,now){var y=GLD.you||{},S=GLD_ST,st=y.st,g=GLD._lg,m=GLD.lastRaw,N=gldNt();
+  if(y.alive===false||st===S.STUN||st===S.DEAD)return false;
+  if(g){var gn=gldLgNow(now);if(gn&&gn.st>=0)return false;}
+  var ok=(st===S.IDLE||st===S.BLOCK||(g&&gldLgSet(g.a).indexOf(st)>=0));if(!ok)return false;
+  var pl=m&&m.pl;if(pl&&(pl[0]|0)===4&&String(pl[5])===String(GLD.myId))return false;
+  var el=((now-((m&&m.rx)||now))+(N.rtt||GLD._rttEst||0))/1000,cd=a==='atk'?y.atk_cd:(a==='special'?y.spec_cd:y.dodge_cd);
+  if(a==='atk'&&g&&g.a==='atk'&&now-g.t>=GLD_LGD.atk)cd=0;
+  return ((cd||0)-el)<=0.02;}
+function gldLockDir2(){var A=GLD.aim,J=GLD.joy,m;
+  if(A.on&&(m=Math.hypot(A.ax,A.ay))>0.05)return [A.ax/m,A.ay/m];
+  if(J.on&&(m=Math.hypot(J.mx,J.my))>0.05)return [J.mx/m,J.my/m];
+  var s=GLD._aimSent;if(s&&(m=Math.hypot(s[0],s[1]))>0.25)return [s[0]/m,s[1]/m];
+  var an=GLD.anim&&GLD.anim[GLD.myId];return an?[Math.cos(an.fa),Math.sin(an.fa)]:[1,0];}
+function gldPredStep(now,raw,meRow){
+  var N=gldNt(),S=GLD_ST,you=GLD.you||{};
+  var dt=Math.min(0.1,Math.max(0,(now-(N.lf||now))/1000));N.lf=now;
+  if(!GLD.pred.ok||!N.ok){N.x=meRow[1];N.y=meRow[2];N.ox=N.oy=0;N.hn=0;N.ok=true;GLD.pred.ok=true;N.snap=raw;}
+  var st=(you.st!=null)?you.st:meRow[5],vx=0,vy=0,g=gldLgNow(now);
+  if(st===S.STUN||st===S.DEAD){}
+  else if(g&&g.st>=0&&g.k<0){var d=GLD._lg.dir||[1,0];vx=d[0]*-g.k;vy=d[1]*-g.k;}
+  else{var mul=1;
+    if(g&&g.st>=0)mul=g.k;
+    else if(GLD._shHeld)mul=0.45;
+    else if(!GLD._lg){if(st===S.SPEC_ACT||st===S.DODGE)mul=0;else mul=gldSpeedMult(st);}
+    vx=GLD.joy.mx*3.4*mul;vy=GLD.joy.my*3.4*mul;}
+  var pl=raw.pl;if(pl&&(pl[0]|0)===4&&String(pl[5])===String(GLD.myId)){vx=vy=0;}
+  if(vx||vy){var nx=N.x+vx*dt,ny=N.y+vy*dt;
+    if(!gldColBlock(nx,N.y))N.x=nx;if(!gldColBlock(N.x,ny))N.y=ny;
+    var rr=Math.hypot(N.x,N.y),lm=GLD.r0+0.5;if(rr>lm){N.x*=lm/rr;N.y*=lm/rr;}}
+  N.hi=(N.hi+1)&127;N.ht[N.hi]=now;N.hx[N.hi]=N.x;N.hy[N.hi]=N.y;if(N.hn<128)N.hn++;
+  if(raw!==N.snap){N.snap=raw;
+    var c=gldNetAlign(raw),hx=N.hx[N.hi],hy=N.hy[N.hi],j=N.hi,k2=0,found=false;
+    for(k2=0;k2<N.hn;k2++){j=(N.hi-k2+128)&127;if(N.ht[j]<=c){found=true;
+      if(k2>0){var j2=(j+1)&127,sp=N.ht[j2]-N.ht[j],f=sp>0?(c-N.ht[j])/sp:0;hx=N.hx[j]+(N.hx[j2]-N.hx[j])*f;hy=N.hy[j]+(N.hy[j2]-N.hy[j])*f;}
+      else{hx=N.hx[j];hy=N.hy[j];}
+      break;}}
+    if(!found&&N.hn){j=(N.hi-N.hn+1+128)&127;hx=N.hx[j];hy=N.hy[j];k2=N.hn;}
+    var ex=meRow[1]-hx,ey=meRow[2]-hy,e=Math.hypot(ex,ey);N.err=e;
+    if(e>2.5){N.x=meRow[1];N.y=meRow[2];N.ox=N.oy=0;N.hn=0;}
+    else if(e>0.004){var kc=e<0.2?0.12:(e<0.8?0.12+(e-0.2)/0.6*0.88:1);ex*=kc;ey*=kc;   // errori piccoli = rumore del tick (0-50 ms): piano; grandi = veri: subito
+      N.x+=ex;N.y+=ey;N.ox-=ex;N.oy-=ey;
+      for(var q=0;q<k2;q++){var jq=(N.hi-q+128)&127;N.hx[jq]+=ex;N.hy[jq]+=ey;}}
+  }
+  var kd=Math.exp(-dt/0.09);N.ox*=kd;N.oy*=kd;var om=Math.hypot(N.ox,N.oy);if(om>1.2){N.ox*=1.2/om;N.oy*=1.2/om;}
+  GLD.pred.x=N.x+N.ox;GLD.pred.y=N.y+N.oy;
+}
+// 14/09 FEEL P: comandi di movimento SUBITO quando il dito cambia davvero (partenza, arresto, >12
+// gradi, spinta +-0,2), mai piu' vicini di 33 ms: al massimo 30 coppie in+aim al secondo, sotto il
+// tetto del server (80 messaggi/s per socket). Prima partivano solo ogni 50 ms: 0-50 ms in piu'.
+function gldInChanged(){var J=GLD.joy,s=GLD._inS;if(!s)return true;var on=J.on?1:0;if(on!==s[0])return true;if(!on)return false;
+  var m0=Math.hypot(s[1],s[2]),m1=Math.hypot(J.mx,J.my);if(Math.abs(m1-m0)>0.2)return true;
+  if(m0>0.01&&m1>0.01){var c=(s[1]*J.mx+s[2]*J.my)/(m0*m1);if(c<0.978)return true;}return false;}
+function gldPumpTick(){var n=performance.now();if(!gldPred2()){if(n-(GLD._pumpT||0)>=48){GLD._pumpT=n;gldPump();}return;}
+  if(GLD.ui==='match'&&!GLD.spec)gldNetPing(n);
+  var dl=n-(GLD._pumpT||0),s0=GLD._inS,edge=!s0||(GLD.joy.on?1:0)!==s0[0];   // partenza e arresto: subito (bastano 16 ms)
+  if(dl>=50||(dl>=33&&gldInChanged())||(dl>=8&&edge)){GLD._pumpT=n;gldPump();}}
 function gldLerp(){
   var t=GLD.vt||(performance.now()-85),s=GLD.snaps;   // B3: clock virtuale (slow-mo su kill, cap drift 250ms)
   if(!s.length)return null;
@@ -51187,7 +51331,8 @@ function gldFrame(){gldDiagFrame();
   var lp=gldLerp();
   // predict OWN movement (soft-corrected to server)
   var meRow=raw.idx&&raw.idx[GLD.myId];
-  if(meRow&&(meRow[7]&1)){
+  if(meRow&&(meRow[7]&1)&&gldPred2()){gldPredStep(now,raw,meRow);}   // 14/09 FEEL P
+  else if(meRow&&(meRow[7]&1)){
     if(!GLD.pred.ok){GLD.pred.x=meRow[1];GLD.pred.y=meRow[2];GLD.pred.ok=true;}
     var you=GLD.you||{};
     var stMe=(you.st!=null)?you.st:meRow[5];
@@ -51249,6 +51394,7 @@ function gldFrame(){gldDiagFrame();
   // 0.86 a fotogramma: meta' in 77 ms a 60 Hz, 38 ms a 120 Hz). GLD_SHAKE_K = manopola.
   if(GLD.shake>0.3){var _tr=Math.min(1,GLD.shake/16),_sa=_tr*_tr*16*GLD_SHAKE_K,_ts=now*0.03;
     ctx.translate(_sa*Math.sin(_ts*1.7),_sa*0.8*Math.sin(_ts*2.3));GLD.shake*=Math.pow(0.001,dt);}
+  if(GLD._kick){var _kk=(now-GLD._kick.t)/170;if(_kk>=1||_kk<0||!GLD._kick.d)GLD._kick=null;else{var _ka=Math.sin(_kk*3.1416)*6*(GLD.dpr||1);ctx.translate(-GLD._kick.d[0]*_ka,-GLD._kick.d[1]*_ka);}}   // 14/09 FEEL F: la camera accompagna la spinta
   if(GLD._koK>0){var zk=1+0.08*GLD._koK;ctx.translate(W/2,H/2);ctx.scale(zk,zk);ctx.translate(-W/2,-H/2);}   // B3: zoom kick
   // 11/09 C1: il livello statico e' cotto a scala ridotta (BK, tetto 2048 px): si legge un rettangolo scalato
   var BK=GLD._bk||1, srcCx=GLD.stOX+GLD.cam.x*zs*BK, srcCy=GLD.stOY+GLD.cam.y*zs*BK;
@@ -51426,6 +51572,7 @@ function gldFrame(){gldDiagFrame();
       // (GLD._aimLk), il disegno NON predice i piedi: segue rb[4], la direzione
       // AUTOREVOLE del server, che in quella finestra e' GIA' la mira.
       else if(isMe&&!_busy&&!GLD._aimLk&&GLD.joy.on)targ=Math.atan2(GLD.joy.my,GLD.joy.mx);
+      if(isMe&&GLD._aimLk&&GLD._lkDir)targ=Math.atan2(GLD._lkDir[1],GLD._lkDir[0]);   // 14/09 FEEL S: il cono che vedi e' la direzione bloccata
       if(!an){an={fa:targ};GLD.anim[rb[0]]=an;}
       var stpF=gldAngD(targ,an.fa)*Math.min(1,dt*(isMe?20:12));
       if(isMe){ // B6: replica client i cap di rotazione dei wind-up (telegrafi onesti, no mismatch)
@@ -51464,7 +51611,16 @@ function gldFrame(){gldDiagFrame();
       // per lo speciale) cosi' quella vera, quando arriva, non torna indietro. Solo la POSA:
       // l'esito resta del server. Mai confermato entro 450 ms -> si lascia andare.
       var _dst=rb[5],_dph=(rb[6]||0)/255,_dfl=rb[7];
-      if(isMe&&GLD._ant){var _ae=now-GLD._ant.t;
+      // 14/09 FEEL P: il MIO gesto accettato si disegna tutto dalla pagina (carica, colpo, recupero,
+      // spinta) a partire dal tocco; finito in pagina, la coda che il server mostra in ritardo non si ripete
+      if(isMe&&GLD._lg&&gldPred2()){var _gq=gldLgNow(now);
+        if(_gq&&_gq.st>=0){_dst=_gq.st;_dph=_gq.ph;}
+        else if(gldLgSet(GLD._lg.a).indexOf(_dst)>=0){_dst=GLD._shHeld?GLD_ST.BLOCK:GLD_ST.IDLE;_dph=0;}
+        if(_gq&&(_gq.st===8||_gq.st===6)&&!GLD._lg.fx){GLD._lg.fx=1;   // 14/09 FEEL F: la spinta parte ORA, sul mio schermo
+          gldSnd('scatto',_gq.st===8?1:0.9);gldFxAdd('dust',wx,wy,520,null,'#d9b779');
+          if(_gq.st===8){grHaptic('sel');GLD._kick={d:GLD._lg.dir,t:now};}else GLD._dodgeSnd=now;}
+      }
+      else if(isMe&&GLD._ant){var _ae=now-GLD._ant.t;
         if(_dst!==GLD_ST.IDLE&&_dst!==GLD_ST.BLOCK)GLD._ant=null;
         else if(_ae>450)GLD._ant=null;
         else if(GLD._ant.a==='atk'){_dst=GLD_ST.ATK_WIND;_dph=Math.min(0.6,_ae/320);}   // S3 11/09: la carica dura 320 ms
@@ -53329,6 +53485,14 @@ function trnCheckin(){
     .then(function(r){return r.json();})
     .then(function(j){
       TRN.ciBusy=0;
+      // il ripescaggio risponde col suo riquadro (anche nel rifiuto «chiuso»)
+      if(j&&j.ripescaggio&&TRN.state){
+        TRN.state.ripescaggio=j.ripescaggio;
+        if(j.ok&&j.ripescaggio.stato==='in_lista')toast('🎟 Sei in lista ripescaggio · posizione '+(j.ripescaggio.posizione||'?'),'ok',2600);
+        TRN.detSig='';
+        if(CUR==='torneo')trnRender();
+        return;
+      }
       if(j&&j.ok){
         if(TRN.state){TRN.state.checked_in=true;TRN.state.checkin_count=j.count||TRN.state.checkin_count;}
         try{tgHaptic('success');}catch(_h){}
@@ -53347,6 +53511,38 @@ function trnCiArm(d){
     if(el)el.textContent=s;
     if(s<=0){clearInterval(TRN.ciTick);TRN.ciTick=null;if(!TRN.busy)trnFetch();}
   },1000);
+}
+// ── RIPESCAGGIO (14/09/2026) ────────────────────────────────────────────────
+// Il riquadro di chi e' iscritto ma ha mancato il check-in. I dati li manda il
+// server in `ripescaggio` (solo i propri): stato puoi / in_lista / chiuso /
+// ripescato.
+function trnRipescaHTML(d){
+  var r=d&&d.ripescaggio;
+  if(!r||r.stato==='ripescato')return '';
+  var h='<div class="trn-ci urgent"><div class="trn-ci-hd">🎟 RIPESCAGGIO</div>';
+  if(r.stato==='in_lista'){
+    h+='<div class="trn-ci-ok">SEI IN LISTA · posizione <b>'+(r.posizione||'?')+'</b> di '+(r.in_lista||'?')+'</div>';
+    if(r.entra===true){
+      h+='<div class="trn-ci-sub">Entri al <b>round '+r.round+'</b>: c’è posto per te. Resta su questa pagina, il tasto ENTRA compare da solo.</div>';
+    }else if(r.entra===false&&r.ultimo){
+      h+='<div class="trn-ci-sub">Al round '+r.round+' non c’è posto e dopo resta solo la finale: questa volta il ripescaggio non ti fa entrare. Puoi seguire il torneo da spettatore.</div>';
+    }else if(r.entra===false){
+      h+='<div class="trn-ci-sub">Al round '+r.round+' non c’è posto (i vincitori riempiono il tabellone). Resti in lista per il round successivo.</div>';
+    }else{
+      h+='<div class="trn-ci-sub">Entri al <b>round '+r.round+'</b> se si libera un posto (un match deserto o un bye). Resta su questa pagina: il tasto ENTRA compare da solo.</div>';
+    }
+  }else if(r.stato==='puoi'){
+    h+='<button class="action-btn gold trn-huge" onclick="trnCheckin()">✋ SONO ARRIVATO · METTIMI IN LISTA</button>'
+     +'<div class="trn-ci-sub">Il check-in è chiuso, ma non sei fuori: puoi rientrare dal round '+(r.round||2)+' se si libera un posto.</div>';
+  }else{
+    h+='<div class="trn-ci-sub">Il check-in è chiuso e il ripescaggio è finito: il torneo è alla finale. Puoi seguirlo da spettatore.</div>';
+  }
+  return h+'</div>';
+}
+// la lista si prende DA SOLA aprendo la pagina, come la conferma delle presenze
+function trnRipescaAuto(d){
+  var r=d&&d.ripescaggio;
+  if(r&&r.stato==='puoi'&&TRN.ripFor!==d.id){TRN.ripFor=d.id;trnCheckin();}
 }
 function trnCheckinHTML(d){
   var s=trnCiSecs(d),mm=Math.floor(s/60),ss=s%60;
@@ -53476,6 +53672,7 @@ function trnRender(){
     // se non c'è ancora un mio match ma sono nel torneo, l'intervallo va mostrato
     // anche quando il countdown non è stato (ancora) esposto dal server
     if(imOn&&canEnter)h+=trnIntermHTML(d);
+    if(!canEnter)h+=trnRipescaHTML(d);
     var lm=d.live_matches||[];
     if(lm.length){
       var wsup=trnWatchOk(d.game);   // multi-gioco: 👁 solo se lo spettatore esiste per questo gioco
@@ -53536,7 +53733,7 @@ function trnRender(){
     trnChatSub();
     trnChatPaint();
   }
-  if(d.status==='live'){trnAskViewers();trnImArm(d);}
+  if(d.status==='live'){trnAskViewers();trnImArm(d);trnRipescaAuto(d);}
   if(d.status==='checkin'){
     trnCiArm(d);
     // CONFERMA AUTOMATICA: se sei iscritto e stai guardando questa schermata,
@@ -53668,6 +53865,12 @@ function trnDetYouHTML(cur,me){
   }else if(stt==='live'){
     if(me.next){cls=' hot';v='IL TUO MATCH TI ASPETTA';
       s='Entra ora: hai 3 minuti dal via del round per presentarti.';}
+    else if(cur.ripescaggio&&cur.ripescaggio.stato==='in_lista'){cls=' hot';v='SEI IN LISTA RIPESCAGGIO';
+      s='Hai mancato il check-in: entri al round '+cur.ripescaggio.round+' se c’è posto. Resta su questa pagina.';}
+    else if(cur.ripescaggio&&cur.ripescaggio.stato==='puoi'){cls=' hot';v='HAI MANCATO IL CHECK-IN';
+      s='Mettiti in lista ripescaggio: puoi rientrare dal round '+cur.ripescaggio.round+'.';}
+    else if(cur.ripescaggio&&cur.ripescaggio.stato==='chiuso'){cls=' out';v='CHECK-IN MANCATO';
+      s='Il ripescaggio è chiuso: puoi seguire il torneo da spettatore.';}
     else if(me.out){cls=' out';v='SEI STATO ELIMINATO';
       s='La tua corsa finisce qui. Puoi restare a guardare i match ancora in corso.';}
     else{cls=' ok';v='SEI ANCORA IN GARA';
@@ -53800,6 +54003,7 @@ function trnDetSig(t,cur){
   if(cur){
     s+='|'+(cur.status||'')+'|'+(cur.checkin_count||0)+'|'+(cur.checked_in?1:0)
       +'|'+((cur.my_match&&cur.my_match.status)||'')+'|'+(cur.winner_name||'')
+      +'|'+(cur.ripescaggio?[cur.ripescaggio.stato,cur.ripescaggio.posizione,cur.ripescaggio.in_lista,cur.ripescaggio.entra,cur.ripescaggio.round].join(','):'')
       +'|'+(cur.intermission_until||0)+'|'+((cur.live_matches||[]).length);
     var br=cur.bracket||[],i,j;
     for(i=0;i<br.length;i++){
@@ -53895,6 +54099,7 @@ function trnDetRender(){
   if(cur&&cur.status==='checkin')h+=trnCheckinHTML(cur);
   if(cur&&cur.status==='live'){
     if(me.next)h+='<button class="action-btn gold trn-huge" onclick="trnEnterMatch()">⚔️ ENTRA NEL TUO MATCH</button>';
+    else h+=trnRipescaHTML(cur);
     if(trnImSecs(cur)>0)h+=trnIntermHTML(cur);
   }
   if(!cur||cur.status==='reg'){
@@ -53933,7 +54138,7 @@ function trnDetRender(){
   // chat + spettatori: stesso stack dell'hub (nessuna socket nuova, stessi id)
   trnAskViewers();trnChatSub();trnChatPaint();
   trnDetArm(t);
-  if(cur&&cur.status==='live')trnImArm(cur);
+  if(cur&&cur.status==='live'){trnImArm(cur);trnRipescaAuto(cur);}
   if(cur&&cur.status==='checkin'){
     trnCiArm(cur);
     if(cur.registered&&!cur.checked_in&&TRN.ciFor!==cur.id){TRN.ciFor=cur.id;trnCheckin();}
@@ -53954,10 +54159,14 @@ function trnNetHTML(d){
       var cls=m.status==='live'?'live':(m.status==='done'?'done':'pend');
       var srid=String(m.rid||'').replace(/[^A-Za-z0-9_-]/g,'');
       var wsup=trnWatchOk(d.game);   // multi-gioco: tap-per-guardare solo se supportato
-      var click=(m.status==='live'&&srid&&wsup)?' onclick="trnWatch(\''+srid+'\')"':'';
+      // 14/09: i match del BINARIO DUELLI non hanno rid e si guardano col mid
+      var duelN=!!((trnGC(d.game)||{}).duel);
+      var smidN=String(m.mid||'').replace(/[^A-Za-z0-9_-]/g,'');
+      var click=(m.status==='live'&&duelN&&smidN)?' onclick="trnSpecDuel(\''+smidN+'\')"'
+        :((m.status==='live'&&srid&&wsup)?' onclick="trnWatch(\''+srid+'\')"':'');
       var body;
       if(m.status==='done')body=m.winner_name?'<div class="tn-w">👑 '+trnEsc(m.winner_name)+'</div>':'<div class="tn-w" style="color:var(--txt2);">🏜 deserta</div>';
-      else if(m.status==='live')body='<div class="tn-w" style="color:#ff9a8a;">'+(wsup?'🔴 LIVE · 👁 guarda':'🔴 IN CORSO')+'</div>';
+      else if(m.status==='live')body='<div class="tn-w" style="color:#ff9a8a;">'+((wsup||duelN)?'🔴 LIVE · 👁 guarda':'🔴 IN CORSO')+'</div>';
       else body='<div class="tn-w" style="color:var(--txt2);">⏳ in attesa</div>';
       h+='<div class="trn-node '+cls+'"'+click+'><div class="tn-m">'+trnGameIcon(d.game)+' '+trnEsc(String(m.mid||''))+' · '+((m.players||[]).length)+'⚔️</div>'+body+'</div>';
     });
@@ -54090,7 +54299,10 @@ function trnEnterMatch(){
 // Il primo dei due che arriva NON trova la partita: la apre il secondo. Quindi
 // questa funzione sa aspettare, e lo dice — un'attesa muta su una schermata
 // vuota fa chiudere l'app, e chi chiude l'app perde il match a tavolino.
-var TRN_DUELLO={fermo:false,timer:0,game:''};
+var TRN_DUELLO={fermo:false,timer:0,game:'',giro:0,ultimo:0,attesa:false};
+// il passo minimo fra due bussate, QUALUNQUE sia il numero di tocchi: il tetto
+// del server e' 90 al minuto per utente, un colpo ogni 1,5 s ne fa 40
+var TRN_DUELLO_PASSO=1500;
 // Ogni gioco del binario porta due sole cose: il suo cassetto di stato (dove
 // si azzera la posta, o a fine match il tavolo offrirebbe una rivincita a
 // QUELLA cifra) e la funzione che apre il tavolo. Una mappa e non una catena
@@ -54112,6 +54324,8 @@ var TRN_DUEL_CLIENT={
 };
 function trnDuelloStop(){
   TRN_DUELLO.fermo=true;
+  TRN_DUELLO.giro++;          // anche la risposta ancora in volo si spegne
+  TRN_DUELLO.attesa=false;
   if(TRN_DUELLO.timer){clearTimeout(TRN_DUELLO.timer);TRN_DUELLO.timer=0;}
 }
 function trnEntraDuello(g){
@@ -54122,25 +54336,68 @@ function trnEntraDuello(g){
   // tavolo. Un torneo di un gioco piu' nuovo dell'app deve dirlo, non
   // lasciare il dito premuto nel vuoto.
   if(!c||!c.duel||!cl){toast('Gioco non ancora supportato — aggiorna l\'app','err',2600);return;}
+  // UN GIRO SOLO (14/09/2026). Prima ogni tocco apriva un giro in piu' e i
+  // vecchi continuavano: quattro tocchi = 120 richieste al minuto, 429 dal
+  // server e giro morto. Adesso il tocco nuovo SPEGNE i giri vecchi (numero
+  // di giro) e la prima bussata rispetta il passo minimo dall'ultima.
+  if(TRN_DUELLO.timer){clearTimeout(TRN_DUELLO.timer);TRN_DUELLO.timer=0;}
+  TRN_DUELLO.giro++;
   TRN_DUELLO.fermo=false;
   TRN_DUELLO.game=g;
-  trnDuelloBussa(1);
+  var mio=TRN_DUELLO.giro;
+  var manca=TRN_DUELLO_PASSO-(Date.now()-(TRN_DUELLO.ultimo||0));
+  if(manca>0){TRN_DUELLO.timer=setTimeout(function(){trnDuelloBussa(1,mio);},manca);return;}
+  trnDuelloBussa(1,mio);
 }
-function trnDuelloBussa(giro){
+function trnDuelloBussa(giro,mio){
   if(TRN_DUELLO.fermo)return;
+  if(mio==null)mio=TRN_DUELLO.giro;
+  if(mio!==TRN_DUELLO.giro)return;          // giro vecchio: si spegne
   var g=TRN_DUELLO.game||'rr',cl=TRN_DUEL_CLIENT[g];
   if(!cl)return;
+  TRN_DUELLO.timer=0;
+  TRN_DUELLO.ultimo=Date.now();
+  function ancora(ms){
+    TRN_DUELLO.timer=setTimeout(function(){trnDuelloBussa(giro+1,mio);},Math.max(ms,TRN_DUELLO_PASSO));
+  }
   // ROTTA UNICA: /duel/tour_enter con il gioco nel corpo. La vecchia
   // /duel/rr_tour_enter resta viva sul server per i telefoni che non si sono
   // ancora aggiornati, ma da qui non si chiama piu': una rotta per gioco
   // sarebbe una copia da tenere allineata a ogni correzione.
   fetch(BACKEND+'/duel/tour_enter',{method:'POST',headers:dlBjHdr(),
         body:JSON.stringify({user_id:S.userId,game:g})})
-    .then(function(r){return r.json();})
-    .then(function(d){
-      if(TRN_DUELLO.fermo)return;
+    .then(function(r){return r.json().then(function(j){return {code:r.status,d:j};},
+                                            function(){return {code:r.status,d:null};});})
+    .then(function(x){
+      if(TRN_DUELLO.fermo||mio!==TRN_DUELLO.giro)return;
+      var d=x.d,code=x.code;
+      // TROPPE BUSSATE: non si muore piu' qui. Si aspetta e si riprova, cosi'
+      // chi e' in attesa entra comunque quando arriva l'avversario.
+      if(code===429||(d&&d.error==='rate_limited')){
+        toast('Troppi tentativi, riprovo fra poco…','warn',1800);
+        ancora(6000);
+        return;
+      }
+      // 410 A CHI SI ERA PRESENTATO: l'avversario non e' arrivato. Non e'
+      // un errore suo: si continua ad aspettare piano (il match va a tavolino
+      // o l'altro arriva ancora), con la frase che dice come stanno le cose.
+      if(code===410&&d&&d.presentato){
+        TRN_DUELLO.attesa=true;
+        toast('⏳ '+(d.msg||'Avversario non presentato'),'warn',3200);
+        ancora(5000);
+        return;
+      }
       if(!d||d.error){
-        toast('⚠️ '+((d&&d.error)||'errore'),'err',2600);
+        // chi aspettava e trova il biglietto chiuso (tavolino gia' deciso):
+        // niente allarme, parla il tabellone
+        if(code===404&&TRN_DUELLO.attesa){
+          TRN_DUELLO.attesa=false;
+          toast('Il tuo match e\' stato chiuso: guarda il tabellone','warn',2600);
+          if(typeof trnFetch==='function')trnFetch();
+          return;
+        }
+        toast('⚠️ '+((d&&(d.msg||d.error))||'errore'),'err',3200);
+        if(typeof trnFetch==='function')trnFetch();
         return;
       }
       // `done` non e' un caso teorico: fra una mano e l'altra, o dopo che il
@@ -54158,17 +54415,21 @@ function trnDuelloBussa(giro){
       // in attesa dell'altro: si ribussa piano finche' non arriva o finche'
       // non scade la sua finestra di presentazione
       var restano=Math.max(0,parseInt(d.wait_secs||0,10));
+      TRN_DUELLO.attesa=true;
       toast('In attesa di '+(d.opp_name||'avversario')+'… '+restano+'s',
             'warn',1800);
       if(restano<=0){
+        // la finestra e' finita: da qui il server risponde 410 e il ramo di
+        // sopra continua ad aspettare piano
         toast('L\'avversario non si e\' presentato','warn',2600);
+        ancora(5000);
         return;
       }
-      TRN_DUELLO.timer=setTimeout(function(){trnDuelloBussa(giro+1);},2000);
+      ancora(2000);
     })
     .catch(function(){
-      if(TRN_DUELLO.fermo)return;
-      TRN_DUELLO.timer=setTimeout(function(){trnDuelloBussa(giro+1);},3000);
+      if(TRN_DUELLO.fermo||mio!==TRN_DUELLO.giro)return;
+      ancora(3000);
     });
 }
 function trnWatch(rid){
@@ -56181,7 +56442,10 @@ function netDiag(now){
 }
 // il Colosseo ha una socket sua: stessa misura, stesso canale.
 var _gdN=0,_gdT=0,_gdF=0,_gdInv=0;
-function gldDiagFrame(){_gdF++;}
+var _gdL=0,_gdG=0,_gdS=0,_gdE=0,_gdV=0;
+function gldDiagFrame(){_gdF++;var n=performance.now();if(_gdL){var g=n-_gdL;if(g>_gdG)_gdG=g;if(g>50)_gdS++;}_gdL=n;   // 14/09 FEEL D
+  var N=window.GLD&&GLD.nt;if(N){if(N.err>_gdE)_gdE=N.err;var v=Math.hypot(N.ox,N.oy);if(v>_gdV)_gdV=v;}
+  if(_gdF%30===0)gldDiag(n);}
 function gldDiag(now){
   if(!GLD||!GLD.ws||GLD.ui!=='match'||GLD.spec)return;
   if(_gdN>=15)return;
@@ -56191,8 +56455,9 @@ function gldDiag(now){
   _gdN++;
   var buf=-1;try{buf=GLD.ws.bufferedAmount|0;}catch(_b2){}
   try{if(GLD.ws.readyState===1)GLD.ws.send(JSON.stringify({t:'clog',at:'netdiag',
-    g:'glad',fps:Math.round(f*1000/dt),gap:-1,
-    rtt:Math.round(GLD._rtt||RTD._rtt||0),buf:buf,inv:nv}));}catch(_nd2){}
+    g:'glad',fps:Math.round(f*1000/dt),gap:Math.round(_gdG),lenti:_gdS,err:Math.round(_gdE*100),vis:Math.round(_gdV*100),v2:(typeof gldPred2==='function')?(gldPred2()?1:0):-1,
+    rtt:Math.round((GLD.nt&&GLD.nt.rtt)||GLD._rtt||RTD._rtt||0),buf:buf,inv:nv}));}catch(_nd2){}
+  _gdG=0;_gdS=0;_gdE=0;_gdV=0;   // 14/09 FEEL D
 }
 function pgBarAxis(curX){
   var B=RTD.pgBar;
