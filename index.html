@@ -8341,6 +8341,27 @@ body.gb-nav-on .bnav{display:flex;}
 .lup-carta-vuota{width:100%;aspect-ratio:2/3;border-radius:8px;background:#14122a;display:flex;align-items:center;justify-content:center;font-size:44px;color:#4c4a6b;}
 .lup-carta b{display:block;margin:7px 0 3px;font-size:12px;letter-spacing:.06em;color:#c7d2fe;}
 .lup-carta span{display:block;font-size:11px;line-height:1.35;color:#a5a3c4;text-align:left;}
+/* 🍸 LAST CALL (14/09): COME SI GIOCA con TUTTE le carte spiegate. I testi
+   stanno in lastcall/istruzioni.js (fonte unica con il pannello del tavolo). */
+.lct-fam{margin:14px 0 8px;text-align:left;}
+.lct-fam b{display:block;font-size:12.5px;font-weight:900;letter-spacing:.9px;color:var(--lcc,#e9c274);}
+.lct-fam span{display:block;font-size:10.5px;line-height:1.4;color:#94a3b8;margin-top:2px;}
+/* sul PC la finestra comune (400 px) stringeva il testo a una parola per riga:
+   il pannello di LAST CALL la allarga, e le colonne seguono la finestra, non lo schermo */
+.tw-modal:has(.lct-hd){max-width:min(900px,94vw);}
+.lct-carte{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,360px),1fr));gap:8px;}
+.lct-carta{display:flex;gap:10px;align-items:flex-start;text-align:left;padding:8px;border-radius:12px;background:rgba(148,163,184,.07);border:1px solid rgba(148,163,184,.16);border-left:3px solid var(--lcc,#e9c274);}
+.lct-img{flex:0 0 92px;width:92px;aspect-ratio:560/750;border-radius:8px;overflow:hidden;background:#0d1016;border:2px solid var(--lcc,#e9c274);box-shadow:0 0 12px rgba(0,0,0,.45);cursor:zoom-in;position:relative;}
+.lct-img img{position:relative;width:100%;height:100%;object-fit:cover;display:block;}
+.lct-img i{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:30px;color:#4b5563;}
+.lct-tx{flex:1;min-width:0;}
+.lct-n{display:block;font-size:13px;font-weight:900;letter-spacing:.6px;color:var(--lcc,#e9c274);}
+.lct-q{display:inline-block;margin:4px 0 5px;padding:2px 7px;border-radius:7px;font-size:9px;font-weight:800;letter-spacing:.5px;line-height:1.35;color:#e2e8f0;background:rgba(148,163,184,.14);border:1px solid rgba(148,163,184,.28);}
+.lct-x{display:block;font-size:11.5px;line-height:1.5;color:#cbd5e1;}
+.lct-o{display:block;margin-top:6px;padding:6px 8px;border-radius:8px;font-size:11px;line-height:1.45;color:#fde68a;background:rgba(250,204,21,.07);border:1px solid rgba(250,204,21,.22);}
+.lct-carta.grande{flex-direction:column;}
+.lct-carta.grande .lct-img{flex:none;width:min(100%,300px);align-self:center;cursor:zoom-out;}
+.lct-attesa{padding:18px 8px;text-align:center;color:#94a3b8;font-size:12px;}
 .dpt-hr b{display:block;font-size:11.5px;letter-spacing:.4px;color:#e2e8f0;margin-bottom:3px;}
 .dpt-hr .d{display:block;font-size:11px;line-height:1.45;color:#94a3b8;}
 .dpt-val{float:right;margin-left:8px;font-size:10px;font-weight:800;color:#fde68a;background:rgba(250,204,21,.12);border:1px solid rgba(250,204,21,.3);border-radius:99px;padding:2px 7px;}
@@ -58648,6 +58669,7 @@ function rtdShowLobby(keepOv){
   if(RTD.game==='uomonero')h+=unrTutBtn();
   if(RTD.game==='burraco')h+=burTutBtn();   // 🂡 il pannello sta SOTTO le righe di `g.rules`: quelle si leggono PRIMA di pagare, questo e' il tasto che le allarga
   if(RTD.game==='lupus')h+=lupTutBtn();     // 🐺 stesso posto, stesso modello (schede a tab)
+  if(RTD.game==='lastcall')h+=lctBtn();    // 🍸 COME SI GIOCA con tutte le carte (14/09)
   // ── I DUE MAZZI DI UNO (24/08/2026) ──────────────────────────────────────
   // Stesso schema del biliardo qui sopra, e per la stessa ragione: sono due
   // giochi veri (chiavi `uno` e `unoc`, due motori, due tornei) con una
@@ -58896,6 +58918,13 @@ function rtdShowSearch(){
     try{
       if(!localStorage.getItem('lup_tut_visto')){lupTutOpen('r');}
     }catch(_lt){}
+  }
+  // 🍸 LAST CALL: identico a Lupus; si chiude da solo allo start (rtdShowLastcallRT chiama rtdOvClose)
+  if(RTD.game==='lastcall'){
+    el.insertAdjacentHTML('beforeend',lctBtn());
+    try{
+      if(!localStorage.getItem('lc_tut_visto')){lctOpen('r');}
+    }catch(_lct){}
   }
   if(!RTD.searchTick){
     RTD.searchTick=setInterval(function(){
@@ -59693,6 +59722,108 @@ function lupTutBtn(){
 }
 window.lupTutBtn=lupTutBtn;window.lupTutOpen=lupTutOpen;
 
+// ══ 🍸 LAST CALL — COME SI GIOCA (14/09/2026) ══════════════════════════════
+// Richiesta del proprietario: «nelle istruzioni prima del gioco vanno viste
+// tutte le carte e spiegate per bene ciascuna». Stesso modello a schede di
+// Lupus. I TESTI NON STANNO QUI: lastcall/istruzioni.js (LC_ISTR) e' la fonte
+// unica, la stessa del pannello dentro il tavolo, controllata sul motore del
+// server. Si scarica solo quando si apre il pannello, con la ?v= del tavolo.
+// ⚠️ Stringhe JS: niente apostrofi dritti dentro i testi.
+var LCT_TUT={tab:"r"};
+var LCT_COL={buttafuori:"#efe6d4",bancarotta:"#f6f3e9",mazzetta:"#41c274",non_vale:"#e8382c",si_chiude:"#e9c274",
+  tok_colosseo:"#e8bb5c",tok_ring:"#ef8a3f",tok_bandiera:"#5fb0ef",tok_citta:"#e083bd",tok_caveau:"#a8bccf",jolly:"#f4f1e6"};
+var LCT_FAMCOL={comando:"#e9c274",turno:"#e9ad42",mazzo:"#8fbce6",persone:"#c294ea",gettoni:"#e9c274"};
+function lctEn(){return window.GB_LANG==="en";}
+function lctV(){return (typeof LCRT_VER!=="undefined")?LCRT_VER:"1";}
+function lctCarica(){
+  if(window.LC_ISTR||window.__lctInVolo)return;
+  window.__lctInVolo=1;
+  var fine=function(ok){
+    window.__lctInVolo=0;
+    if(!ok)window.__lctRotto=1;
+    var mo=document.getElementById("arc-modal");
+    if(mo&&mo.querySelector(".lct-attesa"))mo.innerHTML=lctHTML();
+  };
+  var sc=document.createElement("script");
+  sc.src="lastcall/istruzioni.js?v="+lctV();
+  sc.onload=function(){fine(!!window.LC_ISTR);};
+  sc.onerror=function(){fine(false);};
+  document.head.appendChild(sc);
+}
+function lctTabBtn(k,et){
+  return '<button class="dpt-tab'+(LCT_TUT.tab===k?" sel":"")+'" onclick="lctTab(&quot;'+k+'&quot;)">'+et+'</button>';
+}
+function lctRighe(lista){
+  var h="";
+  for(var i=0;i<lista.length;i++)h+=lupTutRow(lista[i][0],lista[i][1],lista[i][2]);
+  return h;
+}
+function lctAttesa(){
+  var en=lctEn();
+  if(window.__lctRotto){
+    // la rete ha perso il file: mai un pannello vuoto, restano le righe corte della lobby
+    var r=(typeof RTD_G!=="undefined"&&RTD_G.lastcall&&RTD_G.lastcall.rules)||[];
+    return '<div class="dpt-note">'+(en?"The full guide did not load. Here is the short version:":"La guida completa non si è caricata. Ecco la versione corta:")+'</div>'+lctRighe(r);
+  }
+  lctCarica();
+  return '<div class="lct-attesa">'+(en?"Loading the cards…":"Carico le carte…")+'</div>';
+}
+function lctCarte(){
+  var I=window.LC_ISTR,en=lctEn(),h="",f,c,i,j,t,col;
+  h+='<div class="dpt-note">'+(en
+    ?"All 29 cards of LAST CALL, explained one by one. The deck changes with the number of players, so not every card shows up in every game. Tap a picture to enlarge it."
+    :"Tutte le 29 carte di LAST CALL, spiegate una per una. Il mazzo cambia col numero di giocatori, quindi non tutte escono in ogni partita. Tocca un’illustrazione per ingrandirla.")+'</div>';
+  for(i=0;i<I.fam.length;i++){
+    f=I.fam[i];
+    h+='<div class="lct-fam" style="--lcc:'+(LCT_FAMCOL[f.k]||"#e9c274")+'"><b>'+(en?f.en:f.it)+'</b><span>'+(en?f.sen:f.sit)+'</span></div><div class="lct-carte">';
+    for(j=0;j<I.carte.length;j++){
+      c=I.carte[j];
+      if(c.f!==f.k)continue;
+      t=en?c.en:c.it;
+      col=LCT_COL[c.id]||LCT_FAMCOL[c.f]||"#e9c274";
+      h+='<div class="lct-carta" data-lc="'+c.id+'" style="--lcc:'+col+'">'
+        +'<div class="lct-img" onclick="this.parentNode.classList.toggle(&quot;grande&quot;)"><i>🂠</i>'
+        +'<img src="lastcall/'+c.id+'.webp?v='+lctV()+'" alt="" loading="lazy" onerror="this.style.display=&quot;none&quot;"></div>'
+        +'<div class="lct-tx"><b class="lct-n">'+t.n+'</b><span class="lct-q">'+t.q+'</span>'
+        +'<span class="lct-x">'+t.x+'</span>'
+        +(t.o?'<span class="lct-o">💡 '+t.o+'</span>':'')
+        +'</div></div>';
+    }
+    h+='</div>';
+  }
+  return h;
+}
+function lctHTML(){
+  var t=LCT_TUT.tab,en=lctEn(),I=window.LC_ISTR,corpo,avanti;
+  if(!I)corpo=lctAttesa();
+  else if(t==="c")corpo=lctCarte();
+  else if(t==="f")corpo=lctRighe(en?I.soldi.en:I.soldi.it);
+  else corpo=lctRighe(en?I.partita.en:I.partita.it);
+  avanti=(t==="r"&&I);
+  return '<div class="dpt-hd lct-hd">🍸 LAST CALL — '+(en?"HOW TO PLAY":"COME SI GIOCA")+'</div>'
+    +'<div class="dpt-tabs">'
+    +lctTabBtn("r",en?"📜 THE GAME":"📜 LA PARTITA")
+    +lctTabBtn("c",en?"🃏 THE CARDS":"🃏 LE CARTE")
+    +lctTabBtn("f",en?"💰 MONEY":"💰 SOLDI E TORNEI")
+    +'</div>'
+    +corpo
+    +'<button class="action-btn" style="width:100%;margin-top:12px;" onclick="'+(avanti?'lctTab(&quot;c&quot;)':'lctChiudi()')+'">'
+    +(avanti?(en?"🃏 NOW THE CARDS":"🃏 ORA LE CARTE"):(en?"▶️ GOT IT":"▶️ HO CAPITO"))+'</button>';
+}
+/* la tacca si spende quando il giocatore chiude di sua mano, come Lupus */
+function lctChiudi(){try{localStorage.setItem("lc_tut_visto","1")}catch(e){}rtdOvClose()}
+function lctTab(k){
+  LCT_TUT.tab=(k==="c"||k==="f")?k:"r";
+  var mo=document.getElementById("arc-modal");
+  if(mo){mo.innerHTML=lctHTML();mo.scrollTop=0;}
+  try{tg.HapticFeedback&&tg.HapticFeedback.selectionChanged();}catch(e){}
+}
+function lctOpen(k){LCT_TUT.tab=(k==="c"||k==="f")?k:"r";lctCarica();rtdOv(lctHTML(),true);}
+function lctBtn(){
+  return '<button class="action-btn" style="width:100%;margin:8px 0 2px;background:linear-gradient(135deg,#2a2210,#140f06);border:1px solid rgba(243,210,138,.55);color:#f3d28a;" onclick="lctOpen()">🍸 '+(lctEn()?"HOW TO PLAY · ALL THE CARDS":"COME SI GIOCA · TUTTE LE CARTE")+'</button>';
+}
+window.lctBtn=lctBtn;window.lctOpen=lctOpen;
+
 // ══ 🍸 LAST CALL — IL GUSCIO DELL IFRAME (14/09/2026, costruttore INDEX) ═══
 //
 // Il piano vincolante e' _levelup/lastcall_bot/10_PIANO.md (§7.5 il contratto
@@ -59718,7 +59849,7 @@ window.lupTutBtn=lupTutBtn;window.lupTutOpen=lupTutOpen;
 var LCRT={wrap:null,fr:null,pronto:false,coda:[],aperto:false,nascosto:false,firma:"",start:null,fineScena:false,loads:0,codaPiena:false,tgEv:false};
 // ⚠️ `v=` NUOVO A OGNI md5 NUOVO DI lastcall.html (la riga la stampa
 //    _lc_monta.py): index.html e lastcall.html vanno su Pages INSIEME.
-var LCRT_VER="20260914b";
+var LCRT_VER="202609143e2a";
 function lcrtUrl(){return "lastcall.html?guscio=1&v="+LCRT_VER+"&lang="+((window.GB_LANG==="en")?"en":"it");}
 var LCRT_URL=lcrtUrl();
 var LCRT_ORIGIN=location.origin;

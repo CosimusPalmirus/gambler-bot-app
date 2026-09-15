@@ -219,6 +219,38 @@
   #regoleTesto .k{display:inline-block;background:#0008;border:1px solid #ffffff22;
     border-radius:5px;padding:0 5px;font-size:11px}
   #bChiudiRegole{margin-top:12px;width:100%}
+  /* 14/09 · la foto del profilo nel pannello CHI */
+  .scelta.conFoto{display:flex;align-items:center;gap:10px;text-align:left}
+  .tondo{position:relative;flex:none;width:34px;height:34px;border-radius:50%;overflow:hidden;display:inline-flex;
+    align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:16px;line-height:1;
+    box-shadow:0 0 0 2px #0a0806,0 0 0 3px #f3d28abb}
+  .tondo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+  body.largo .tondo{width:calc(var(--fs) * 2.6);height:calc(var(--fs) * 2.6);font-size:calc(var(--fs) * 1.2)}
+  /* 14/09 · il pannello con tutte le carte (lastcall/istruzioni.js) */
+  #regoleScatola{display:flex;flex-direction:column;overflow:hidden;max-width:min(94vw,760px);max-height:92vh}
+  #regoleTesto{overflow:auto;flex:1 1 auto;min-height:0;-webkit-overflow-scrolling:touch;padding-right:4px}
+  #regoleSchede{display:flex;gap:6px;margin:0 0 10px;flex:none}
+  #regoleSchede button{flex:1 1 0;min-width:0;background:#0006;color:inherit;border:1px solid #ffffff2a;border-radius:9px;
+    padding:.55em .3em;font:inherit;font-size:12px;font-weight:800;letter-spacing:.05em;cursor:pointer;white-space:nowrap}
+  #regoleSchede button.on{background:var(--oro);color:#16110a;border-color:var(--oro)}
+  .rgRiga{display:flex;gap:10px;margin:0 0 12px}
+  .rgRiga .rgIc{flex:none;width:28px;text-align:center;font-size:20px;line-height:1.25}
+  .rgRiga b{display:block;color:var(--oro);font-size:12.5px;letter-spacing:.08em}
+  .rgRiga p{margin:2px 0 0;font-size:13px;line-height:1.55}
+  .rgFam{margin:6px 0 4px;padding-top:10px;border-top:1px solid #ffffff22}
+  .rgFam:first-child{border-top:0;padding-top:0}
+  .rgFam h4{margin:0;color:var(--oro);font-size:13px;letter-spacing:.12em}
+  .rgFam p{margin:2px 0 0;font-size:12px;opacity:.72}
+  .rgCarta{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid #ffffff12}
+  .rgCarta canvas{flex:none;border-radius:7px;box-shadow:0 6px 16px #000b}
+  .rgTesto{min-width:0}
+  .rgTesto b{display:block;color:var(--oro);font-size:14px;letter-spacing:.04em}
+  .rgQ{display:inline-block;margin:4px 0 6px;font-size:10.5px;font-weight:700;letter-spacing:.05em;line-height:1.35;
+    background:#0008;border:1px solid #ffffff26;border-radius:5px;padding:2px 6px}
+  .rgTesto p{margin:0 0 6px;font-size:13px;line-height:1.5}
+  .rgTesto p.rgO{background:#d8b25a17;border-left:3px solid var(--oro);padding:5px 8px;border-radius:0 6px 6px 0;font-size:12.5px}
+  .rgVai{width:100%;margin:4px 0 2px}
+  @media (min-width:700px){ .rgGriglia{display:grid;grid-template-columns:1fr 1fr;column-gap:20px} #regoleSchede button{font-size:13px} }
   #aiuto{pointer-events:auto;margin-left:auto;background:none;border:1px solid #ffffff33;color:inherit;flex:none;
     border-radius:99px;padding:.25em .75em;font-size:.88em;cursor:pointer}
 
@@ -2220,6 +2252,10 @@ var LC_EN = {
   "intanto tocca le tue carte per leggerle": "meanwhile tap your cards to read them",
   "COME SI GIOCA": "HOW TO PLAY",
   "ho capito": "got it",
+  "LA PARTITA": "THE GAME",
+  "LE CARTE": "THE CARDS",
+  "POSTE": "STAKES",
+  "VEDI TUTTE LE CARTE": "SEE EVERY CARD",
   "prima finisci la scelta": "finish your choice first",
   "adesso tocca a __NOME1__": "it is __NOME1__’s turn now",
   "sei al buio: le tue carte non le vedi": "you are in the dark: you cannot see your cards",
@@ -2540,6 +2576,7 @@ function lcAvvolgiTela(c) {
 function lcTraduciNodo(n) {
   if (!n) return;
   if (n.nodeType === 3) {
+    if (n.parentElement && n.parentElement.closest && n.parentElement.closest("[data-lcgia]")) return;
     var s = n.data, t = s.replace(/^\s+|\s+$/g, "");
     if (!t) return;
     var r = lcTSeServe(t);
@@ -2547,6 +2584,8 @@ function lcTraduciNodo(n) {
     return;
   }
   if (n.nodeType !== 1 || n.tagName === "SCRIPT" || n.tagName === "STYLE") return;
+  /* 14/09 · il pannello COME SI GIOCA arriva gia' in inglese (lastcall/istruzioni.js) */
+  if (n.closest && n.closest("[data-lcgia]")) return;
   for (var c = n.firstChild; c; c = c.nextSibling) lcTraduciNodo(c);
 }
 function lcOsservaDom() {
@@ -7883,6 +7922,69 @@ function rispondi(a, ax, ay) {
   return true;
 }
 
+/* ⭐ 14/09 · LE FOTO DEL PROFILO. Lo `start` del server porta `profiles`
+   {uid: {name, photo_url}} e `map.seggi` [{sg, uid}]: il posto della pagina
+   torna seggio con LCN.rs, il seggio torna uid. Se il client non ha mandato la
+   foto, il server mette la nostra copia (/foto/<uid>.jpg, CORS pulito). I bot
+   non hanno foto. L'immagine si carica con crossOrigin anonimo: la tela non si
+   contamina, e se il server non da' il CORS l'immagine va in errore e resta
+   l'iniziale. */
+var RITRATTI = {};
+function uidDiPosto(posto) {
+  var st = LCN.start, seggi = (st && st.map && st.map.seggi) || [], sg = LCN.rs(posto), k;
+  for (k = 0; k < seggi.length; k++) if (seggi[k] && seggi[k].sg === sg) return String(seggi[k].uid);
+  return "";
+}
+function fotoDiPosto(posto) {
+  var st = LCN.start, uid = uidDiPosto(posto);
+  if (!st || !uid || uid.indexOf("bot:") === 0) return "";
+  var pr = st.profiles && st.profiles[uid], u = (pr && pr.photo_url) ? String(pr.photo_url) : "";
+  return /^https?:\/\//.test(u) ? u : "";
+}
+function ritratto(u) {
+  if (!u) return null;
+  var r = RITRATTI[u];
+  if (!r) {
+    r = RITRATTI[u] = { stato: "carica", img: new Image() };
+    r.img.crossOrigin = "anonymous";
+    r.img.onload = function () { r.stato = r.img.naturalWidth > 0 ? "ok" : "no"; };
+    r.img.onerror = function () { r.stato = "no"; };
+    try { r.img.src = u; } catch (e) { r.stato = "no"; }
+  }
+  return r;
+}
+function ritrattoImg(posto) {
+  var r = ritratto(fotoDiPosto(posto));
+  return (r && r.stato === "ok") ? r.img : null;
+}
+/* il tondo nel pannello CHI: iniziale sotto, foto sopra solo quando e' arrivata */
+function tondoGiocatore(posto) {
+  var g = G.giocatori[posto], s = document.createElement("span"), u = fotoDiPosto(posto);
+  s.className = "tondo";
+  s.setAttribute("data-lcgia", "1");
+  s.style.background = coloreDiNome(g ? g.nome : "");
+  s.textContent = inizialeDi(g ? g.nome : "");
+  if (u) {
+    var r = ritratto(u);
+    if (r && r.stato !== "no") {
+      var im = document.createElement("img");
+      im.alt = "";
+      im.crossOrigin = "anonymous";
+      if (r.stato !== "ok") im.style.visibility = "hidden";
+      im.onload = function () { im.style.visibility = ""; };
+      im.onerror = function () { if (im.parentNode) im.parentNode.removeChild(im); };
+      im.src = u;
+      s.appendChild(im);
+    }
+  }
+  return s;
+}
+function bottoneGiocatore(posto, testo, fn) {
+  var b = bottone(testo, fn);
+  b.classList.add("conFoto");
+  b.insertBefore(tondoGiocatore(posto), b.firstChild);
+  return b;
+}
 function rigaGiocatore(id) {
   var g = G.giocatori[id];
   return g.nome + " · " + g.mano.length + " carte" + (g.conto != null ? " · conto" : "");
@@ -7894,7 +7996,7 @@ function chiediBersaglioGioca(carta) {
   var v = bersagliValidi(carta), i;
   for (i = 0; i < v.length; i++)
     (function (id) {
-      bottone(rigaGiocatore(id), function () { chiudiScelta(); ioGioco(carta, id); });
+      bottoneGiocatore(id, rigaGiocatore(id), function () { chiudiScelta(); ioGioco(carta, id); });
     })(v[i]);
   if (!v.length) bottone("nessuno la puo’ ricevere", function () { chiudiScelta(); lcSuona("no"); });
 }
@@ -7906,7 +8008,7 @@ function chiediBersaglio(att) {
   for (i = 0; i < v.length; i++)
     (function (id) {
       if (!G.giocatori[id]) return;
-      bottone(rigaGiocatore(id), function () { rispondi("bersaglio", LCN.rs(id), null); });
+      bottoneGiocatore(id, rigaGiocatore(id), function () { rispondi("bersaglio", LCN.rs(id), null); });
     })(LCN.rl(v[i]));
   if (!v.length) bottone("nessuno la puo’ ricevere · va persa", function () { chiudiScelta(); });
 }
@@ -7995,7 +8097,7 @@ function provaCombinazione() {
   var v = lcVivi(G);
   for (i = 0; i < v.length; i++)
     if (v[i].id !== IO && v[i].mano.length) (function (id) {
-      bottone(G.giocatori[id].nome + " · " + G.giocatori[id].mano.length + " carte", function () {
+      bottoneGiocatore(id, G.giocatori[id].nome + " · " + G.giocatori[id].mano.length + " carte", function () {
         chiudiScelta();
         var ind = selezione.slice();
         if (LCN.manda("combina", ind, LCN.rs(id))) selezione = [];
@@ -8362,10 +8464,46 @@ function geometriaRiga() {
   var L = LAY, n = G ? G.mazzo.length : 0, testoM = (!L.largo && mioTurno() ? 'PESCA · MAZZO  ' : 'MAZZO  ') + n;
   var wM = misuraTesto(testoM, L.fsTarga) + L.fsTarga * 1.4;
   var r = limita(L.Wbb * 0.13, 14, 30), gap = 8;
+  /* ⛔ 14/09 · il proprietario: «invece dell'icona con le bombe, un'icona con
+     TRE BUTTAFUORI accanto al mazzo». Le tre sagome stanno a SINISTRA del
+     bollo col numero: la targa MAZZO resta dov'era. */
+  var hI = r * 1.9, wI = Math.round(hI * 1.45), gI = Math.round(r * 0.3);
   var gruppo = r * 2 + gap + wM;
-  var x0 = Math.max(8, L.xMazzo - gruppo / 2);
-  var etich = L.largo && x0 - 8 - misuraTesto('BUTTAFUORI', Math.max(12, Math.round(r * 0.5))) > 8;
-  return { r: r, bx: x0 + r, by: L.rigaY, mx: x0 + r * 2 + gap + wM / 2, wM: wM, testoM: testoM, etich: etich };
+  var x0 = Math.max(8 + wI + gI, L.xMazzo - gruppo / 2);
+  var fe = Math.max(12, Math.round(r * 0.5)), wE = misuraTesto('BUTTAFUORI', fe) + 7;
+  var etich = L.largo && x0 - wI - gI - 8 - wE > 8;
+  return { r: r, bx: x0 + r, by: L.rigaY, mx: x0 + r * 2 + gap + wM / 2, wM: wM, testoM: testoM, etich: etich,
+           ix: x0 - gI - wI / 2, wI: wI, hI: hI, xSx: x0 - gI - wI - (etich ? wE : 0) };
+}
+/* UNA SAGOMA DI BUTTAFUORI (testa tonda, spalle larghe): i piedi a `piedi`,
+   alta `H`. Stesso disegno dell'icona ic/buttafuori.png. */
+function sagomaButtafuori(cx, piedi, H, colore, bordo) {
+  function forma() {
+    ctx.beginPath();
+    ctx.moveTo(cx - 0.33 * H, piedi);
+    ctx.lineTo(cx - 0.29 * H, piedi - 0.52 * H);
+    ctx.lineTo(cx - 0.13 * H, piedi - 0.61 * H);
+    ctx.lineTo(cx + 0.13 * H, piedi - 0.61 * H);
+    ctx.lineTo(cx + 0.29 * H, piedi - 0.52 * H);
+    ctx.lineTo(cx + 0.33 * H, piedi);
+    ctx.closePath();
+    ctx.moveTo(cx + 0.18 * H, piedi - 0.82 * H);
+    ctx.arc(cx, piedi - 0.82 * H, 0.18 * H, 0, Math.PI * 2);
+  }
+  ctx.save();
+  ctx.lineJoin = 'round';
+  forma(); ctx.lineWidth = Math.max(2.5, H * 0.1); ctx.strokeStyle = bordo; ctx.stroke();
+  forma(); ctx.fillStyle = colore; ctx.fill();
+  ctx.restore();
+}
+function iconaButtafuori(gr, pulsa) {
+  var H = gr.hI, piedi = gr.by + H * 0.5, dx = gr.wI * 0.3;
+  ctx.save();
+  if (pulsa > 0) { ctx.shadowColor = '#ff3a2a'; ctx.shadowBlur = pulsa * 26; }
+  sagomaButtafuori(gr.ix - dx, piedi - H * 0.04, H * 0.8, '#c9b3ad', '#140404');
+  sagomaButtafuori(gr.ix + dx, piedi - H * 0.04, H * 0.8, '#c9b3ad', '#140404');
+  sagomaButtafuori(gr.ix, piedi, H, '#ffd9d2', '#140404');
+  ctx.restore();
 }
 function disegnaRiga() {
   if (!G) return;
@@ -8393,26 +8531,23 @@ function disegnaRiga() {
   ctx.fillStyle = '#ffd9d2'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = '900 ' + Math.round(r * 1.05) + 'px system-ui,sans-serif';
   ctx.fillText(String(bombe), 0, r * 0.06);
-  if (!gr.etich) {
-    /* sul telefono non c'e' posto per la parola: un'icona sul bordo del bollo */
-    ctx.font = Math.round(Math.max(11, r * 0.75)) + 'px "Segoe UI Emoji","Apple Color Emoji",sans-serif';
-    ctx.fillText('💣', r * 0.78, -r * 0.72);
-  }
   ctx.restore();
+  /* le tre sagome, su telefono e PC; sul PC anche la parola, a sinistra */
+  iconaButtafuori(gr, pulsa);
   if (gr.etich) {
     var fe = Math.max(12, Math.round(r * 0.5));
     ctx.save();
     ctx.font = '800 ' + fe + 'px system-ui,sans-serif';
     ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
     ctx.lineWidth = 3; ctx.strokeStyle = '#000'; ctx.fillStyle = '#ff8a7a';
-    ctx.strokeText('BUTTAFUORI', gr.bx - r - 7, gr.by + 1); ctx.fillText('BUTTAFUORI', gr.bx - r - 7, gr.by + 1);
+    ctx.strokeText('BUTTAFUORI', gr.ix - gr.wI / 2 - 7, gr.by + 1); ctx.fillText('BUTTAFUORI', gr.ix - gr.wI / 2 - 7, gr.by + 1);
     ctx.restore();
   }
   if (pulsa > 0) {
     ctx.save(); ctx.globalAlpha = pulsa; ctx.strokeStyle = '#ff5a4a'; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(gr.bx, gr.by, r * (1 + (1 - pulsa) * 1.8), 0, Math.PI * 2); ctx.stroke(); ctx.restore();
   }
-  rigaTocco.push([gr.bx - r, gr.by - r, gr.bx + r, gr.by + r]);
+  rigaTocco.push([gr.ix - gr.wI / 2, gr.by - Math.max(r, gr.hI / 2), gr.bx + r, gr.by + Math.max(r, gr.hI / 2)]);
   /* le etichette dei pezzi che sporgono, per ultime */
   for (var i = 0; i < targhe.length; i++) {
     var e = targhe[i];
@@ -8522,6 +8657,53 @@ function targaAvv(i) {
   return { testo: nota, x: limita(p.X, w / 2 + 4, LARG - w / 2 - 4), y: p.targaY, w: w, h: A.plateH };
 }
 var INGOMBRI_SEGN = [];        /* giro 3 · dove stanno le segnate e i loro nomi (il diario le evita) */
+/* ⭐ 14/09 · LA FACCIA DI CHI TIENE LE CARTE. Il proprietario: «l'icona del
+   profilo di Telegram anche durante il gioco, dietro alle loro carte in mano».
+   Un tondo DIETRO il ventaglio, sul capo sinistro in alto: la foto se c'e' ed
+   e' arrivata (`ritrattoImg`, solo nel tavolo remoto), altrimenti l'iniziale
+   del nome su un colore fisso per nome. Mai un buco: finche' la foto carica,
+   o se va in errore, resta l'iniziale. Chi e' fuori non ha ventaglio e non ha
+   tondo. */
+function coloreDiNome(s) {
+  var h = 0, k;
+  s = String(s || '');
+  for (k = 0; k < s.length; k++) h = (h * 31 + s.charCodeAt(k)) >>> 0;
+  return ['#b4553d', '#3d7fb4', '#4f8f43', '#8e55a8', '#b7812a', '#2a8f86', '#a83d6c'][h % 7];
+}
+function inizialeDi(s) {
+  var t = String(s || '').replace(/^[^A-Za-z0-9\u00C0-\u024F]+/, '');
+  return t ? t.charAt(0).toUpperCase() : '?';
+}
+function tondoRitratto(i, p) {
+  var r = p.wPx * (LAY.largo ? 0.52 : 0.56);
+  return { x: Math.max(r + 3, p.X - p.wPx * 0.98), y: p.cy - (p.bot - p.top) * 0.14, r: r };
+}
+function disegnaRitratto(i, p) {
+  var g = G.giocatori[i], t = tondoRitratto(i, p), im = null;
+  if (typeof ritrattoImg === 'function') { try { im = ritrattoImg(i); } catch (e) { im = null; } }
+  ctx.save();
+  ctx.beginPath(); ctx.arc(t.x, t.y, t.r, 0, Math.PI * 2);
+  ctx.fillStyle = coloreDiNome(g.nome); ctx.fill();
+  var messa = false;
+  if (im) {
+    ctx.save(); ctx.clip();
+    try {
+      var iw = im.naturalWidth || im.width, ih = im.naturalHeight || im.height, q = Math.min(iw, ih);
+      ctx.drawImage(im, (iw - q) / 2, (ih - q) / 2, q, q, t.x - t.r, t.y - t.r, t.r * 2, t.r * 2);
+      messa = true;
+    } catch (e) { messa = false; }
+    ctx.restore();
+  }
+  if (!messa) {
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '900 ' + Math.max(9, Math.round(t.r * 1.05)) + 'px system-ui,sans-serif';
+    ctx.fillText(inizialeDi(g.nome), t.x, t.y + t.r * 0.06);
+  }
+  ctx.beginPath(); ctx.arc(t.x, t.y, t.r, 0, Math.PI * 2);
+  ctx.lineWidth = Math.max(1.5, t.r * 0.13); ctx.strokeStyle = '#0a0806'; ctx.stroke();
+  ctx.lineWidth = Math.max(1, t.r * 0.06); ctx.strokeStyle = 'rgba(243,210,138,0.75)'; ctx.stroke();
+  ctx.restore();
+}
 function disegnaAvversari() {
   var A = avvLayout(G.n), i, o, ordine = [], nomi = [], segn = [], turno = turnoDaMostrare();
   segnateQuad.length = 0; INGOMBRI_SEGN.length = 0;
@@ -8551,6 +8733,7 @@ function disegnaAvversari() {
          sagoma di una carta distesa */
       ctx.save(); ctx.globalAlpha = 0.30; ctx.fillStyle = '#000';
       ctx.beginPath(); ctx.ellipse(c0[0], c0[1], p.wPx * 0.95, p.wPx * 0.16, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      disegnaRitratto(i, p);
       var Wd = spr(p.wPx * 1.05), img = lcDorso(Wd, Math.round(Wd * LC_RAPPORTO));
       for (var j = 0; j < quante; j++) {
         /* il ventaglio si APRE di lato piu' che ruotare: a 0,16 per carta la
@@ -9490,7 +9673,7 @@ function impaginaDom() {
   var wS = misuraTesto(ns ? "SCARTI  " + ns : "SCARTI", L.fsTarga) + L.fsTarga * 1.4;
   var xDa = gr.mx + gr.wM / 2 + 12, spazio = (L.xScarti - wS / 2 - 12) - xDa;
   if (!rc) com.style.transform = "none";
-  var xSin = gr.bx - gr.r - 10 - (gr.etich ? misuraTesto("BUTTAFUORI", Math.max(12, Math.round(gr.r * 0.5))) + 7 : 0);
+  var xSin = gr.xSx - 10;   /* 14/09 · il gruppo comincia dalle tre sagome (o dalla parola) */
   var sotto = false;
   if (rc) { /* gia' messo sotto la classifica */ }
   else if (com.offsetWidth <= spazio) { com.style.left = xDa + "px"; com.style.top = (L.rigaY - com.offsetHeight / 2) + "px"; }
@@ -9652,10 +9835,109 @@ var TESTO_REGOLE =
   "leggerla: si apre grande, e da lì la giochi col tasto <b>GIOCA</b>. " +
   "<span class=\"k\">tocca il mazzo</span> o <b>PESCA</b> per chiudere il turno.</p>";
 
-document.getElementById("regoleTesto").innerHTML = lcT(TESTO_REGOLE);
+/* ⭐ 14/09 · COME SI GIOCA CON TUTTE LE CARTE. Il proprietario: «nelle
+   istruzioni vanno viste tutte le carte e spiegate per bene ciascuna».
+   I testi stanno in lastcall/istruzioni.js (LC_ISTR), la stessa fonte del
+   pannello della lobby: tre schede, e ogni carta disegnata VERA
+   (lcDisegnaFaccia) accanto alla sua spiegazione.
+   ⚠️ Se il file non arriva resta TESTO_REGOLE: il pannello non e' mai vuoto.
+   ⚠️ I testi arrivano gia' nella lingua giusta: `data-lcgia` dice al
+      traduttore del DOM di non ripassarli. */
+var REGOLE = { scheda: "partita" };
+function regoleLg() { return (typeof LC_LANG !== "undefined" && LC_LANG === "en") ? "en" : "it"; }
+function regoleEl(tag, cls, testo) {
+  var e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (testo != null) e.textContent = testo;
+  return e;
+}
+function regoleFaccia(id, lg, W) {
+  var dpr = Math.min(2, window.devicePixelRatio || 1), H = Math.round(W * LC_RAPPORTO);
+  var c = document.createElement("canvas");
+  c.width = Math.round(W * dpr); c.height = Math.round(H * dpr);
+  c.style.width = W + "px"; c.style.height = H + "px";
+  try { lcDisegnaFaccia(c.getContext("2d"), c.width, c.height, id, lg); } catch (e) {}
+  return c;
+}
+function regoleRiempi() {
+  var I = window.LC_ISTR, box = document.getElementById("regoleTesto"), tabs = document.getElementById("regoleSchede");
+  if (!I || !I.carte || !I.partita || !I.fam) {
+    tabs.style.display = "none";
+    box.removeAttribute("data-lcgia");
+    box.innerHTML = (typeof lcT === "function") ? lcT(TESTO_REGOLE) : TESTO_REGOLE;
+    return;
+  }
+  var lg = regoleLg(), en = lg === "en", i, j;
+  tabs.style.display = "";
+  tabs.setAttribute("data-lcgia", "1");
+  box.setAttribute("data-lcgia", "1");
+  tabs.innerHTML = "";
+  var TR = (typeof lcT === "function") ? lcT : function (x) { return x; };
+  var schede = [["partita", "📜 " + TR("LA PARTITA")], ["carte", "🃏 " + TR("LE CARTE")], ["soldi", "💰 " + TR("POSTE")]];
+  for (i = 0; i < schede.length; i++)
+    (function (s) {
+      var b = regoleEl("button", REGOLE.scheda === s[0] ? "on" : "", s[1]);
+      b.onclick = function () { lcSuona("tocco"); REGOLE.scheda = s[0]; regoleRiempi(); };
+      tabs.appendChild(b);
+    })(schede[i]);
+  box.innerHTML = "";
+  if (REGOLE.scheda === "carte") {
+    var W = box.clientWidth >= 560 ? 104 : 86;
+    for (i = 0; i < I.fam.length; i++) {
+      var f = I.fam[i], fam = regoleEl("div", "rgFam"), griglia = regoleEl("div", "rgGriglia");
+      fam.appendChild(regoleEl("h4", null, en ? f.en : f.it));
+      fam.appendChild(regoleEl("p", null, en ? f.sen : f.sit));
+      box.appendChild(fam);
+      for (j = 0; j < I.carte.length; j++) {
+        var c = I.carte[j];
+        if (c.f !== f.k) continue;
+        var t = (en ? c.en : c.it) || c.it, riga = regoleEl("div", "rgCarta"), testo = regoleEl("div", "rgTesto");
+        riga.setAttribute("data-carta", c.id);
+        riga.appendChild(regoleFaccia(c.id, lg, W));
+        testo.appendChild(regoleEl("b", null, t.n));
+        testo.appendChild(regoleEl("span", "rgQ", t.q));
+        testo.appendChild(regoleEl("p", null, t.x));
+        if (t.o) testo.appendChild(regoleEl("p", "rgO", t.o));
+        riga.appendChild(testo);
+        griglia.appendChild(riga);
+      }
+      box.appendChild(griglia);
+    }
+  } else {
+    var righe = (REGOLE.scheda === "soldi" ? I.soldi : I.partita) || I.partita;
+    righe = righe[lg] || righe.it;
+    for (i = 0; i < righe.length; i++) {
+      var rr = regoleEl("div", "rgRiga"), d = regoleEl("div");
+      rr.appendChild(regoleEl("span", "rgIc", righe[i][0]));
+      d.appendChild(regoleEl("b", null, righe[i][1]));
+      d.appendChild(regoleEl("p", null, righe[i][2]));
+      rr.appendChild(d);
+      box.appendChild(rr);
+    }
+    if (REGOLE.scheda === "partita") {
+      var vai = regoleEl("button", "az rgVai", TR("VEDI TUTTE LE CARTE") + " →");
+      vai.onclick = function () { lcSuona("tocco"); REGOLE.scheda = "carte"; regoleRiempi(); };
+      box.appendChild(vai);
+    }
+  }
+  box.scrollTop = 0;
+}
+(function () {
+  var sch = regoleEl("div");
+  sch.id = "regoleSchede";
+  sch.style.display = "none";
+  var box = document.getElementById("regoleTesto");
+  box.parentNode.insertBefore(sch, box);
+  regoleRiempi();
+  var s = document.createElement("script");
+  s.src = LC_DIR + "istruzioni.js" + ((typeof lcArteV === "function") ? lcArteV() : "");
+  s.onload = function () { regoleRiempi(); };
+  document.head.appendChild(s);
+})();
 document.getElementById("aiuto").onclick = function () {
   lcSuonoSveglia(); lcSuona("tocco");
   document.getElementById("regole").classList.add("on");
+  regoleRiempi();
 };
 document.getElementById("bChiudiRegole").onclick = function () {
   lcSuona("tocco");
