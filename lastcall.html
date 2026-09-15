@@ -2108,6 +2108,16 @@ var LC_EN = {
   "AL BUIO": "IN THE DARK",
   "RUBA __CARTA1__!": "STEALS __CARTA1__!",
   "LA PRENDI TU": "YOU TAKE IT",
+  "RUBATA A __NOME1__": "STOLEN FROM __NOME1__",
+  "TI RUBA: __CARTA1__": "STOLEN: __CARTA1__",
+  "DAL CONTO DI __NOME1__": "FROM __NOME1__’S TAB",
+  "VA A __NOME1__": "GOES TO __NOME1__",
+  "la tua pescata va a __NOME1__": "your draw goes to __NOME1__",
+  "TU rubi a __NOME1__": "YOU steal from __NOME1__",
+  "__NOME1__ ti ruba una carta": "__NOME1__ steals a card from YOU",
+  "__NOME1__ ruba a __NOME2__": "__NOME1__ steals from __NOME2__",
+  "guardando la mano": "picking from the hand",
+  "alla cieca": "blind",
   "TI PRENDE": "TAKES YOURS",
   "SEI FUORI": "YOU ARE OUT",
   "__NOME1__ È FUORI": "__NOME1__ IS OUT",
@@ -2147,6 +2157,7 @@ var LC_EN = {
   "a TE spengono la luce": "the lights go out on YOU",
   "a __NOME1__ spengono la luce": "the lights go out on __NOME1__",
   "TU guardi le prime tre": "YOU look at the top three",
+  "tocca per chiudere": "tap to close",
   "__NOME1__ guarda le prime tre": "__NOME1__ looks at the top three",
   "e le vede anche TU": "and YOU see them too",
   "e le vede anche __NOME1__": "and __NOME1__ sees them too",
@@ -4479,6 +4490,12 @@ function lcRegia(P) {
     R.palco = null; R.fisso = null; R.segni = {}; R._nasc = {}; R.turnoVisto = null; R._righeFinale = 0;
   };
 
+  /* il tocco che chiude un momento fermo (`tieni`): true se c'era da lasciare */
+  R.lascia = function () {
+    if (R.attivo && R.attivo.tieni && !R.attivo.lasciato) { R.attivo.toccato = true; return true; }
+    return false;
+  };
+
   R.eco = function (dur, disegna) {
     R.echi.push({ t0: R._ora || P.ora(), dur: dur, disegna: disegna });
   };
@@ -5272,11 +5289,81 @@ function lcRegia(P) {
      coperta al loro posto. Col CONTO APERTO vola a chi aveva il conto, e un
      filo d'oro lo dice.
      ══════════════════════════════════════════════════════════════════════ */
+  /* ⭐ 15/09 · IL CONTO APERTO: la carta che uno pesca prende un'altra strada.
+     Sale dal mazzo verso chi pesca (dorso), e a meta' strada devia verso chi
+     aveva il conto. Se il conto e' TUO la carta vola a te girandosi, entra
+     nella mano e porta il cartellino «DAL CONTO DI …»; se peschi TU e il conto
+     e' di un altro, sale verso di te, si ferma col cartellino «VA A …» e se ne
+     va coperta (la faccia la vede solo chi la riceve). */
+  function pescaColConto(chi, dest, id, daFondo) {
+    var ioRicevo = mio(dest) && id, ioPesco = mio(chi);
+    var dur = ioRicevo ? 2700 : (ioPesco ? 2000 : 1500);
+    var domanda = { evita: [] };
+    R.metti({
+      dur: dur,
+      inizio: function () { suona('pesca'); },
+      disegna: function (t, ms) {
+        var c3 = cimaMazzo3(daFondo), ev = [];
+        if (ioRicevo) {
+          var slot = P.slotMano ? P.slotMano(-1) : { x: L() / 2, y: A() * 0.8, h: hMano(), rot: 0 };
+          var verso = vola3(c3, staccata3(chi), 0.55, 0, eio);
+          var su = fetta(ms, 0, 520), vola2 = fetta(ms, 560, 1500);
+          freccia(posto(chi), posto(dest), fetta(ms, 350, 800) * (1 - fetta(ms, 1500, 1800)), '#d8b25a', 3, [8, 7]);
+          if (ms < 560) { var l1 = []; metti3(l1, null, vola3(c3, verso, su, 0.18, eio), false, true); posa3(l1); ev.push(rett3(verso)); }
+          else if (ms < 1500) {
+            var giro = eio(fetta(ms, 700, 1150)), s0 = comeCarta(schermo(verso));
+            var p2 = vola(s0, slot, vola2, 60, eio);
+            carta(id, p2.x, p2.y, p2.h, p2.rot, giro, 1);
+            ev.push([p2.x - p2.h / 3, p2.y - p2.h / 2, p2.x + p2.h / 3, p2.y + p2.h / 2]);
+          } else {
+            var tb = fetta(ms, 1500, dur - 80);
+            carta(id, slot.x, slot.y, slot.h, slot.rot, 1, 1, false);
+            contorno(slot.x, slot.y, slot.h, slot.rot, '#f3d28a', (1 - fetta(tb, 0.75, 1)) * (0.65 + 0.35 * Math.sin((ms - 1500) / 140)));
+            cartellino('DAL CONTO DI ' + nome(chi).toUpperCase(), slot.x, slot.y, slot.h, '#f3d28a', tb);
+          }
+          ev.push([slot.x - slot.h * 0.45, slot.y - slot.h * 0.66, slot.x + slot.h * 0.45, slot.y - slot.h * 0.42]);
+          domanda.evita = ev;
+          striscione('COL CONTO APERTO', P.nomeCarta(id), domanda, fetta(ms, 500, dur));
+        } else if (ioPesco) {
+          /* si ferma in piedi SOPRA il mazzo da cui e' nata (al centro dello
+             schermo copriva PESCA e la didascalia) */
+          var sm = schermo(sopra3(c3, 0.3)), hF = Math.min(hMano() * 0.75, A() * 0.18), zt = P.zone ? P.zone() : null;
+          var ferma = { x: Math.max(hF * 0.4 + 6, sm.x), y: Math.max(hF * 0.75, sm.y - hF * 0.2), h: hF, rot: 0 };
+          /* sotto la fila degli avversari, cartellino compreso */
+          if (zt) ferma.y = Math.max(ferma.y, zt.avvBot + hF * 0.5 + hF * 0.28 + 8);
+          var sale = fetta(ms, 0, 650), va = fetta(ms, 1100, 1900);
+          if (va <= 0) {
+            if (sale > 0) decolla(null, sale, c3, sopra3(c3, 0.5), ferma, 0, 0.35, 30);
+            if (sale >= 1) {
+              carta(null, ferma.x, ferma.y + Math.sin(ms / 110) * 2, ferma.h, 0, 0, 1);
+              cartellino('VA A ' + nome(dest).toUpperCase(), ferma.x, ferma.y, ferma.h, '#f3d28a', fetta(ms, 650, 1250));
+            }
+            freccia(posto(chi), posto(dest), fetta(ms, 650, 1050), '#d8b25a', 3, [8, 7]);
+          } else atterra(null, va, ferma, staccata3(dest), manoDi3(dest), 0, 0.6, 40);
+          etichettaPosto(dest, '+1 · conto', fetta(ms, 1600, dur));
+          ev.push([ferma.x - ferma.h / 3, ferma.y - ferma.h / 2, ferma.x + ferma.h / 3, ferma.y + ferma.h / 2]);
+          domanda.evita = ev;
+          striscione('COL CONTO APERTO', 'la tua pescata va a ' + nome(dest), domanda, fetta(ms, 300, dur));
+        } else {
+          var u = fetta(ms, 0, 1250), l3 = [], vicino = vola3(c3, staccata3(chi), 0.7, 0, eio), pose;
+          if (u < 0.45) pose = vola3(c3, vicino, u / 0.45, 0.2, eio);
+          else pose = vola3(vicino, manoDi3(dest), (u - 0.45) / 0.55, 0.12, eio);
+          if (u < 1) { metti3(l3, null, pose, false, true); posa3(l3); }
+          freccia(posto(chi), posto(dest), fetta(ms, 300, 800), '#d8b25a', 3, [8, 7]);
+          if (ms > 500) etichettaPosto(dest, '+1 · conto', fetta(ms, 500, dur));
+        }
+        domanda.evita = ev;
+      },
+      fine: function () { R.mostra(dest); }
+    });
+  }
+
   R.pesca = function (chi, dest, id, opt) {
     opt = opt || {};
     if (dest == null) dest = chi;
     R.nascondi(dest);
     var daFondo = !!opt.fondo;
+    if (dest !== chi) return pescaColConto(chi, dest, id, daFondo);
     if (mio(dest)) {
       var dur = 1500;
       R.metti({
@@ -5506,23 +5593,48 @@ function lcRegia(P) {
   /* `corpo(t, ms, ev)`: in `ev` il corpo mette i rettangoli dove succede la sua
      cosa (le pose d'ARRIVO, non quelle del fotogramma: la didascalia sceglie
      il posto una volta sola e non deve inseguire un volo) */
+  /* ⛔ 15/09 · `opzioni.tieni` = {a, max}: arrivato al millisecondo `a` il
+     momento SI FERMA (il suo orologio non avanza) finche' il giocatore non tocca
+     lo schermo (R.lascia) o finche' non passano `max` ms. Nato per SBIRCIA: il
+     proprietario, «la carta sbircia non ti da il tempo di sbirciare» (le tre
+     restavano ferme 1,5 s). Il tetto esiste perche' il turno ha il suo orologio
+     sul server: fermo per sempre, il tempo del turno scadrebbe guardando. */
   function momentoEffetto(dur, didascalia, corpo, fine, suono, opzioni) {
     opzioni = opzioni || {};
     var domanda = { evita: [] };
-    R.metti({
+    var mom = {
       dur: dur, velaMazzo: !!opzioni.velaMazzo, velaMonete: !!opzioni.velaMonete, cartaVia: opzioni.cartaVia,
+      tieni: opzioni.tieni || null, tenuto: false, lasciato: false, toccato: false, tieniDal: null,
       inizio: function () { if (suono) suona(suono); },
       disegna: function (t, ms) {
+        var tn = mom.tieni;
+        if (tn && !mom.lasciato && ms >= tn.a) {
+          var ora = R._ora || 0;
+          if (mom.tieniDal == null) mom.tieniDal = ora;
+          /* ⛔ 15/09 · il tetto e' in ms VERI (e' l'orologio del turno sul
+             server): moltiplicato per R.velocita, con la fretta a 3x i 12 s
+             diventavano 4 (misurato dal banco del tavolo, P-SBIRCIA) */
+          if (mom.toccato || (ora - mom.tieniDal) >= tn.max) {
+            mom.lasciato = true; mom.tenuto = false;
+          } else {
+            R.inizioAttivo = ora - tn.a / R.velocita;
+            ms = tn.a; mom.tenuto = true;
+          }
+        }
         velo(1 - fetta(ms, 0, 300));
         palcoAgliScarti(fetta(ms, 0, 420));
         if (fetta(ms, 0, 420) >= 1 && R.palco) { chiudiPalco(); }
         var ev = [];
         corpo(t, ms, ev);
         domanda.evita = ev;
-        if (didascalia) striscione(didascalia, null, domanda, fetta(ms, 150, dur));
+        /* ⛔ 15/09 · l'invito a chiudere e' la SECONDA RIGA della didascalia:
+           disegnato a parte finiva sotto lo striscione (telefono) o sopra le
+           carte della mano (PC). La didascalia sceglie gia' un posto libero. */
+        if (didascalia) striscione(didascalia, mom.tieni && !mom.lasciato ? 'tocca per chiudere' : null, domanda, mom.tenuto ? fetta(tn.a, 150, dur) : fetta(ms, 150, dur));
       },
       fine: function () { if (R.palco) chiudiPalco(); if (fine) fine(); }
-    });
+    };
+    R.metti(mom);
   }
 
   var OCCHIO = '👁';
@@ -5944,12 +6056,15 @@ function lcRegia(P) {
   function sbirciata(a, e, inDue) {
     var tre = e.mostra || [], vede = mio(a) || (inDue && mio(e.anche));
     var dur = vede ? 2900 : 1900;
+    /* ⛔ 15/09 · chi vede le tre le tiene davanti finche' non tocca (al massimo
+       12 s): a 1100 ms sono gia' tutte e tre ferme al loro posto */
+    var TIENI_A = 1100;
     momentoEffetto(dur, (mio(a) ? 'TU guardi' : nome(a) + ' guarda') + ' le prime tre' + (inDue && e.anche != null ? ' · e le vede anche ' + (mio(e.anche) ? 'TU' : nome(e.anche)) : ''),
       function (t, ms, ev) {
         var m = mazzo(), pc = palco(), k;
         if (vede) {
           var hh0 = Math.min(Math.max(pc.h * 0.7, hMano() * 1.15), (L() - 40) / 2.15, A() * 0.52), fe0 = Math.max(15, hh0 * 0.06);
-          ev.push([L() / 2 - hh0 * 0.72 - hh0 / 3 - 10, pc.y - hh0 / 2 - fe0 * 1.3, L() / 2 + hh0 * 0.72 + hh0 / 3 + 10, pc.y + hh0 / 2 + 6]);
+          ev.push([L() / 2 - hh0 * 0.72 - hh0 / 3 - 10, pc.y - hh0 / 2 - fe0 * 0.6, L() / 2 + hh0 * 0.72 + hh0 / 3 + 10, pc.y + hh0 / 2 + 6]);
         }
         if (vede) {
           velo(fetta(ms, 300, 600) * (1 - fetta(ms, dur - 350, dur)));
@@ -5964,11 +6079,15 @@ function lcRegia(P) {
             if (torna > 0) atterra(tre[k], torna, dove, sopra3(c3, 0.45), c3, 1 - eio(fetta(torna, 0, 0.6)), 0.6, 20);
             else decolla(tre[k], tv, c3, sopra3(c3, 0.45 + k * 0.02), dove, eio(fetta(ms, 450 + k * 90, 800 + k * 90)), 0.3, 50);
             if (tv >= 1 && torna <= 0) {
-              var c = g(), fe = Math.max(15, hh * 0.06);
-              c.save(); c.font = font('900', fe); c.textAlign = 'center'; c.fillStyle = '#f3d28a';
-              c.lineWidth = 4; c.strokeStyle = '#000';
-              var etc = T((k + 1) + 'ª');
-              c.strokeText(etc, dove.x, dove.y - hh / 2 - fe * 0.5); c.fillText(etc, dove.x, dove.y - hh / 2 - fe * 0.5);
+              /* ⛔ 15/09 · il numero sta in una linguetta SUL bordo alto della
+                 carta: sopra la carta finiva sotto la didascalia a due righe
+                 (con «tocca per chiudere») a 1920 */
+              var c = g(), fe = Math.max(15, hh * 0.06), yE = dove.y - hh / 2 + fe * 0.15;
+              c.save(); c.font = font('900', fe); c.textAlign = 'center'; c.textBaseline = 'middle';
+              var etc = T((k + 1) + 'ª'), wE = c.measureText(etc).width + fe * 0.9;
+              c.fillStyle = 'rgba(8,6,4,0.88)'; rr(c, dove.x - wE / 2, yE - fe * 0.62, wE, fe * 1.24, fe * 0.4); c.fill();
+              c.lineWidth = 1.5; c.strokeStyle = '#f3d28a'; c.stroke();
+              c.fillStyle = '#f3d28a'; c.fillText(etc, dove.x, yE + 1);
               c.restore();
             }
           }
@@ -5991,7 +6110,7 @@ function lcRegia(P) {
           posa3(l);
           etichettaPosto(a, OCCHIO, fetta(ms, 400, 1800));
         }
-      }, null, 'sbircia', { velaMazzo: !vede });
+      }, null, 'sbircia', { velaMazzo: !vede, tieni: vede ? { a: TIENI_A, max: 12000 } : null });
   }
 
   /* IMPILA: tre carte si alzano dal mazzo in prospettiva, si scambiano di posto
@@ -6047,7 +6166,164 @@ function lcRegia(P) {
   /* ══════════════════════════════════════════════════════════════════════
      11 · ⭐ I GETTONI — le fiche calano, e una carta cambia padrone
      ══════════════════════════════════════════════════════════════════════ */
+  /* ⭐ 15/09 · IL FURTO HA LA SUA SCENA. Il proprietario: «manca l'animazione
+     per quando ti rubano una carta, o quando prendi una carta nemica e ti
+     arriva in mano». Prima la carta passava dal PALCO, piatta e uguale per
+     tutti. Adesso i gettoni cadono negli scarti IN PROSPETTIVA, e la carta si
+     STACCA dal ventaglio di chi la perde e va da chi la prende:
+       · se la prendi TU: vola verso di te girandosi, entra nella mano al suo
+         posto con la faccia, e per un attimo porta il cartellino «RUBATA A …»;
+       · se la perdi TU: si alza scoperta dalla tua mano («TI RUBA: …»), poi
+         vola via girandosi a dorso;
+       · fra due altri: un DORSO vola da un ventaglio all'altro passando per il
+         centro del tavolo (a sette posti non sfiora i ventagli in mezzo).
+     La faccia la vedono solo ladro e derubato (il server la manda solo a
+     loro). Il BUTTAFUORI rubato resta la scena pubblica di prima (D13). */
+  function manoDi3(i) {
+    var p = M().posto(i);
+    return { x: p.x, y: p.y, z: p.z || 0, w: p.w, becca: p.becca, piega: p.piega };
+  }
+  function staccata3(i) {
+    var p = manoDi3(i);
+    /* si stacca VERSO il centro del tavolo (non verso l'alto): a sette posti
+       una carta alzata sul posto copriva i ventagli dei vicini */
+    return { x: p.x, y: mix(p.y, M().mazzo().y, 0.22), z: p.z + 0.16, w: p.w * 1.05, becca: 0.8, piega: (p.piega || 0) * 0.5 };
+  }
+  function centro3(a, b) {
+    var m = M().mazzo();
+    /* ⛔ 15/09 · a meta' strada fra la fila e le pile: col 50% la carta
+       passava ancora sopra i ventagli in mezzo (foto a 1920 con sette) */
+    return { x: (a.x + b.x) / 2, y: mix(Math.max(a.y, b.y), m.y, 0.8), z: 0.12, w: (a.w + b.w) / 2 * 1.15, becca: 0.3, piega: 0 };
+  }
+  /* il cartellino su una carta della mano: una lastra col bordo e una scritta */
+  function cartellino(testo, x, y, h, colore, t) {
+    testo = T(testo);
+    var c = g(), px = Math.max(13, Math.min(22, h * 0.1));
+    var a = fetta(t, 0, 0.15) * (1 - fetta(t, 0.82, 1));
+    if (a <= 0) return;
+    c.save();
+    c.globalAlpha = a;
+    c.font = font('900', px); spazia(c, '0.04em');
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    var w = c.measureText(testo).width + px * 1.2, hh = px * 1.7, yy = y - h / 2 - hh * 0.2 - (1 - eo(fetta(t, 0, 0.2))) * 10;
+    var xx = Math.max(w / 2 + 6, Math.min(L() - w / 2 - 6, x));
+    c.fillStyle = 'rgba(6,10,8,0.9)'; rr(c, xx - w / 2, yy - hh / 2, w, hh, hh * 0.45); c.fill();
+    c.lineWidth = 2; c.strokeStyle = colore; c.stroke();
+    c.fillStyle = colore; c.fillText(testo, xx, yy + 1);
+    c.restore();
+    segno(xx - w / 2, yy - hh / 2, xx + w / 2, yy + hh / 2, 'cartellino');
+  }
+  /* il contorno acceso di una carta piatta (quella appena arrivata in mano) */
+  function contorno(x, y, h, rot, colore, forza) {
+    if (forza <= 0) return;
+    var c = g(), w = h / 1.5;
+    c.save(); c.translate(x, y); c.rotate(rot || 0);
+    c.globalAlpha = forza; c.lineWidth = Math.max(3, h * 0.022); c.strokeStyle = colore;
+    c.shadowColor = colore; c.shadowBlur = h * 0.12;
+    rr(c, -w / 2 - 3, -h / 2 - 3, w + 6, h + 6, h * 0.05); c.stroke();
+    c.restore();
+  }
+  /* i gettoni del furto: dal posto del ladro agli scarti, scoperti, in prospettiva */
+  function gettoniAgliScarti(attore, carte, ms) {
+    var l = [], k, da = mio(attore) ? null : staccata3(attore);
+    for (k = 0; k < carte.length; k++) {
+      var u = fetta(ms, 80 + k * 110, 620 + k * 110);
+      if (u <= 0 || u >= 1) continue;
+      var dk = scarto3(M().scartiN() + k);
+      if (da) metti3(l, carte[k], vola3(da, dk, u, 0.35, eio), true, true);
+      else {
+        var s0 = P.slotMano ? P.slotMano(-1) : { x: L() / 2, y: A() * 0.8, h: hMano(), rot: 0 };
+        atterra(carte[k], u, { x: s0.x + (k - (carte.length - 1) / 2) * s0.h * 0.35, y: s0.y - s0.h * 0.2, h: s0.h * 0.8, rot: 0 }, sopra3(dk, 0.35), dk, 1, 0.55, 30);
+      }
+      if (u > 0.9) P.ondaTavolo && P.ondaTavolo(dk.x, dk.y, 0.02, 0.18, fetta(u, 0.9, 1), '#f3d28a');
+    }
+    posa3(l);
+  }
   R.ruba = function (attore, bersaglio, carte, rubata, forza) {
+    if (rubata === 'buttafuori') return rubaAlPalco(attore, bersaglio, carte, rubata, forza);
+    R.nascondi('scarti', carte.length);
+    R.nascondi(attore);
+    var ioLadro = mio(attore), ioDerubato = mio(bersaglio), vede = ioLadro || ioDerubato;
+    var dur = ioLadro ? 3100 : (ioDerubato ? 3000 : 2200);
+    var domanda = { evita: [] };
+    var riga1 = ioLadro ? 'TU rubi a ' + nome(bersaglio) : (ioDerubato ? nome(attore) + ' ti ruba una carta' : nome(attore) + ' ruba a ' + nome(bersaglio));
+    var riga2 = forza === 3 ? 'guardando la mano' : 'alla cieca';
+    R.metti({
+      dur: dur,
+      inizio: function () { suona('gioca'); },
+      disegna: function (t, ms) {
+        var ev = [];
+        gettoniAgliScarti(attore, carte, ms);
+        var da3 = manoDi3(bersaglio), su3 = staccata3(bersaglio), a3 = manoDi3(attore), alto3 = staccata3(attore);
+        if (ioLadro) {
+          /* 1 · si stacca dal suo ventaglio (dorso), 2 · vola verso di te girandosi, 3 · entra in mano */
+          var slot = P.slotMano ? P.slotMano(-1) : { x: L() / 2, y: A() * 0.8, h: hMano(), rot: 0 };
+          var stacca = fetta(ms, 500, 900), vola2 = fetta(ms, 900, 1950);
+          if (ms < 900) {
+            if (stacca > 0) { var l1 = []; metti3(l1, null, vola3(da3, su3, eo(stacca), 0.05, eo), false, true); posa3(l1); }
+          } else if (ms < 1950) {
+            var giro = eio(fetta(ms, 1100, 1600));
+            var s3 = schermo(su3), mezzo = { x: mix(s3.x, slot.x, 0.6), y: Math.max(s3.y, slot.y - slot.h * 0.9), h: slot.h * 1.1, rot: -0.06 };
+            var p2 = vola2 < 0.55 ? vola(comeCarta(schermo(su3)), mezzo, vola2 / 0.55, 40, eo) : vola(mezzo, slot, (vola2 - 0.55) / 0.45, 10, eio);
+            carta(rubata, p2.x, p2.y, p2.h, p2.rot, giro, 1);
+            ev.push([p2.x - p2.h / 3, p2.y - p2.h / 2, p2.x + p2.h / 3, p2.y + p2.h / 2]);
+          } else {
+            var tb = fetta(ms, 1950, dur - 100), pul = 0.5 + 0.5 * Math.sin((ms - 1950) / 140);
+            carta(rubata, slot.x, slot.y, slot.h, slot.rot, 1, 1, false);
+            contorno(slot.x, slot.y, slot.h, slot.rot, '#8fe388', (1 - fetta(tb, 0.75, 1)) * (0.6 + 0.4 * pul));
+            cartellino('RUBATA A ' + nome(bersaglio).toUpperCase(), slot.x, slot.y, slot.h, '#8fe388', tb);
+          }
+          etichettaPosto(bersaglio, '−1', fetta(ms, 500, 1500), '#ff8a7a');
+          ev.push(rett3(su3), [slot.x - slot.h * 0.45, slot.y - slot.h * 0.66, slot.x + slot.h * 0.45, slot.y - slot.h * 0.42]);
+        } else if (ioDerubato) {
+          /* 1 · si alza scoperta dalla tua mano, col suo nome; 2 · vola al ladro girandosi a dorso */
+          var base = P.slotManoDi ? P.slotManoDi(-1, 1) : (P.slotMano ? P.slotMano(-1) : { x: L() / 2, y: A() * 0.8, h: hMano(), rot: 0 });
+          var alta = { x: Math.max(base.h * 0.5, Math.min(L() - base.h * 0.5, base.x)), y: base.y - base.h * 0.42, h: base.h * 1.12, rot: 0 };
+          var sale = fetta(ms, 450, 900), va = fetta(ms, 1850, 2850);
+          if (va <= 0) {
+            var p3 = vola(base, alta, eo(sale), 0, eo);
+            if (sale > 0) {
+              carta(rubata, p3.x, p3.y + Math.sin(ms / 90) * (sale >= 1 && ms < 1300 ? 2 : 0), p3.h, p3.rot, 1, 1);
+              contorno(p3.x, p3.y, p3.h, p3.rot, '#ff6b5a', fetta(ms, 700, 950) * (1 - fetta(ms, 1700, 1850)));
+              ev.push([p3.x - p3.h / 3, p3.y - p3.h / 2, p3.x + p3.h / 3, p3.y + p3.h / 2]);
+              if (sale >= 1) {
+                var pxT = Math.max(22, Math.min(38, alta.h * 0.12));
+                timbro('TI RUBA: ' + P.nomeCarta(rubata).toUpperCase(), alta.x, alta.y - alta.h * 0.5 - pxT * 0.9, pxT, '#ff8a7a', fetta(ms, 900, 1950), -0.04);
+              }
+            }
+          } else {
+            var volta = 1 - eio(fetta(va, 0.15, 0.5));
+            atterra(rubata, va, alta, alto3, a3, volta, 0.62, 50);
+          }
+          etichettaPosto(attore, '+1', fetta(ms, 2600, dur), '#b8f0a8');
+          ev.push([alta.x - alta.h * 0.4, alta.y - alta.h * 0.75, alta.x + alta.h * 0.4, alta.y + alta.h * 0.5]);
+        } else {
+          /* fra due altri: un dorso da ventaglio a ventaglio, passando per il centro */
+          var u = fetta(ms, 450, 1750), l3 = [];
+          if (u > 0) {
+            var st = centro3(su3, alto3), pose;
+            if (u < 0.2) pose = vola3(da3, su3, eo(u / 0.2), 0.02, eo);
+            else if (u < 0.6) pose = vola3(su3, st, (u - 0.2) / 0.4, 0.05, eio);
+            else pose = vola3(st, a3, (u - 0.6) / 0.4, 0.08, eio);
+            if (u < 1) { metti3(l3, null, pose, false, true); posa3(l3); ev.push(rett3(pose)); }
+          }
+          freccia(posto(bersaglio), posto(attore), fetta(ms, 500, 1100) * (1 - fetta(ms, 1800, dur)), '#d8b25a', 3, [8, 7]);
+          etichettaPosto(bersaglio, '−1', fetta(ms, 450, 1400), '#ff8a7a');
+          etichettaPosto(attore, '+1', fetta(ms, 1500, dur), '#b8f0a8');
+          ev.push(rett3(su3), rett3(alto3));
+        }
+        domanda.evita = ev;
+        /* una riga sola (col come dopo « · »): a 1536x864 due righe entravano
+           nella mano di 7 px (P17) */
+        striscione(riga1 + ' · ' + riga2, null, domanda, fetta(ms, 0, dur));
+      },
+      fine: function () { R.mostra('scarti', carte.length); R.mostra(attore); }
+    });
+    R.metti({ dur: 0, inizio: function () { suona('ruba'); } });
+  };
+
+  /* il BUTTAFUORI rubato: la scena pubblica del 13/09, dal palco (D13) */
+  function rubaAlPalco(attore, bersaglio, carte, rubata, forza) {
     R.nascondi('scarti', carte.length);
     R.nascondi(attore);
     /* ⛔ collaudo 13/09 giro 3 · LA CARTA RUBATA PASSA DAL PALCO. Volava
@@ -6127,7 +6403,7 @@ function lcRegia(P) {
       fine: function () { R.mostra('scarti', carte.length); R.mostra(attore); }
     });
     R.metti({ dur: 0, inizio: function () { suona('ruba'); } });
-  };
+  }
 
   /* ══════════════════════════════════════════════════════════════════════
      12 · ⭐ LE DUE BOMBE
@@ -6645,7 +6921,11 @@ var LCN = (function () {
   /* ── 4 · I FOTOGRAMMI CHE ARRIVANO ─────────────────────────────────────── */
   N.ritardo = function () {
     if (!N.ultimo || !N.presentato) return 0;
-    return Math.max(0, (N.ultimo.time || 0) - (N.presentato.time || 0));
+    /* ⛔ 15/09 · il tempo in cui il giocatore tiene ferme le tre di SBIRCIA
+       non e' ritardo: senza toglierlo, dopo 8 s di sguardo il primo evento
+       degli altri faceva scattare il RECUPERO e le tre sparivano */
+    var pausa = (N.pausaFr === N.presentato) ? (N.pausaTot || 0) : 0;
+    return Math.max(0, (N.ultimo.time || 0) - (N.presentato.time || 0) - pausa);
   };
   N.riceviS = function (fr) {
     if (!N.attivo || !fr || typeof fr !== "object") return;
@@ -6696,6 +6976,11 @@ var LCN = (function () {
   /* ── 5 · IL BATTITO: fretta, scatto, promozione ────────────────────────── */
   N.battito = function (adesso) {
     if (!N.attivo || !N.ultimo) return;
+    if (R.attivo && R.attivo.tenuto) {
+      if (N.pausaFr !== N.presentato) { N.pausaFr = N.presentato; N.pausaTot = 0; N.pausaUlt = null; }
+      if (N.pausaUlt != null) N.pausaTot += Math.max(0, adesso - N.pausaUlt) / 1000;
+      N.pausaUlt = adesso;
+    } else N.pausaUlt = null;
     var rit = N.ritardo();
     if (rit > 8 && N.inArrivo.length) { N.recupero([]); return; }
     N.fretta(rit);
@@ -6713,7 +6998,10 @@ var LCN = (function () {
   /* ⭐ LA FRETTA a gradini: 1 s di ritardo → 2x, 2,5 s → 3x, sotto 0,5 s torna 1 */
   N.fretta = function (rit) {
     if (veloce()) return;
+    /* ⛔ 15/09 · mentre il giocatore guarda le tre di SBIRCIA (momento fermo)
+       il racconto «resta indietro» per forza: non e' un ritardo da recuperare */
     var base = (G && G.giocatori[IO] && !G.giocatori[IO].vivo) ? 2.2 : 1, v = R.velocita;
+    if (R.attivo && R.attivo.tenuto) { R.velocita = base; return; }
     if (rit > 2.5) v = 3; else if (rit > 1) v = (v >= 3 && rit > 2) ? 3 : 2; else if (rit < 0.5) v = 1;
     R.velocita = Math.max(v, base);
   };
@@ -6739,6 +7027,9 @@ var LCN = (function () {
   N.scatto = function (rit) {
     var u = N.ultimo, you = u.you || {};
     if (rit <= 1.5 || !N.inArrivo.length) return;
+    /* ⛔ 15/09 · lo scatto non strappa le tre di SBIRCIA a chi le sta
+       guardando: le chiude il suo tocco, o il tetto di 12 s */
+    if (R.attivo && R.attivo.tenuto) return;
     if (!you.attesa && !(u.fase === "gioco" && u.turno === N.mioSg)) return;
     var k = chiave(u);
     if (k < 0) return;
@@ -7702,6 +7993,13 @@ var R = lcRegia({
     return s ? { x: s.x, y: s.y, h: s.h, rot: s.rot } : { x: LARG / 2, y: LAY.manoFondo - lm.h / 2, h: lm.h, rot: 0 };
   },
   slotCarta: function (id) { return slotCartaMano(id); },   /* per nome: il banco (P25) la puo' rimettere com'era */
+  /* 15/09 · il posto `i` (-1 = oltre l'ultima) in una mano di `piu` carte in piu'
+     di quelle che ci sono: da dove si alza la carta che ti rubano */
+  slotManoDi: function (i, piu) {
+    var n = (G ? G.giocatori[IO].mano.length : 1) + (piu || 0), lm = layoutMano(Math.max(1, n)), s = lm.slots[i < 0 ? n - 1 : i];
+    return s ? { x: s.x, y: s.y, h: s.h, rot: s.rot } : { x: LARG / 2, y: LAY.manoFondo - lm.h / 2, h: lm.h, rot: 0 };
+  },
+  manoN: function () { return G ? G.giocatori[IO].mano.length : 0; },
   posaGiocata: function () { var p = posaGiocata; posaGiocata = null; return p; },
   schermoDi: schermoDi,
   zone: function () {
@@ -9394,6 +9692,8 @@ cv.addEventListener('pointerdown', function (ev) {
   TOCCO = null;
   /* l'intro e il finale si saltano con un tocco: chi ha gia' visto vuole giocare */
   if (R.attivo && (R.attivo.intro || R.attivo.finale)) { R.salta(); return; }
+  /* ⛔ 15/09 · le tre di SBIRCIA restano davanti finche' non tocchi */
+  if (R.lascia && R.lascia()) return;
   if (!G || G.fine || attesa || finestraPend) return;
   var p = puntoTela(ev), alz = (!ev.pointerType || ev.pointerType === 'mouse') && sopra >= 0 ? quadDi(sopra) : null;
   /* col mouse, la carta gia' alzata sotto il puntatore e' quella che si clicca */
