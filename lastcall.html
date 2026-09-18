@@ -219,6 +219,10 @@
   #regoleTesto .k{display:inline-block;background:#0008;border:1px solid #ffffff22;
     border-radius:5px;padding:0 5px;font-size:11px}
   #bChiudiRegole{margin-top:12px;width:100%}
+  /* 15/09 · la barra del tempo di una scelta e il ventaglio coperto */
+  .tempoScelta{height:6px;border-radius:3px;background:#ffffff1f;margin:2px 0 12px;overflow:hidden}
+  .tempoDentro{height:100%;width:100%;background:#d8b25a;border-radius:3px}
+  .scelta.mini.coperta:hover{transform:translateY(-6px)}
   /* 14/09 · la foto del profilo nel pannello CHI */
   .scelta.conFoto{display:flex;align-items:center;gap:10px;text-align:left}
   .tondo{position:relative;flex:none;width:34px;height:34px;border-radius:50%;overflow:hidden;display:inline-flex;
@@ -2112,6 +2116,22 @@ var LC_EN = {
   "TI RUBA: __CARTA1__": "STOLEN: __CARTA1__",
   "DAL CONTO DI __NOME1__": "FROM __NOME1__’S TAB",
   "VA A __NOME1__": "GOES TO __NOME1__",
+  "__NOME1__ ha riordinato le prime tre: le peschi in quest’ordine": "__NOME1__ reordered the top three: you draw them in this order",
+  "UNA CARTA COPERTA": "A FACE-DOWN CARD",
+  "Le carte di __NOME1__, girate e mescolate: tocca quella che rubi.": "__NOME1__’s cards, face down and shuffled: tap the one you steal.",
+  "Due gettoni: scegli chi derubare, poi tocca una delle sue carte coperte.": "Two chips: pick who to rob, then tap one of their face-down cards.",
+  "HAI RUBATO UN BUTTAFUORI": "YOU STOLE A BOUNCER",
+  "La MAZZETTA ti salva: scegli dove rimetterlo. Il tuo turno continua.": "The BRIBE saves you: choose where to put him back. Your turn goes on.",
+  "__NOME1__ sceglie una carta coperta di __NOME2__": "__NOME1__ picks a face-down card from __NOME2__",
+  "__NOME1__ sceglie una carta coperta di TE": "__NOME1__ picks a face-down card from YOU",
+  "TU sceglie una carta coperta di __NOME1__": "YOU pick a face-down card from __NOME1__",
+  "__NOME1__ sceglie una delle tue carte": "__NOME1__ is picking one of your cards",
+  "FUORI": "OUT",
+  "il buttafuori che hai rubato a __NOME1__": "the bouncer you stole from __NOME1__",
+  "il buttafuori che hai rubato": "the bouncer you stole",
+  "ha rubato un buttafuori": "stole a bouncer",
+  "Sei fuori: il buttafuori che hai rubato": "You are out: the bouncer you stole",
+  "__NOME1__ è fuori: ha rubato un buttafuori": "__NOME1__ is out: stole a bouncer",
   "la tua pescata va a __NOME1__": "your draw goes to __NOME1__",
   "TU rubi a __NOME1__": "YOU steal from __NOME1__",
   "__NOME1__ ti ruba una carta": "__NOME1__ steals a card from YOU",
@@ -2989,7 +3009,8 @@ function lcChiudiTurno(G) {
 /* ── 5 · ⭐ IL SANGUE FREDDO: LA BOMBA TENUTA IN MANO ──────────────────────
    Finche' SANGUE FREDDO e' in mano, un buttafuori puo' starci dentro. Appena
    quella carta lascia la mano — giocata, rubata, qualunque motivo — la bomba
-   SCATTA. E se e' la bomba a essere rubata, scatta a chi se l'e' presa.
+   SCATTA. (Se e' la bomba a essere rubata, dal 15/09 vale come pescarla:
+   vedi lcCombina.)
    ⚠️ Questo controllo va chiamato DOPO ogni cosa che tocca una mano: e' il
       buco che l'Uomo Nero aveva gia' pagato una volta. */
 function lcControllaFreddo(G, p) {
@@ -3421,9 +3442,14 @@ function lcCombina(G, indici, bersaglio, scelta) {
     return { ok: false, perche: "bersaglio non valido" };
 
   var j;
-  if (forza === 2) {
+  if (forza === 2 && scelta == null) {
     j = lcInt(G.rnd, b.mano.length);          /* alla cieca, e sceglie il LADRO */
   } else {
+    /* ⭐ 15/09 · anche la COPPIA sceglie, deciso dal proprietario: il ladro
+       tocca una carta COPERTA del ventaglio. `scelta` e' l'indice nella mano
+       del derubato; al tavolo vero l'ordine coperto lo rimescola il SERVER a
+       ogni furto, e la posizione toccata non tradisce niente. Senza `scelta`
+       la coppia pesca a caso come prima. */
     if (scelta == null) return { ok: true, chiede: "carta", di: b.id, mano: b.mano.slice() };
     j = Math.max(0, Math.min(b.mano.length - 1, scelta));
   }
@@ -3432,13 +3458,44 @@ function lcCombina(G, indici, bersaglio, scelta) {
   for (i = 0; i < ord.length; i++) { G.scarti.push(p.mano[ord[i]]); p.mano.splice(ord[i], 1); }
   var c = b.mano.splice(j, 1)[0];
   lcSmarca(b, c);
-  p.mano.push(c);
+  if (c !== "buttafuori") p.mano.push(c);
   G.mosse++;
   lcLog(G, p.nome + " → ruba una carta a " + b.nome + (forza === 2 ? ", alla cieca" : ""));
   /* ⭐ e adesso i due controlli che l'Uomo Nero aveva dimenticato */
   lcControllaFreddo(G, b);                  /* gli hanno tolto il sangue freddo? */
-  lcControllaFreddo(G, p);                  /* si e' preso una bomba? */
-  return { ok: true, rubata: c, forza: forza, di: b.id };
+  var r = { ok: true, rubata: c, forza: forza, di: b.id };
+  if (c !== "buttafuori") {
+    lcControllaFreddo(G, p);                /* si e' preso il sangue freddo di uno? */
+    return r;
+  }
+  /* ⛔ 15/09 · IL BUTTAFUORI RUBATO VALE COME PESCARLO — deciso dal
+     proprietario, che ci era cascato: rubava la bomba avendo una MAZZETTA e
+     usciva lo stesso, senza capire perche'. Adesso chi la ruba segue l'ordine
+     di lcButtafuoriA: il sangue freddo (se non ne tiene gia' uno), poi la
+     mazzetta, poi la porta.
+     ⚠️ Due differenze dalla pescata, tutte e due volute:
+       · il turno del ladro NON si chiude, in nessuna delle tre strade: i
+         furti non chiudono il turno, e chi spende la mazzetta su una bomba
+         rubata non ha pescato (`G.rubataInVolo` lo dice a lcUsaMazzetta);
+       · il derubato che perde il SANGUE FREDDO mentre tiene un buttafuori
+         esce come prima: la sua bomba non arriva, scatta. */
+  if (lcBombeInMano(p) === 0 && lcHa(p, "sangue_freddo")) {
+    p.mano.push("buttafuori");
+    p.bombeTenute++;
+    r.freddo = true;
+    return r;
+  }
+  if (lcHa(p, "mazzetta")) {
+    G.rubataInVolo = p.id;
+    r.chiedeMazzetta = true;
+    r.chi = p.id;
+    return r;
+  }
+  G.scarti.push("buttafuori");
+  lcEsce(G, p, "il buttafuori rubato");
+  r.fuori = true;
+  r.chi = p.id;
+  return r;
 }
 
 /* ── 9 · DISINNESCHI E POSIZIONI ──────────────────────────────────────────── */
@@ -3449,18 +3506,23 @@ function lcPos(G, pos) {
 function lcUsaMazzetta(G, chi, pos) {
   var p = G.giocatori[chi == null ? G.turno : chi];
   if (!p || !lcTogli(p, "mazzetta")) return { ok: false };
+  /* 15/09 · la mazzetta spesa su un buttafuori RUBATO non chiude il turno */
+  var rubata = (G.rubataInVolo === p.id);
+  if (rubata) delete G.rubataInVolo;
   G.scarti.push("mazzetta");
   G.mazzo.splice(lcPos(G, pos), 0, "buttafuori");
   lcLog(G, p.nome + " → LA MAZZETTA: il buttafuori torna nel mazzo");
   lcControllaFreddo(G, p);
-  if (!G.fine) lcChiudiTurno(G);
+  if (!G.fine && !rubata) lcChiudiTurno(G);
   return { ok: true };
 }
 /* la mazzetta si puo' anche non usare: allora si esce */
 function lcRifiutaMazzetta(G, chi) {
   var p = G.giocatori[chi == null ? G.turno : chi];
+  var rubata = !!p && G.rubataInVolo === p.id;
+  if (rubata) delete G.rubataInVolo;
   G.scarti.push("buttafuori");
-  lcEsce(G, p, "il buttafuori");
+  lcEsce(G, p, rubata ? "il buttafuori rubato" : "il buttafuori");
   return { ok: true };
 }
 function lcRimettiBancarotta(G, pos) {
@@ -3603,8 +3665,9 @@ function lcTurnoAutomatico(G) {
       scelta = b.mano.length ? lcInt(G.rnd, b.mano.length) : 0;
     }
     e = lcCombina(G, m.indici, m.bersaglio, scelta);
-    if (!e.ok) e = lcAutoPesca(G);
-    return e;
+    if (!e.ok) return lcAutoPesca(G);
+    /* 15/09 · un buttafuori rubato con la mazzetta in mano: la coda la usa */
+    return lcCoda(G, e);
   }
 
   if (m.tipo === "gioca") {
@@ -6059,7 +6122,7 @@ function lcRegia(P) {
     /* ⛔ 15/09 · chi vede le tre le tiene davanti finche' non tocca (al massimo
        12 s): a 1100 ms sono gia' tutte e tre ferme al loro posto */
     var TIENI_A = 1100;
-    momentoEffetto(dur, (mio(a) ? 'TU guardi' : nome(a) + ' guarda') + ' le prime tre' + (inDue && e.anche != null ? ' · e le vede anche ' + (mio(e.anche) ? 'TU' : nome(e.anche)) : ''),
+    momentoEffetto(dur, e.didascalia || ((mio(a) ? 'TU guardi' : nome(a) + ' guarda') + ' le prime tre' + (inDue && e.anche != null ? ' · e le vede anche ' + (mio(e.anche) ? 'TU' : nome(e.anche)) : '')),
       function (t, ms, ev) {
         var m = mazzo(), pc = palco(), k;
         if (vede) {
@@ -6239,6 +6302,13 @@ function lcRegia(P) {
     }
     posa3(l);
   }
+  /* ⛔ 15/09 · IMPILA IN DUE: il proprietario, «ero il turno successivo e non
+     mi ha fatto vedere le carte». Il vicino riceve l'ordine FINALE (D12) e ora
+     lo vede come chi sbircia: le tre davanti, ferme finche' non tocca. */
+  R.impilateViste = function (chi, tre) {
+    if (!tre || !tre.length) return;
+    sbirciata(chi, { mostra: tre.slice(0, 3), anche: P.io, didascalia: nome(chi) + ' ha riordinato le prime tre: le peschi in quest’ordine' }, true);
+  };
   R.ruba = function (attore, bersaglio, carte, rubata, forza) {
     if (rubata === 'buttafuori') return rubaAlPalco(attore, bersaglio, carte, rubata, forza);
     R.nascondi('scarti', carte.length);
@@ -6541,7 +6611,60 @@ function lcRegia(P) {
   /* ⭐ LA PORTA: il posto si svuota, e il nome resta scritto in grigio */
   /* `nascosta`: la pagina tiene nascosta la bomba in cima agli scarti; qui
      ci atterra (nel posto successivo a quelli visibili) e alla fine si mostra */
-  R.fuori = function (chi, nascosta) {
+  /* ⭐ 15/09 · IL BUTTAFUORI RUBATO CHE FA USCIRE. Il proprietario: deve
+     essere CHIARISSIMO a chi esce e a tutti. Il furto (scena pubblica, D13)
+     ha appena posato il buttafuori da chi l'ha preso; qui la carta si rialza
+     scoperta DAVANTI a lui, trema, SCATTA (lampo, schegge, onda) e cade in
+     cima agli scarti. Didascalia: «FUORI · il buttafuori che hai rubato a …»
+     per chi esce, «… è fuori · ha rubato un buttafuori» per gli altri. */
+  function fuoriRubato(chi, nascosta, di) {
+    var dur = 2700, domanda = { evita: [] };
+    R.metti({
+      dur: dur, velo: true,
+      inizio: function () { suona('buttafuori'); },
+      disegna: function (t, ms) {
+        var zt = P.zone ? P.zone() : null, casa, p0 = posto(chi);
+        velo(0.6 * fetta(ms, 0, 300) * (1 - fetta(ms, dur - 350, dur)));
+        if (mio(chi)) {
+          /* chi esce non ha piu' la mano: il posto e' quello di una mano da una carta */
+          var s0 = P.slotManoDi ? P.slotManoDi(0, 1 - (P.manoN ? P.manoN() : 0)) : { x: L() / 2, y: A() * 0.8, h: hMano(), rot: 0 };
+          var hS = s0.h > 20 ? s0.h : Math.max(hMano(), 90);
+          casa = { x: L() / 2, y: s0.y - hS * 0.38, h: Math.min(hS * 1.15, A() * 0.34), rot: 0 };
+        } else {
+          var hC = Math.min(Math.max(hMano() * 0.85, 90), A() * 0.28);
+          casa = { x: Math.max(hC * 0.4 + 8, Math.min(L() - hC * 0.4 - 8, p0.x)), y: (zt ? zt.avvBot : p0.y + 40) + hC * 0.5 + 10, h: hC, rot: 0 };
+        }
+        domanda.evita = [[casa.x - casa.h * 0.45, casa.y - casa.h * 0.6, casa.x + casa.h * 0.45, casa.y + casa.h * 0.55]];
+        var cresce = eo(fetta(ms, 0, 380)), trema = fetta(ms, 380, 1150) * (1 - fetta(ms, 1150, 1200));
+        var scatta = fetta(ms, 1150, 1650), cade = fetta(ms, 1750, 2350);
+        if (cade <= 0) {
+          var da = { x: p0.x, y: p0.y, h: casa.h * 0.35, rot: 0.3 };
+          var v = vola(da, casa, cresce, 30, eo);
+          var dx = Math.sin(ms / 28) * casa.h * 0.025 * trema, rr0 = Math.sin(ms / 41) * 0.09 * trema;
+          var salto = scatta > 0 ? -Math.sin(scatta * Math.PI) * casa.h * 0.12 : 0;
+          carta('buttafuori', v.x + dx, v.y + salto, v.h * (1 + 0.08 * Math.sin(scatta * Math.PI)), v.rot + rr0, 1, 1);
+          contorno(v.x + dx, v.y + salto, v.h, v.rot + rr0, '#ff4a3a', trema * (0.55 + 0.45 * Math.sin(ms / 70)) + (1 - scatta) * (scatta > 0 ? 1 : 0));
+        } else {
+          var dk = scarto3(nascosta ? M().scartiN() : M().scartiN() - 1);
+          atterra('buttafuori', cade, casa, sopra3(dk, 0.45), dk, 1, 0.55, 30);
+        }
+        if (scatta > 0 && scatta < 1) {
+          lampo('rgba(210,24,10,0.9)', fetta(ms, 1150, 1230) * (1 - fetta(ms, 1230, 1650)));
+          particelle(26, 7, casa.x, casa.y, scatta, ['#ff4a3a', '#ffb347', '#1a0503', '#f3d28a'], casa.h * 0.9, 160);
+          onda(casa.x, casa.y, casa.h * 0.2, casa.h * 1.3, scatta, '#ff4a3a');
+        }
+        if (!mio(chi)) onda(p0.x, p0.y, 20, 120, fetta(ms, 1200, 2000), '#ff4a3a');
+        var pxT = Math.min(40, Math.max(26, L() * 0.075));
+        timbro(mio(chi) ? 'SEI FUORI' : nome(chi).toUpperCase() + ' È FUORI', casa.x, casa.y - casa.h * 0.08, pxT, '#ff6b5a', fetta(ms, 1180, dur), -0.07);
+        var r1 = mio(chi) ? 'FUORI' : nome(chi) + ' è fuori';
+        var r2 = mio(chi) ? 'il buttafuori che hai rubato' + (di != null ? ' a ' + nome(di) : '') : 'ha rubato un buttafuori';
+        striscione(r1, r2, domanda, fetta(ms, 150, dur), '#ff8a7a');
+      },
+      fine: function () { R.palco = null; if (nascosta) R.mostra('scarti'); }
+    });
+  }
+  R.fuori = function (chi, nascosta, info) {
+    if (info && info.rubato) return fuoriRubato(chi, nascosta, info.di);
     var dur = 1500;
     R.metti({
       dur: dur, velo: true,
@@ -7016,7 +7139,9 @@ var LCN = (function () {
         if ((att.tipo === "mazzetta" || att.tipo === "bancarotta") && ev.k === "bomba" && ev.chi === mio) return i;
         if (att.tipo === "sottobanco" && ev.k === "sottobanco" && ev.chi === mio) return i;
         if (att.tipo === "impila" && (ev.k === "effetto" || ev.k === "visti") && ev.chi === mio) return i;
-        if (att.tipo === "prendi" && ev.k === "sceglie") return i;
+        if ((att.tipo === "prendi" || att.tipo === "coperta") && ev.k === "sceglie") return i;
+        /* 15/09 · la mazzetta per un buttafuori RUBATO nasce dal furto */
+        if (att.tipo === "mazzetta" && ev.k === "ruba" && ev.chi === mio && ev.rubata === "buttafuori") return i;
       } else if (u.fase === "gioco" && u.turno === mio && ev.k === "turno" && ev.a === mio) return i;
     }
     return -1;
@@ -7136,6 +7261,8 @@ var LCN = (function () {
         break;
       case "impilate":
         N.impilate = (ev.tre || []).slice();
+        /* 15/09 · IMPILA IN DUE di un altro: TU sei il vicino e vedi l'ordine */
+        if (chi !== IO && ev.tre && ev.tre.length) R.impilateViste(chi, ev.tre);
         break;
       case "riordinata":
         break;
@@ -7169,19 +7296,29 @@ var LCN = (function () {
         R.sottobancoTorna(chi, chi === IO ? (ev.carta || null) : null, chi === IO && !!ev.carta);
         break;
       case "ruba":
+        /* 15/09 · il buttafuori rubato: chi l'ha preso e a chi (per l'uscita che segue) */
+        if (ev.rubata === "buttafuori") N.furtoBomba = { chi: chi, di: N.rl(ev.di) };
         R.ruba(chi, N.rl(ev.di), (ev.carte || []).slice(), ev.rubata || null, ev.forza || 2);
         scrivi(nomeDi(chi) + " ruba una carta a " + aDi(N.rl(ev.di)));
         break;
       case "sceglie":
-        if (chi !== IO) striscia(nomeDi(chi) + " guarda la mano di " + aDi(N.rl(ev.di)), 3000);
-        scrivi(nomeDi(chi) + " guarda la mano di " + aDi(N.rl(ev.di)));
+        /* 15/09 · con due gettoni si sceglie una carta COPERTA (forza 2) */
+        if (ev.forza === 2) {
+          if (chi !== IO) striscia(N.rl(ev.di) === IO ? nomeDi(chi) + " sceglie una delle tue carte" : nomeDi(chi) + " sceglie una carta coperta di " + aDi(N.rl(ev.di)), 3000);
+          scrivi(nomeDi(chi) + " sceglie una carta coperta di " + aDi(N.rl(ev.di)));
+        } else {
+          if (chi !== IO) striscia(nomeDi(chi) + " guarda la mano di " + aDi(N.rl(ev.di)), 3000);
+          scrivi(nomeDi(chi) + " guarda la mano di " + aDi(N.rl(ev.di)));
+        }
         break;
       case "vedi_mano":
         N.vediMano = { di: N.rl(ev.di), mano: (ev.mano || []).slice() };
         break;
       case "fuori":
-        fuori(chi);
-        scrivi(chi === IO ? "Sei fuori" : nomeDi(chi) + " è fuori");
+        var rubato = ev.perche === "buttafuori_rubato", daChi = (rubato && N.furtoBomba && N.furtoBomba.chi === chi) ? N.furtoBomba.di : null;
+        fuori(chi, ev.perche || null, daChi);
+        if (rubato) scrivi(chi === IO ? "Sei fuori: il buttafuori che hai rubato" : nomeDi(chi) + " è fuori: ha rubato un buttafuori");
+        else scrivi(chi === IO ? "Sei fuori" : nomeDi(chi) + " è fuori");
         break;
       case "riequilibrio":
         R.riequilibrio(N.rl(ev.chi));
@@ -8065,14 +8202,15 @@ if (/[?&]veloce/.test(location.search)) R.velocita = 10;
 
 /* ⭐ RISCRITTA (remoto): nessuna `nuova()`, la partita nasce dallo `start` del
    guscio. Le uscite si raccontano dall'EVENTO `fuori` del filo, una volta sola. */
-function fuori(chi) {
+function fuori(chi, perche, daChi) {
   if (chi == null || narrati[chi]) return;
   narrati[chi] = 1;
   /* la bomba che l'ha fatto uscire e' gia' in cima agli scarti nello stato:
      si nasconde finche' la regia non ce la fa atterrare */
   var cimaS = G && G.scarti.length ? G.scarti[G.scarti.length - 1] : null, nasc = fondoScuro(cimaS);
   if (nasc) R.nascondi("scarti");
-  R.fuori(chi, nasc);
+  /* 15/09 · il buttafuori RUBATO ha la sua scena: scatta nella mano del ladro */
+  R.fuori(chi, nasc, perche === "buttafuori_rubato" ? { rubato: true, di: daChi } : null);
 }
 
 /* ⭐ LA STRISCIA: le scene che la regia non ha (la CHIUSURA DEL LOCALE, chi
@@ -8176,7 +8314,7 @@ function bottoneCarta(id, etichetta, fn, quante, figura) {
   b.className = figura ? "figura mini" : "scelta mini";
   var hm = altezzaMini(quante || 3), wm = Math.round(hm / LC_RAPPORTO);
   var dpr = Math.min(2, window.devicePixelRatio || 1);
-  var im = lcFaccia(id, Math.round(wm * dpr), Math.round(hm * dpr));
+  var im = id ? lcFaccia(id, Math.round(wm * dpr), Math.round(hm * dpr)) : lcDorso(Math.round(wm * dpr), Math.round(hm * dpr));
   var cv2 = document.createElement("canvas");
   cv2.width = Math.round(wm * dpr); cv2.height = Math.round(hm * dpr);
   cv2.style.width = wm + "px"; cv2.style.height = hm + "px";
@@ -8184,7 +8322,7 @@ function bottoneCarta(id, etichetta, fn, quante, figura) {
   b.appendChild(cv2);
   var t = document.createElement("span"); t.textContent = lcT(etichetta || "");
   var nomeC = lcCarta(id) ? lcCarta(id)[LC_NOME] : id;
-  if (!(LAY && LAY.largo) && lcT(etichetta || "") !== nomeC) {
+  if (id && !(LAY && LAY.largo) && lcT(etichetta || "") !== nomeC) {
     var tn = document.createElement("b"); tn.textContent = nomeC; tn.className = "nomeMini";
     tn.style.maxWidth = wm + 8 + "px";
     b.appendChild(tn);
@@ -8335,7 +8473,9 @@ function chiediPosizione(cosa, n, quando) {
 }
 
 function chiediMazzetta(att) {
-  apriScelta("IL BUTTAFUORI", "Ti ha visto. Hai una mazzetta: la spendi?");
+  /* 15/09 · il buttafuori RUBATO vale come pescato: stessa scelta, altre parole */
+  if (att.rubata) apriScelta("HAI RUBATO UN BUTTAFUORI", "La MAZZETTA ti salva: scegli dove rimetterlo. Il tuo turno continua.");
+  else apriScelta("IL BUTTAFUORI", "Ti ha visto. Hai una mazzetta: la spendi?");
   pannelloDaAttesa = true;
   bottone("ALLUNGO LA MAZZETTA", function () {
     chiediPosizione("buttafuori", att.mazzo_n || 0, function (pos) { rispondi("mazzetta", pos, null); });
@@ -8389,9 +8529,9 @@ function provaCombinazione() {
   var carte = selezioneCarte(), i;
   var forza = lcForzaCombo(carte);
   if (!forza || !mioTurno()) { lcSuona("no"); return; }
-  apriScelta(forza === 3 ? "GUARDI E SCEGLI" : "RUBI ALLA CIECA",
+  apriScelta(forza === 3 ? "GUARDI E SCEGLI" : "UNA CARTA COPERTA",
     forza === 3 ? "Tre gettoni: gli guardi la mano e prendi quello che vuoi."
-                : "Due gettoni: prendi una carta a caso dalla sua mano.");
+                : "Due gettoni: scegli chi derubare, poi tocca una delle sue carte coperte.");
   var v = lcVivi(G);
   for (i = 0; i < v.length; i++)
     if (v[i].id !== IO && v[i].mano.length) (function (id) {
@@ -8403,6 +8543,39 @@ function provaCombinazione() {
         aggiorna();
       });
     })(v[i].id);
+}
+
+/* ⭐ 15/09 · DUE GETTONI: UNA CARTA COPERTA. Il server manda solo quante
+   carte ha il derubato (`n`): il ventaglio e' tutto di dorsi uguali, e la
+   posizione non corrisponde a nessun ordine visibile (le SEGNATE comprese).
+   Il tempo che resta scorre sulla barra; allo scadere sceglie il server. */
+function chiediCoperta(att) {
+  var di = LCN.rl(att.di), g = G.giocatori[di], n = Math.max(0, att.n | 0), k;
+  apriScelta("UNA CARTA COPERTA", "Le carte di " + (g ? g.nome : "?") + ", girate e mescolate: tocca quella che rubi.");
+  pannelloDaAttesa = true;
+  for (k = 0; k < n; k++) (function (i) {
+    var b = bottoneCarta(null, "", function () { rispondi("coperta", i, null); }, n);
+    b.classList.add("coperta");
+  })(k);
+  barraTempo(att.resta_s);
+}
+/* la barra del tempo di un pannello: dal tempo del server, scorre da sola */
+function barraTempo(restaS) {
+  var ms = Math.max(0, restaS || 0) * 1000;
+  if (!ms) return;
+  var fuori = document.createElement("div"), dentro = document.createElement("div");
+  fuori.className = "tempoScelta"; dentro.className = "tempoDentro";
+  fuori.appendChild(dentro);
+  elRighe.parentNode.insertBefore(fuori, elRighe);
+  var t0 = ora();
+  (function passo() {
+    if (!fuori.parentNode) return;
+    var f = Math.max(0, 1 - (ora() - t0) / ms);
+    dentro.style.width = (f * 100).toFixed(1) + "%";
+    dentro.style.background = f > 0.3 ? "#d8b25a" : "#e6836a";
+    if (f > 0 && elScelta.classList.contains("on")) requestAnimationFrame(passo);
+    else if (fuori.parentNode) fuori.parentNode.removeChild(fuori);
+  })();
 }
 
 function chiediQualeCarta(att) {
@@ -8445,6 +8618,7 @@ function sincronizzaPannelli() {
     case "impila": chiediImpila(att); break;
     case "bersaglio": chiediBersaglio(att); pannelloDaAttesa = true; break;
     case "prendi": chiediQualeCarta(att); break;
+    case "coperta": chiediCoperta(att); break;
     default: pannelloAttesa = null;
   }
   aggiorna();
@@ -8761,47 +8935,48 @@ function geometriaRiga() {
      sull'oggetto. Sul PC no: il tasto PESCA e' gia' li' accanto. */
   var L = LAY, n = G ? G.mazzo.length : 0, testoM = (!L.largo && mioTurno() ? 'PESCA · MAZZO  ' : 'MAZZO  ') + n;
   var wM = misuraTesto(testoM, L.fsTarga) + L.fsTarga * 1.4;
-  var r = limita(L.Wbb * 0.13, 14, 30), gap = 8;
-  /* ⛔ 14/09 · il proprietario: «invece dell'icona con le bombe, un'icona con
-     TRE BUTTAFUORI accanto al mazzo». Le tre sagome stanno a SINISTRA del
-     bollo col numero: la targa MAZZO resta dov'era. */
-  var hI = r * 1.9, wI = Math.round(hI * 1.45), gI = Math.round(r * 0.3);
-  var gruppo = r * 2 + gap + wM;
-  var x0 = Math.max(8 + wI + gI, L.xMazzo - gruppo / 2);
-  var fe = Math.max(12, Math.round(r * 0.5)), wE = misuraTesto('BUTTAFUORI', fe) + 7;
-  var etich = L.largo && x0 - wI - gI - 8 - wE > 8;
-  return { r: r, bx: x0 + r, by: L.rigaY, mx: x0 + r * 2 + gap + wM / 2, wM: wM, testoM: testoM, etich: etich,
-           ix: x0 - gI - wI / 2, wI: wI, hI: hI, xSx: x0 - gI - wI - (etich ? wE : 0) };
+  var r0 = limita(L.Wbb * 0.13, 14, 30), gap = 10;
+  /* ⛔ 15/09 · il proprietario: le tre sagome «non piacciono». Il segnalino e'
+     una piccola carta BUTTAFUORI VERA posata sul feltro (la faccia del telaio,
+     inclinata, con l'ombra, nella prospettiva del tavolo) col numero in un
+     bollo sull'angolo. Sta a SINISTRA della targa MAZZO, nella riga. */
+  var wC = Math.max(62, Math.round(r0 * 2.9)), hC = Math.round(wC * 1.25);
+  var rb = Math.max(11, Math.round(r0 * 0.62));
+  var gruppo = wC + gap + wM;
+  var fe = Math.max(12, Math.round(r0 * 0.5)), wE = misuraTesto('BUTTAFUORI', fe) + 10;
+  var x0 = Math.max(8, L.xMazzo - gruppo / 2);
+  var etich = L.largo && x0 - 8 - wE > 8;
+  var cx = x0 + wC / 2, cy = L.rigaY + hC * 0.14;
+  return { r: rb, bx: cx + wC * 0.40, by: cy - hC * 0.40, ry: L.rigaY, mx: x0 + wC + gap + wM / 2, wM: wM, testoM: testoM, etich: etich,
+           ix: cx, iy: cy, wI: wC, hI: hC, fe: fe, xSx: x0 - (etich ? wE : 0) };
 }
-/* UNA SAGOMA DI BUTTAFUORI (testa tonda, spalle larghe): i piedi a `piedi`,
-   alta `H`. Stesso disegno dell'icona ic/buttafuori.png. */
-function sagomaButtafuori(cx, piedi, H, colore, bordo) {
-  function forma() {
-    ctx.beginPath();
-    ctx.moveTo(cx - 0.33 * H, piedi);
-    ctx.lineTo(cx - 0.29 * H, piedi - 0.52 * H);
-    ctx.lineTo(cx - 0.13 * H, piedi - 0.61 * H);
-    ctx.lineTo(cx + 0.13 * H, piedi - 0.61 * H);
-    ctx.lineTo(cx + 0.29 * H, piedi - 0.52 * H);
-    ctx.lineTo(cx + 0.33 * H, piedi);
-    ctx.closePath();
-    ctx.moveTo(cx + 0.18 * H, piedi - 0.82 * H);
-    ctx.arc(cx, piedi - 0.82 * H, 0.18 * H, 0, Math.PI * 2);
+/* la posa di tavolo della cartina: il centro a schermo cade su (ix, iy) e
+   la larghezza a schermo e' quella chiesta. Si misura sul quadrilatero vero
+   (lcCartaQuad), non con una formula: due passi bastano. */
+var SEGN_BECCA = 0.38, SEGN_PIEGA = -0.14;
+function posaSegnalino(gr) {
+  var m = mondoDaSchermo(gr.ix, gr.iy, 0), w = 0.2, q, k, cxq, cyq, hq;
+  for (k = 0; k < 3; k++) {
+    q = lcCartaQuad(C, m.x, m.y, 0.004, w, { becca: SEGN_BECCA, piega: SEGN_PIEGA });
+    cxq = (q[0] + q[2] + q[4] + q[6]) / 4; cyq = (q[1] + q[3] + q[5] + q[7]) / 4;
+    hq = Math.max(q[0], q[2], q[4], q[6]) - Math.min(q[0], q[2], q[4], q[6]);
+    if (hq > 1) w *= gr.wI / hq;
+    m = mondoDaSchermo(gr.ix + (gr.ix - cxq), gr.iy + (gr.iy - cyq), 0);
+    m = { x: m.x, y: m.y };
   }
-  ctx.save();
-  ctx.lineJoin = 'round';
-  forma(); ctx.lineWidth = Math.max(2.5, H * 0.1); ctx.strokeStyle = bordo; ctx.stroke();
-  forma(); ctx.fillStyle = colore; ctx.fill();
-  ctx.restore();
+  q = lcCartaQuad(C, m.x, m.y, 0.004, w, { becca: SEGN_BECCA, piega: SEGN_PIEGA });
+  return { x: m.x, y: m.y, w: w, q: q };
 }
-function iconaButtafuori(gr, pulsa) {
-  var H = gr.hI, piedi = gr.by + H * 0.5, dx = gr.wI * 0.3;
-  ctx.save();
-  if (pulsa > 0) { ctx.shadowColor = '#ff3a2a'; ctx.shadowBlur = pulsa * 26; }
-  sagomaButtafuori(gr.ix - dx, piedi - H * 0.04, H * 0.8, '#c9b3ad', '#140404');
-  sagomaButtafuori(gr.ix + dx, piedi - H * 0.04, H * 0.8, '#c9b3ad', '#140404');
-  sagomaButtafuori(gr.ix, piedi, H, '#ffd9d2', '#140404');
-  ctx.restore();
+function cartaSegnalino(gr, pulsa) {
+  var p = posaSegnalino(gr), q = p.q;
+  if (pulsa > 0) {
+    ctx.save(); ctx.globalAlpha = 0.55 * pulsa; ctx.fillStyle = '#ff3a2a'; ctx.shadowColor = '#ff3a2a'; ctx.shadowBlur = 24 * pulsa;
+    ctx.beginPath(); ctx.moveTo(q[0], q[1]); ctx.lineTo(q[2], q[3]); ctx.lineTo(q[4], q[5]); ctx.lineTo(q[6], q[7]); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  var W = spr(gr.hI / LC_RAPPORTO * 1.25), img = lcFaccia('buttafuori', W, Math.round(W * LC_RAPPORTO));
+  if (img) lcPosaTavolo(ctx, C, img, p.x, p.y, 0.004, p.w, { becca: SEGN_BECCA, piega: SEGN_PIEGA, ombra: true, n: 6 });
+  return q;
 }
 function disegnaRiga() {
   if (!G) return;
@@ -8819,33 +8994,36 @@ function disegnaRiga() {
   var bombe = bombeInGiro();
   if (bombe !== bombeViste) { if (bombeViste >= 0) bombePulsa = ora(); bombeViste = bombe; }
   var pulsa = Math.max(0, 1 - (ora() - bombePulsa) / 900), r = gr.r;
+  /* 15/09 · prima la cartina posata sul feltro, poi il bollo sul suo angolo */
+  var qS = cartaSegnalino(gr, pulsa);
   ctx.save();
   ctx.translate(gr.bx, gr.by);
   ctx.scale(1 + pulsa * 0.35, 1 + pulsa * 0.35);
-  ctx.shadowColor = '#ff3a2a'; ctx.shadowBlur = 10 + pulsa * 30;
+  ctx.shadowColor = '#ff3a2a'; ctx.shadowBlur = 8 + pulsa * 30;
   ctx.fillStyle = '#1c0605'; ctx.strokeStyle = '#ff5a4a'; ctx.lineWidth = 2.5;
   ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   ctx.shadowBlur = 0;
   ctx.fillStyle = '#ffd9d2'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.font = '900 ' + Math.round(r * 1.05) + 'px system-ui,sans-serif';
+  ctx.font = '900 ' + Math.round(r * 1.15) + 'px system-ui,sans-serif';
   ctx.fillText(String(bombe), 0, r * 0.06);
   ctx.restore();
-  /* le tre sagome, su telefono e PC; sul PC anche la parola, a sinistra */
-  iconaButtafuori(gr, pulsa);
+  /* sul PC la parola, a sinistra della cartina */
   if (gr.etich) {
-    var fe = Math.max(12, Math.round(r * 0.5));
+    var fe = gr.fe;
     ctx.save();
     ctx.font = '800 ' + fe + 'px system-ui,sans-serif';
     ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
     ctx.lineWidth = 3; ctx.strokeStyle = '#000'; ctx.fillStyle = '#ff8a7a';
-    ctx.strokeText('BUTTAFUORI', gr.ix - gr.wI / 2 - 7, gr.by + 1); ctx.fillText('BUTTAFUORI', gr.ix - gr.wI / 2 - 7, gr.by + 1);
+    ctx.strokeText('BUTTAFUORI', gr.ix - gr.wI / 2 - 6, gr.ry + 1); ctx.fillText('BUTTAFUORI', gr.ix - gr.wI / 2 - 6, gr.ry + 1);
     ctx.restore();
   }
   if (pulsa > 0) {
     ctx.save(); ctx.globalAlpha = pulsa; ctx.strokeStyle = '#ff5a4a'; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(gr.bx, gr.by, r * (1 + (1 - pulsa) * 1.8), 0, Math.PI * 2); ctx.stroke(); ctx.restore();
   }
-  rigaTocco.push([gr.ix - gr.wI / 2, gr.by - Math.max(r, gr.hI / 2), gr.bx + r, gr.by + Math.max(r, gr.hI / 2)]);
+  var qx0 = Math.min(qS[0], qS[2], qS[4], qS[6]), qx1 = Math.max(qS[0], qS[2], qS[4], qS[6]);
+  var qy0 = Math.min(qS[1], qS[3], qS[5], qS[7]), qy1 = Math.max(qS[1], qS[3], qS[5], qS[7]);
+  rigaTocco.push([qx0, Math.min(qy0, gr.by - r), Math.max(qx1, gr.bx + r), qy1]);
   /* le etichette dei pezzi che sporgono, per ultime */
   for (var i = 0; i < targhe.length; i++) {
     var e = targhe[i];
@@ -9973,7 +10151,7 @@ function impaginaDom() {
   var wS = misuraTesto(ns ? "SCARTI  " + ns : "SCARTI", L.fsTarga) + L.fsTarga * 1.4;
   var xDa = gr.mx + gr.wM / 2 + 12, spazio = (L.xScarti - wS / 2 - 12) - xDa;
   if (!rc) com.style.transform = "none";
-  var xSin = gr.xSx - 10;   /* 14/09 · il gruppo comincia dalle tre sagome (o dalla parola) */
+  var xSin = gr.xSx - 10;   /* 15/09 · il gruppo comincia dalla cartina del buttafuori (o dalla parola) */
   var sotto = false;
   if (rc) { /* gia' messo sotto la classifica */ }
   else if (com.offsetWidth <= spazio) { com.style.left = xDa + "px"; com.style.top = (L.rigaY - com.offsetHeight / 2) + "px"; }
