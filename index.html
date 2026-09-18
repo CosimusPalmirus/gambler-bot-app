@@ -32214,6 +32214,7 @@ function go(id){
       // match (lobby, ricerca, precarico) si spegne davvero.
       if(typeof rtdChiudiLupusRT==='function')rtdChiudiLupusRT(RTD.ui!=='match');
       if(typeof rtdChiudiLastcallRT==='function')rtdChiudiLastcallRT(RTD.ui!=='match');   // 🍸 stessa regola
+      if(typeof rtdChiudiDeadpeakRT==='function')rtdChiudiDeadpeakRT(RTD.ui!=='match');   // 🗼 DP MEAT 15/09
       if(RTD.inTimer){clearInterval(RTD.inTimer);RTD.inTimer=null;}
       // FIX derby zombie-socket (24/07): uscendo dall'arcade (e NON in match) chiudi la
       // RTD.ws così nessuna socket stale sopravvive per essere riusata al prossimo join
@@ -43616,6 +43617,7 @@ function lobEnterB(game){
   if(game==='lupus'&&typeof luprtPrecarica==='function'){try{RTD.game='lupus';luprtPrecarica();}catch(_lp){}}
   // 🍸 LAST CALL: stesso precarico, stessa ragione (la pagina si scarica in lobby)
   if(game==='lastcall'&&typeof lcrtPrecarica==='function'){try{RTD.game='lastcall';lcrtPrecarica();}catch(_lc){}}
+  if(game==='scalata'&&typeof dprtPrecarica==='function'){try{RTD.game='scalata';dprtPrecarica();}catch(_dp){}}   // 🗼 DP MEAT 15/09
   go(sc);
 }
 // il messaggio del server, detto in italiano. Vale per le due strade: le
@@ -55462,6 +55464,7 @@ function initArc(){
   // match qui sotto, che manda `rientra` da solo (rtdShowLupusRT).
   if(window.RTD_RIENTRA&&RTD.ui==='match'&&RTD.game==='lupus'&&typeof LUPRT!=='undefined'&&LUPRT.aperto){window.RTD_RIENTRA=false;}
   if(window.RTD_RIENTRA&&RTD.ui==='match'&&RTD.game==='lastcall'&&typeof LCRT!=='undefined'&&LCRT.aperto){window.RTD_RIENTRA=false;}   // 🍸 gemella
+  if(window.RTD_RIENTRA&&RTD.ui==='match'&&RTD.game==='scalata'&&typeof DPRT!=='undefined'&&DPRT.aperto){window.RTD_RIENTRA=false;}   // 🗼 DP MEAT 15/09
   if(window.RTD_RIENTRA){
     RTD.pendingRientro=true;window.RTD_RIENTRA=false;
     RTD.practice=false;RTD.tour=false;RTD.spec=false;RTD.specRid=null;
@@ -55578,6 +55581,7 @@ function rtdOnMsg(m){
   // 🍸 LAST CALL (14/09/2026): stesso proiettore. Consuma lo `s` con
   // g:'lastcall' (mai verso rtdOnSnap) e gli `err` con code lc_*.
   if(typeof lcrtRicevi==='function'&&lcrtRicevi(m))return;
+  if(typeof dprtRicevi==='function'&&dprtRicevi(m))return;   // 🗼 DP MEAT 15/09
   // UPLINK HALF-OPEN (24/07 derby): il server risponde {t:'pong'} ai nostri
   // {t:'ping'}. Il pong è l'UNICA prova che l'uplink client→server è vivo (gli
   // snapshot in arrivo provano solo il downlink). rtdUplinkCheck usa _lastPong.
@@ -55687,6 +55691,7 @@ function rtdOnMsg(m){
     // «match» con una scena ferma sarebbe una schermata senza uscita.
     if(e==='nessuna partita da riprendere'&&RTD.game==='lupus'&&typeof LUPRT!=='undefined'&&LUPRT.aperto){RTD.ui='';rtdChiudiLupusRT(true);rtdShowLobby();return;}
     if(e==='nessuna partita da riprendere'&&RTD.game==='lastcall'&&typeof LCRT!=='undefined'&&LCRT.aperto){RTD.ui='';rtdChiudiLastcallRT(true);rtdShowLobby();return;}   // 🍸 gemella
+    if(e==='nessuna partita da riprendere'&&RTD.game==='scalata'&&typeof DPRT!=='undefined'&&DPRT.aperto){RTD.ui='';rtdChiudiDeadpeakRT(true);rtdShowLobby();return;}   // 🗼 DP MEAT 15/09
     // e un ingresso rifiutato (a soldi non aperto, solo su invito, tavolo non
     // aperto) non lascia il giocatore su una schermata di ricerca che non
     // cerca piu' niente: si torna dove si puo' agire.
@@ -55742,6 +55747,8 @@ function rtdOnMsg(m){
     if(m.game==='lupus'){RTD.lupMid=String(m.mid||'');rtdShowLupusRT(m);return;}
     // 🍸 LAST CALL (14/09): stessa uscita, prima dello sting e della cartolina VS
     if(m.game==='lastcall'){RTD.lcMid=String(m.mid||'');rtdShowLastcallRT(m);return;}
+    // 🗼 DP MEAT 15/09: il Dead Peak nuovo esce qui (niente cartolina VS: il conto alla rovescia e' del server)
+    if(m.game==='scalata'&&m.map&&m.map.v==='meat'&&typeof rtdShowDeadpeakRT==='function'){rtdShowDeadpeakRT(m,false);return;}
     rtdShowMatch();
     TWS.play('sting');
     var vsDelay=0;
@@ -55775,6 +55782,7 @@ function rtdOnMsg(m){
   }
   if(t==='s'&&(m.g in RTD_G)){rtdOnSnap(m);return;}
   if(t==='over'&&(m.game in RTD_G)){
+    if(RTD.spec&&m.game==='scalata'&&typeof DPRT!=='undefined'&&DPRT.aperto)dprtGiu(m);   // 🗼 DP MEAT 15/09
     if(RTD.spec){rtdSpecOver(m);return;}   // TORNEO: banner spettatore, mai payout UI
     if(m.tour&&!RTD.tour)return;           // TORNEO: match abbandonato — esito ignorato
     RTD.over=m;
@@ -55798,6 +55806,16 @@ function rtdOnMsg(m){
     // `fine_scena` o se il guscio non e' a schermo; altrimenti si aspetta al
     // massimo 12 s e `fine_scena` lo anticipa (la pagina lo manda subito anche
     // per un over senza evento `fine`, §8.5).
+    // 🗼 DP MEAT 15/09: l'over va anche all'iframe; l'esito esce a `fine_scena` (o dopo 6 s)
+    if(m.game==='scalata'&&typeof DPRT!=='undefined'&&DPRT.aperto){
+      dprtGiu(m);
+      if(!DPRT.fineScena&&RTD.ui==='match'&&!DPRT.nascosto){
+        if(RTD.overTmr)clearTimeout(RTD.overTmr);
+        RTD.overTmr=setTimeout(function(){RTD.overTmr=null;if(RTD.over===m&&RTD.ui==='match')rtdShowOver(m);},6000);
+        return;
+      }
+      rtdShowOver(m);return;
+    }
     if(m.game==='lastcall'&&typeof LCRT!=='undefined'){
       lcrtGiu(m);
       if(!m.annullata&&!LCRT.fineScena&&RTD.ui==='match'&&LCRT.aperto&&!LCRT.nascosto){
@@ -56773,6 +56791,7 @@ function rtdStallCheck(){
   // `_wsT` viene rimesso all'adesso quando arriva il `pronto`.
   if(typeof LUPRT!=='undefined'&&LUPRT.aperto&&!LUPRT.pronto)return;
   if(typeof LCRT!=='undefined'&&LCRT.aperto&&!LCRT.pronto)return;   // 🍸 stessa ragione
+  if(typeof DPRT!=='undefined'&&DPRT.aperto&&!DPRT.pronto)return;   // 🗼 DP MEAT 15/09
   if(RTD.wsOk&&RTD._wsT&&performance.now()-RTD._wsT>4000&&(RTD._wsRk||0)<3){
     RTD._wsRk=(RTD._wsRk||0)+1;RTD._wsT=performance.now();
     var _o=RTD.ws;
@@ -57086,6 +57105,7 @@ function rtdPump(){
   }
   // AUDIT P3b (11/09, Dead Peak): con la predizione nuova lo stick viaggia nei
   // COMANDI A PASSO (uno per passo da 0.05, sclNet2Frame/Idle), non nella pompa.
+  if(RTD.game==='scalata'&&typeof DPRT!=='undefined'&&DPRT.aperto)return;   // 🗼 DP MEAT 15/09: i comandi li manda l'iframe
   if(RTD.game==='scalata'&&typeof sclNet2On==='function'){if(sclNet2On())return;sclNet2Probe();}
   if(rtdMeta().input==='touch'){
     // il disco insegue il dito: P-controller sulla distanza in unità mondo
@@ -58646,6 +58666,7 @@ function rtdShowLobby(keepOv){
     // che il piano prescrive e dove l'attesa dura minuti.
     if(RTD.game==='lupus'&&typeof luprtPrecarica==='function'&&typeof LUPRT!=='undefined'&&LUPRT.loads===0){try{luprtPrecarica();}catch(_lp){}}
     if(RTD.game==='lastcall'&&typeof lcrtPrecarica==='function'&&typeof LCRT!=='undefined'&&LCRT.loads===0){try{lcrtPrecarica();}catch(_lc){}}   // 🍸 la prima volta
+    if(RTD.game==='scalata'&&typeof dprtPrecarica==='function'&&typeof DPRT!=='undefined'&&DPRT.loads===0){try{dprtPrecarica();}catch(_dp){}}   // 🗼 DP MEAT 15/09
     if(RTD.game==='calcio'){   // editor calciatore + skin (SKINS_SPEC §A)
       h+='<button class="action-btn" style="width:100%;margin:10px 0 2px;background:linear-gradient(135deg,#14261b,#0d1a12);border:1px solid rgba(74,222,128,.5);color:#86efac;" onclick="derbyEditor()">🎨 IL TUO CALCIATORE — personalizza</button>';
       // INTERRUTTORE "GRAFICA RIDOTTA" (D1 28/07): l'HD è ora il DEFAULT per tutti
@@ -59361,6 +59382,7 @@ function rtdShowLupusRT(m){          // m = lo `start` del server, o null al rie
   RTD.ui="match";rtdOvClose();
   if(typeof BXRT!=="undefined"&&BXRT.aperto)rtdChiudiBoxeRT();
   if(typeof LCRT!=="undefined"&&LCRT.aperto&&typeof rtdChiudiLastcallRT==="function")rtdChiudiLastcallRT(true);   // 🍸 un tavolo alla volta
+  if(typeof DPRT!=="undefined"&&DPRT.aperto&&typeof rtdChiudiDeadpeakRT==="function")rtdChiudiDeadpeakRT(true);   // 🗼 DP MEAT 15/09
   // come la boxe: la tela RTD si spegne (rtdFrame esce se !ctx) e il rAF si
   // ferma; `_rafT` a zero tiene muto rtdRafWatch su un match senza rAF
   RTD.ctx=null;RTD.cv=null;
@@ -59850,6 +59872,220 @@ window.lctBtn=lctBtn;window.lctOpen=lctOpen;
 //      genitore aspetta al massimo 12 s (non 20).
 // Stesso z-index di Lupus e della boxe, 9100, sotto l overlay dei soldi.
 // ⚠️ Stringhe JS: niente apostrofi dritti dentro i testi.
+// ── 🗼 DP MEAT 15/09 — DEAD PEAK NUOVO: il gioco vive nell'iframe deadpeak.html ─────────
+// Stesso schema di Lupus e Last Call (proiettore): la pagina inoltra start/s/over all'iframe e
+// rimanda al server i comandi A FOTOGRAMMA {t:'in', f, k:[...]} che l'iframe produce. Il vecchio
+// Dead Peak (rtdBuildScalata/rtdDrawScalata) resta intatto: si usa l'iframe SOLO se lo start del
+// server dice map.v==='meat'. ⚠️ `v=` NUOVO a ogni md5 nuovo di deadpeak.html: i due file vanno su
+// Pages INSIEME.
+var DPRT_ON=true;
+var DPRT={wrap:null,fr:null,pronto:false,coda:[],aperto:false,nascosto:false,firma:"",fineScena:false,loads:0,spec:false,tgEv:false,bloccato:false};
+var DPRT_VER="c9c8c1f55dc6";
+function dprtUrl(){return "deadpeak.html?guscio=1&v="+DPRT_VER+"&lang="+((window.GB_LANG==="en")?"en":"it");}
+var DPRT_URL=dprtUrl();
+var DPRT_ORIGIN=location.origin;
+var DPRT_CODA_MAX=600;
+function dprtBlocca(){try{if(typeof bx2Blocca==="function"&&typeof BX2_BLOCCATI!=="undefined"&&BX2_BLOCCATI===null){bx2Blocca();DPRT.bloccato=true;}}catch(e){}}
+function dprtSblocca(){try{if(DPRT.bloccato&&typeof bx2Sblocca==="function")bx2Sblocca();}catch(e){}DPRT.bloccato=false;}
+function dprtAltezza(){
+  try{
+    if(!DPRT.wrap)return;
+    var tg2=window.Telegram&&Telegram.WebApp;
+    var h=tg2?Number(tg2.viewportStableHeight||tg2.viewportHeight||0):0;
+    if(h>0){DPRT.wrap.style.height=Math.round(h)+"px";DPRT.wrap.style.bottom="auto";}
+    else{DPRT.wrap.style.height="100%";DPRT.wrap.style.bottom="0px";}
+  }catch(e){}
+}
+// i bordi di sistema: dentro l'iframe env(safe-area-inset-*) vale 0 (memoria lupus-bordi-iframe)
+function dprtBordi(){
+  try{
+    if(!DPRT.fr||!DPRT.pronto)return;
+    var tg2=window.Telegram&&Telegram.WebApp;
+    var sa=(tg2&&tg2.safeAreaInset)||{}, ca=(tg2&&tg2.contentSafeAreaInset)||{};
+    function q(lato,a,b){
+      var t=(Number(a)||0)+(Number(b)||0), e=(typeof luprtEnv==="function")?luprtEnv(lato):0;
+      var v=Math.max(t,e);
+      if(!isFinite(v)||v<0)v=0; if(v>200)v=200;
+      return Math.round(v);
+    }
+    dprtPosta({t:"bordi",top:q("top",sa.top,ca.top),bottom:q("bottom",sa.bottom,ca.bottom),left:q("left",sa.left,ca.left),right:q("right",sa.right,ca.right)});
+  }catch(e){}
+}
+function dprtTelegram(){
+  if(DPRT.tgEv)return;DPRT.tgEv=true;
+  try{
+    var tg2=window.Telegram&&Telegram.WebApp;
+    if(tg2&&typeof tg2.onEvent==="function"){
+      tg2.onEvent("viewportChanged",function(){dprtAltezza();dprtBordi();});
+      tg2.onEvent("safeAreaChanged",dprtBordi);
+      tg2.onEvent("contentSafeAreaChanged",dprtBordi);
+      tg2.onEvent("fullscreenChanged",dprtBordi);
+    }
+  }catch(e){}
+  try{window.addEventListener("orientationchange",function(){setTimeout(dprtBordi,250);});}catch(e2){}
+}
+function dprtMonta(){
+  if(!DPRT.wrap){
+    var w=document.createElement("div");
+    w.id="dprt-wrap";
+    w.style.cssText="position:fixed;inset:0;z-index:9100;display:none;background:#1b1f2a;touch-action:none;overscroll-behavior:none;";
+    w.innerHTML="<iframe id='dprt-fr' title='DEAD PEAK' allow='autoplay' style='position:absolute;inset:0;width:100%;height:100%;border:0;display:block;'></iframe>";
+    document.body.appendChild(w);
+    DPRT.wrap=w;DPRT.fr=w.querySelector("#dprt-fr");
+    DPRT.fr.addEventListener("load",function(){ if(DPRT.fr.getAttribute("src")===DPRT_URL)DPRT.loads++; });
+    dprtTelegram();
+  }
+  if(DPRT.fr.getAttribute("src")!==DPRT_URL){
+    DPRT.pronto=false;DPRT.coda=[];
+    DPRT.fr.setAttribute("src",DPRT_URL);
+  }
+}
+function dprtPrecarica(){ if(RTD.game!=="scalata"||!DPRT_ON)return; dprtMonta(); }
+function rtdShowDeadpeakRT(m,spec){     // m = start (o watch_ok da spettatore), null = rientro
+  RTD.ui="match";rtdOvClose();
+  if(typeof BXRT!=="undefined"&&BXRT.aperto)rtdChiudiBoxeRT();
+  if(typeof LUPRT!=="undefined"&&LUPRT.aperto&&typeof rtdChiudiLupusRT==="function")rtdChiudiLupusRT(true);
+  if(typeof LCRT!=="undefined"&&LCRT.aperto&&typeof rtdChiudiLastcallRT==="function")rtdChiudiLastcallRT(true);
+  RTD.ctx=null;RTD.cv=null;
+  if(typeof rtdStopRaf==="function")rtdStopRaf();
+  RTD._rafT=0;RTD._hintOff=1;
+  try{GBMusic.stop();}catch(e){}
+  dprtMonta();
+  var eraNascosto=DPRT.aperto&&DPRT.nascosto, eraChiuso=!DPRT.aperto;
+  if(m){
+    var firma=String((m.map&&m.map.firma)||"")+":"+String(m.you||"");
+    if(DPRT.aperto&&DPRT.firma!==firma){DPRT.coda=[];DPRT.fineScena=false;}
+    if(!DPRT.aperto)DPRT.fineScena=false;
+    DPRT.firma=firma;DPRT.spec=!!spec;
+  }
+  DPRT.aperto=true;DPRT.nascosto=false;
+  DPRT.wrap.style.display="block";
+  dprtBlocca();
+  try{var tg2=window.Telegram&&Telegram.WebApp;if(tg2){if(typeof tg2.expand==="function")tg2.expand();if(typeof tg2.disableVerticalSwipes==="function")tg2.disableVerticalSwipes();}}catch(e){}
+  dprtAltezza();
+  if(eraNascosto||eraChiuso)dprtGiu({t:"riprendi"});
+  if(!m){rtdSend({t:"rientra"});return;}
+  var mm=m;
+  if(spec){mm={};for(var k in m)mm[k]=m[k];mm.t="start";mm.spec=true;mm.you=null;}
+  dprtGiu(mm);
+}
+function rtdChiudiDeadpeakRT(forza){
+  if(!DPRT.wrap||!DPRT.fr)return;
+  var visibile=(DPRT.wrap.style.display==="block");
+  if(!DPRT.aperto&&!visibile&&!forza)return;
+  dprtSblocca();
+  try{var tg2=window.Telegram&&Telegram.WebApp;if(tg2&&typeof tg2.enableVerticalSwipes==="function")tg2.enableVerticalSwipes();}catch(e){}
+  DPRT.wrap.style.display="none";
+  if(!forza&&DPRT.aperto&&RTD.ui==="match"){DPRT.nascosto=true;dprtGiu({t:"pausa"});return;}
+  DPRT.aperto=false;DPRT.nascosto=false;DPRT.pronto=false;DPRT.coda=[];DPRT.firma="";DPRT.fineScena=false;DPRT.spec=false;
+  if(DPRT.fr.getAttribute("src")!=="about:blank")DPRT.fr.setAttribute("src","about:blank");
+}
+function dprtPosta(m){ try{ DPRT.fr.contentWindow.postMessage({dp:"giu",m:m},DPRT_ORIGIN); }catch(e){} }
+function dprtGiu(m){
+  if(!DPRT.aperto||!DPRT.fr)return;
+  if(DPRT.pronto){dprtPosta(m);return;}
+  var c=DPRT.coda;
+  c.push(m);
+  if(c.length>DPRT_CODA_MAX){ for(var i=0;i<c.length;i++){ if(c[i]&&c[i].t==="s"&&!(c[i].feed&&c[i].feed.length)){c.splice(i,1);break;} } if(c.length>DPRT_CODA_MAX)c.splice(0,1); }
+}
+// il ricevitore di rtdOnMsg: lo `s` del motore nuovo non arriva MAI a rtdOnSnap (il disegno vecchio
+// non saprebbe leggerlo): se l'iframe non e' aperto si butta.
+function dprtRicevi(m){
+  var t=m&&m.t;
+  if(t==="s"&&m.g==="scalata"&&m.v==="meat"){dprtGiu(m);return true;}
+  return false;
+}
+window.addEventListener("message",function(ev){
+  if(ev.origin!==DPRT_ORIGIN)return;
+  var d=ev.data;if(!d||typeof d!=="object"||d.dp===undefined)return;
+  if(!DPRT.fr||ev.source!==DPRT.fr.contentWindow)return;
+  if(d.dp==="pronto"){
+    DPRT.pronto=true;RTD._wsT=performance.now();dprtBordi();
+    if(!DPRT.aperto){dprtPosta({t:"pausa"});return;}
+    var c=DPRT.coda;DPRT.coda=[];
+    for(var i=0;i<c.length;i++)dprtPosta(c[i]);
+    return;
+  }
+  if(d.dp==="su"){
+    var o=d.m;
+    if(!o||typeof o!=="object"||o.t!=="in"||!DPRT.aperto||DPRT.spec||RTD.spec)return;
+    var f=o.f,k=o.k,j;
+    if(typeof f!=="number"||!isFinite(f)||Math.floor(f)!==f||f<0||f>2147483647)return;
+    if(Object.prototype.toString.call(k)!=="[object Array]"||!k.length||k.length>15)return;
+    for(j=0;j<k.length;j++){ if(typeof k[j]!=="number"||Math.floor(k[j])!==k[j]||k[j]<0||k[j]>32767)return; }
+    rtdSend({t:"in",f:f,k:k.slice(0)});
+    return;
+  }
+  if(d.dp==="fine_scena"){
+    DPRT.fineScena=true;
+    if(RTD.over&&RTD.over.game==="scalata"&&RTD.ui==="match"&&RTD.overTmr){clearTimeout(RTD.overTmr);RTD.overTmr=null;rtdShowOver(RTD.over);}
+    return;
+  }
+  if(d.dp==="esci"){
+    if(RTD.spec||DPRT.spec){rtdSpecExit();return;}
+    if(RTD.over&&RTD.over.game==="scalata"&&RTD.ui==="match"){ if(RTD.overTmr){clearTimeout(RTD.overTmr);RTD.overTmr=null;} rtdShowOver(RTD.over);return; }
+    rtdBack();return;
+  }
+  if(d.dp==="err"){
+    RTD._rerr="dp:"+String(d.msg||"").slice(0,60);
+    try{if(RTD.ws&&RTD.ws.readyState===1)RTD.ws.send(JSON.stringify({t:"clog",at:"deadpeak",msg:String(d.msg||"").slice(0,300)}));}catch(e){}
+    return;
+  }
+});
+// il tutorial pre-partita del Dead Peak nuovo (regole + i 12 oggetti a un tasto)
+var DPRT_TUT={
+  it:{hd:"🗼 DEAD PEAK — COME SI GIOCA",tr:"📜 LE REGOLE",ti:"🎒 I 12 OGGETTI",chiudi:"✖ CHIUDI",usi:"USI",
+    regole:[["🏁","PRIMO IN VETTA, PIGLIA TUTTO","Una torre di 8 stanze diversa a ogni partita. Chi tocca per primo il caveau in vetta vince il piatto; se arrivate nello stesso istante il piatto si divide."],
+      ["🕹️","LEVETTA, SALTO, OGGETTO","Levetta a sinistra, SALTO a destra (tenuto = salto piu' alto). Il tasto tondo e' l'OGGETTO: a mani vuote e' la SPINTA."],
+      ["🧱","IL MURO E' IL TUO SALTO","Salta contro un muro e rimbalzi via. Fra due muri (un camino) si sale velocissimi; sullo stesso muro si sale piano."],
+      ["☠️","SI MUORE, SI RIPARTE","Seghe, presse, laser, fuoco, mine e missili uccidono al tocco. Dopo meno di un secondo rinasci al gancio della stanza (la lucina verde) o al tuo CHIODO."],
+      ["🛣️","TRE VIE PER STANZA","Ogni stanza ha una via SICURA (lenta), una VELOCE dentro il pericolo e una ESPERTA o da OGGETTO (la cassa fissa sta in un punto che costa)."],
+      ["⏱️","LE TRAPPOLE HANNO UN RITMO","Ogni stanza ripete il suo ritmo: guarda un giro e parti nel momento giusto. Ogni trappola avvisa prima di colpire."],
+      ["🌋","LA LAVA SALE","Parte dopo 8 secondi e arriva in vetta verso gli 80. Se copre il tuo gancio rinasci piu' su; se sopra non c'e' piu' posto sei fuori e guardi la gara fino alla fine."],
+      ["💥","SPINTE","Tasto OGGETTO a mani vuote = scatto che sbalza chi colpisci. Correndo a tutta velocita' contro un rivale lo spalli via. 5 secondi di tregua al via e 2 dopo ogni rinascita."],
+      ["🎒","UN OGGETTO ALLA VOLTA","Le casse mostrano l'oggetto sopra. La levetta sceglie la direzione. Alla morte l'oggetto si perde."],
+      ["🩸","SANGUE","Tasto in alto: ALTO, MEDIO o NIENTE. Nelle partite con piu' di 7 giocatori parte da MEDIO e i rivali sopra di te diventano trasparenti."]]},
+  en:{hd:"🗼 DEAD PEAK — HOW TO PLAY",tr:"📜 RULES",ti:"🎒 THE 12 ITEMS",chiudi:"✖ CLOSE",usi:"USES",
+    regole:[["🏁","FIRST TO THE TOP TAKES ALL","A tower of 8 rooms, different every match. The first to touch the vault at the top wins the pot; arrive at the same instant and the pot is split."],
+      ["🕹️","STICK, JUMP, ITEM","Stick on the left, JUMP on the right (hold = higher jump). The round button is the ITEM: empty-handed it is a SHOVE."],
+      ["🧱","WALLS ARE YOUR JUMP","Jump against a wall to bounce off. Between two walls (a chimney) you climb fast; on the same wall you climb slowly."],
+      ["☠️","YOU DIE, YOU RESTART","Saws, presses, lasers, fire, mines and missiles kill on touch. In under a second you respawn at the room's hook (green light) or at your PITON."],
+      ["🛣️","THREE ROUTES PER ROOM","Each room has a SAFE route (slow), a FAST one through the danger and an EXPERT or ITEM one (its fixed crate sits somewhere risky)."],
+      ["⏱️","TRAPS HAVE A RHYTHM","Every room repeats its beat: watch one loop and go at the right moment. Every trap warns before it strikes."],
+      ["🌋","THE LAVA RISES","It starts after 8 seconds and reaches the top around 80. If it covers your hook you respawn higher; with no room left above you are out and watch the rest of the race."],
+      ["💥","SHOVES","ITEM button empty-handed = a dash that knocks away whoever you hit. Running full speed into a rival bumps them. 5 seconds of truce at the start and 2 after each respawn."],
+      ["🎒","ONE ITEM AT A TIME","Crates show the item above them. The stick picks the direction. Dying loses the item."],
+      ["🩸","BLOOD","Top button: HIGH, MEDIUM or NONE. In matches with more than 7 players it starts at MEDIUM and rivals on top of you turn see-through."]]},
+  ogg:[[1,"🪝","RAMPINO","GRAPPLE",2,"Voli all'anello d'oro a tiro (in alto davanti se non miri). Senza anello tira giu' un rivale.","You fly to a golden ring in range (up-forward if you don't aim). Without a ring it pulls a rival."],
+    [2,"📌","CHIODO","PITON",1,"Piantalo coi piedi a terra: alla prossima morte rinasci li'. Una piccozza lo spacca.","Plant it on the ground: your next death respawns you there. A pickaxe breaks it."],
+    [3,"🧱","MURO","WALL",1,"Colonna di 3 blocchi davanti (per il salto a muro o per chiudere). Levetta giu' = ponte di 3. Dura 8 s.","A 3-block column in front (to wall-jump or block). Stick down = 3-block bridge. Lasts 8 s."],
+    [4,"⛏️","PICCOZZA","PICKAXE",2,"Fendente davanti: sbalza i rivali e spacca le pareti crepate (i passaggi segreti).","A swing ahead: knocks rivals away and breaks cracked walls (the secret passages)."],
+    [5,"🪨","MASSO","BOULDER",1,"Rotola, rimbalza, cade dalle porte: travolge chi sta sotto e fa scoppiare le mine.","Rolls, bounces, drops through doors: bowls over whoever is below and sets off mines."],
+    [6,"✨","MAGNESITE","CHALK",1,"Salto piu' alto per 5 secondi: apre i ripiani alti 4.","Higher jump for 5 seconds: reaches 4-high ledges."],
+    [7,"⛓️","CATENA","CHAIN",2,"Incatena un rivale nel cono per 1,5 s (lui pigia SALTO per liberarsi). A vuoto l'uso torna.","Chains a rival in the cone for 1.5 s (they mash JUMP to break free). A miss gives the use back."],
+    [8,"🪜","SCALA","LADDER",1,"Tre pioli sopra di te, uno ogni due righe: si sale saltando. Durano 20 s, valgono per tutti.","Three rungs above you, one every two rows: climb by jumping. They last 20 s and anyone can use them."],
+    [9,"🍯","COLLA","GLUE",1,"Chiazza dietro di te: chi ci passa va piano per un secondo.","A puddle behind you: whoever steps in slows down for a second."],
+    [10,"🧨","PETARDO","FIRECRACKER",1,"Mina dietro di te: chi la calpesta la accende e viene sbalzato.","A mine behind you: whoever steps on it lights it and gets blasted."],
+    [11,"🛎️","TRAMPOLINO","TRAMPOLINE",1,"Pedana davanti: rimbalzo fisso di 5 celle, per tutti.","A pad in front: a fixed 5-cell bounce, for everyone."],
+    [12,"🧼","SAPONE","SOAP",1,"Lastra dietro di te: chi ci corre non riesce a frenare.","A slick behind you: whoever runs on it can't brake."]],
+  tab:"r"
+};
+function dprtTutHTML(){
+  var L=(window.GB_LANG==="en")?DPRT_TUT.en:DPRT_TUT.it,en=(window.GB_LANG==="en"),t=DPRT_TUT.tab,h,i,r;
+  h='<div class="dpt-hd">'+L.hd+'</div><div class="dpt-tabs">'
+    +'<button class="dpt-tab'+(t==='r'?' sel':'')+'" onclick="dprtTutTab(\'r\')">'+L.tr+'</button>'
+    +'<button class="dpt-tab'+(t==='i'?' sel':'')+'" onclick="dprtTutTab(\'i\')">'+L.ti+'</button></div>';
+  if(t==='r'){for(i=0;i<L.regole.length;i++){r=L.regole[i];h+=sclHelpRow(r[0],r[1],r[2],'');}}
+  else{for(i=0;i<DPRT_TUT.ogg.length;i++){r=DPRT_TUT.ogg[i];
+    h+='<div class="dpt-it" style="--ic:#7fd1ff;"><div class="dpt-ith"><b>'+r[1]+' '+(en?r[3]:r[2])+'</b></div>'
+      +'<div class="dpt-st"><span><i>'+L.usi+'</i><b>'+r[4]+'</b></span></div>'
+      +'<div class="dpt-txt">'+sclEsc(en?r[6]:r[5])+'</div></div>';}}
+  return h+'<button class="action-btn" style="width:100%;margin-top:12px;" onclick="rtdOvClose()">'+L.chiudi+'</button>';
+}
+function dprtTutTab(k){
+  DPRT_TUT.tab=(k==='i')?'i':'r';
+  var m=document.getElementById('arc-modal');if(m){m.innerHTML=dprtTutHTML();m.scrollTop=0;}
+}
 var LCRT={wrap:null,fr:null,pronto:false,coda:[],aperto:false,nascosto:false,firma:"",start:null,fineScena:false,loads:0,codaPiena:false,tgEv:false};
 // ⚠️ `v=` NUOVO A OGNI md5 NUOVO DI lastcall.html (la riga la stampa
 //    _lc_monta.py): index.html e lastcall.html vanno su Pages INSIEME.
@@ -60229,12 +60465,14 @@ function rtdShowMatch(){
   // manda `rientra` al server per uno start fresco — mai una ricarica.
   if(RTD.game==='lupus'&&typeof LUPRT!=='undefined'){rtdShowLupusRT(null);return;}
   if(RTD.game==='lastcall'&&typeof LCRT!=='undefined'){rtdShowLastcallRT(null);return;}   // 🍸 stessa uscita
+  if(RTD.game==='scalata'&&typeof DPRT!=='undefined'&&DPRT.aperto){rtdShowDeadpeakRT(null);return;}   // 🗼 DP MEAT 15/09
   // e se si entra in un ALTRO match mentre il ring e' ancora aperto (un
   // riaggancio dopo una caduta di rete che atterra su un'altra partita),
   // il ring va spento o resterebbe sopra il canvas del gioco nuovo.
   if(typeof BXRT!=='undefined'&&BXRT.aperto)rtdChiudiBoxeRT();
   if(typeof LUPRT!=='undefined'&&LUPRT.aperto)rtdChiudiLupusRT(true);
   if(typeof LCRT!=='undefined'&&LCRT.aperto)rtdChiudiLastcallRT(true);   // 🍸
+  if(typeof DPRT!=='undefined'&&DPRT.aperto)rtdChiudiDeadpeakRT(true);   // 🗼 DP MEAT 15/09
   RTD.ui='match';rtdOvClose();
   // ── IL CANALE DELLA MIA LOBBY (12/08/2026) ───────────────────────────────
   // Qui non c'era NIENTE: il ramo rtd allo 'start' imposta RTD.mid e non
@@ -60683,6 +60921,7 @@ function rtdWatchOk(m){
   RTD.feedRows=[];RTD.shake=0;RTD.cam.ok=false;RTD._sc={};RTD._uno={};RTD._lf=0;RTD._lookC={};
   var ttl=document.getElementById('arc-title');
   if(ttl){ttl.textContent=rtdMeta().title;ttl.style.color=rtdMeta().color;}
+  if(m.game==='scalata'&&m.map&&m.map.v==='meat'&&typeof rtdShowDeadpeakRT==='function'){rtdShowDeadpeakRT(m,true);return;}   // 🗼 DP MEAT 15/09
   rtdShowSpecMatch();
 }
 function rtdShowSpecMatch(){
@@ -60722,6 +60961,7 @@ function rtdShowSpecMatch(){
   }catch(_cs){}
 }
 function rtdSpecExit(){
+  if(typeof DPRT!=='undefined'&&DPRT.aperto)rtdChiudiDeadpeakRT(true);   // 🗼 DP MEAT 15/09
   if(RTD.wsOk&&(RTD.spec||RTD.specRid)){rtdSend({t:'unwatch'});RTD._specLeft=Date.now();}   // il server risponde {t:'left'}: ack, non refund
   RTD.spec=false;RTD.specRid=null;RTD.pendingWatch=null;RTD.tour=false;
   RTD.ui='';RTD.map=null;RTD.lastRaw=null;RTD.pgSeat=null;RTD.snaps=[];RTD.over=null;
@@ -60758,6 +60998,7 @@ function rtdOvClose(){RTD.ovSticky=false;var o=document.getElementById('arc-over
   // ritorno della cartolina VS a 2,8 s dal via.
   if(RTD.ui!=='match'&&typeof BXRT!=='undefined'&&BXRT.aperto)rtdChiudiBoxeRT();
   if(RTD.ui!=='match'&&typeof LCRT!=='undefined'&&LCRT.aperto)rtdChiudiLastcallRT(true);   // 🍸 LAST CALL: stessa regola
+  if(RTD.ui!=='match'&&typeof DPRT!=='undefined'&&DPRT.aperto)rtdChiudiDeadpeakRT(true);   // 🗼 DP MEAT 15/09
   // 🐺 LUPUS: stessa regola. Fuori dal match il guscio si chiude e la pagina
   // dentro diventa bianca; dentro il match rtdChiudiLupusRT non blankerebbe
   // comunque (D-26), ma qui non la si chiama proprio.
@@ -89862,6 +90103,7 @@ function sclTutRules(){
    +sclHelpRow('🎒','GLI OGGETTI','Li raccogli dai punti luminosi sulla torre: hai tre caselle, tocchi una casella per scegliere, tieni premuto OGGETTO per mirare e rilasci per usare. La scheda completa è nella linguetta qui sopra.','');
 }
 function sclTutHTML(){
+  if(typeof DPRT_ON!=='undefined'&&DPRT_ON&&typeof dprtTutHTML==='function')return dprtTutHTML();   // 🗼 DP MEAT 15/09
   var t=(SCL_TUT.tab==='i')?'i':'r';
   return '<div class="dpt-hd">🗼 DEAD PEAK — COME SI GIOCA</div>'
     +'<div class="dpt-tabs">'
@@ -89876,7 +90118,7 @@ function sclTutTab(k){
   var m=document.getElementById('arc-modal');if(m){m.innerHTML=sclTutHTML();m.scrollTop=0;}
   try{tg.HapticFeedback&&tg.HapticFeedback.selectionChanged();}catch(e){}
 }
-function sclTutOpen(k){SCL_TUT.tab=(k==='i')?'i':'r';rtdOv(sclTutHTML(),true);}
+function sclTutOpen(k){SCL_TUT.tab=(k==='i')?'i':'r';if(typeof DPRT_TUT!=='undefined')DPRT_TUT.tab=SCL_TUT.tab;rtdOv(sclTutHTML(),true);}
 function sclTutBtn(){
   return '<button class="action-btn" style="width:100%;margin:8px 0 2px;background:linear-gradient(135deg,#1c1630,#120d22);border:1px solid rgba(250,204,21,.5);color:#fde68a;" onclick="sclTutOpen()">📖 COME SI GIOCA — I 12 OGGETTI</button>';
 }
