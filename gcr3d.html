@@ -240,7 +240,8 @@ void main(){ if(uFlag>0.5) discard; vec3 n=normalize(vN); vec3 v=normalize(camer
       }
     },
     // luci di questo fotogramma (vita 0) vanno ripulite dopo il disegno
-    pulisciIstantanee() { for (let i = LUCI.length - 1; i >= 0; i--) if (!LUCI[i].vita) LUCI.splice(i, 1); }
+    pulisciIstantanee() { for (let i = LUCI.length - 1; i >= 0; i--) if (!LUCI[i].vita) LUCI.splice(i, 1); },
+    azzera() { LUCI.length = 0; }   // AVVIO3D (19/09): citta' nuova nella stessa pagina = niente luci della partita di prima
   };
 
   // ── livelli di qualita' (scelti da soli sul fotogramma medio) ─────────────
@@ -7203,12 +7204,28 @@ void main(){
      CE.ferma()                             silenzio e nodi staccati
      CE.stat()                              { spari, teste, frecce, suoni, nodi }
    Parametri: ?cecchino=0 spegne tutto il modulo · ?cec_audio=0 solo il suono.
+
+   CECCHINO3 (18/09): col motore GCR_CECCHINO3 (you.fiato/you.trema/you.mirino nello snapshot)
+     · il colpo parte al RILASCIO: a carica piena il mirino dice «LASCIA ▸ FUOCO»; l'anello del FIATO
+       (2,5 s di mira ferma) si svuota, poi la canna TREMA: laser e mirino si spostano dello stesso
+       angolo del motore (you.trema), quindi dove vedi il puntino e' dove va il colpo;
+     · il laser di chi ti punta trema anche lui quando il suo fiato e' finito (stima dall'inizio del
+       bagliore: col motore di oggi il colpo parte a 0,55 s e non trema mai);
+     · SEI NEL MIRINO (you.mirino): bordo rosso che pulsa dalla parte del fucile e scritta;
+     · uccisione col fucile: X grande e «ABBATTUTO · 8,4 m» su una lastra al centro (la stretta della camera costava troppo);
+     · dal tetto il laser arriva a 10 (la portata del motore), non 9.
+   Senza i campi nuovi (motore di oggi) tutto resta com'era, salvo il laser a 10 dal tetto.
    ═══════════════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
   const THREE = window.THREE, G3 = window.G3;
   const F_GLINT = 128, F_HIGH = 256, F_ACC = 1024;
   const SCOPE_MIN = 0.55, GLINT_MIN = 0.30, HIP = 0.12, PORTATA = 9, VEL = 16, BORDO = 1.2;
+  const PORT = alto => (alto ? 10 : PORTATA);                // CECCHINO3: dal tetto il colpo carico arriva a 10 (CG2_FUCILE_TETTO)
+  // CECCHINO3: fiato e tremito, gli stessi numeri del motore (C3_FIATO, C3_TREMA_SALE, C3_TREMA_MAX, C3_TREMA_HZ)
+  const C3_FIATO = 2.5, C3_SALE = 0.8, C3_TMAX = 0.10, C3_HZ = 0.9;
+  function tremito(tPieno) { const t = tPieno - C3_FIATO; if (t <= 0) return 0; return C3_TMAX * Math.min(1, t / C3_SALE) * Math.sin(6.283185307179586 * C3_HZ * t); }
+  function ruota(ax, ay, a, out) { const c = Math.cos(a), s = Math.sin(a); out.x = ax * c - ay * s; out.y = ax * s + ay * c; return out; }
   const CARICA_GLINT = GLINT_MIN / SCOPE_MIN;          // 0,545: a questa carica si accende il bagliore
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
   const ROSSO = [1, 0.22, 0.18], BIANCO = [1, 0.96, 0.9], BLU_L = [0.78, 0.9, 1];
@@ -7223,6 +7240,10 @@ void main(){
     const SEGNI = [];                       // { t, x, y, hy, testa, morto }  (colpi MIEI a segno)
     const BOSSOLI = [];                     // { t, id, dx, dz }
     const FISCHI = new Map();               // chiave proiettile -> t
+    const KILL = { t: -9, x: 0, y: 0, hy: 0, d: 0, testa: false };   // CECCHINO3: l'ultima uccisione col fucile (mia)
+    // CECCHINO3: i glifi (emoji e scritte grandi) si preparano ora, non al primo colpo in testa (a CPU x4 costava un fotogramma da 14 ms)
+    try { const cv0 = document.createElement('canvas'); cv0.width = 64; cv0.height = 24; const q0 = cv0.getContext('2d'); q0.font = '900 20px "Russo One",system-ui,sans-serif'; q0.lineWidth = 3; const t0 = '🎯 ' + G3.T('ABBATTUTO') + ' · ' + G3.T('IN TESTA') + ' ⚠ ' + G3.T('SEI NEL MIRINO') + ' 9,0 m'; q0.strokeText(t0, 0, 18); q0.fillText(t0, 0, 18); q0.font = '900 13px "Russo One",system-ui,sans-serif'; q0.fillText(t0, 0, 18); q0.font = '900 15px "Russo One",system-ui,sans-serif'; q0.fillText(t0, 0, 18); } catch (e) { }
+    const RT = { x: 0, y: 0 };              // direzione ruotata dal tremito
     const V = new THREE.Vector3(), V2 = new THREE.Vector3();
 
     // ── geometria ─────────────────────────────────────────────────────────
@@ -7371,8 +7392,12 @@ void main(){
     // ── il feed ───────────────────────────────────────────────────────────
     const TMP = { x: 0, y: 0 };
     function direzioneDi(s) { const ax = s.mira ? s.ax : s.fx, ay = s.mira ? s.ay : s.fy, n = Math.hypot(ax, ay) || 1; TMP.x = ax / n; TMP.y = ay / n; return TMP; }
-    CE.feed = function (e, now, P, meId) {
+    CE.feed = function (e, nowIframe, P, meId) {
       if (SPENTO) return;
+      // CECCHINO3: 50_mondo passa l'ora dell'IFRAME (performance.now() dell'iframe, che nasce anche minuti dopo la pagina),
+      // mentre fotogramma e sovrimpressione usano l'ora della PAGINA: frecce «da dove», segni del colpo, bossoli scadevano
+      // prima di essere disegnati, e la scia partiva anche da chi non si vede piu'. Qui si usa l'ora della pagina.
+      const now = G3.oraPagina() / 1000;
       if (e.k === 'shot' && e.w === 'SNIPER') {
         const s = P.get(e.who); st.spari++;
         const mio = e.who === meId;
@@ -7382,7 +7407,7 @@ void main(){
         const dir = direzioneDi(s), pt = R.punti(e.who);
         const y0 = s.hy + G3.OMINO.arma;
         const bx = pt ? pt.bocca[0] : s.x + dir.x * 0.4, by = pt ? pt.bocca[1] : y0, bz = pt ? pt.bocca[2] : s.y + dir.y * 0.4;
-        const tr = traiettoria(s.x, s.y, s.alto, dir.x, dir.y, PORTATA, y0);
+        const tr = traiettoria(s.x, s.y, s.alto, dir.x, dir.y, PORT(s.alto), y0);
         if (F.scia) {
           if (s.alto && (tr.kx !== tr.ex || tr.kz !== tr.ez)) { F.scia(bx, by, bz, tr.kx, tr.ky, tr.kz, 0); F.scia(tr.kx, tr.ky, tr.kz, tr.ex, tr.ey, tr.ez, Math.hypot(tr.kx - bx, tr.kz - bz) / VEL); }
           else F.scia(bx, by, bz, tr.ex, tr.ey, tr.ez, 0);
@@ -7408,6 +7433,11 @@ void main(){
           }
         }
         if (mio && (e.x != null || v)) { SEGNI.push({ t: now, x: v ? v.x : e.x, y: v ? v.y : e.y, hy: v ? v.hy : 0, testa, morto: e.k === 'kill' }); if (SEGNI.length > 6) SEGNI.shift(); }
+        // CECCHINO3: la mia uccisione col fucile si vede: X grande e la distanza
+        if (mio && cecc && e.k === 'kill' && (e.x != null || v)) {
+          KILL.t = now; KILL.x = v ? v.x : e.x; KILL.y = v ? v.y : e.y; KILL.hy = v ? v.hy : 0; KILL.d = +e.d || 0; KILL.testa = testa;
+          // (niente stretta della camera: cam.pugno qui costava un fotogramma da 70 ms a CPU x4, misurato)
+        }
         if (suMe && (e.cause === 'pistol' || cecc)) {
           let ux = 0, uy = 0;
           if (e.da && e.da.length === 2) { ux = +e.da[0]; uy = +e.da[1]; }
@@ -7442,7 +7472,7 @@ void main(){
       const c = clamp(carica, 0, 1), lock = c >= 0.999;
       const mezzo = (1 - c) * HIP * 0.5;
       const col = lock ? ROSSO : mio ? BIANCO : [1, 0.35, 0.3];
-      const L = primoCorpo(x, y, alto, ax, ay, PORTATA, chi);
+      const L = primoCorpo(x, y, alto, ax, ay, PORT(alto), chi);
       // raggio centrale
       const tr = traiettoria(x, y, alto, ax, ay, L, y0);
       const sx = x + ax * 0.35, sz = y + ay * 0.35;
@@ -7455,7 +7485,7 @@ void main(){
         const cs = Math.cos(mezzo), sn = Math.sin(mezzo), aa = forza * 0.8 * (1 - c * 0.7);
         for (let sg = -1; sg <= 1; sg += 2) {
           const bx = ax * cs - ay * sn * sg, by = ax * sn * sg + ay * cs;
-          const t2 = traiettoria(x, y, alto, bx, by, PORTATA, y0);
+          const t2 = traiettoria(x, y, alto, bx, by, PORT(alto), y0);
           SG.trave(sx, y0, sz, t2.ex, t2.ey, t2.ez, 0.024, col[0], col[1], col[2], aa);
         }
       }
@@ -7468,7 +7498,9 @@ void main(){
     CE.laserMio = function (me, you, twr, P) {
       if (SPENTO || !me || you.gun !== 'SNIPER' || !(you.gun_ammo > 0) || !twr.aim || !twr.aim.on) return false;
       if (P) { PCUR = P; TEMPO.now = me.visto; }
-      laser(me.x, me.y, me.hy, me.alto, me.ax, me.ay, +you.scope || 0, 1, true, me.id);
+      const tr0 = +you.trema || 0;                 // CECCHINO3: la canna trema -> il laser si sposta dello stesso angolo del motore
+      if (tr0) { ruota(me.ax, me.ay, tr0, RT); laser(me.x, me.y, me.hy, me.alto, RT.x, RT.y, +you.scope || 0, 1, true, me.id); }
+      else laser(me.x, me.y, me.hy, me.alto, me.ax, me.ay, +you.scope || 0, 1, true, me.id);
       return true;
     };
 
@@ -7496,7 +7528,10 @@ void main(){
             const puls = 0.85 + 0.25 * Math.sin(now * (14 + 16 * c)) * (0.5 + 0.5 * c);
             const px = (34 + 20 * c) * puls;
             if (F.bagliore) F.bagliore(lx, ly, lz, taglia(lx, ly, lz, px), 1);
-            laser(s.x, s.y, s.hy, s.alto, s.ax, s.ay, c, 0.9, false, id);
+            // CECCHINO3: se tiene la carica piena oltre il fiato, il suo laser trema (stima dall'inizio del bagliore)
+            const trA = i ? tremito(now - i.gl0 - (SCOPE_MIN - GLINT_MIN)) : 0;
+            if (trA) { ruota(s.ax, s.ay, trA, RT); laser(s.x, s.y, s.hy, s.alto, RT.x, RT.y, c, 0.9, false, id); }
+            else laser(s.x, s.y, s.hy, s.alto, s.ax, s.ay, c, 0.9, false, id);
             // chi mi ha davanti: il «tin» della lente una volta per bagliore
             if (me && you.alive !== false && i && !i.tin) {
               const vx = me.x - s.x, vy = me.y - s.y, d = Math.hypot(vx, vy);
@@ -7574,11 +7609,13 @@ void main(){
       // 1) il mirino che si stringe (io, fucile, mira accesa)
       if (me && you.alive !== false && you.gun === 'SNIPER' && you.gun_ammo > 0 && twr.aim && twr.aim.on) {
         const c = clamp(+you.scope || 0, 0, 1), lock = c >= 0.999;
+        const c3 = you.fiato != null, fiato = c3 ? clamp(+you.fiato, 0, 1) : 1, trem = +you.trema || 0;   // CECCHINO3
         PCUR = S_P; TEMPO.now = me.visto;
-        const tr = traiettoria(me.x, me.y, me.alto, me.ax, me.ay, primoCorpo(me.x, me.y, me.alto, me.ax, me.ay, PORTATA, me.id), me.hy + G3.OMINO.arma);
+        let mx = me.ax, my = me.ay; if (trem) { ruota(mx, my, trem, RT); mx = RT.x; my = RT.y; }
+        const tr = traiettoria(me.x, me.y, me.alto, mx, my, primoCorpo(me.x, me.y, me.alto, mx, my, PORT(me.alto), me.id), me.hy + G3.OMINO.arma);
         schermo(tr.ex, tr.ey, tr.ez, W, H, S0);
         const d = Math.hypot(tr.ex - me.x, tr.ez - me.y), lat = d * Math.tan(HIP * 0.5) * (1 - c);
-        schermo(tr.ex - me.ay * lat, tr.ey, tr.ez + me.ax * lat, W, H, S1);
+        schermo(tr.ex - my * lat, tr.ey, tr.ez + mx * lat, W, H, S1);
         const r = Math.max(5, Math.hypot(S1.x - S0.x, S1.y - S0.y)) + 7;
         g.save(); g.translate(S0.x, S0.y);
         g.strokeStyle = lock ? '#ff3b3b' : 'rgba(255,245,230,0.95)'; g.lineWidth = lock ? 3 : 2; g.lineCap = 'round';
@@ -7589,7 +7626,13 @@ void main(){
         }
         g.beginPath(); g.arc(0, 0, r + 14, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * c); g.lineWidth = 2.5; g.strokeStyle = lock ? '#ff3b3b' : 'rgba(255,210,74,0.9)'; g.stroke();
         g.fillStyle = lock ? '#ff3b3b' : '#fff5e6'; g.beginPath(); g.arc(0, 0, lock ? 3.2 : 2.2, 0, 6.283); g.fill();
-        if (lock) { g.font = '900 11px "Russo One",system-ui,sans-serif'; g.textAlign = 'center'; g.fillText(G3.T('FUOCO'), 0, -r - 22); }
+        if (lock && c3) {
+          // CECCHINO3: il fiato (anello interno azzurro che si svuota, arancio quando trema) e la scritta del rilascio
+          g.beginPath(); g.arc(0, 0, r + 5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * fiato); g.lineWidth = 3; g.strokeStyle = trem ? '#ff6a3d' : (fiato < 0.35 ? '#ffb020' : '#5ee0ff'); g.stroke();
+          g.font = '900 12px "Russo One",system-ui,sans-serif'; g.textAlign = 'center';
+          g.fillStyle = trem ? '#ff6a3d' : '#ff3b3b';
+          g.fillText(trem ? G3.T('TREMA! LASCIA ORA') : G3.T('LASCIA ▸ FUOCO'), 0, -r - 22);
+        } else if (lock) { g.font = '900 11px "Russo One",system-ui,sans-serif'; g.textAlign = 'center'; g.fillText(G3.T('FUOCO'), 0, -r - 22); }
         g.restore();
         disegnato = true;
       }
@@ -7604,15 +7647,61 @@ void main(){
           const R0 = Math.min(W, H) * (f.forte ? 0.14 : 0.12) + (1 - k1) * 10;
           g.save(); g.translate(S0.x, S0.y); g.rotate(a);
           g.globalAlpha = Math.min(1, k1 * 1.6);
-          g.fillStyle = f.testa ? '#ff1f3d' : '#ef4444'; g.shadowColor = 'rgba(0,0,0,0.6)'; g.shadowBlur = 6;
+          g.fillStyle = f.testa ? '#ff1f3d' : '#ef4444'; g.strokeStyle = 'rgba(0,0,0,0.55)'; g.lineWidth = 2;   // CECCHINO3: contorno invece di shadowBlur (le frecce ora si vedono davvero: costo)
           const s = f.forte ? 1.45 : 1;
           for (let n = 0; n < (f.testa ? 2 : 1); n++) {
             const o = R0 + n * 13 * s;
-            g.beginPath(); g.moveTo(o + 20 * s, 0); g.lineTo(o, -11 * s); g.lineTo(o + 5 * s, 0); g.lineTo(o, 11 * s); g.closePath(); g.fill();
+            g.beginPath(); g.moveTo(o + 20 * s, 0); g.lineTo(o, -11 * s); g.lineTo(o + 5 * s, 0); g.lineTo(o, 11 * s); g.closePath(); g.stroke(); g.fill();
           }
           if (f.forte) { g.globalAlpha *= 0.5; g.fillRect(o2(R0, s), -1.5, 70, 3); }
           g.restore();
         }
+        disegnato = true;
+      }
+      // CECCHINO3 · SEI NEL MIRINO (you.mirino dal motore: un fucile col bagliore ti punta entro ~14 gradi)
+      if (me && you.alive !== false && you.mirino) {
+        let a = -Math.PI / 2, best = 1e9;
+        if (S_P) {                                   // dalla parte del fucile che mi punta (il bagliore che vedo gia')
+          for (const [id, s] of S_P) {
+            if (id === me.id || !s.vivo || !(s.flags & F_GLINT) || s.visto !== me.visto) continue;
+            const dd = Math.hypot(s.x - me.x, s.y - me.y);
+            if (dd < best) { best = dd; schermo(s.x, s.hy + 0.6, s.y, W, H, S1); schermo(me.x, me.hy + 0.6, me.y, W, H, S0); a = Math.atan2(S1.y - S0.y, S1.x - S0.x); }
+          }
+        }
+        const pul = 0.55 + 0.45 * Math.sin(now * 9);
+        const gx = W / 2 + Math.cos(a) * W * 0.5, gy = H / 2 + Math.sin(a) * H * 0.5;
+        const gr = g.createRadialGradient(gx, gy, 0, gx, gy, Math.max(W, H) * 0.55);
+        gr.addColorStop(0, 'rgba(255,30,50,' + (0.42 * pul) + ')'); gr.addColorStop(1, 'rgba(255,30,50,0)');
+        g.fillStyle = gr; g.fillRect(0, 0, W, H);
+        g.save(); g.fillStyle = 'rgba(12,4,8,0.62)'; const lw = Math.min(W - 24, 300); if (g.roundRect) { g.beginPath(); g.roundRect(W / 2 - lw / 2, H * 0.2 - 19, lw, 44, 12); g.fill(); } else g.fillRect(W / 2 - lw / 2, H * 0.2 - 19, lw, 44);
+        g.font = '900 15px "Russo One",system-ui,sans-serif'; g.textAlign = 'center'; g.fillStyle = '#ff4d5e'; g.globalAlpha = 0.7 + 0.3 * pul;
+        g.fillText(G3.T('⚠ SEI NEL MIRINO'), W / 2, H * 0.2);
+        g.font = '800 11px "Russo One",system-ui,sans-serif'; g.fillStyle = '#ffd0d6';
+        g.fillText(G3.T(me.alto ? 'fermo dietro il muretto · o spostati' : 'spostati · mettiti al coperto'), W / 2, H * 0.2 + 17);
+        g.restore();
+        disegnato = true;
+      }
+      // CECCHINO3 · la mia uccisione col fucile: X grande e la distanza, 1,1 s
+      if (me && now - KILL.t < 1.1) {
+        const age = now - KILL.t, k = age / 1.1;
+        schermo(KILL.x, KILL.hy + G3.OMINO.busto, KILL.y, W, H, S0);
+        const r = 26 + 18 * Math.min(1, age * 6), al = k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3;
+        const kx = clamp(S0.x, 40, W - 40), ky = clamp(S0.y, 90, H - 90);       // anche se la camera e' gia' scivolata via
+        g.save(); g.translate(kx, ky); g.globalAlpha = al;
+        g.lineCap = 'round';
+        for (let pass = 0; pass < 2; pass++) {       // contorno scuro poi rosso (niente shadowBlur: costa)
+          g.strokeStyle = pass ? '#ff3b3b' : 'rgba(0,0,0,0.65)'; g.lineWidth = pass ? 5 : 8;
+          for (let n = 0; n < 4; n++) { const an = n * Math.PI / 2 + Math.PI / 4, ca = Math.cos(an), sa = Math.sin(an); g.beginPath(); g.moveTo(ca * r * 0.4, sa * r * 0.4); g.lineTo(ca * r, sa * r); g.stroke(); }
+        }
+        g.restore();
+        // la scritta al centro in alto, su una lastra: si legge anche a 390 px
+        const tx = (KILL.testa ? '🎯 ' : '') + G3.T('ABBATTUTO') + (KILL.d >= 1 ? ' · ' + KILL.d.toFixed(1).replace('.', ',') + ' m' : '');
+        g.save(); g.globalAlpha = al; const sc = age < 0.12 ? 0.7 + age * 2.5 : 1;
+        g.font = '900 ' + Math.round(20 * sc) + 'px "Russo One",system-ui,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+        const tw = g.measureText(tx).width + 28; g.fillStyle = 'rgba(40,4,8,0.72)';
+        if (g.roundRect) { g.beginPath(); g.roundRect(W / 2 - tw / 2, H * 0.3 - 20, tw, 40, 12); g.fill(); } else g.fillRect(W / 2 - tw / 2, H * 0.3 - 20, tw, 40);
+        g.lineWidth = 3; g.strokeStyle = '#ff2a3a'; g.strokeText(tx, W / 2, H * 0.3 + 1); g.fillStyle = '#fff'; g.fillText(tx, W / 2, H * 0.3 + 1);
+        g.restore();
         disegnato = true;
       }
       // 3) i miei colpi a segno: X sul bersaglio, rossa e «IN TESTA» se alla testa
@@ -7624,7 +7713,7 @@ void main(){
         g.save(); g.translate(S0.x, S0.y); g.globalAlpha = a;
         g.strokeStyle = m.testa || m.morto ? '#ff3b3b' : '#ffffff'; g.lineWidth = m.testa ? 3.5 : 2.5; g.lineCap = 'round';
         for (let n = 0; n < 4; n++) { const an = n * Math.PI / 2 + Math.PI / 4, ca = Math.cos(an), sa = Math.sin(an); g.beginPath(); g.moveTo(ca * r * 0.45, sa * r * 0.45); g.lineTo(ca * r, sa * r); g.stroke(); }
-        if (m.testa) { g.font = '900 13px "Russo One",system-ui,sans-serif'; g.textAlign = 'center'; g.fillStyle = '#ff4d5e'; g.shadowColor = '#000'; g.shadowBlur = 4; g.fillText('🎯 ' + G3.T('IN TESTA'), 0, -r - 8); }
+        if (m.testa) { g.font = '900 13px "Russo One",system-ui,sans-serif'; g.textAlign = 'center'; g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,0.7)'; g.strokeText('🎯 ' + G3.T('IN TESTA'), 0, -r - 8); g.fillStyle = '#ff4d5e'; g.fillText('🎯 ' + G3.T('IN TESTA'), 0, -r - 8); }   // CECCHINO3: niente shadowBlur
         g.restore();
         disegnato = true;
       }
@@ -7636,7 +7725,7 @@ void main(){
     CE.ascolta = (x, z, w) => { if (AUD.ascolta) AUD.ascolta(x, z, w); };
     CE.ferma = () => { if (AUD.ferma) AUD.ferma(); };
     CE.stat = () => ({ spari: st.spari, teste: st.teste, frecce: st.frecce, suoni: st.suoni, audio: !!AUD.ok, nodi: AUD.nodi || 0 });
-    CE.qualcosa = now => FRECCE.length > 0 || SEGNI.length > 0;
+    CE.qualcosa = now => FRECCE.length > 0 || SEGNI.length > 0 || now - KILL.t < 1.2 || !!(TWR.lastRaw && TWR.lastRaw.you && TWR.lastRaw.you.mirino);
     return CE;
   }
   G3.registra('cecchino', { crea });
@@ -8134,6 +8223,23 @@ vC=aCol*ic; vE=0.0; gl_Position=projectionMatrix*viewMatrix*w; }`;
     const PROI = [];               // proiettili tracciati per la quota e gli impatti
     const FUOCHI = new Map();
     const stato = { primi: true, modo: G3.qp('trasp', 'dither'), t: 0, mioBid: -1, sogliaBid: -1 };
+    // ── AVVIO3D (19/09) · L'INGRESSO COL PARACADUTE — solo disegno, nessuna regola del gioco ─────────────────
+    // Ognuno scende dal cielo SULLA SUA POSIZIONE VERA (x,y del motore, predetta per me come sempre): cambia solo
+    // la quota disegnata, che scende a zero entro PARA.T s del TEMPO DEL MOTORE (raw.time), cioe' al «VIA!» del
+    // conto alla rovescia (2,5 s). Chi parte sul tetto (bit F_HIGH: hTop) atterra sul tetto. Si vede scendere solo
+    // chi e' nel mio snapshot (la nebbia e il coperto li decide il server come sempre). Chi entra dopo (3D lento,
+    // spettatore in ritardo, rientro) vede solo il pezzo che resta, o niente. ?para=0 lo spegne.
+    const PARA = { T: 2.5, H: 9.5, on: G3.qp('para', '1') !== '0' };
+    function hashPara(id) { let h = 7; const s = String(id); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return (h % 1000) / 1000; }
+    function tempoPartita(raw) { const t = +raw.time; if (!isFinite(t)) return 99; const r = raw.rx ? Math.min(0.3, Math.max(0, (G3.oraPagina() - raw.rx) / 1000)) : 0; return t + r; }
+    function paraDi(s, tm, now) {
+      if (!PARA.on || !(tm < PARA.T + 0.6)) return null;
+      const h = s.hPara != null ? s.hPara : (s.hPara = hashPara(s.id));
+      const T = PARA.T - 0.4 * h, H = PARA.H * (0.85 + 0.3 * ((h * 7.31) % 1));   // atterrano fra 2,1 e 2,5 s, da 8 a 11 celle
+      const k = G3.clamp(tm / T, 0, 1), alt = H * Math.pow(1 - k, 1.45), dondolo = 0.13 * (1 - k) * Math.min(1, alt);
+      const f = now * 2.1 + h * 6.28;
+      return { alt, k, T, dopo: tm - T, sx: Math.sin(f) * dondolo, sz: Math.cos(f * 0.8) * dondolo * 0.6, rx: Math.cos(f * 0.8) * 0.12 * (1 - k), rz: -Math.sin(f) * 0.16 * (1 - k), yaw: h * 6.28 };
+    }
     const BERS = [];
     const PUNTI_ACC = [G3.OMINO.busto * 0.6, G3.OMINO.testa * 0.72];
     const OMINI = [];              // [id, stato] aggiunti a R in questo fotogramma (per il metro GPU)
@@ -8141,7 +8247,7 @@ vC=aCol*ic; vE=0.0; gl_Position=projectionMatrix*viewMatrix*w; }`;
     // vapore dai tombini (emettitori ambientali del modulo effetti)
     try { (citta.dove.tombini || []).forEach(([x, y]) => F.vapore(x, y)); if (G3.qualita.cur.particelle < 0.5) F.vapori(false); } catch (e) { }
 
-    const tempo = () => performance.now() / 1000;
+    const tempo = () => G3.oraPagina() / 1000;   // CECCHINO3: lo stesso orologio del fotogramma (ora della PAGINA)
     const hex3 = h => G3.hex3(h);
     const COL_IO = hex3('#22d3ee'), COL_NEM = hex3('#ef4444'), COL_ORO = hex3('#fbbf24'), COL_CAVEAU = hex3('#5eead4'), COL_TETTO = hex3('#fb923c');
     // GCR: prima il look nuovo della pagina (ospite.gcrLookOf, gia' normalizzato), se no il vecchio (campi nuovi = 0)
@@ -8170,6 +8276,36 @@ vC=aCol*ic; vE=0.0; gl_Position=projectionMatrix*viewMatrix*w; }`;
       const B = M.bldById[bid]; if (!B) return null;
       for (const [sx, sy] of B.stairs) { const d = Math.hypot(sx + 0.5 - x, sy + 0.5 - y); if (d < bd) { bd = d; best = [sx + 0.5, sy + 0.5]; } }
       return bd < 1.6 ? best : null;
+    }
+    // GCR SCALE (19/09): dove sono le scale del palazzo in cui sei e dove portano. Dentro: quelle del tuo piano; sul
+    // tetto: le botole. La scala che il tasto SALI/SCENDI prende (you.scala) pulsa piu' forte. Solo segni (SG), niente
+    // geometria nuova; solo chi gioca vivo e a piedi, entro 9 celle.
+    const SCALA_DOVE = { tetto: ['TETTO', 'ROOF'], terra: ['GIÙ', 'DOWN'], p1: ['PIANO 1', 'FLOOR 1'], p2: ['PIANO 2', 'FLOOR 2'] };
+    function scalaSegni(me, you, now) {
+      if (!me || you.alive === false || you.in_car) return;
+      let B = null, h = 0, lista = null;
+      const en = G3.lingua === 'en' ? 1 : 0, casB = M.piani ? M.bldById[M.piani.bid] : null;
+      if (me.alto) {
+        const b = M.bldAt(me.x, me.y); B = b >= 0 ? M.bldById[b] : null; if (!B || B.down) return;
+        h = B.hTop;
+        if (casB && B.b === casB.b) { lista = []; M.piani.lv[2].su.forEach(c => lista.push([c % M.N, (c / M.N) | 0, 0, 'p2'])); }
+        else lista = B.stairs.map(([sx, sy]) => [sx, sy, 0, 'terra']);
+      } else if (me.dentroBid >= 0) {
+        B = M.bldById[me.dentroBid]; if (!B || B.down) return;
+        if (casB && B.b === casB.b && M.piani) {
+          const pn = me.piano | 0, L = M.piani.lv[pn] || M.piani.lv[0]; h = me.qPiano || 0; lista = [];
+          L.su.forEach(c => lista.push([c % M.N, (c / M.N) | 0, 1, pn >= 2 ? 'tetto' : 'p' + (pn + 1)]));
+          L.giu.forEach(c => { if (!L.su.has(c)) lista.push([c % M.N, (c / M.N) | 0, 0, pn - 1 > 0 ? 'p' + (pn - 1) : 'terra']); });
+        } else lista = B.stairs.map(([sx, sy]) => [sx, sy, 1, 'tetto']);
+      } else return;
+      const sc = you.scala, p = 0.5 + 0.5 * Math.sin(now * 5.5);
+      for (const [sx, sy, su, dove] of lista) {
+        const x = sx + 0.5, y = sy + 0.5, d = Math.hypot(x - me.x, y - me.y); if (d > 9) continue;
+        const presa = !!(sc && sc[0] === sx && sc[1] === sy), col = su ? COL_ORO : COL_IO;
+        SG.terra(x, y, h, 0.92, 0.92, 4, col, presa ? 0.34 + 0.22 * p : 0.2, true);
+        SG.anello(x, y, h + 0.01, col, presa ? 0.95 : 0.55, presa ? 0.98 + 0.14 * p : 0.84, 3);
+        if (d < 6.5 || presa) SG.scritta(x, h + 1.3 + 0.07 * Math.sin(now * 3 + sx), y, (su ? '▲ ' : '▼ ') + (SCALA_DOVE[dove] || [dove, dove])[en], presa ? 0.44 : 0.34, su ? '#fbbf24' : '#7ee9fb', presa ? 1 : 0.75, true);
+      }
     }
     function statoGiocatore(id) {
       let s = P.get(id);
@@ -8254,6 +8390,48 @@ vC=aCol*ic; vE=0.0; gl_Position=projectionMatrix*viewMatrix*w; }`;
         case 'airdrop_land': if (e.cell) { if (F.atterraggio) F.atterraggio(e.cell[0] + 0.5, e.cell[1] + 0.5); else F.polvere(e.cell[0] + 0.5, 0.2, e.cell[1] + 0.5, 1.5); cam.scossa(0.1); } break;
       }
     }
+    // ── NOMI SEMPRE (19/09, il proprietario: «si devono sempre vedere i nomi dei giocatori sopra la testa») ──
+    // Ogni omino DISEGNATO (vivo e nel mio snapshot: chi e' al coperto o fuori vista non c'e', quindi niente nome
+    // attraverso i muri) ha il nome sopra la testa, a grandezza FISSA sullo schermo (15 px; il mio 16 px, ciano, col
+    // segno sopra), qualunque zoom e anche col telefono girato; chi guida ha il nome sopra l'auto. Se due nomi si
+    // toccano, quello piu' in alto sullo schermo sale di una riga. Quad dell'atlante (pBillSopra), niente DOM.
+    // Coi MAFIOSI (cosmetici 19/09) l'insegna scelta (lk.ins) sta a sinistra del nome, come nel loro pezzo.
+    const ETQ = [], ETQ_FATTI = [], vU = new THREE.Vector3(), vR = new THREE.Vector3(), vE = new THREE.Vector3();
+    function etichette(W, H) {
+      if (!ETQ.length || !(H > 0)) return;
+      const tanF = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+      vU.setFromMatrixColumn(camera.matrixWorld, 1).normalize(); vR.setFromMatrixColumn(camera.matrixWorld, 0).normalize();
+      for (const L of ETQ) {
+        // chi guarda (spettatore o morto) vede anche chi e' DENTRO un palazzo: l'omino lo copre il tetto, il nome no, con la casetta
+        L.testo = (L.casa ? '🏠 ' : '') + String(nome(L.id)).slice(0, 10) + (L.lv > 1 ? ' ·LV' + L.lv : '');
+        L.col = L.io ? '#7ee9fb' : '#ffffff'; L.px = L.io ? 16 : 15;
+        vE.set(L.x, L.y, L.z).applyMatrix4(camera.matrixWorldInverse);
+        L.d = -vE.z; L.fuori = !(L.d > 0.1); if (L.fuori) continue;
+        L.ppu = H / (2 * L.d * tanF);
+        vE.set(L.x, L.y, L.z).project(camera);
+        L.sx = (vE.x * 0.5 + 0.5) * W; L.sy = (-vE.y * 0.5 + 0.5) * H;
+        L.fuori = L.sx < -80 || L.sx > W + 80 || L.sy < -40 || L.sy > H + 40; if (L.fuori) continue;
+        L.wt = L.px * SG.atl.uvScritta(L.testo, L.col).asp; L.w = L.wt * 0.9 + (L.ins ? L.px * 2.6 : 0);   // con l'insegna: largo anche a sinistra
+      }
+      ETQ.sort((a, b) => (b.sy || 0) - (a.sy || 0));   // dal basso dello schermo: chi e' piu' in basso resta al suo posto
+      ETQ_FATTI.length = 0;
+      for (const L of ETQ) {
+        if (L.fuori) continue;
+        let y = L.sy;
+        for (let giro = 0; giro < 12; giro++) {
+          let urta = false;
+          for (const F2 of ETQ_FATTI) { const dy = (F2.px + L.px) * 0.36; if (Math.abs(F2.sx - L.sx) < (F2.w + L.w) * 0.5 && Math.abs(F2.y2 - y) < dy) { y = F2.y2 - dy - 1; urta = true; } }
+          if (!urta) break;
+        }
+        L.y2 = y; ETQ_FATTI.push(L);
+        const k = (L.sy - y) / L.ppu, h = L.px / L.ppu, ax = L.x + vU.x * k, ay = L.y + vU.y * k, az = L.z + vU.z * k;
+        SG.scritta(ax, ay, az, L.testo, h, L.col, 1, true);
+        if (L.ins && typeof insegna === 'function') { const dx = -(L.wt * 0.5 + L.px * 0.7) / L.ppu, sI = (L.px * 1.3) / L.ppu, dy = -0.1 * h; insegna(ax + vR.x * dx + vU.x * dy, ay + vR.y * dx + vU.y * dy, az + vR.z * dx + vU.z * dy, L.ins, sI, 1, true); }
+        const t0 = h * 0.86;   // sopra il nome: il mio segno, la corona dal livello 4
+        if (L.io) SG.segnoBill(ax + vU.x * t0, ay + vU.y * t0, az + vU.z * t0, 12 / L.ppu, 5, COL_IO, 1, true);
+        else if (L.lv >= 4) SG.emoji(ax + vU.x * t0, ay + vU.y * t0, az + vU.z * t0, '👑', 13 / L.ppu, 1, true);
+      }
+    }
     function luceBoom(x, y, k) { G3.luci.aggiungi(x, 1.2, y, [1, 0.55, 0.2], 4.5 * k, 3.2, 0.35 * k); }
     function scossaDa(x, y, k) { const me = io(); if (!me) { cam.scossa(k * 0.3); return; } const d = Math.hypot(x - me.x, y - me.y); cam.scossa(k / Math.max(1, d * 0.3)); }
     function autoVicina(x, y) { let b = null, bd = 1.5; for (const c of CARS) { const d = Math.hypot(c.x - x, c.y - y); if (d < bd) { bd = d; b = c; } } return b; }
@@ -8295,6 +8473,7 @@ vC=aCol*ic; vE=0.0; gl_Position=projectionMatrix*viewMatrix*w; }`;
       const lp = OS.twrLerpSnaps ? OS.twrLerpSnaps() : null;
       const myId = TWR.myId, spec = !!TWR.spec || !myId;
       const rows = lp ? (lp.b.p || []) : (raw.p || []);
+      const tmP = tempoPartita(raw); let altMax = 0;   // AVVIO3D: il paracadute segue il tempo del motore
       R.inizio(); A.inizio(); SG.inizio(); insN = 0;
       BERS.length = 0; BERS.saleBid = -1;
       ioCache = null;
@@ -8341,9 +8520,11 @@ vC=aCol*ic; vE=0.0; gl_Position=projectionMatrix*viewMatrix*w; }`;
           const B = M.bldById[bid >= 0 ? bid : M.bldAt(s.x, s.y)];
           const basso = (B && M.piani && B.b === M.piani.bid) ? 2 * FP : 0;          // col tetto del casino' si scende al piano 2
           if (sc && B) s.sale = { t0: now, dur: 0.42, dir: alto ? 1 : -1, cx: sc[0], cz: sc[1], h0: alto ? basso + 0.35 : B.hTop, h1: alto ? B.hTop : basso, bid: B.b };
+          if (s.sale && isMe && you.scala && s.ev.sale && s.ev.sale.carica) { s.sale.h0 = s.hy; s.sale.dur = 0.2; }   // GCR SCALE: la carica ha gia' fatto quasi tutto
         } else if (!alto && !s.alto && s.piano !== undefined && s.piano !== piano && nelCas && s.visto && now - s.visto < 0.5) {
           const sc = scalaPiani(x, y);                                           // salita/discesa fra due piani: la chiocciola della cella
           if (sc) s.sale = { t0: now, dur: 0.42, dir: piano > s.piano ? 1 : -1, cx: sc[0], cz: sc[1], h0: s.piano * FP, h1: piano * FP, bid: casB.b };
+          if (s.sale && isMe && you.scala && s.ev.sale && s.ev.sale.carica) { s.sale.h0 = s.hy; s.sale.dur = 0.2; }   // GCR SCALE
         }
         s.alto = alto; s.piano = piano;
         let hy = hTop, rx = x, rz = y;
@@ -8353,10 +8534,12 @@ vC=aCol*ic; vE=0.0; gl_Position=projectionMatrix*viewMatrix*w; }`;
           if (sc && B) {
             let giu = alto;
             if (nelCas && !alto) { const c = M.I(x | 0, y | 0), L = M.piani.lv[piano] || M.piani.lv[0]; giu = L.giu.has(c) && !L.su.has(c); }
-            const k = G3.clamp(you.climb, 0, 1), hh = alto ? B.hTop - 0.35 * k : (giu ? qPiano - 0.35 * k : qPiano + 0.35 * k);
+            // GCR SCALE: col motore nuovo (you.scala) la carica sale l'80% del tratto (prima i primi gradini, 0,35)
+            const cK = you.scala ? 0.8 * Math.max(0.35, nelCas && !alto ? FP : (alto ? B.hTop - (nelCas ? 2 * FP : 0) : B.hTop - qPiano)) : 0.35;
+            const k = G3.clamp(you.climb, 0, 1), hh = alto ? B.hTop - cK * k : (giu ? qPiano - cK * k : qPiano + cK * k);
             const giri = B.hTop / 2.2, a = (hh / B.hTop) * giri * Math.PI * 2;
             rx = G3.lerp(x, sc[0] + Math.cos(a) * 0.27, k); rz = G3.lerp(y, sc[1] + Math.sin(a) * 0.27, k); hy = hh;
-            s.ev.sale = { t0: now - k * 0.5, dur: 0.5, dir: (alto || giu) ? -1 : 1, cx: sc[0], cz: sc[1], h0: alto ? B.hTop : qPiano, h1: alto ? B.hTop - 0.35 : qPiano + (giu ? -0.35 : 0.35) };
+            s.ev.sale = { t0: now - k * 0.5, dur: 0.5, dir: (alto || giu) ? -1 : 1, cx: sc[0], cz: sc[1], h0: alto ? B.hTop : qPiano, h1: alto ? B.hTop - cK : qPiano + (giu ? -cK : cK), carica: 1 };
             BERS.saleBid = bid;
           }
         }
@@ -8375,6 +8558,7 @@ vC=aCol*ic; vE=0.0; gl_Position=projectionMatrix*viewMatrix*w; }`;
         if (!alto && !(qPiano > 0)) hy = Math.max(hy, citta.alturaMacerie(x, y));
         s.qPiano = qPiano;
         s.x = rx; s.y = rz; s.hy = G3.damp(s.hy, hy, s.sale || s.ev.sale ? 60 : 18, dt); if (Math.abs(s.hy - hy) > 2.5) s.hy = hy;
+        if (!s.nato) s.hy = hy;   // AVVIO3D: chi compare (al via, anche sul tetto) sta subito alla sua quota; prima saliva da terra in 0,25 s
         s.dentroBid = dentro && !alto ? (nelCas && qPiano > 0 ? casB.b : M.inter[M.I(x | 0, y | 0)]) : -1;   // ai piani la cella puo' essere muro al piano terra
         s.visto = now;
         if (isMe) ioCache = s;
@@ -8388,6 +8572,13 @@ vC=aCol*ic; vE=0.0; gl_Position=projectionMatrix*viewMatrix*w; }`;
           }
         }
         if (!s.nato) s.nato = now;
+        // AVVIO3D: la quota del paracadute; a terra: sbuffo di polvere (e un colpetto di camera a me) se l'ho visto scendere
+        s.para = vivo && !inAuto ? paraDi(s, tmP, now) : null;
+        if (s.para) {
+          if (s.para.alt > 0.6) s.paraVisto = true;
+          if (s.para.alt > altMax && (isMe || spec || !myId)) altMax = s.para.alt;
+          if (s.para.dopo >= 0 && s.paraVisto && !s.paraGiu) { s.paraGiu = true; try { F.polvere(s.x, s.hy + 0.05, s.y, 0.75); } catch (e) { } if (isMe) cam.scossa(0.12); }
+        }
       }
       // chi non e' piu' nello snapshot: via dopo 2 s
       for (const [id, s] of P) if (now - s.visto > 2) P.delete(id);
@@ -8456,11 +8647,15 @@ vC=aCol*ic; vE=0.0; gl_Position=projectionMatrix*viewMatrix*w; }`;
         else { tx = SV.x; ty = SV.y; thy = 0; }
       }
       stato.soggetto = dcs;
+      // AVVIO3D: la camera scende con me (guarda l'omino in aria e parte piu' larga); da spettatore solo un po' larga
+      let zPara = 1;
+      if (me && you.alive !== false && !SV && me.para && me.para.alt > 0.01) { thy += me.para.alt * 0.62; zPara = 1 + 0.38 * Math.min(1, me.para.alt / PARA.H); }
+      else if ((spec || you.alive === false) && altMax > 0.01) zPara = 1 + 0.3 * Math.min(1, altMax / PARA.H);
       const camCE = CE ? CE.camera(you, me, TWR) : null;
       const mira = TWR.aim && TWR.aim.on && you.alive !== false ? { on: true, ax: TWR.aim.ax, ay: TWR.aim.ay, anticipo: you.gun === 'SNIPER' ? (camCE ? camCE.anticipo : 0.9 + 2.1 * (you.scope || 0)) : 0.9, rapida: !!(camCE && you.gun === 'SNIPER' && you.on_high) } : null;
       // (R) la camera sa la velocita' VERA della mia auto (muso e velocita' predetti: TWR.ap.s, patch 33-35) e il suo id (colpo di camera)
       const svA = mioAuto && mioAuto.s && mioAuto.s.vx != null ? mioAuto.s : null; stato.mioAutoId = mioAuto ? mioAuto.id : null;
-      cam.aggiorna(dt, { x: tx, y: ty, hy: thy, tetto: !!you.on_high, auto: !!you.in_car, velAuto: svA ? Math.hypot(svA.vx, svA.vy) : (mioAuto ? 5.6 : 0), vAuto: svA, mira, mx: TWR.joy ? TWR.joy.mx : 0, my: TWR.joy ? TWR.joy.my : 0, fisso: stato.primi || !!(SV && SV.fisso), zoomExtra: (camCE ? camCE.zoom : 1) * (SV ? (+SV.zoom || 1) : 1) }, W, H);   // SPETTATORE
+      cam.aggiorna(dt, { x: tx, y: ty, hy: thy, tetto: !!you.on_high, auto: !!you.in_car, velAuto: svA ? Math.hypot(svA.vx, svA.vy) : (mioAuto ? 5.6 : 0), vAuto: svA, mira, mx: TWR.joy ? TWR.joy.mx : 0, my: TWR.joy ? TWR.joy.my : 0, fisso: stato.primi || !!(SV && SV.fisso), zoomExtra: (camCE ? camCE.zoom : 1) * (SV ? (+SV.zoom || 1) : 1) * zPara }, W, H);   // SPETTATORE
       if (AU) AU.ascoltatore(cam.x, cam.z, cam.CAMS[cam.k].W * cam.zoom);   // l'orecchio al centro della vista
       if (CE) CE.ascolta(cam.x, cam.z, cam.CAMS[cam.k].W * cam.zoom);
       if (TWR.trauma > 0) { cam.scossa(TWR.trauma * 0.5); TWR.trauma = 0; }
@@ -8488,7 +8683,8 @@ vC=aCol*ic; vE=0.0; gl_Position=projectionMatrix*viewMatrix*w; }`;
         s.codice = s.codice || [0, 1, 1]; s.codice[0] = ((OMINI.length + 1) * 6) / 255;
         OMINI.push([id, s]);
         R.aggiungi(id, {
-          x: s.x, y: s.y, hy: s.hy, fx: s.fx, fy: s.fy, ax: s.ax, ay: s.ay, mira: s.mira, vel: s.vel, arma: s.arma,
+          x: s.x + (s.para ? s.para.sx : 0), y: s.y + (s.para ? s.para.sz : 0), hy: s.hy + (s.para ? s.para.alt : 0), fx: s.fx, fy: s.fy, ax: s.ax, ay: s.ay,   // AVVIO3D: appeso al paracadute
+          mira: s.para && s.para.alt > 0.3 ? false : s.mira, vel: s.para && s.para.alt > 0.3 ? 0 : s.vel, arma: s.arma,
           look: s.lk, archetipo: s.arch, squadra: s.squadra, io: isMe, vivo: s.vivo,
           nascosto: !!(s.flags & MM.F_HIDDEN) && s.vel < 0.3, alfa, lampeggia: !!(s.flags & MM.F_INVULN), giubbotto: !!(s.flags & MM.F_SHIELD),
           carica: isMe && you.gun === 'SNIPER' ? (you.scope || 0) : (CE ? (s.caricaCec || 0) : ((s.flags & MM.F_GLINT) ? 1 : 0)),
@@ -8553,11 +8749,27 @@ vC=aCol*ic; vE=0.0; gl_Position=projectionMatrix*viewMatrix*w; }`;
           if (mio && me) z = me.alto ? 1 : 0;
           else for (const [, s] of P) { const d = Math.hypot(s.x - ex, s.y - ey); if (d < bd) { bd = d; z = s.alto ? 1 : 0; } }
           tr = { x: ex, y: ey, vx: q[3], vy: q[4], z, k: q[2], y0: z ? altezzaTetto(ex, ey) + 0.45 : 0.45 };
+          if (z) {
+            // CECCHINO3: dal tetto il colpo va in linea retta verso il primo che ha davanti (sull'altro tetto o in strada)
+            const h00 = altezzaTetto(ex, ey); tr.sx = ex; tr.sy = ey; tr.h0 = h00 > 0 ? h00 + G3.OMINO.arma : tr.y0; tr.yT = null; tr.LT = 0;
+            const sp0 = Math.hypot(q[3], q[4]) || 1, ux = q[3] / sp0, uy = q[4] / sp0; let bl = 12;
+            for (const [, s2] of P) {
+              if (!s2.vivo) continue;
+              const dx = s2.x - ex, dy = s2.y - ey, lu = dx * ux + dy * uy;
+              if (lu < 0.3 || lu > bl || Math.abs(dx * uy - dy * ux) > 0.6) continue;
+              bl = lu; tr.LT = lu; tr.yT = s2.alto ? altezzaTetto(s2.x, s2.y) + G3.OMINO.arma : G3.OMINO.arma;
+            }
+          }
           PROI.push(tr);
         }
         tr.vivo = true; tr.x = ex; tr.y = ey; tr.k = q[2];
         let yy = G3.OMINO.arma + (q.length > 6 ? quotaPiano(ex, ey, q[6]) : 0);
-        if (tr.z) { const ht = altezzaTetto(ex, ey); tr.y0 = ht > 0 ? ht + G3.OMINO.arma : G3.damp(tr.y0, G3.OMINO.arma, 5, dt); yy = tr.y0; }
+        if (tr.z) {
+          const ht = altezzaTetto(ex, ey);
+          if (tr.yT != null && tr.LT > 0.5) { const kL = Math.min(1, Math.hypot(ex - tr.sx, ey - tr.sy) / tr.LT), lin = tr.h0 + (tr.yT - tr.h0) * kL; tr.y0 = ht > 0 ? Math.max(lin, ht + 0.25) : lin; }   // CECCHINO3
+          else tr.y0 = ht > 0 ? ht + G3.OMINO.arma : G3.damp(tr.y0, G3.OMINO.arma, 5, dt);
+          yy = tr.y0;
+        }
         const sp = Math.hypot(q[3], q[4]) || 1;
         F.proiettile(ex, yy, ey, q[3] / sp, q[4] / sp, q[2]);
       }
@@ -8575,7 +8787,7 @@ vC=aCol*ic; vE=0.0; gl_Position=projectionMatrix*viewMatrix*w; }`;
       (raw.tr || []).forEach(t => SG.trappola(t[0], t[1], 0));
       (raw.cr || []).forEach(c => {
         const x = c[0] + 0.5, y = c[1] + 0.5;
-        const hy = me && me.alto && M.bldAt(x, y) >= 0 ? altezzaTetto(x, y) : quotaPiano(x, y, you.piano | 0);   // casse dei piani: solo quelle del mio piano arrivano
+        const hy = (me && me.alto && M.bldAt(x, y) >= 0) || (c[2] && G3._dropTetti && G3._dropTetti[c[0] + '_' + c[1]] && !(me && you.alive)) ? altezzaTetto(x, y) : quotaPiano(x, y, you.piano | 0);   /* GCR_AIRDROP_TETTI: chi guarda vede la cassa sul tetto */   // casse dei piani: solo quelle del mio piano arrivano
         SG.cassa(x, y, hy, !!c[2], now);
         const pulse = 1 + 0.06 * Math.sin(now * 5 + c[0]);
         if (c[2] === 2) { SG.emoji(x, hy + 0.55, y, '💎', 0.46 * pulse, 1); SG.alone(x, y, hy, 1.5, COL_CAVEAU, 0.6); }   // GCR_CASINO_CAVEAU: la cassa del caveau (solo a chi sta al piano 2)
@@ -8585,12 +8797,13 @@ vC=aCol*ic; vE=0.0; gl_Position=projectionMatrix*viewMatrix*w; }`;
       (raw.lt || []).forEach(c => SG.terra(c[0] + 0.5, c[1] + 0.5, 0, 0.5, 0.5, 4, [0.4, 0.35, 0.3], 0.35));
       const inc = raw.incoming;
       if (inc && inc.code === 'BOMBARD' && inc.cells) inc.cells.forEach(c => { SG.terra(c[0] + 0.5, c[1] + 0.5, 0, 0.95, 0.95, 8, [1, 0.15, 0.1], 0.6 + 0.35 * Math.sin(now * 11)); });
-      const drop = (inc && inc.code === 'AIRDROP' && inc.cell) ? inc.cell : raw.airdrop;
+      const drop = (inc && inc.code === 'AIRDROP' && inc.cell) ? inc.cell : raw.airdrop; const dropT = !!drop && ((inc && inc.code === 'AIRDROP' && inc.z === 1) || (raw.airdrop && raw.airdrop[2] === 1)); if (dropT) { G3._dropTetti = G3._dropTetti || {}; G3._dropTetti[drop[0] + '_' + drop[1]] = 1; }   /* GCR_AIRDROP_TETTI */
       if (drop) {
         const dx = drop[0] + 0.5, dy = drop[1] + 0.5;
-        SG.terra(dx, dy, 0, 1.2, 1.2, 7, COL_ORO, 0.8);
-        if (raw.airdrop) { const k = (now * 0.8) % 1; SG.cassa(dx, dy, 5 * (1 - k), true, now); SG.emoji(dx, 5 * (1 - k) + 0.6, dy, '🪂', 0.8, 1); }
-        else SG.emoji(dx, 0.3, dy, '🪂', 0.55, 0.9);
+        const hT = dropT ? altezzaTetto(dx, dy) : 0;   /* GCR_AIRDROP_TETTI: sul tetto */
+        SG.terra(dx, dy, hT, 1.2, 1.2, 7, COL_ORO, 0.8);
+        if (raw.airdrop) { const k = (now * 0.8) % 1; SG.cassa(dx, dy, hT + 5 * (1 - k), true, now); SG.emoji(dx, hT + 5 * (1 - k) + 0.6, dy, '🪂', 0.8, 1); }
+        else SG.emoji(dx, hT + 0.3, dy, '🪂', 0.55, 0.9);   /* una sola emoji: l'atlante del 3D non ha '🪂🏢' */
       }
       if (raw.zone_next != null && raw.zone_next < 3.6) {
         const zi = Math.floor(raw.zone || 0) + 1, a = 0.35 + 0.3 * Math.sin(now * 9), L = M.N - 2 * zi;
@@ -8613,27 +8826,40 @@ vC=aCol*ic; vE=0.0; gl_Position=projectionMatrix*viewMatrix*w; }`;
       } else SG.elicottero(null);
       if (raw.bounty) { const s = P.get(raw.bounty.target); if (s && s.vivo) SG.emoji(s.x, s.hy + G3.OMINO.sopra + 0.35 + 0.08 * Math.abs(Math.sin(now * 4.5)), s.y, '💰', 0.42, 1, true); }
 
+      if (!spec) { try { scalaSegni(ioCache, you, now); } catch (e) { } }   // GCR SCALE: le scale e dove portano
       // 9) segni sopra gli omini (anelli, cuori, nomi, tetto, cecchino)
+      ETQ.length = 0;   // NOMI SEMPRE
       for (const [id, s] of P) {
+        if (s.visto === now && s.vivo && s.inAuto) { const cA = autoVicina(s.x, s.y); ETQ.push({ id, x: cA ? cA.x : s.x, y: s.hy + 1.15, z: cA ? cA.y : s.y, io: id === myId, lv: 0, ins: s.lk ? GCR_INSEGNE[intero(s.lk.ins, 0, 10)] : null }); continue; }
         if (s.visto !== now || !s.vivo || (s.inAuto)) continue;
         const isMe = id === myId, ring = isMe ? COL_IO : (spec ? hex3(s.squadra) : COL_NEM);
-        SG.ombra(s.x + 0.08, s.y + 0.08, s.hy, 0.7, 0.45);
+        const pa = s.para, aP = pa ? pa.alt : 0;   // AVVIO3D: il paracadute (cupola, corde) e l'ombra che si stringe salendo
+        if (pa) {
+          const ox = s.x + pa.sx, oz = s.y + pa.sz, spalle = s.hy + aP + G3.OMINO.busto + 0.12;
+          const cS = hex3(s.squadra || '#22d3ee'), cc = [G3.lerp(cS[0], 1, 0.08) * 1.25, G3.lerp(cS[1], 1, 0.08) * 1.25, G3.lerp(cS[2], 1, 0.08) * 1.25];
+          if (pa.dopo < 0) {
+            const cy = s.hy + aP + G3.OMINO.sopra + 1.05, R0 = 1.1;
+            SG.paracadute(ox, cy, oz, R0, 0.8, pa.rx, pa.rz, pa.yaw, cc);
+            for (let c = 0; c < 4; c++) { const a = pa.yaw + c * 1.5708 + 0.785, bx = ox + Math.cos(a) * R0 * 0.92, bz = oz + Math.sin(a) * R0 * 0.92; SG.trave(bx, cy + 0.02, bz, ox + Math.cos(a) * 0.08, spalle, oz + Math.sin(a) * 0.08, 0.024, 0.9, 0.92, 1, 0.75); }
+          } else if (pa.dopo < 0.55) {   // a terra: la cupola si affloscia dietro e sparisce
+            const k = pa.dopo / 0.55, R1 = 1.1 * (1 - 0.35 * k), a0 = pa.yaw;
+            SG.paracadute(ox - Math.cos(a0) * 0.9 * k, s.hy + (G3.OMINO.sopra + 1.05) * (1 - k) * (1 - k) + 0.04, oz - Math.sin(a0) * 0.9 * k, R1, 0.95 * (1 - 0.8 * k), 0.9 * k, 0, a0, cc);
+          }
+        }
+        SG.ombra(s.x + 0.08, s.y + 0.08, s.hy, 0.7 * (aP > 0 ? 0.55 + 0.45 * pa.k : 1), 0.45 * (aP > 0 ? 0.35 + 0.65 * pa.k : 1));
         SG.anello(s.x, s.y, s.hy, ring, isMe ? 0.95 : 0.85, 0.95, 3);
         if (s.alto && !isMe) SG.alone(s.x, s.y, s.hy, 1.3, COL_TETTO, 0.5);
         const hp = (rows.find ? null : null);
         const row = (lp && lp.b.idx && lp.b.idx[id]) || (raw.idx && raw.idx[id]);
-        const vite = row ? row[3] : 0, yTop = s.hy + G3.OMINO.sopra;
+        const vite = row ? row[3] : 0, yTop = s.hy + aP + G3.OMINO.sopra;   // AVVIO3D: cuori e nome seguono l'omino appeso
         const n = Math.max(0, Math.min(5, vite)), w = 0.13, g = 0.035, tot = n * w + Math.max(0, n - 1) * g;
         SG.barra(s.x, yTop - 0.02, s.y, Math.max(0.2, tot + 0.08), 0.12, [0.02, 0.03, 0.06], 0.7, true);
         for (let k = 0; k < n; k++) { const a = s.x - tot / 2 + w / 2 + k * (w + g); V3.set(a - s.x, 0, 0); SG.barra(s.x + (a - s.x) * 1, yTop, s.y, w, 0.08, isMe ? [0.2, 0.95, 0.6] : [1, 0.25, 0.25], 1, true); }
         if (s.flags & MM.F_SHIELD) SG.anello(s.x, s.y, s.hy + 0.01, [0.22, 1, 0.08], 0.8, 1.1, 1);
-        const dCam = Math.hypot(s.x - tx, s.y - ty);
-        const insE = s.lk ? GCR_INSEGNE[intero(s.lk.ins, 0, 10)] : null;   // GCR insegna a sinistra del nome (o di «TU»)
-        if (isMe) { const wN = SG.scritta(s.x, yTop + 0.14, s.y, G3.T('TU'), 0.2, '#7ee9fb', 1, true); if (insE) insegna(s.x - wN / 2 - 0.12, yTop + 0.13, s.y, insE, 0.22, 1, true); }
-        else if (dCam < 5.5) { const aN = Math.max(0.25, 1 - dCam / 6), wN = SG.scritta(s.x, yTop + 0.14, s.y, String(nome(id)).slice(0, 10) + ((row && row[9] > 1) ? ' ·LV' + row[9] : ''), 0.17, '#ffffff', aN, true); if (insE) insegna(s.x - wN / 2 - 0.1, yTop + 0.13, s.y, insE, 0.19, aN, true); }
-        if (row && row[9] >= 4) SG.emoji(s.x, yTop + 0.3, s.y, '👑', 0.22, 1, true);
+        const insE = s.lk ? GCR_INSEGNE[intero(s.lk.ins, 0, 10)] : null;   // GCR insegna a sinistra del nome
+        ETQ.push({ id, x: s.x + (pa ? pa.sx : 0), y: yTop + 0.12, z: s.y + (pa ? pa.sz : 0), io: isMe, lv: row ? row[9] : 0, ins: insE, casa: !isMe && (spec || you.alive === false) && s.dentroBid >= 0 });   // NOMI SEMPRE (prima: solo entro 5,5 celle, sfumato; io «TU»)
         if (s.alto && !isMe) SG.segnoBill(s.x, yTop + 0.34, s.y, 0.34, 5, COL_TETTO, 1, true);
-        if (isMe) SG.segnoBill(s.x, yTop + 0.52 + Math.sin(now * 4) * 0.05, s.y, 0.36, 5, COL_IO, 1, true);
+        // (il mio segno ora lo disegna etichette(), sopra il mio nome)
         if (s.flags & MM.F_GLINT && !isMe && !(CE && s.arma === 'SNIPER')) {
           const L = 9, y0 = s.hy + G3.OMINO.arma; let ex = s.x + s.fx * L, ez = s.y + s.fy * L;
           if (!s.alto) for (let st = 0.5; st < L; st += 0.25) { if (M.wallAt(s.x + s.fx * st, s.y + s.fy * st)) { ex = s.x + s.fx * st; ez = s.y + s.fy * st; break; } }
@@ -8641,6 +8867,7 @@ vC=aCol*ic; vE=0.0; gl_Position=projectionMatrix*viewMatrix*w; }`;
           SG.segnoBill(s.x, s.hy + G3.OMINO.testa + 0.3, s.y, 0.3 + 0.09 * Math.sin(now * 8), 8, [1, 1, 1], 0.9, true);
         }
       }
+      etichette(W, H);   // NOMI SEMPRE (le insegne accanto ai nomi vanno nella coda qui sotto)
       // GCR: insegne in coda ed effetti KO (quasi trasparenti davanti alla mia linea di mira)
       for (let i = 0; i < insN; i++) { const q = INS_Q[i]; SG.emoji(q.x, q.y, q.z, q.e, q.s, q.a, q.sopra); }
       { const miro = me && you.alive !== false && TWR.aim && TWR.aim.on; SG.koDisegna(now, me ? me.x : 0, me ? me.y : 0, miro ? TWR.aim.ax : 0, miro ? TWR.aim.ay : 0); }
@@ -8922,6 +9149,10 @@ void main(){ vec4 w=modelMatrix*vec4(position,1.0); vW=w.xyz; vN=normalize(mat3(
     const trapGeo = unisci([[new THREE.CylinderGeometry(0.22, 0.24, 0.04, 12), M4(0, 0.02, 0), [0.35, 0.35, 0.38]], [new THREE.TorusGeometry(0.18, 0.02, 4, 12).rotateX(Math.PI / 2), M4(0, 0.05, 0), [0.7, 0.7, 0.72]]]);
     function inst(geo, max) { const m = new THREE.InstancedMesh(geo, matI.main, max); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(max * 3).fill(1), 3); m.frustumCulled = false; m.count = 0; m.renderOrder = 1; scene.add(m); return m; }
     const iCasse = inst(cassaGeo, 90), iOro = inst(orogeo, 16), iGran = inst(granGeo, 16), iTrap = inst(trapGeo, 12);
+    // AVVIO3D (19/09) · LA CUPOLA DEL PARACADUTE: 8 spicchi a due toni (il colore lo da' l'istanza: la squadra),
+    // raggio 0,5 e bordo a y=0; stesso materiale delle casse (matI) = nessun programma nuovo da compilare.
+    const paraGeo = unisci([0, 1, 2, 3, 4, 5, 6, 7].map(i => [new THREE.SphereGeometry(0.5, 3, 5, i * Math.PI / 4, Math.PI / 4, 0, Math.PI * 0.42), M4(0, -0.5 * Math.cos(Math.PI * 0.42) * 0.62, 0, 1, 0.62, 1), i % 2 ? [0.58, 0.58, 0.6] : [1, 1, 1]]));
+    const iPara = inst(paraGeo, 24); let np = 0; const qPara = new THREE.Quaternion(), ePara = new THREE.Euler();
     // elicottero
     const eli = new THREE.Group();
     const eliCorpo = new THREE.Mesh(unisci([
@@ -8945,6 +9176,7 @@ void main(){ vec4 w=modelMatrix*vec4(position,1.0); vW=w.xyz; vN=normalize(mat3(
     const zMesh = new THREE.Mesh(zGeo, zMat); zMesh.frustumCulled = false; zMesh.renderOrder = 9; scene.add(zMesh);
 
     // ── tela 2D in sovrimpressione (dentro l'iframe) ───────────────────────
+    try { document.querySelectorAll('#g3hud').forEach(e => e.remove()); } catch (e) { }   // AVVIO3D: la citta' nuova nella stessa pagina non impila tele
     const hud = document.createElement('canvas'); hud.id = 'g3hud';
     hud.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;pointer-events:none;z-index:2';
     document.body.appendChild(hud); const hg = hud.getContext('2d');
@@ -8956,7 +9188,7 @@ void main(){ vec4 w=modelMatrix*vec4(position,1.0); vW=w.xyz; vN=normalize(mat3(
     const KO = []; for (let i = 0; i < 6; i++) KO.push({ on: false, t0: 0, x: 0, y: 0, hy: 0, mo: 0, seme: 0 });
     const api = {
       atl, LOOT_IC, LOOT_CAT,
-      inizio() { pTerra.n = pTerraAdd.n = pBill.n = pBillSopra.n = 0; nb = 0; nc = no = ng = nt = 0; },
+      inizio() { pTerra.n = pTerraAdd.n = pBill.n = pBillSopra.n = 0; nb = 0; nc = no = ng = nt = 0; np = 0; },
       anello(x, y, hy, rgb, a, raggio, forma) { quad(pTerra, x, hy + 0.02, y, raggio || 0.9, raggio || 0.9, forma == null ? 3 : forma, true, null, rgb[0], rgb[1], rgb[2], a); },
       ombra(x, y, hy, r, a) { quad(pTerra, x, hy + 0.012, y, r, r * 0.8, 2, true, null, 0, 0, 0, a); },
       alone(x, y, hy, r, rgb, a) { quad(pTerraAdd, x, hy + 0.025, y, r, r, 2, true, null, rgb[0], rgb[1], rgb[2], a); },
@@ -9002,19 +9234,21 @@ void main(){ vec4 w=modelMatrix*vec4(position,1.0); vW=w.xyz; vN=normalize(mat3(
       },
       granata(x, y, hy, blink) { if (ng >= 16) return; vp.set(x, hy, y); q.identity(); vs.set(1, 1, 1); mtx.compose(vp, q, vs); iGran.setMatrixAt(ng, mtx); col.setRGB(blink ? 1.6 : 1, blink ? 0.4 : 1, blink ? 0.4 : 1); iGran.setColorAt(ng, col); ng++; },
       trappola(x, y, hy) { if (nt >= 12) return; vp.set(x, hy, y); q.identity(); vs.set(1, 1, 1); mtx.compose(vp, q, vs); iTrap.setMatrixAt(nt, mtx); nt++; },
+      // AVVIO3D: la cupola (bordo in x,y,z), raggio r, alta r*a, inclinata (rx, rz), girata yaw, colore rgb 0..1
+      paracadute(x, y, z, r, a, rx, rz, yaw, rgb) { if (np >= 24) return; ePara.set(rx || 0, yaw || 0, rz || 0); qPara.setFromEuler(ePara); vp.set(x, y, z); vs.set(r * 2, r * 2 * (a || 1), r * 2); mtx.compose(vp, qPara, vs); iPara.setMatrixAt(np, mtx); col.setRGB(rgb[0], rgb[1], rgb[2]); iPara.setColorAt(np, col); np++; },
       elicottero(pos, t, dir) {
         if (!pos) { eli.visible = false; return; }
         eli.visible = true; eli.position.set(pos[0] + 0.9, 6.5 + Math.sin(t * 1.3) * 0.15, pos[1] - 1.2); eli.rotation.y = Math.atan2(-(dir ? dir[1] : 0), dir ? dir[0] : 1); eli.rotation.z = 0.08; rotore.rotation.y = t * 30;
       },
       fine() {
-        iCasse.count = nc; iOro.count = no; iGran.count = ng; iTrap.count = nt;
+        iCasse.count = nc; iOro.count = no; iGran.count = ng; iTrap.count = nt; iPara.count = np; iPara.instanceMatrix.needsUpdate = true; if (iPara.instanceColor) iPara.instanceColor.needsUpdate = true;   // AVVIO3D
         [iCasse, iOro, iGran, iTrap].forEach(m => { m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; });
         [pTerra, pTerraAdd, pBill, pBillSopra].forEach(flush);
         beamGeo.instanceCount = nb; for (const k in BA) { const a = BA[k]; a.clearUpdateRanges(); a.addUpdateRange(0, Math.max(1, nb) * a.itemSize); a.needsUpdate = true; }
       },
       hud: { c: hud, g: hg, sporco: () => hudSporco, segna: v => { hudSporco = v; } },
       stat() { return { terra: pTerra.n + pTerraAdd.n, bill: pBill.n + pBillSopra.n, travi: nb, casse: nc + no }; },
-      riscalda() { quad(pTerra, 0, 0, 0, 1, 1, 1, true, null, 1, 1, 1, 1); quad(pTerraAdd, 0, 0, 0, 1, 1, 2, true, null, 1, 1, 1, 1); quad(pBill, 0, 1, 0, 1, 1, 0, false, atl.uvEmoji('📦'), 1, 1, 1, 1); quad(pBillSopra, 0, 1, 0, 1, 1, 6, false, null, 1, 1, 1, 1); beam(0, 1, 0, 1, 1, 0, 0.1, 1, 1, 1, 1); iCasse.count = iOro.count = iGran.count = iTrap.count = 1; eli.visible = true; }
+      riscalda() { quad(pTerra, 0, 0, 0, 1, 1, 1, true, null, 1, 1, 1, 1); quad(pTerraAdd, 0, 0, 0, 1, 1, 2, true, null, 1, 1, 1, 1); quad(pBill, 0, 1, 0, 1, 1, 0, false, atl.uvEmoji('📦'), 1, 1, 1, 1); quad(pBillSopra, 0, 1, 0, 1, 1, 6, false, null, 1, 1, 1, 1); beam(0, 1, 0, 1, 1, 0, 0.1, 1, 1, 1, 1); iCasse.count = iOro.count = iGran.count = iTrap.count = 1; iPara.count = 1; eli.visible = true; }
     };
     return api;
   }
@@ -10132,47 +10366,117 @@ void main(){ vec4 w=modelMatrix*vec4(position,1.0); vW=w.xyz; vN=normalize(mat3(
   let mostraPerf = G3.qb('perf');
   if (elPerf) elPerf.hidden = !mostraPerf;
 
+  // ═══ AVVIO3D (gcr_avvio3d, 19/09) · LA CITTA' PRIMA DEL VIA ════════════════════════════════════════════
+  // Prima: un iframe NUOVO a ogni partita, creato al via; qui avvia() costruiva e legava i programmi mentre la
+  // pagina giocava in 2D. Adesso la pagina tiene VIVO l'iframe (precarico in lobby, riuso fra le partite):
+  //  · costruisci() e' la stessa costruzione di prima, a TAPPE (un generatore): avvia() la fa tutta d'un fiato,
+  //    prepara() la spezza con setTimeout (la lobby non si blocca per un secondo intero);
+  //  · prepara() costruisce una citta' di PROVA (MAPPA_PROVA: 5 posti, casino' e piani, dal motore 68a3c211) e
+  //    lega i suoi programmi: sono gli stessi della partita (stessi shader, stesse definizioni);
+  //  · la citta' vecchia (prova o partita di prima) si butta DOPO che la nuova ha i programmi (BUTTARE), e di lei
+  //    si tiene cio' che la nuova usa ancora: materiali uguali = programmi riusati = niente compilazione al via;
+  //  · a ogni avvia() tornano come in una pagina nuova: qualita' automatica, tempi dei fotogrammi, luci.
+  G3.MAPPA_PROVA = {"size":32,"walls":[[1,1],[1,2],[1,3],[1,4],[1,5],[1,11],[1,25],[1,26],[1,27],[1,28],[1,29],[2,1],[2,5],[2,12],[2,13],[2,14],[2,18],[2,19],[2,20],[2,22],[2,25],[2,29],[3,1],[3,5],[3,18],[3,22],[3,29],[4,1],[4,2],[4,4],[4,5],[4,22],[4,25],[4,29],[5,1],[5,18],[5,22],[5,25],[5,27],[5,28],[5,29],[6,1],[6,2],[6,4],[6,5],[6,8],[6,9],[6,10],[6,12],[6,13],[6,14],[6,18],[6,19],[6,20],[6,21],[6,22],[6,27],[6,28],[7,7],[8,18],[8,19],[8,20],[9,25],[9,27],[9,28],[9,29],[10,25],[10,29],[11,12],[11,13],[11,14],[11,15],[11,17],[11,18],[11,19],[11,20],[11,25],[11,29],[12,12],[12,20],[12,25],[12,26],[12,27],[12,29],[13,12],[13,14],[13,16],[13,18],[13,20],[13,25],[13,29],[14,2],[14,12],[14,16],[14,20],[14,25],[14,26],[14,28],[14,29],[15,12],[15,16],[15,20],[16,14],[16,15],[16,16],[16,17],[16,18],[16,23],[16,24],[17,12],[17,16],[17,20],[17,23],[17,24],[18,12],[18,14],[18,16],[18,18],[18,20],[19,12],[19,16],[19,20],[20,12],[20,20],[20,26],[21,12],[21,13],[21,14],[21,15],[21,17],[21,18],[21,19],[21,20],[21,26],[23,23],[23,24],[23,26],[23,27],[23,28],[23,29],[24,15],[24,18],[24,19],[24,20],[24,23],[24,29],[24,30],[25,2],[25,15],[25,29],[25,30],[26,1],[26,2],[26,15],[26,23],[26,24],[26,25],[26,26],[26,27],[26,29],[27,2],[27,23],[27,29],[28,3],[28,4],[28,5],[28,23],[28,29],[29,1],[29,2],[29,13],[29,16],[29,17],[29,23],[29,24],[29,26],[29,27],[29,28],[29,29],[30,13]],"hideouts":[[2,8],[2,30],[3,15],[3,17],[4,7],[4,15],[6,15],[6,16],[7,13],[7,21],[7,23],[8,1],[8,8],[8,11],[8,30],[9,1],[9,8],[10,4],[12,8],[12,23],[13,7],[15,4],[15,7],[16,25],[17,7],[18,23],[19,4],[20,4],[20,29],[21,5],[22,4],[23,4],[24,14],[25,9],[26,7],[26,10],[26,11],[26,14],[27,4],[27,7],[27,14],[27,15],[27,17],[27,20],[28,2],[28,9],[28,17],[28,22],[30,9],[30,11],[30,19]],"water":[[2,11],[3,11],[5,11],[6,11],[8,3],[9,3],[10,3],[11,3],[13,3],[14,3],[15,3],[17,3],[18,3],[19,3],[20,3],[21,3],[22,3],[23,3],[24,3],[25,3],[26,3],[27,11]],"parks":[[3,9],[3,10],[4,9],[4,10],[6,24],[6,25],[7,24],[7,25],[8,5],[8,6],[8,23],[8,24],[9,5],[9,6],[9,23],[9,24]],"highs":[[1,1],[1,2],[1,3],[1,4],[1,5],[1,25],[1,26],[1,27],[1,28],[1,29],[2,1],[2,2],[2,3],[2,4],[2,5],[2,18],[2,19],[2,20],[2,21],[2,22],[2,25],[2,26],[2,27],[2,28],[2,29],[3,1],[3,2],[3,3],[3,4],[3,5],[3,18],[3,19],[3,20],[3,21],[3,22],[3,25],[3,26],[3,27],[3,28],[3,29],[4,1],[4,2],[4,3],[4,4],[4,5],[4,18],[4,19],[4,20],[4,21],[4,22],[4,25],[4,26],[4,27],[4,28],[4,29],[5,1],[5,2],[5,3],[5,4],[5,5],[5,18],[5,19],[5,20],[5,21],[5,22],[5,25],[5,26],[5,27],[5,28],[5,29],[6,1],[6,2],[6,3],[6,4],[6,5],[6,18],[6,19],[6,20],[6,21],[6,22],[9,25],[9,26],[9,27],[9,28],[9,29],[10,25],[10,26],[10,27],[10,28],[10,29],[11,12],[11,13],[11,14],[11,15],[11,16],[11,17],[11,18],[11,19],[11,20],[11,25],[11,26],[11,27],[11,28],[11,29],[12,12],[12,13],[12,14],[12,15],[12,16],[12,17],[12,18],[12,19],[12,20],[12,25],[12,26],[12,27],[12,28],[12,29],[13,12],[13,13],[13,14],[13,15],[13,16],[13,17],[13,18],[13,19],[13,20],[13,25],[13,26],[13,27],[13,28],[13,29],[14,12],[14,13],[14,14],[14,15],[14,16],[14,17],[14,18],[14,19],[14,20],[14,25],[14,26],[14,27],[14,28],[14,29],[15,12],[15,13],[15,14],[15,15],[15,16],[15,17],[15,18],[15,19],[15,20],[16,12],[16,13],[16,14],[16,15],[16,16],[16,17],[16,18],[16,19],[16,20],[17,12],[17,13],[17,14],[17,15],[17,16],[17,17],[17,18],[17,19],[17,20],[18,12],[18,13],[18,14],[18,15],[18,16],[18,17],[18,18],[18,19],[18,20],[19,12],[19,13],[19,14],[19,15],[19,16],[19,17],[19,18],[19,19],[19,20],[20,12],[20,13],[20,14],[20,15],[20,16],[20,17],[20,18],[20,19],[20,20],[21,12],[21,13],[21,14],[21,15],[21,16],[21,17],[21,18],[21,19],[21,20],[23,23],[23,24],[23,25],[23,26],[23,27],[23,28],[23,29],[24,23],[24,24],[24,25],[24,26],[24,27],[24,28],[24,29],[25,23],[25,24],[25,25],[25,26],[25,27],[25,28],[25,29],[26,23],[26,24],[26,25],[26,26],[26,27],[26,28],[26,29],[27,23],[27,24],[27,25],[27,26],[27,27],[27,28],[27,29],[28,23],[28,24],[28,25],[28,26],[28,27],[28,28],[28,29],[29,23],[29,24],[29,25],[29,26],[29,27],[29,28],[29,29]],"stairs":[[2,2],[2,28],[5,20],[11,28],[12,13],[20,19],[26,28],[28,24]],"interiors":[[2,2],[2,3],[2,4],[2,26],[2,27],[2,28],[3,2],[3,3],[3,4],[3,19],[3,20],[3,21],[3,26],[3,27],[3,28],[4,3],[4,19],[4,20],[4,21],[4,26],[4,27],[4,28],[5,2],[5,3],[5,4],[5,19],[5,20],[5,21],[10,26],[10,27],[10,28],[11,26],[11,27],[11,28],[12,13],[12,14],[12,15],[12,16],[12,17],[12,18],[12,19],[12,28],[13,13],[13,15],[13,17],[13,19],[13,26],[13,27],[13,28],[14,13],[14,14],[14,15],[14,17],[14,18],[14,19],[15,13],[15,14],[15,15],[15,17],[15,18],[15,19],[16,13],[16,19],[17,13],[17,14],[17,15],[17,17],[17,18],[17,19],[18,13],[18,15],[18,17],[18,19],[19,13],[19,14],[19,15],[19,17],[19,18],[19,19],[20,13],[20,14],[20,15],[20,16],[20,17],[20,18],[20,19],[24,24],[24,25],[24,26],[24,27],[24,28],[25,24],[25,25],[25,26],[25,27],[25,28],[26,28],[27,24],[27,25],[27,26],[27,27],[27,28],[28,24],[28,25],[28,26],[28,27],[28,28]],"doors":[[2,21],[3,25],[4,18],[5,5],[5,26],[6,3],[9,26],[11,16],[14,27],[16,12],[16,20],[21,16],[23,25],[25,23],[29,25]],"bld":[[11,12,11,9,0],[2,18,5,5,1],[1,1,6,5,2],[23,23,7,7,3],[1,25,5,5,4],[9,25,6,5,5]],"casino":{"bid":0,"rect":[11,12,11,9],"fontana":[[16,23],[16,24],[17,23],[17,24]],"auto":[[8,18],[8,19],[8,20],[24,18],[24,19],[24,20]],"tavoli":[[13,14],[13,18],[18,14],[18,18]],"piani":[{"muri":[[11,12],[11,13],[11,14],[11,15],[11,17],[11,18],[11,19],[11,20],[12,12],[12,20],[13,12],[13,14],[13,16],[13,18],[13,20],[14,12],[14,16],[14,20],[15,12],[15,16],[15,20],[16,14],[16,15],[16,16],[16,17],[16,18],[17,12],[17,16],[17,20],[18,12],[18,14],[18,16],[18,18],[18,20],[19,12],[19,16],[19,20],[20,12],[20,20],[21,12],[21,13],[21,14],[21,15],[21,17],[21,18],[21,19],[21,20]],"su":[[12,13],[20,19]],"giu":[],"arredi":[[13,14,"slot"],[13,18,"bancone"],[18,14,"roulette"],[18,18,"slot"]]},{"muri":[[11,12],[11,13],[11,14],[11,15],[11,16],[11,17],[11,18],[11,19],[11,20],[12,12],[12,16],[12,20],[13,12],[13,14],[13,15],[13,16],[13,20],[14,12],[14,18],[14,20],[15,12],[15,16],[15,18],[15,20],[16,12],[16,13],[16,14],[16,15],[16,16],[16,18],[16,20],[17,12],[17,16],[17,18],[17,20],[18,12],[18,14],[18,18],[18,20],[19,12],[19,14],[19,16],[19,20],[20,12],[20,16],[20,20],[21,12],[21,13],[21,14],[21,15],[21,16],[21,17],[21,18],[21,19],[21,20]],"su":[[12,19],[20,13]],"giu":[[12,13],[20,19]],"arredi":[[13,14,"poker"],[13,15,"poker"],[14,18,"bar"],[15,18,"bar"],[16,18,"bar"],[17,18,"bar"],[18,14,"blackjack"],[18,18,"bar"],[19,14,"blackjack"]]},{"muri":[[11,12],[11,13],[11,14],[11,15],[11,16],[11,17],[11,18],[11,19],[11,20],[12,12],[12,20],[13,12],[13,15],[13,17],[13,20],[14,12],[14,15],[14,17],[14,20],[15,12],[15,20],[16,12],[16,13],[16,15],[16,16],[16,17],[16,19],[16,20],[17,12],[17,16],[17,20],[18,12],[18,14],[18,19],[18,20],[19,12],[19,14],[19,16],[19,20],[20,12],[20,16],[20,20],[21,12],[21,13],[21,14],[21,15],[21,16],[21,17],[21,18],[21,19],[21,20]],"su":[[12,13],[20,19]],"giu":[[12,19],[20,13]],"arredi":[[13,15,"divano"],[13,17,"divano"],[14,15,"divano"],[14,17,"divano"],[18,14,"scrivania"],[18,19,"cassaforte"],[19,14,"scrivania"]]}]}};
+  let PREP = null, prepTok = 0;
+  const BUTTARE = [];
+  GCR3D.avvio3d = 1; GCR3D.avvii = 0; GCR3D.fotogrammi = 0; GCR3D.preparato = false;
+  function tenuti(Sx) {
+    const T = new Set(); if (!Sx) return T;
+    Sx.scene.traverse(o => {
+      const g = o.geometry; if (g) { T.add(g); if (g.index) T.add(g.index); for (const k in g.attributes) T.add(g.attributes[k]); }
+      if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { T.add(m); const u = m.uniforms || {}; for (const k in u) { const v = u[k] && u[k].value; if (v && v.isTexture) T.add(v); } });
+    });
+    if (Sx.citta && Sx.citta.tex) for (const k in Sx.citta.tex) if (Sx.citta.tex[k]) T.add(Sx.citta.tex[k]);
+    return T;
+  }
+  function scarta(Sx, T) {            // T = cio' che si tiene (null = tutto via, come il libera() di prima)
+    if (!Sx) return;
+    try { Sx.mondo.dispose(); } catch (e) { }
+    const tiene = x => !!(T && T.has(x));
+    Sx.scene.traverse(o => {
+      const g = o.geometry;
+      if (g && !tiene(g)) { let cond = false; if (T) { if (g.index && T.has(g.index)) cond = true; for (const k in g.attributes) if (T.has(g.attributes[k])) { cond = true; break; } } if (!cond) g.dispose(); }
+      if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (!tiene(m)) m.dispose(); });
+    });
+    if (Sx.citta && Sx.citta.tex) { ['suolo', 'mask', 'celle'].forEach(k => { const t = Sx.citta.tex[k]; if (t && !tiene(t)) t.dispose(); }); }
+  }
+  function svuota(T) { const resto = []; while (BUTTARE.length) { const v = BUTTARE.shift(); if (v && v.compilando) { resto.push(v); continue; } try { scarta(v, T); } catch (e) { console.error('scarta', e); } } BUTTARE.push(...resto); renderer.renderLists.dispose(); }   // FUSIONE F02: chi sta legando i programmi si butta al giro dopo
   function libera() {
     GCR3D.caricando = false;
-    if (!S) return;
-    try { S.mondo.dispose(); } catch (e) { }   // audio: silenzio e nodi staccati
-    S.scene.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { const ms = Array.isArray(o.material) ? o.material : [o.material]; ms.forEach(m => m.dispose()); } });
-    if (S.citta && S.citta.tex) { ['suolo', 'mask', 'celle'].forEach(k => { const t = S.citta.tex[k]; if (t) t.dispose(); }); }
-    renderer.renderLists.dispose();
-    S = null;
+    if (S) { BUTTARE.push(S); S = null; }
+    if (PREP && PREP.S) { BUTTARE.push(PREP.S); PREP.S = null; }
+    svuota(null);
+  }
+  function azzeraPagina() {
+    perf.n = 0; perf.ms = 0; perf.max = 0; perf.t = 0; perf.fps = 0; perf.lavoro.length = 0; perf.intervalli.length = 0; perf.ultimo = 0;
+    if (!G3.qp('q')) { Q.i = Q.livelli.length - 1; Q.ema = 16.7; Q.cambi = 0; Q.ultimoCambio = 0; }
+    try { if (G3.luci.azzera) G3.luci.azzera(); } catch (e) { }
+  }
+  function* costruisci(TWR, os) {
+    const M = G3.mappa.crea(TWR.map);
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(28, 1, 1, 400);
+    for (let i = 0; i < G3.occ.W; i++) { G3.occ.data[i * 4] = 0; G3.occ.data[i * 4 + 1] = 255; G3.occ.data[i * 4 + 2] = 0; G3.occ.data[i * 4 + 3] = 0; }
+    yield;
+    const citta = G3.citta.crea(scene, M);
+    yield;
+    let _t = performance.now();
+    const occ = G3.occlusione.crea(M, citta); G3.tempi.m_occ = +(performance.now() - _t).toFixed(0);
+    const cam = G3.camera.crea(camera);
+    const mondo = G3.mondo.crea({ scene, camera, renderer, M, citta, occ, cam, ospite: os, TWR });
+    const sovra = G3.sovra.crea(mondo.SG, camera);
+    G3.tempi.moduli = +(performance.now() - _t).toFixed(0);
+    return { TWR, M, scene, camera, citta, occ, cam, mondo, sovra, attivo: true, t0: performance.now() };
   }
 
   GCR3D.avvia = function (o) {
     if (!GCR3D.pronto) return false;
     try {
-      libera();
+      if (S) { S.attivo = false; try { S.mondo.dispose(); } catch (e) { } BUTTARE.push(S); S = null; }
+      if (PREP) { prepTok++; if (PREP.S) BUTTARE.push(PREP.S); PREP.S = null; if (PREP.stato !== 'pronto') PREP.stato = 'annullato'; }
+      else PREP = { stato: 'saltato' };
+      GCR3D.caricando = false;
       const TWR = o.TWR, os = o.ospite || {};
       G3.ospite = os; G3.lingua = os.lang || G3.lingua;
       if (!TWR || !TWR.map) throw new Error('mappa assente');
-      const M = G3.mappa.crea(TWR.map);
-      const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(28, 1, 1, 400);
-      for (let i = 0; i < G3.occ.W; i++) { G3.occ.data[i * 4] = 0; G3.occ.data[i * 4 + 1] = 255; G3.occ.data[i * 4 + 2] = 0; G3.occ.data[i * 4 + 3] = 0; }
-      const citta = G3.citta.crea(scene, M);
-      let _t = performance.now();
-      const occ = G3.occlusione.crea(M, citta); G3.tempi.m_occ = +(performance.now() - _t).toFixed(0);
-      const cam = G3.camera.crea(camera);
-      const mondo = G3.mondo.crea({ scene, camera, renderer, M, citta, occ, cam, ospite: os, TWR });
-      const sovra = G3.sovra.crea(mondo.SG, camera);
-      S = { TWR, M, scene, camera, citta, occ, cam, mondo, sovra, attivo: true, t0: performance.now() };
-      G3.tempi.moduli = +(performance.now() - _t).toFixed(0); _t = performance.now();
-      riscalda();
+      azzeraPagina();
+      const it = costruisci(TWR, os); let r; while (!(r = it.next()).done) { }
+      S = r.value; GCR3D.avvii++;
+      const _t = performance.now();
+      riscaldaSu(S, null);
       G3.tempi.riscalda = +(performance.now() - _t).toFixed(0);
       return true;
-    } catch (e) { console.error(e); GCR3D.errore = String(e && e.stack || e); return false; }
+    } catch (e) { console.error(e); GCR3D.errore = String(e && e.stack || e); try { svuota(null); } catch (x) { } return false; }
   };
 
-  // tutti i programmi compilati ADESSO (niente ricompilazioni in gioco)
-  function riscalda() {
-    const { scene, camera, mondo, TWR, M } = S;
+  // IL PRECARICO: la citta' di prova, a tappe; si ferma da solo se nel frattempo arriva la partita (avvia)
+  GCR3D.prepara = function () {
+    if (!GCR3D.pronto || S || PREP || !G3.MAPPA_PROVA) return false;
+    const tok = ++prepTok, P0 = PREP = { S: null, stato: 'costruisce', t0: performance.now(), ms: 0 };
+    const TWRf = { map: G3.MAPPA_PROVA, names: {}, profiles: {}, colors: {}, myId: null, spec: true, lastRaw: null, snaps: [], pred: { ok: false }, joy: { on: false, mx: 0, my: 0 }, aim: { on: false } };
+    let it = null;
+    const passo = () => {
+      if (tok !== prepTok || PREP !== P0) return;
+      try {
+        if (!it) it = costruisci(TWRf, { lang: G3.lingua });
+        const r = it.next();
+        if (!r.done) { setTimeout(passo, 0); return; }
+        P0.S = r.value; P0.S.attivo = false; P0.stato = 'lega';
+        riscaldaSu(P0.S, () => { if (PREP === P0 && P0.S) { P0.stato = 'pronto'; P0.ms = +(performance.now() - P0.t0).toFixed(0); GCR3D.preparato = true; } });
+      } catch (e) { console.error('prepara', e); P0.stato = 'errore'; P0.err = String(e && e.message || e); }
+    };
+    setTimeout(passo, 0);
+    return true;
+  };
+  GCR3D.prep = () => (PREP ? { stato: PREP.stato, ms: PREP.ms || 0, err: PREP.err || null } : null);
+
+  // tutti i programmi compilati ADESSO (niente ricompilazioni in gioco); fatto() quando sono legati (solo precarico)
+  function riscaldaSu(Sx, fatto) {
+    const { scene, camera, mondo, M } = Sx;
+    const vivo = () => Sx === S || (PREP && PREP.S === Sx);
     let _r = performance.now(); const rs = k => { const n = performance.now(); G3.tempi['r_' + k] = +(n - _r).toFixed(0); _r = n; };
     ridimensiona();
-    S.cam.aggiorna(0, { x: M.N / 2, y: M.N / 2, hy: 0, fisso: true }, innerWidth, innerHeight);
+    Sx.cam.aggiorna(0, { x: M.N / 2, y: M.N / 2, hy: 0, fisso: true }, innerWidth || 390, innerHeight || 844);
     const R = mondo.R, A = mondo.A, F = mondo.F, SG = mondo.SG, x = M.N / 2, y = M.N / 2;
     R.inizio(); R.aggiungi('__prova', { x, y, hy: 0, fx: 1, fy: 0, vivo: true, arma: 'PISTOL', look: { suit: '#22d3ee', hatCol: '#ffd700', hat: 0, skin: 0, acc: 0 }, archetipo: 0, squadra: '#22d3ee', eventi: {} }); R.fine(0.016, 0);
     if (A.riscalda) A.riscalda(x + 1, y);
@@ -10180,23 +10484,31 @@ void main(){ vec4 w=modelMatrix*vec4(position,1.0); vW=w.xyz; vN=normalize(mat3(
     SG.inizio(); SG.riscalda(); SG.fine();
     try { F.proiettile(x, 0.45, y, 1, 0, 'p'); F.esplosione(x, 0.3, y, 1); F.testo(x, 1, y, '-1', '#ffffff', 0.5); F.decalco('bruciatura', x, y, 0, 1, 1); F.aggiorna(0.016, 0); } catch (e) { console.error('fx riscalda', e); }
     rs('attori');
-    const S0 = S;
     const primo = () => {
-      if (S !== S0) return;
+      if (!vivo()) return;
       let _p = performance.now();
       renderer.render(scene, camera);
+      const _p1 = performance.now();
       U.uFlag.value = 1; renderer.render(scene, camera); U.uFlag.value = 0;
       R.inizio(); R.fine(0.016, 0); A.inizio(); A.fine(0.016, 0); SG.inizio(); SG.fine();
-      S.programmi0 = renderer.info.programs.length;
-      G3.tempi.primo = +(performance.now() - _p).toFixed(0);
-      GCR3D.caricando = false;
+      if (Sx === S) {
+        G3.tempi.primo = +(performance.now() - _p).toFixed(0); G3.tempi.primo1 = +(_p1 - _p).toFixed(0);
+        const _s = performance.now();
+        svuota(tenuti(S));                            // la citta' vecchia via, tenendo cio' che questa usa
+        G3.tempi.svuota = +(performance.now() - _s).toFixed(0);
+        Sx.programmi0 = renderer.info.programs.length;
+        GCR3D.caricando = false;
+      }
+      if (fatto) fatto();
     };
     // con KHR_parallel_shader_compile i programmi si legano nel processo della GPU mentre la pagina gira:
     // avvia torna subito, GCR3D.caricando resta vero finche' non sono pronti (la pagina aspetta a mostrare il 3D)
     const par = renderer.compileAsync && renderer.extensions.has('KHR_parallel_shader_compile') && !G3.qb('sincrono');
     if (par) {
-      GCR3D.caricando = true; const tc = performance.now();
-      renderer.compileAsync(scene, camera).then(() => { G3.tempi.legatura = +(performance.now() - tc).toFixed(0); primo(); }, e => { console.error('compileAsync', e); primo(); });
+      if (Sx === S) GCR3D.caricando = true;
+      const tc = performance.now();
+      Sx.compilando = true;   // FUSIONE F02: finche' compileAsync controlla i programmi, i materiali di Sx non si buttano
+      renderer.compileAsync(scene, camera).then(() => { Sx.compilando = false; if (Sx === S) G3.tempi.legatura = +(performance.now() - tc).toFixed(0); primo(); }, e => { Sx.compilando = false; console.error('compileAsync', e); primo(); });
       rs('compile');
     } else { renderer.compile(scene, camera); rs('compile'); primo(); }
   }
@@ -10227,6 +10539,7 @@ void main(){ vec4 w=modelMatrix*vec4(position,1.0); vW=w.xyz; vN=normalize(mat3(
     if (METRO.on) { try { metroFotogramma(performance.now()); } catch (e) { console.error('metro', e); } }
     G3.luci.pulisciIstantanee();
     S.sovra.disegna(S.TWR, S.mondo, now);
+    GCR3D.fotogrammi++;   // AVVIO3D
     // la minimappa della pagina disegna il rettangolo della vista: le si passano le celle visibili
     if (t0 - vistaT > 100) { vistaT = t0; try { S.TWR._vista3d = vistaTerra(S.cam.vista()); } catch (e) { } }
     const t1 = performance.now(), ms = t1 - t0;
@@ -10266,7 +10579,7 @@ void main(){ vec4 w=modelMatrix*vec4(position,1.0); vW=w.xyz; vN=normalize(mat3(
     if (tipo === 'mira') {
       // correzione di parallasse: un nemico VISIBILE a un'altra quota, vicino alla direzione del dito sullo schermo
       const you = (S.TWR.lastRaw && S.TWR.lastRaw.you) || {};
-      const portata = (you.gun && you.gun_ammo > 0 ? (G3.M.GUN_RANGE[you.gun] || 4) : 1.8) + 0.8;
+      const portata = (you.gun && you.gun_ammo > 0 ? ((you.gun === 'SNIPER' && you.z >= 1) ? 10 : (G3.M.GUN_RANGE[you.gun] || 4)) : 1.8) + 0.8;   // CECCHINO3: dal tetto il fucile arriva a 10
       const sx0 = V.x * W / 2, sy0 = -V.y * H / 2;
       let best = null, bang = 0.21;
       for (const [id, s] of S.mondo.P) {
@@ -10321,6 +10634,13 @@ void main(){ vec4 w=modelMatrix*vec4(position,1.0); vW=w.xyz; vN=normalize(mat3(
     S.mondo.rifaiOmini(0, now / 1000);
     renderer.render(S.scene, S.camera);
   }
+  // CECCHINO3: dove sta il mio fucile sullo schermo (px del riquadro di gioco): la mira col mouse su PC parte da qui
+  GCR3D.mioSchermo = function () {
+    if (!S) return null;
+    const me = S.mondo.io(); if (!me) return null;
+    const a = new THREE.Vector3(me.x, me.hy + G3.OMINO.arma, me.y).project(S.camera);
+    return [(a.x * 0.5 + 0.5) * innerWidth, (-a.y * 0.5 + 0.5) * innerHeight];
+  };
   // per i piloti automatici dei banchi: direzione di MONDO -> direzione sullo SCHERMO (inversa di stick)
   GCR3D.mondoASchermo = function (wx, wy) {
     if (!S) return [wx, wy];
