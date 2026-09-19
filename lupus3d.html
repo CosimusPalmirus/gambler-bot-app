@@ -579,8 +579,33 @@ var QUAL = (function () {
        1/fps meno 4 ms di tolleranza: a 60 Hz e' uno su due, a 120 uno su
        quattro, a 90 uno su tre, sempre 30; e il dt che passa e' il tempo
        vero trascorso, cosi' tween e regia non rallentano. */
+    /* LA QUALITA SCENDE ANCHE IN PARTITA (19/09/2026). La sonda decide sui
+       primi fotogrammi dopo il caricamento, ma Lupus si carica in LOBBY (borgo
+       fermo, costa poco) e un telefono che in partita fa 15 fps restava a
+       "pc" per tutta la partita. Qui si guarda la mediana degli ultimi 6 s:
+       sotto i 24 fps si scende di un livello, una volta ogni 20 s al massimo,
+       e solo quando Q.puoScendere() lo permette (la regia dice di no mentre la
+       plancia chiede una scelta: la ricompilazione non cade sotto un dito). */
+    var SORV_S = 6, SORV_FPS = 24, SORV_PAUSA_S = 20;
+    Q.sorv = { dts: [], acc: 0, t: 0, ultima: -1e9, scese: 0 };
+    function sorveglia(dt) {
+        var S2 = Q.sorv, fps;
+        if (!Q.sondaDecisa || Q.forzato || !(dt > 0) || dt > 0.5) { return; }
+        S2.t += dt;
+        S2.dts.push(dt); S2.acc += dt;
+        while (S2.acc > SORV_S && S2.dts.length > 1) { S2.acc -= S2.dts.shift(); }
+        if (S2.acc < SORV_S * 0.9 || S2.t - S2.ultima < SORV_PAUSA_S) { return; }
+        if (indice(Q.livello) >= LIVELLI.length - 1) { return; }
+        fps = mediana(S2.dts.map(function (d) { return 1 / d; }));
+        if (fps >= SORV_FPS) { return; }
+        if (typeof Q.puoScendere === "function" && !Q.puoScendere()) { return; }
+        if (scendi("in partita: mediana " + Math.round(fps) + " fps negli ultimi " + SORV_S + " s")) {
+            S2.ultima = S2.t; S2.scese++; S2.dts = []; S2.acc = 0;
+        }
+    }
     function passoCiclo(dt) {
         sondaPasso(dt);
+        sorveglia(dt);
         if (Q.fpsTappo > 0 && Q.sondaDecisa) {
             Q._acc += dt;
             if (Q._acc < Q._passo) { return -1; }
@@ -47227,6 +47252,7 @@ var grS = {
     imputati: [], condannato: -1, morti: {}, inRadura: false,
     fase: "", round: 0, pensiero: 0, firmaPlancia: "",
     copione: null, attoFatto: {}, hudVoluto: true,
+    cartaVista: false,     /* LA CARTA COPERTA (19/09/2026): vedi grEco */
     notteFatto: {}, notteGiro: 0,      /* il copione della notte, momento per momento */
     arringaT: 0, arringaChi: 0, ultimoErr: "", seScenico: 12345,
     /* E1 (04/09): la pagina remota. remoto = il motore e LUPN (g_remoto.js),
@@ -48079,11 +48105,25 @@ function grEco(v) {
     ECO.lupi = v.lupi_k || ECO.lupi;
     ECO.astaChiusa = false;
     var you = v.you || {};
-    ECO.ruolo = (you.ruolo === "lupo") ? "lupo" : "villico";
+    /* LA CARTA COPERTA (19/09/2026, segnalazione del proprietario: "nella
+       intro ti dice chi sei il banner in alto PRIMA di ricevere la tua
+       carta"). Il ruolo arriva gia con lo start, ma l evento `ruolo` (mazzo
+       e carta) aspetta in coda la fine dell intro: qui si scriveva in ECO
+       subito, e #soldi diceva "sei un LUPO DEL BANCO" col bordo rosso per
+       tutta la conta. Adesso il ruolo esce dalla regia solo quando la carta
+       e girata (grEvRuolo/apri, o il recupero). Rete di sicurezza: se la fase
+       che il giocatore ha GIA VISTO (grS.fase, non la vista del server, che
+       corre avanti) e oltre il rito, la carta e passata per forza. */
+    if (!grS.cartaVista && grS.fase && grS.fase !== "asta" &&
+            grS.fase !== "rivela" && grS.fase !== "rito") {
+        grS.cartaVista = true;
+    }
+    ECO.ruolo = !grS.cartaVista ? "coperto"
+        : ((you.ruolo === "lupo") ? "lupo" : "villico");
     /* il NOME del ruolo per il pannello dei conti: l economia resta
        quella della squadra (lupo o borgo), ma un guardiano non deve
        leggere "sei un gambler" — e' un gambler, ma ha un nome. */
-    ECO.ruoloNome = (typeof LUPX !== "undefined" && LUPX && you.ruolo)
+    ECO.ruoloNome = (grS.cartaVista && typeof LUPX !== "undefined" && LUPX && you.ruolo)
         ? LUPX.nome(you.ruolo) : null;
     ECO.sciacallo = (v.speciali &&
         v.speciali.indexOf("sciacallo") >= 0) ? 1 : 0;
@@ -48283,6 +48323,11 @@ function grRecupero() {
     grAmbienteFase(grS.fase);
     grS.firmaPlancia = "";
     grEco(grS.M.vista(grS.sg));
+    if (grS.epilogoRecupero) {
+        var eRec = grS.epilogoRecupero;
+        grS.epilogoRecupero = null;
+        LUPR.scEpilogo(eRec.vince, eRec);
+    }
 }
 function grRecuperaEvento(e) {
     if (!e || !e.ev) { return; }
@@ -48304,6 +48349,7 @@ function grRecuperaEvento(e) {
         break;
     case "nessun_lincio": grS.imputati = []; break;
     case "ruolo":
+        grS.cartaVista = true;     /* LA CARTA COPERTA (19/09): la carta e qui */
         grUI().cartaDisponibile(true);
         grUI().carta(e.ruolo, e.branco || null, {
             durata: 6, nomi: (typeof NOMI !== "undefined") ? NOMI : null
@@ -48319,6 +48365,12 @@ function grRecuperaEvento(e) {
     case "impronte": grNoteEsattore(); break;
     case "registro": grNoteEsattore(); break;
     case "epilogo":
+        /* un rientro mentre sul server corre l epilogo: il finale si GIOCA
+           (19/09), alla fine del recupero, a piazza gia sistemata */
+        if (grS.remoto && grS.M && !grS.M.over && !grS.epilogoGiocato) {
+            grS.epilogoRecupero = e;
+            break;
+        }
         grS.epilogoGiocato = true;
         grS.epilogoLista = e;
         grEsito(e.vince, e);
@@ -48612,6 +48664,7 @@ LUPR.avvia = function (opz) {
     grS.fine = {};
     grS.fase = ""; grS.round = 0; grS.pensiero = 0; grS.firmaPlancia = "";
     grS.copione = null; grS.attoFatto = {}; grS.hudVoluto = true;
+    grS.cartaVista = false;
     grS.notteFatto = {}; grS.notteGiro = 0;
     grS.balloT = 0; grS.balloFermo = false; grS.balloAttesa = false;
     grS.votiBallo = []; grS.balloOpz = null; grS.on = true;
@@ -48832,11 +48885,54 @@ function grScenaSpesa() {
     }
     return m;
 }
+/* LA FRETTA GUARDA IL SERVER (19/09/2026). Prima il ritardo era "da quanto
+   il fotogramma mostrato e' fermo": durante una scena cresce di un secondo
+   al secondo anche quando la scena sta nei tempi della sua fase (l intro
+   del rito accendeva la fretta, e la carta del ruolo nasceva da 3 s).
+   Adesso e' indietro solo chi mostra ancora una fase che sul SERVER e' gia
+   finita, e di quanto lo dice il fase_t dell ultimo fotogramma arrivato.
+   GR_GRAZIA_S: le scene che il server ha gia messo nel conto della fase
+   dopo (lo spoglio dentro l arringa, SPOGLIO_S = 12; la caccia dentro
+   l alba; lo spoglio del ballottaggio dentro il verdetto; l alba che si
+   legge prima del giorno, che e' lungo). Dove si agisce subito (notte,
+   voto, ballottaggio) la grazia e' zero. */
+var GR_GRAZIA_S = { arringa: 13, alba: 13, verdetto: 10, giorno: 8, epilogo: 4 };
+LUPR.FRETTA_S = 2.5;
+function grRitardoFase() {
+    var M = grS.M, s2 = M ? M.st : null, u = s2 ? s2.ultimo : null, ora, chiave;
+    if (!grS.remoto || !u || !grS.fase || !u.fase) { return null; }
+    if (u.fase === grS.fase && (u.round || 0) === (grS.round || 0)) { grS.fuori = null; return null; }
+    /* il ritardo si conta da quando il server ha LASCIATO la fase che
+       mostriamo, non dal fase_t dell ultima: se nel frattempo il server
+       e' passato per un alba di 14 s, quei 14 s contano. La grazia e'
+       quella della fase che e' venuta subito dopo. */
+    ora = (typeof lnOra === "function") ? lnOra() : Date.now() / 1000;
+    chiave = grS.fase + "|" + (grS.round || 0);
+    if (!grS.fuori || grS.fuori.k !== chiave) {
+        grS.fuori = { k: chiave, fase: u.fase,
+            t0: ora - (u.fase_t || 0) - (s2.ultimoA ? Math.max(0, ora - s2.ultimoA) : 0) };
+    }
+    return { fase: grS.fuori.fase, s: ora - grS.fuori.t0 };
+}
+LUPR.ritardoFase = function () { return grRitardoFase(); };
 function grFretta() {
-    if (!(grS.remoto && grS.M && typeof grS.M.ritardo === "function")) { return false; }
-    return (grS.M.ritardo() - grScenaSpesa()) > LUPR.FRETTA_S;
+    if (!(grS.remoto && grS.M && grS.M.st)) { return false; }
+    var r = grRitardoFase();
+    if (!r) { return false; }
+    return r.s > (GR_GRAZIA_S[r.fase] || 0) + LUPR.FRETTA_S;
 }
 LUPR.fretta = function () { return grFretta(); };
+/* LA QUALITA SCENDE ANCHE IN PARTITA (19/09): mai mentre la plancia chiede
+   una scelta, mai durante il finale */
+if (typeof QUAL !== "undefined" && QUAL) {
+    QUAL.puoScendere = function () {
+        var m = (typeof guModo !== "undefined") ? guModo : "nessuna";
+        if (m === "voto" || m === "ballo" || m === "bersaglio" || m === "vedi" ||
+                m === "proteggi" || m === "colpo" || m === "segna" || m === "inchioda" ||
+                m === "nomina" || m === "registro") { return false; }
+        return !(grS.scene && grS.scene.fin);
+    };
+}
 /* lo stesso gesto del tasto "salta la scena" del banco */
 function grSaltaScene() {
     var k, nomi = [];
@@ -48853,7 +48949,9 @@ function grSaltaScene() {
 }
 LUPR.sipario = function (nome, durata, onFine) {
     var max = (durata && durata > 0) ? durata : 30;
-    if (grFretta() && max > LUPR.FRETTA_MAX_S) { max = LUPR.FRETTA_MAX_S; }
+    /* IL FINALE NON SI SALTA (19/09/2026): dopo il finale non c e' piu niente
+       da rincorrere, la fretta non lo accorcia (era 3 s invece di 20) */
+    if (grFretta() && max > LUPR.FRETTA_MAX_S && nome !== "fin") { max = LUPR.FRETTA_MAX_S; }
     grS.scene[nome] = {
         t: 0,
         max: max,
@@ -48945,12 +49043,24 @@ LUPR.aggiorna = function (dt, t) {
     if (!grS.on || !grS.M) { return; }
     if (typeof dt !== "number" || dt !== dt) { return; }
     if (dt < 0) { dt = 0; }
-    if (dt > 0.05) { dt = 0.05; }
+    /* il tempo delle scene e' quello del muro (19/09): vedi ciclo() */
+    if (typeof st !== "undefined" && st.dtVero > dt) { dt = st.dtVero; }
+    if (dt > 0.25) { dt = 0.25; }
     try {
         grScadenze(dt);
+        /* la fretta guarda il server (19/09): se la fase che mostriamo sul
+           server e' finita da piu della sua grazia, la scena in corso si
+           chiude anche con la coda vuota (LUPN non promuove a palco
+           occupato: durante l esecuzione la vecchia regola non tagliava mai).
+           La carta del ruolo e il finale non si tagliano. */
+        if (grS.remoto && grOccupato() && !grS.scene.fin && !grS.scene.carta && grFretta()) {
+            grSaltaScene();
+        }
         /* fretta (D-23): la scena in corso cade al primo evento di fase
            che aspetta in coda dietro di lei */
-        if (grS.remoto && grOccupato() && grS.coda.length > 0 &&
+        /* ...tranne il finale (19/09): dietro l evento epilogo c e' SEMPRE
+           fase(epilogo), e con la pagina in ritardo la luna durava un fotogramma */
+        if (grS.remoto && grOccupato() && !grS.scene.fin && grS.coda.length > 0 &&
                 grS.coda[0].ev === "fase" && grFretta()) {
             grSaltaScene();
         }
@@ -49221,6 +49331,21 @@ function grIntro(secondi) {
        si vedono i nomi e le facce degli altri. */
     var T = { conta: 1.4 * scala, giro: 17.0 * scala, fermo: 1.4 * scala,
               buio: 1.2 * scala, stretta: 1.8 * scala, nero: 0.8 * scala };
+    /* L INTRO CORTA SI LEGGE (19/09/2026). Col rito di 26 s l intro ha 13 s:
+       scalando tutto, le case passavano a 0,6 s l una e ogni riga restava
+       1,3 s (ne servono 4-5 per leggerla). Da corta il giro delle case non
+       ci sta: si resta su casa TUA con la sua riga, poi si accendono tutte
+       le finestre insieme (la conta), il buio, la stretta e l ultima riga.
+       Il giro intero torna da solo se il server da al rito piu tempo. */
+    var corta = (scala < 0.8);
+    T.mia = 4.5;
+    if (corta) {
+        var totI = secondi || GR_INTRO_S;
+        T = { conta: 0.5, giro: 3.3, fermo: 2.6, buio: 0.5, stretta: 1.2, nero: 2.2 };
+        var restoI = Math.max(0, totI - (T.conta + T.giro + T.fermo + T.buio + T.stretta + T.nero));
+        T.giro += restoI / 2; T.fermo += restoI / 2;
+        T.mia = T.giro;
+    }
     var R = grRnd((grS.seScenico | 0) + 7717);
     /* SENZA RIPETERSI DENTRO LA STESSA INTRO (10/09): pescando a caso da
        sedici battute, con otto case, due uguali capitano quasi sempre
@@ -49271,7 +49396,9 @@ function grIntro(secondi) {
         luceCase(0);
         grSnd("vento", true);
         grTitolo(grT.ritoFase, grT.ritoTit);
-        grVoce(grL(pesca(GR_INTRO_APRE)), 3200);
+        /* (19/09) la riga d apertura non si dice piu: il giro parte da casa
+           tua dopo un secondo, e con i tempi di lettura la riga "E questa e
+           casa TUA" arrivava quando la camera era gia su un altra casa */
         return C;
     };
     C.aggiorna = function (dt) {
@@ -49284,11 +49411,32 @@ function grIntro(secondi) {
            medaglione si leggono davvero. Prima era una spazzata continua:
            a otto case, un secondo e mezzo di passaggio a testa. */
         if (t < T.conta + T.giro) {
+            /* IL GIRO CHE SI LEGGE (19/09): le case RACCONTATE (la tua sempre)
+               tengono la camera ferma il tempo di leggere la riga (>= 4,8 s),
+               le altre passano in 0,9 s col nome sulla targa. Prima ogni casa
+               aveva lo stesso tempo e la riga di una casa restava a schermo
+               sopra le due dopo. Da corta si resta solo su casa tua. */
             var nC = tCasa.length || 1;
-            var slot = T.giro / nC;
-            var j = Math.floor((t - T.conta) / slot);
-            if (j > nC - 1) { j = nC - 1; }
-            var u = ((t - T.conta) - j * slot) / slot;
+            var tg = t - T.conta, j, u, slot, q;
+            if (!C.sched) {
+                var TQ = 0.9, TN = 4.8, nN, kN, acc = 0, tnN;
+                C.racc = {}; C.dur = []; C.ini = [];
+                if (corta || nC < 2) { nN = 1; }
+                else { nN = Math.max(1, Math.min(nC, Math.floor((T.giro - nC * TQ) / (TN - TQ)))); }
+                C.racc[0] = true;
+                for (kN = 1; kN < nN; kN++) { C.racc[Math.round(kN * nC / nN)] = true; }
+                tnN = (corta || nC < 2) ? T.giro : (T.giro - (nC - nN) * TQ) / nN;
+                for (q = 0; q < nC; q++) {
+                    C.dur[q] = (corta || nC < 2) ? ((q === 0) ? T.giro : 0) : (C.racc[q] ? tnN : TQ);
+                    C.ini[q] = acc; acc += C.dur[q];
+                }
+                C.sched = true;
+            }
+            j = 0;
+            for (q = nC - 1; q >= 0; q--) { if (C.dur[q] > 0 && tg >= C.ini[q]) { j = q; break; } }
+            slot = C.dur[j] || T.giro;
+            u = (tg - C.ini[j]) / slot;
+            if (u > 1) { u = 1; }
             /* IL 55 PER CENTO PER VOLTARSI (10/09). Col 40 la virata fra due
                case (45 gradi a otto case) durava 0,84 s e toccava punte di
                80 gradi/s: misurate, sono la meta' dei fotogrammi veloci di
@@ -49313,10 +49461,15 @@ function grIntro(secondi) {
                 /* casa TUA ha la sua riga: e' l unica che il giocatore deve
                    riconoscere, e sentirsi dare del "saluta troppo" da soli
                    non aiuta a capire quale sia */
+                /* si racconta solo una casa su cui la camera si ferma il tempo
+                   di leggere (la tua sempre): vedi C.racc qui sopra */
+                var ogniC = 1;
+                if (tCasa[j].i === sg || C.racc[j]) {
                 grVoce(tCasa[j].i === sg
                     ? grL("E questa e casa TUA. Guardala bene: e' quella che devi difendere.")
                     : grRiempi(grL(battutaCasa()), "__NOME__", grNome(tCasa[j].i)),
-                    Math.max(1600, slot * 1000));
+                    Math.max(1600, slot * ogniC * 1000));
+                }
             }
             return true;
         }
@@ -49333,7 +49486,7 @@ function grIntro(secondi) {
                 if (uF > 1) { uF = 1; }
                 uF = uF * uF * (3 - 2 * uF);
                 var yUlt = tCasa.length ? tCasa[tCasa.length - 1].yaw : thMio;
-                binTorreScena({ yaw: yUlt + (yawA(1) - yUlt) * uF });
+                if (!corta) { binTorreScena({ yaw: yUlt + (yawA(1) - yUlt) * uF }); }
             }
             if (!C.fatte.conta) {
                 C.fatte.conta = true;
@@ -49355,7 +49508,7 @@ function grIntro(secondi) {
                         st.campanile.userData.suona) {
                     try { st.campanile.userData.suona(1, 0.50); } catch (e) { /* niente */ }
                 }
-                grVoce(grL("Le finestre si spengono insieme. Ne resta una."), 3000);
+                if (!corta) { grVoce(grL("Le finestre si spengono insieme. Ne resta una."), 3000); }
             }
             return true;
         }
@@ -49368,7 +49521,7 @@ function grIntro(secondi) {
                        rispetto a quella di riposo, e un filo piu su */
                     binTorreScena({ yaw: thMio, pitch: grTorrePitch() * 0.72, fov: grTorreFov() * 0.42 });
                 }
-                grVoce(grL("Quella e casa tua. La targa dice il tuo nome."), 2800);
+                if (!corta) { grVoce(grL("Quella e casa tua. La targa dice il tuo nome."), 2800); }
             }
             return true;
         }
@@ -49377,7 +49530,7 @@ function grIntro(secondi) {
             if (!C.fatte.nero) {
                 C.fatte.nero = true;
                 luceCase(0);
-                grVoce(grL(pesca(GR_INTRO_CHIUDE)), 2600);
+                grVoce(grL(pesca(GR_INTRO_CHIUDE)), corta ? 4200 : 2600);
             }
             return true;
         }
@@ -50029,6 +50182,15 @@ LUPR.smista = function (e) {
 
 function grEvFase(e) {
     grS.fase = e.fase;
+    /* rete di sicurezza (19/09): una fase in cui si agisce non comincia
+       sotto la carta o il mazzo (la carta riaperta a mano resta) */
+    if (e.fase === "notte" || e.fase === "voto" || e.fase === "ballo" ||
+            e.fase === "giorno" || e.fase === "arringa") {
+        if (typeof guCarta !== "undefined" && guCarta.su && !guCarta.manuale &&
+                typeof guCartaChiudi === "function") { guCartaChiudi(false); }
+        if (typeof guMazzo !== "undefined" && guMazzo.su &&
+                typeof guMazzoChiudi === "function") { guMazzoChiudi(); }
+    }
     /* I BOLLI DI FASE SE NE VANNO CON LA FASE (07/09). PRONTO e IMPUTATO
        sono segnali di un momento, ma restavano appiccicati: dal secondo
        giro il ✓ era addosso a chi aveva premuto al primo, e il ! restava
@@ -50062,7 +50224,12 @@ function grEvFase(e) {
            dopo l asta e ha gia il suo racconto. Il sipario tiene in coda
            l evento del ruolo: mazzo e carta arrivano dopo l intro. */
         var vRito = grS.M.vista(grS.sg);
-        var sRito = Math.max(6, (vRito.fase_s || GR_INTRO_S) - 3.5);
+        /* L INTRO STA DENTRO IL RITO (19/09/2026): 22 s di intro + 3 di mazzo
+           + 8 di carta sono 33 s, e il server apre la notte a 26: la notte
+           cominciava con la carta a tutto schermo. Si misura il tempo che
+           RESTA del rito e si lasciano 13 s a mazzo e carta. */
+        var restaRito = (vRito.fase_s || GR_INTRO_S) - (vRito.fase_t || 0);
+        var sRito = Math.max(6, restaRito - 13.0);
         if (!grS.aSoldi && typeof grIntro === "function") {
             grS.ctrl.intro = grIntro(Math.min(GR_INTRO_S, sRito));
             LUPR.sipario("intro", sRito + 1.5, function () {
@@ -50172,9 +50339,15 @@ function grEvRuolo(e) {
     }
     /* 14 s: 3 di distribuzione + 8 di carta + il margine per il telefono lento */
     LUPR.sipario("carta", 18, null);
+    /* la carta del ruolo non ha fretta (19/09): tagliata a 3 s, la notte
+       partiva con la carta ancora a tutto schermo sopra la plancia */
+    if (grS.scene.carta) { grS.scene.carta.max = 18; }
     grUI().cartaDisponibile(true);
 
     function apri() {
+        /* LA CARTA COPERTA (19/09): il ruolo si scopre QUI, con la carta */
+        grS.cartaVista = true;
+        grEco(grS.M.vista(grS.sg));
         grSnd("rivelazione");
         grUI().carta(e.ruolo, e.branco || null, {
             durata: 8,
@@ -50549,6 +50722,9 @@ LUPR.scPreda = function (sg, opz) {
     /* la caccia corta di pot_preda.js dura 9,4 s a ogni round: il
        sipario di sicurezza sta subito dietro */
     var durata = opz.durata || 9.4;
+    /* LA CAMERA SVELTA (19/09): il primo viaggio della caccia, verso la
+       porta scelta dai lupi, arriva in 0,8 s; gli altri restano calmi */
+    var predaPrimoViaggio = true;
     grS.ctrl.preda = anPreda({
         scena: (typeof sc !== "undefined") ? sc : null,
         casa: casa,
@@ -50560,7 +50736,11 @@ LUPR.scPreda = function (sg, opz) {
         /* L3 (D-6): i graffi sulla porta si vedono dal binario a 8,5 m
            di sbieco: con fov 16 sono 0,88 della grandezza voluta, con 14
            tornano a 1,00; a dieci case (binario a 13,3 m) serve 12 */
-        regia: function (p, m, d) { grRegia(p, m, d, { fovMin: (grS.n >= 10) ? 12 : 14 }); },
+        regia: function (p, m, d) {
+            var oR = { fovMin: (grS.n >= 10) ? 12 : 14 };
+            if (predaPrimoViaggio) { predaPrimoViaggio = false; oR.rapido = 0.8; }
+            grRegia(p, m, d, oR);
+        },
         scuoti: function (f, d) { grScuoti(f, d); },
         /* la morte la chiama la SCENA, nell istante in cui la finestra
            si spegne. uccidi suona morte, mette il badge e alza viva a
@@ -53630,6 +53810,10 @@ var LUP_EN = {
     "sei un <b>GAMBLER</b>": "you are a <b>GAMBLER</b>",
     "sei <b>__RUOLO__</b>": "you are <b>__RUOLO__</b>",
     "sei un <b>LUPO DEL BANCO</b>": "you are a <b>HOUSE WOLF</b>",
+    "la tua carta: <b>COPERTA</b>": "your card: <b>FACE DOWN</b>",
+    "Tra noi ci sono <b>__K__ lupi</b>. Chi sei tu lo dice la carta, fra poco.": "There are <b>__K__ wolves</b> among us. Who you are, your card will tell you in a moment.",
+    "partita gratis \u00b7 le carte si girano fra poco": "free game \u00b7 the cards turn over in a moment",
+    "le carte si girano fra poco": "the cards turn over in a moment",
     "partita gratis": "free game",
     "Restano <b>__N__ gambler</b> e siete in <b>__K__</b>. Vi basta arrivare a pari numero: mancano <b>__M__</b> notti buone.": "There are <b>__N__ gamblers</b> left and <b>__K__</b> of you. You only need to even the count: <b>__M__</b> good nights to go.",
     "partita gratis · nessun piatto, solo la caccia": "free game · no pot, just the hunt",
@@ -54526,11 +54710,36 @@ function lgTinta(radice) {
   });
 }
 
-function voce(txt, ms) {
+/* LA VOCE SI LEGGE (19/09/2026, ordine del proprietario: "dare i giusti
+   tempi di lettura del gioco"). Misurato su una partita intera: 94 righe su
+   122 restavano a schermo meno di quanto serve a leggerle, perche' la riga
+   dopo cancellava quella prima. Ogni riga ha adesso il suo tempo minimo
+   (0,9 s + 1 s ogni 16 caratteri); chi arriva prima aspetta il turno, e in
+   attesa ce n e' una sola: la piu recente. */
+var VOCE_CPS = 16, VOCE_BASE_MS = 900;
+function voceMinMs(txt) { return VOCE_BASE_MS + String(txt || "").length * 1000 / VOCE_CPS; }
+function voceMostra(txt, dur) {
   var v = $("#voce");
   v.textContent = txt; v.classList.add("su");
   clearTimeout(voce._t);
-  voce._t = setTimeout(function () { v.classList.remove("su"); }, ms || 3600);
+  voce._fineMin = Date.now() + voceMinMs(txt);
+  voce._t = setTimeout(function () { v.classList.remove("su"); }, dur);
+}
+function voceProssima() {
+  voce._attesa = null;
+  var x = voce._coda;
+  voce._coda = null;
+  if (x) { voceMostra(x.t, x.d); }
+}
+function voce(txt, ms) {
+  var ora = Date.now();
+  var dur = Math.max(ms || 3600, voceMinMs(txt));
+  if (voce._fineMin && ora < voce._fineMin) {
+    voce._coda = { t: txt, d: dur };
+    if (!voce._attesa) { voce._attesa = setTimeout(voceProssima, voce._fineMin - ora); }
+    return;
+  }
+  voceMostra(txt, dur);
 }
 function titolo(fase, tit) {
   $("#hFase").textContent = fase; $("#hTitolo").textContent = tit;
@@ -55154,7 +55363,12 @@ function versoCam(pos, guarda, durata, opz) {
   }
   var dur = (typeof durata === "number") ? durata : 2.2;
   BIN.rich = { p: new THREE.Vector3(pos.x, pos.y, pos.z), m: new THREE.Vector3(guarda.x, guarda.y, guarda.z), d: dur, o: opz };
-  binObiettivi(binTraduci(pos, guarda, dur, opz));
+  /* LA CAMERA SVELTA (19/09/2026): una richiesta con `rapido` passa sopra
+     la precedenza del dito e viaggia in quel tempo (binRapido) */
+  var oTr = binTraduci(pos, guarda, dur, opz);
+  if (opz.rapido > 0) { oTr.forza = true; }
+  binObiettivi(oTr);
+  if (opz.rapido > 0) { binRapido(opz.rapido); }
 }
 /* ============================================================
    DOVE SI METTE LA CAMERA PER GUARDARLO COME LA SCENA HA CHIESTO
@@ -55664,9 +55878,92 @@ function binRuotaAttorno(p, c, ang) {
    scorrimento sul binario, e il soggetto resta nel quadro. Col dito
    giu (o con l inerzia del rilascio) niente tetti: il borgo deve stare
    sotto il dito. */
+/* LA CAMERA SVELTA (19/09/2026, segnalazione del proprietario: «quando i lupi
+   scelgono una casa il movimento di camera verso quella casa e troppo lento»).
+   I tetti del binario (vista 40 gradi/s, arco 17 gradi/s) fanno arrivare la
+   camera sulla porta in piu di 4 secondi quando la casa sta dall altra parte.
+   Qui il binario si mette SUBITO all arrivo e la camera ci viaggia sopra in
+   d secondi con una curva morbida (easeInOutCubic), dalla posa che si vede
+   adesso: niente strappo in partenza, niente salto. BIN.rapidoT lo dichiara
+   ai banchi come BIN.taglioT dichiara i tagli. */
+var binRapV0 = new THREE.Vector3(), binRapV1 = new THREE.Vector3(), binRapV2 = new THREE.Vector3();
+var binRapQ0 = new THREE.Quaternion(), binRapQ1 = new THREE.Quaternion();
+function binRapido(d) {
+  if (typeof cam === "undefined" || !cam) { return; }
+  var dir = new THREE.Vector3();
+  cam.getWorldDirection(dir);
+  dir.normalize();
+  /* il viaggio va SUL BINARIO (theta, quota, distanza), fuori dall anello
+     delle case: una corda dritta attraverserebbe la piazza e i muri. Se la
+     camera era sulla torre del dito, lo scarto fra torre e binario si
+     spegne lungo il viaggio: il primo fotogramma non salta */
+  var p0 = cam.position.clone();
+  var r0 = binPunto(BIN.theta, BIN.alt, BIN.dist, new THREE.Vector3());
+  BIN.rapido = { t: 0, d: Math.max(0.3, d), th0: BIN.theta, al0: BIN.alt, di0: BIN.dist,
+                 off: p0.clone().sub(r0), d0: dir.clone(),
+                 fov0: cam.fov };
+  /* LA CASA DALL ALTRA PARTE: oltre 46 gradi di binario un viaggio di
+     0,8 s e una frustata (misurato: vista a 1.234 gradi/s, 108 m/s). Li'
+     si STACCA su un punto 4,5 m piu indietro sulla stessa linea e si
+     entra verso la porta con la stessa curva morbida: si arriva in
+     fretta e lo sguardo non gira. Lo stacco e' dichiarato (BIN.taglioT). */
+  if (Math.abs(binWrap(BIN.obj.theta - BIN.theta)) > 0.80) {
+    var R0 = BIN.rapido, O0 = BIN.obj;
+    R0.th0 = O0.theta; R0.al0 = O0.alt; R0.di0 = Math.min(BIN_DIST_MAX, O0.dist + 4.5);
+    R0.off.set(0, 0, 0);
+    R0.d0 = O0.mira.clone().sub(binPunto(R0.th0, R0.al0, R0.di0, new THREE.Vector3())).normalize();
+    BIN.taglioT = st.t;
+    st.ombreSporche = true;
+  }
+  if (BIN.torre) { BIN.torre.on = false; BIN.torre.scena = false; BIN.torre.k = 0; }
+  if (BIN.dito) { BIN.dito.vel = 0; BIN.dito.finoA = 0; }
+  BIN.obj.verso = 0; BIN.obj.arco = 0;
+  BIN.rapidoT = st.t;
+}
+function binPassoRapido(dt) {
+  var R = BIN.rapido, O = BIN.obj;
+  R.t += (dt > 0) ? dt : 0;
+  var u = binClamp(R.t / R.d, 0, 1);
+  var e = (u < 0.5) ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+  /* lo stato del binario segue il viaggio: se il dito lo interrompe a
+     meta, il binario riparte da dove la camera e davvero */
+  BIN.theta = binWrap(R.th0 + binWrap(O.theta - R.th0) * e);
+  BIN.alt = R.al0 + (O.alt - R.al0) * e;
+  BIN.dist = R.di0 + (O.dist - R.di0) * e;
+  var pos = binPunto(BIN.theta, BIN.alt, BIN.dist, binRapV0);
+  pos.addScaledVector(R.off, 1 - e);
+  /* lo sguardo gira per ANGOLO, dalla direzione di partenza a quella che
+     dal punto di adesso va sulla porta: una mira mossa in linea retta
+     passa accanto alla camera e la vista frusta */
+  var dT = binRapV1.subVectors(O.mira, pos);
+  var lT = Math.max(0.5, dT.length());
+  dT.normalize();
+  binRapQ0.setFromUnitVectors(R.d0, dT);
+  binRapQ1.identity().slerp(binRapQ0, e);
+  BIN.mira.copy(R.d0).applyQuaternion(binRapQ1).multiplyScalar(lT).add(pos);
+  var fin = binPunto(O.theta, O.alt, O.dist, binRapV2);
+  var fovFin = binClamp(binFovVoluto(fin), O.fovMin || BIN_FOV_MIN, BIN_FOV_MAX);
+  st.nebbiaK += (O.nebbiaK - st.nebbiaK) * e;
+  cam.position.copy(pos);
+  if (cam.up.x !== 0 || cam.up.y !== 1) { cam.up.set(0, 1, 0); }
+  cam.lookAt(BIN.mira);
+  var fv = R.fov0 + (fovFin - R.fov0) * e;
+  BIN.fov = fv; BIN.fovOff = 0; BIN.fovNuovo = false;
+  if (Math.abs(cam.fov - fv) > 0.02) { cam.fov = fv; cam.updateProjectionMatrix(); }
+  if (!BIN.dirPrev) { BIN.dirPrev = new THREE.Vector3(); }
+  BIN.dirPrev.subVectors(BIN.mira, pos).normalize();
+  BIN.mosso = true; BIN.mossoPos = true;
+  if (u >= 1) { BIN.rapido = null; BIN.morbidoT = BIN_MORBIDO_S; }
+  return true;
+}
 function binPasso(dt) {
   var O = BIN.obj, D = BIN.dito, i;
   if (!(dt > 0)) { dt = 0; }
+  if (BIN.rapido) {
+    /* il dito vince sempre: se tocca, il viaggio svelto finisce li' */
+    if (D && D.giu) { BIN.rapido = null; }
+    else if (binPassoRapido(dt)) { return; }
+  }
   /* la curva a S della partenza morbida: 3u^2 - 2u^3 fra 0 e 1 */
   BIN.morbidoT = (BIN.morbidoT || 0) + dt;
   var uM = binClamp(BIN.morbidoT / BIN_MORBIDO_S, 0, 1);
@@ -56723,7 +57020,7 @@ var ECO = {
   gratis: false,
   offerte: [150, 130],       /* sovrapprezzi pagati dai lupi */
   astaChiusa: true,
-  ruolo: "villico"
+  ruolo: "coperto"     /* LA CARTA COPERTA (19/09): nessun ruolo di comodo */
 };
 function ecoVal(v) {
   var n2 = ecoNum(v);
@@ -56769,6 +57066,29 @@ function aggiornaSoldi() {
       : "🧰 " + ecoVal(800);
   }
 
+  /* LA CARTA COPERTA (19/09/2026): prima che la carta sia girata il pannello
+     non dice la squadra, ne con le parole ("sei un", "siamo in", "siete
+     in") ne col colore (il bordo rosso del lupo). */
+  if (ECO.ruolo === "coperto") {
+    box.className = "";
+    $("#sPiatto").innerHTML = ECO.gratis
+      ? (vivi + '<span style="font-size:14px;color:#8b7fb0;font-family:var(--mono);' +
+        'letter-spacing:1px"> vivi</span>')
+      : ((ECO.simboloPrima
+        ? '<span style="font-size:19px;font-family:var(--mono);letter-spacing:1px">' +
+          ECO.valuta + " </span>" : "") + ecoNum(piatto) +
+        '<span style="font-size:14px;color:#8b7fb0;font-family:var(--mono);' +
+        'letter-spacing:1px">' + (ECO.simboloPrima ? "" : " " + ECO.valuta) +
+        '</span>');
+    $("#sRuolo").innerHTML = ecoL("la tua carta: <b>COPERTA</b>");
+    $("#sGola").innerHTML = ecoR(ecoL(
+      "Tra noi ci sono <b>__K__ lupi</b>. Chi sei tu lo dice la carta, fra poco."),
+      "__K__", String(ECO.lupi));
+    $("#sSotto").textContent = ECO.gratis
+      ? ecoL("partita gratis \u00b7 le carte si girano fra poco")
+      : ecoL("le carte si girano fra poco");
+    return;
+  }
   if (ECO.gratis) {
     /* GRATIS: non c e un piatto da mostrare. Quello che conta davvero
        e' il censimento: quanti sono rimasti e quanti lupi restano da
@@ -57627,7 +57947,13 @@ function ciclo() {
      vero trascorso, col tetto di sempre a 0,05 */
   var dt = QUAL.passoCiclo(orologio.getDelta());
   if (dt < 0) { return; }
+  /* LA PAGINA AL PASSO DEL SERVER (19/09/2026): la fisica resta a 0,05 per
+     passo, ma la regia (scene e sipari) conta il tempo del muro: sotto i
+     20 fps le scene andavano piu piano del server e la pagina restava
+     indietro fino a saltare una notte intera */
+  st.dtVero = Math.min(dt, 0.25);
   cicloPasso(Math.min(dt, 0.05));
+  st.dtVero = 0;
 }
 /* UN PASSO DEL CICLO, SEPARATO DAL RESPIRO DEL BROWSER. Il banco della
    camera (cam_misura.js) deve far scorrere la scena a dt fisso e senza
