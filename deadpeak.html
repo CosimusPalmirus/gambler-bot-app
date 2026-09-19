@@ -39,6 +39,9 @@
   #annuncio.grande{font-size:84px;letter-spacing:2px}
   #annuncio.grande.vivo{animation:pugno .45s cubic-bezier(.2,1.8,.4,1)}
   #annuncio.stanza{font-size:34px;top:17%}
+  #annuncio.vincitore{font-size:52px;top:20%;letter-spacing:1px;line-height:1.05;padding:0 12px}
+  #annuncio.vincitore.vivo{animation:pugno .5s cubic-bezier(.2,1.8,.4,1)}
+  #annuncio.vincitore small{font-size:17px;margin-bottom:6px}
   #annuncio small{display:block;font-size:15px;-webkit-text-stroke:2px #24150f;color:#f3c02c;margin-bottom:2px;letter-spacing:1px}
   #avviso{position:fixed;left:14px;right:40px;top:25%;text-align:center;z-index:6;pointer-events:none;font:900 20px/1.1 system-ui;color:#fff;-webkit-text-stroke:4px #24150f;paint-order:stroke fill;opacity:0;transition:opacity .2s}
   #avviso small{display:block;font-size:13px;-webkit-text-stroke:3px #24150f;color:#f8eed6;margin-top:3px}
@@ -2427,11 +2430,13 @@ var DPM = globalThis.DPM || (globalThis.DPM = {});
 var REGOLE = DPM.REGOLE = {
   RINASCITA: 0.85,     // s da morto a di nuovo in gioco
   VIA: 3.0,            // conto alla rovescia
-  LAVA_RITARDO: 8.0,   // GIRO 2 (giro 1: 4). Tarata coi bot su 8 torri da 8 stanze larghe: il primo arriva in 29-39 s, la mediana in 46 s,
-  LAVA_Y0: -3.0,       // il 90% in 67 s. Con i numeri del giro 1 la lava eliminava 2-3 bot su 10 prima di meta' gara;
-  LAVA_V0: 1.00,       // ora arriva in vetta verso gli 80 s: spinge la rinascita di chi resta indietro e toglie solo la coda.
-  LAVA_ACC: 0.030,
-  LAVA_VMAX: 4.2
+  // 19/09 REGOLE DEL PROPRIETARIO: la lava parte dopo 2 minuti e sale piu' piano (prima: 8 s, V0 1, ACC 0,03, VMAX 4,2,
+  // in vetta verso gli 80 s). Ora in vetta verso i 218 s. Chi e' preso dalla lava e' FUORI (non rinasce).
+  LAVA_RITARDO: 120.0,
+  LAVA_Y0: -3.0,
+  LAVA_V0: 0.80,
+  LAVA_ACC: 0.015,
+  LAVA_VMAX: 3.0
 };
 DPM.lavaY = function (Tg) {
   var t = Tg - REGOLE.LAVA_RITARDO;
@@ -2453,7 +2458,7 @@ function Gara(L, opz) {
 Gara.prototype.aggiungi = function (o) {
   var c = { id:o.id, nome:o.nome, look:o.look || 0, umano:!!o.umano, bot:!!o.bot,
     p:DPM.nuovoCorpo(o.x, o.y), vivo:true, tMorte:0, morti:0, stanza:0, cp:[o.x, o.y], cpK:0,
-    arrivato:false, tArrivo:0, causa:'', inp:{ mx:0, my:0, jp:0, jh:0, usa:0, ux:0, uy:0 }, quota:o.y };
+    arrivato:false, tArrivo:0, tFuori:0, yFuori:0, causa:'', inp:{ mx:0, my:0, jp:0, jh:0, usa:0, ux:0, uy:0 }, quota:o.y };
   DPM.OGGETTI.nuovoCorr(c);
   c.invT = REGOLE.VIA + 2.0;   // alla partenza nessuno spinge nessuno per 2 s: si parte ammucchiati
   this.corr.push(c);
@@ -2470,15 +2475,20 @@ Gara.prototype.uccidi = function (c, causa, tr) {
   c.catT = 0; c.ogg = 0; c.usi = 0;   // come nel motore: alla morte l'oggetto in mano si perde
   if (tr) { tr.sangue = Math.min(8, (tr.sangue || 0) + 1); tr.tSangue = this.T; }
   this.ev.push({ k:'morte', c:c, x:c.p.x, y:c.p.y + 0.6, vx:c.p.vx, vy:c.p.vy, causa:causa, tr:tr || null });
+  if (causa === 'lava') this.fuori(c);   // 19/09: preso dalla lava = FUORI, niente rinascita
+};
+// 19/09: fuori per sempre. Si ricordano il fotogramma e l'altezza: se tutti finiscono nella lava vince l'ultimo a
+// uscire (a pari fotogramma il piu' in alto; stessa altezza = pari).
+Gara.prototype.fuori = function (c) {
+  c.vivo = false; c.fuori = true; c.arrivato = true; c.tArrivo = 9999; c.tFuori = this.F; c.yFuori = c.p.y;
+  this.ev.push({ k:'fuori', c:c });
 };
 Gara.prototype.rinasci = function (c) {
   var cp = c.cp, S = this.L.stanze, daChiodo = false;
   if (c.chiodo && (this.senzaLava || c.chiodo.y >= this.lava + 2.5)) { cp = [c.chiodo.x, c.chiodo.y]; c.chiodo = null; daChiodo = true; }
-  else if (!this.senzaLava && cp[1] < this.lava + 2.5) {   // la lava ha coperto il punto sicuro: il primo sopra
-    // (GIRO 2: mai nella vetta: prima un bot bloccato in basso rinasceva IN VETTA e «arrivava»)
-    var trovato = false;
-    for (var i = 0; i < S.length - 1; i++) if (S[i].cp[1] >= this.lava + 2.5) { cp = S[i].cp; c.cpK = i; c.cp = cp; trovato = true; break; }
-    if (!trovato) { c.fuori = true; c.arrivato = true; c.tArrivo = 9999; this.ev.push({ k:'fuori', c:c }); return; }
+  else if (!this.senzaLava && cp[1] < this.lava + 2.5) {   // 19/09: la lava ha coperto il tuo gancio: sei FUORI
+    // (prima si rinasceva al primo gancio sopra la lava: la lava faceva da ascensore)
+    this.fuori(c); return;
   }
   var p = c.p, k, face = p.face;
   var nuovo = DPM.nuovoCorpo(cp[0], cp[1]);
@@ -2543,7 +2553,7 @@ DPM.Gara = Gara;
 
 </script>
 <script>/* catalogo */
-globalThis.DPM.CATALOGO_MD5 = "6004583e";
+globalThis.DPM.CATALOGO_MD5 = "4da34c25";
 
 </script>
 <script>/* client/arte_base.js */
@@ -4907,7 +4917,7 @@ function avvia(m, comeSpettatore) {
   pred.F = 0; RC = []; me = null; mioSeat = -1; G.morti = []; G.fx = {}; G.usoId = {}; guarda = false;
   NET.snaps = []; NET.ultimo = null; NET.daApplicare = null; NET.lastS = 0; NET.off = []; NET.offMax = null; NET.cmd = {}; NET.pacco = null; NET.Fshown = 0; NET.riempiti = -1;
   VG = { og: pred.og, corr: RC, M: L.M, L: L, T: 0 };
-  G.stato = 'attesa'; G.fine = null; G.tVia = null;
+  G.stato = 'attesa'; G.fine = null; G.tVia = null; G.scena = null; G.lavaAvviso = false; clearInterval(fuochi.t);
   mostra('fine', false);
   document.body.classList.toggle('spettatore', spec);
   AU.avvia();
@@ -4996,6 +5006,7 @@ function applicaMe(st) {
   var c = st.c;
   me.vivo = !!c[0]; me.tMorte = c[1]; me.invT = c[2]; me.ogg = c[3]; me.usi = c[4]; me.cdUso = c[5]; me.cdSpinta = c[6]; me.catT = c[7]; me.catImm = c[8];
   me.missCd = c[9]; me.mash = c[10]; me.spintaColpita = !!c[11]; me.cp = [c[12], c[13]]; me.cpK = c[14]; me.quota = c[15]; me.arrivato = !!c[16]; me.fuori = !!c[17]; me.morti = c[18];
+  if (me.fuori) entraGuarda();   // 19/09: fuori confermato dal server (preso dalla lava) -> si guarda la gara
   me.chiodo = st.ch ? { x:st.ch[0], y:st.ch[1], t:st.ch[2] } : null;
   var n = st.net;
   NET.ns.ult = [n[0], n[1], n[2]]; NET.ns.ultF = n[3]; NET.ns.prevJh = n[4]; NET.ns.edgeF = n[5]; NET.ns.usoF = n[6];
@@ -5229,7 +5240,7 @@ function vibra(ms) { try { var tg = window.Telegram && window.Telegram.WebApp &&
 
 /* ================= eventi: juice ================= */
 function vicino(x, y) { var c = seguito(); if (!c) return 99; return Math.hypot(c.p.x - x, (c.p.y + 0.6) - y); }
-function seguito() { if (spec || guarda) return RC[cam.segui] || RC[0]; return me; }
+function seguito() { if (G.scena && G.scena.c) return G.scena.c; if (spec || guarda) return RC[cam.segui] || RC[0]; return me; }
 function fermo(s) { tempo.stop = Math.max(tempo.stop, s); }
 function lookDi(c) { return A.lookDi(c && c.lookObj != null ? c.lookObj : (c ? c.look : 0)); }
 function eventiLocali() {
@@ -5294,7 +5305,7 @@ function juice(e, locale) {
       break;
     }
     case 'rinascita': if (an) A.animaEvento(an, e); SG.fumo(e.x, e.y + 0.3, 6, 0.3); SG.polvere(e.x, e.y, 6, 0, 3); if (mio) { AU.suona('rinascita'); if (e.chiodo) avviso('DAL CHIODO!', '#ffd84a'); } break;
-    case 'fuori': if (mio) entraGuarda(); break;
+    case 'fuori': if (mio && !locale) entraGuarda(); break;   // solo quello del server (la predizione puo' sbagliare)
     case 'cp': if (mio) { AU.suona('cp'); var st = L.stanze[e.stanza]; if (st) annuncia(st.nome, 'stanza', ZONE[st.zona] || ''); } break;
     case 'arrivo': if (an) A.animaEvento(an, e); if (mio) { AU.suona('arrivo'); annuncia('VETTA!', 'grande'); vibra(40); for (var fw = 0; fw < 5; fw++) SG.scintille(c.p.x, c.p.y + 1, 20, Math.cos(fw), 1, 14); } else { AU.suona('cp', 0.5); annuncia((c ? c.nome : '') + ' IN VETTA', 'stanza'); } break;
     case 'presa': if (an) A.animaEvento(an, e); SG.scintille(e.x, e.y + 0.5, 12, 0, 1, 6); SG.anello(e.x, e.y + 0.5, 0.9, 0); if (mio) { AU.suona('presa'); avviso(OGG[e.id].nome + '! · ' + OGG[e.id].breve, '#7fd1ff'); vibra(15); } else if (vol > 0.1) AU.suona('presa', vol); break;
@@ -5441,6 +5452,9 @@ function conto() {
   var tg = pred.Tg;
   if (tg < 0) { var n = Math.ceil(-tg); if (n !== G.tVia && n <= 3) { G.tVia = n; AU.suona('tic'); annuncia(String(n), 'grande'); } }
   else if (G.tVia !== 0 && G.tVia !== null) { G.tVia = 0; AU.suona('via'); annuncia('VIA!', 'grande'); vibra(30); }
+  // 19/09: la lava parte tardi (2 minuti): 10 secondi prima lo si dice
+  var LR = DPM.REGOLE.LAVA_RITARDO;
+  if (!G.lavaAvviso && tg >= LR - 10 && tg < LR) { G.lavaAvviso = true; annuncia('LA LAVA PARTE TRA 10 SECONDI', 'stanza'); AU.suona('tic'); }
 }
 function scia(c, dt) {
   var p = c.p, an = c.an;
@@ -5671,7 +5685,6 @@ function hud(dt) {
   var ord = classifica();
   document.getElementById('pos').textContent = c ? (ord.indexOf(c) + 1) + '°/' + ord.length : '';
   document.getElementById('morti').textContent = '☠ ' + (c ? c.morti : 0);
-  if (!spec && !guarda && me && me.fuori) entraGuarda();   // anche se l'evento «fuori» e' andato perso
   if ((spec || guarda) && c && c.fuori) { cambiaSeguito(1); c = seguito(); }   // chi seguivo e' uscito: il prossimo in gara
   if (spec || guarda) { var sn = document.getElementById('specNome'); if (sn && c) sn.textContent = c.nome; }
   if (me) {
@@ -5700,10 +5713,11 @@ function hud(dt) {
 function fmt(t) { var m = Math.floor(t / 60), s = t - m * 60; return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s.toFixed(1); }
 var tAnn = null;
 function annuncia(txt, cls, sotto) {
+  if (G.scena && cls !== 'vincitore') return;   // la scena finale non si copre
   var el = document.getElementById('annuncio');
   el.className = ''; void el.offsetWidth; el.className = cls + ' vivo';
   el.textContent = ''; if (sotto) { var sm = document.createElement('small'); sm.textContent = sotto; el.appendChild(sm); } el.appendChild(document.createTextNode(txt));
-  clearTimeout(tAnn); tAnn = setTimeout(function () { el.className = cls; }, cls === 'grande' ? 700 : 1600);
+  clearTimeout(tAnn); if (cls !== 'vincitore') tAnn = setTimeout(function () { el.className = cls; }, cls === 'grande' ? 700 : 1600);
 }
 function avviso(txt, col) {
   var el = document.getElementById('avviso');
@@ -5714,6 +5728,10 @@ function avviso(txt, col) {
 function mostra(id, on) { var el = document.getElementById(id); if (el) el.classList.toggle('nascosto', !on); }
 
 /* ================= fine partita ================= */
+// 19/09 (richiesta del proprietario): prima della schermata finale una SCENA chiara per tutti: camera sul vincitore,
+// nome grande, fuochi, SCENA_S secondi; poi `fine_scena` alla pagina (che aspetta al massimo 6 s: patch P4). Il server
+// ha gia' chiuso i conti nel momento dell'arrivo: la scena non li ritarda.
+var SCENA_S = 4.2, fuochi = { t:null };
 function fine(m) {
   if (!L || G.stato === 'fine') return;
   G.stato = 'fine'; G.fine = m;
@@ -5721,15 +5739,35 @@ function fine(m) {
   // 18/09: arrivo nello stesso fotogramma fuori dal torneo = PARI, a soldi il piatto si divide (m.winners del server)
   var pari = (m.winners && m.winners.length > 1) ? m.winners.map(String) : null;
   var io = !spec && (win === mioUid || (!!pari && pari.indexOf(mioUid) >= 0));
-  var wc = null; for (var i = 0; i < RC.length; i++) if (RC[i] && RC[i].uid === win) wc = RC[i];
-  if (m.annullata) annuncia('ANNULLATA', 'stanza');
-  else if (io) { annuncia(pari ? 'PARI: HAI VINTO!' : 'HAI VINTO!', 'grande'); AU.suona('arrivo'); vibra(50); if (me) A.animaEvento(me.an, { k:'arrivo' }); }
-  else if (wc) { annuncia(pari ? 'PARI IN VETTA' : (wc.nome || '') + ' IN VETTA', 'stanza'); if (wc.an) A.animaEvento(wc.an, { k:'arrivo' }); }
+  var wc = null, wi = -1; for (var i = 0; i < RC.length; i++) if (RC[i] && RC[i].uid === win) { wc = RC[i]; wi = i; }
+  // i rivali si disegnano 100 ms indietro: lo stato vero del vincitore e' nell'ULTIMO snapshot (il server lo manda
+  // con over=true subito prima dell'over). Da li' si prende dove sta e se e' arrivato in vetta.
+  var ult = NET.snaps.length ? NET.snaps[NET.snaps.length - 1] : null, riga = ult && ult.p && wi >= 0 ? ult.p[wi] : null;
+  if (wc && wc !== me && riga) { wc.p.x = riga[1]; wc.p.y = riga[2]; wc.arrivato = !!(riga[5] & 2); wc.fuori = !!(riga[5] & 4); wc.vivo = !!(riga[5] & 1); }
+  var inVetta = !!(wc && wc.arrivato && !wc.fuori);
+  if (m.annullata) { annuncia('ANNULLATA', 'stanza'); }
+  else if (wc || io) {
+    var sotto = pari ? 'ARRIVATI INSIEME: PIATTO DIVISO' : (inVetta ? 'PRIMO IN VETTA' : (wc && !wc.fuori ? "L'ULTIMO RIMASTO IN GARA" : "L'ULTIMO A RESISTERE ALLA LAVA"));
+    var nome = io ? (pari ? 'PARI: HAI VINTO!' : 'HAI VINTO!') : (pari ? 'PARI IN VETTA!' : (wc.nome || '') + (inVetta ? ' IN VETTA!' : ' VINCE!'));
+    G.scena = { c: wc || me, t0: performance.now() };
+    cam.trauma = 0;
+    annuncia(nome, 'vincitore', sotto);
+    AU.suona('arrivo'); if (io) vibra(50);
+    var cc = G.scena.c;
+    if (cc && cc.an) A.animaEvento(cc.an, { k:'arrivo' });
+    var n = 0;
+    clearInterval(fuochi.t);
+    fuochi.t = setInterval(function () {
+      if (++n > SCENA_S / 0.35 || !G.scena || !G.scena.c) { clearInterval(fuochi.t); return; }
+      var q = G.scena.c.p; SG.scintille(q.x + Math.sin(n * 1.7) * 1.4, q.y + 1.2 + (n % 3) * 0.5, 18, Math.cos(n * 2.1), 1, 12);
+      if (n % 3 === 0) AU.suona('cp', 0.5);
+    }, 350);
+  }
   else annuncia('PAREGGIO', 'stanza');
   setTimeout(function () {
     PONTE.sistema('fine_scena');
     if (PONTE.modo === 'ws') mostraClassifica(win);
-  }, 1600);
+  }, (G.scena ? SCENA_S : 1.6) * 1000);
 }
 function mostraClassifica(win) {
   var tab = document.getElementById('classifica'); if (!tab) return;
@@ -5780,7 +5818,7 @@ function avviaAnteprima() {
 /* ganci per i banchi (playwright) */
 window.DP2 = {
   stato: function () {
-    return { stato:G.stato, spec:spec, guarda:guarda, segui:(seguito() || {}).uid, rete:(document.getElementById('rete') || {}).textContent, F:pred ? pred.F : 0, Fsrv:Math.round(Fserver(performance.now())), lead:NET.lead, tardi:NET.tardi, corr:NET.corr, seat:mioSeat, morti:NET.morti, riempiti:NET.riempiti, sangue:SG.liv, affollata:!!G.affollata,
+    return { stato:G.stato, spec:spec, guarda:guarda, segui:(seguito() || {}).uid, scena:G.scena && G.scena.c ? G.scena.c.uid : null, annuncio:(document.getElementById('annuncio') || {}).textContent, lava:pred ? +pred.lava.toFixed(2) : null, rete:(document.getElementById('rete') || {}).textContent, F:pred ? pred.F : 0, Fsrv:Math.round(Fserver(performance.now())), lead:NET.lead, tardi:NET.tardi, corr:NET.corr, seat:mioSeat, morti:NET.morti, riempiti:NET.riempiti, sangue:SG.liv, affollata:!!G.affollata,
       me: me ? { x:me.p.x, y:me.p.y, vivo:me.vivo, morti:me.morti, ogg:me.ogg, arrivato:me.arrivato, quota:me.quota } : null,
       n:RC.length, winner:G.fine ? G.fine.winner : undefined, perfN:perf.lista.length, blocchi:perf.blocchi || [] };
   },

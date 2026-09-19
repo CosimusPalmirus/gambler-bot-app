@@ -8336,12 +8336,20 @@ vC=aCol*ic; vE=0.0; gl_Position=projectionMatrix*viewMatrix*w; }`;
       if (me && you.alive !== false) { tx = me.x; ty = me.y; thy = me.hy; }
       else if (dcs) { tx = dcs.x; ty = dcs.y; thy = dcs.hy; }
       else { let sx = 0, sy = 0, n0 = 0; rows.forEach(r => { if (r[4]) { sx += r[1]; sy += r[2]; n0++; } }); tx = n0 ? sx / n0 : M.N / 2; ty = n0 ? sy / n0 : M.N / 2; }
+      // SPETTATORE (19/09): chi guarda (torneo) o e' gia' fuori SEGUE un giocatore o va in VISTA LIBERA; lo decide la
+      // pagina (TWR.spV: x, y, id, zoom, fisso). Mai per chi gioca vivo: la pagina lo accende solo li', e qui si ricontrolla.
+      const SV = TWR.spV && TWR.spV.on && (TWR.spec || you.alive === false) ? TWR.spV : null;
+      if (SV) {
+        const q = SV.modo === 'segui' && SV.id != null ? P.get(SV.id) : null;
+        if (q && Math.hypot(q.x - SV.x, q.y - SV.y) < 1.5) { tx = q.x; ty = q.y; thy = q.hy || 0; }   // l'omino del 3D, liscio come lo vedi
+        else { tx = SV.x; ty = SV.y; thy = 0; }
+      }
       stato.soggetto = dcs;
       const camCE = CE ? CE.camera(you, me, TWR) : null;
       const mira = TWR.aim && TWR.aim.on && you.alive !== false ? { on: true, ax: TWR.aim.ax, ay: TWR.aim.ay, anticipo: you.gun === 'SNIPER' ? (camCE ? camCE.anticipo : 0.9 + 2.1 * (you.scope || 0)) : 0.9, rapida: !!(camCE && you.gun === 'SNIPER' && you.on_high) } : null;
       // (R) la camera sa la velocita' VERA della mia auto (muso e velocita' predetti: TWR.ap.s, patch 33-35) e il suo id (colpo di camera)
       const svA = mioAuto && mioAuto.s && mioAuto.s.vx != null ? mioAuto.s : null; stato.mioAutoId = mioAuto ? mioAuto.id : null;
-      cam.aggiorna(dt, { x: tx, y: ty, hy: thy, tetto: !!you.on_high, auto: !!you.in_car, velAuto: svA ? Math.hypot(svA.vx, svA.vy) : (mioAuto ? 5.6 : 0), vAuto: svA, mira, mx: TWR.joy ? TWR.joy.mx : 0, my: TWR.joy ? TWR.joy.my : 0, fisso: stato.primi, zoomExtra: camCE ? camCE.zoom : 1 }, W, H);
+      cam.aggiorna(dt, { x: tx, y: ty, hy: thy, tetto: !!you.on_high, auto: !!you.in_car, velAuto: svA ? Math.hypot(svA.vx, svA.vy) : (mioAuto ? 5.6 : 0), vAuto: svA, mira, mx: TWR.joy ? TWR.joy.mx : 0, my: TWR.joy ? TWR.joy.my : 0, fisso: stato.primi || !!(SV && SV.fisso), zoomExtra: (camCE ? camCE.zoom : 1) * (SV ? (+SV.zoom || 1) : 1) }, W, H);   // SPETTATORE
       if (AU) AU.ascoltatore(cam.x, cam.z, cam.CAMS[cam.k].W * cam.zoom);   // l'orecchio al centro della vista
       if (CE) CE.ascolta(cam.x, cam.z, cam.CAMS[cam.k].W * cam.zoom);
       if (TWR.trauma > 0) { cam.scossa(TWR.trauma * 0.5); TWR.trauma = 0; }
@@ -10115,6 +10123,16 @@ void main(){ vec4 w=modelMatrix*vec4(position,1.0); vW=w.xyz; vN=normalize(mat3(
     const dx = (b2.x - a.x) * innerWidth / 2, dy = -(b2.y - a.y) * innerHeight / 2, n = Math.hypot(dx, dy) || 1;
     return [dx / n, dy / n];
   };
+  // SPETTATORE (19/09): il punto a terra (celle) sotto un punto dello schermo (px css dell'iframe): la vista libera tiene
+  // la citta' sotto il dito. spV = questa vista sa seguire e andare libera (la pagina lo controlla).
+  GCR3D.aTerra = function (px, py) {
+    if (!S) return null;
+    V2.set(px / innerWidth * 2 - 1, 1 - py / innerHeight * 2); ray.setFromCamera(V2, S.camera); piano.constant = 0;
+    if (!ray.ray.intersectPlane(piano, P)) return null;
+    return [P.x, P.z];
+  };
+  GCR3D.camXY = function () { return S ? [S.cam.x, S.cam.z] : null; };   // dove guarda la camera adesso (celle)
+  GCR3D.spV = 1;
   GCR3D.ferma = function () { if (S) { S.attivo = false; try { S.mondo.dispose(); } catch (e) { } } };
   // la pagina tace i SUOI suoni d'auto solo se questo e' vero (pezzo pagina 20: twr3dSuoniAuto)
   Object.defineProperty(GCR3D, 'suoniAuto', { get: () => !!(S && S.attivo && S.mondo.AU && S.mondo.AU.attivo()) });
