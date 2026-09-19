@@ -40266,7 +40266,7 @@ function renderCosmetics(){
   if(!S.userId){_cosMsg(host,'Apri in Telegram');return;}
   if(COS.data){renderCosmeticsCards();/* refresh in background */}
   else _cosMsg(host,'⏳ Caricamento cosmetici...');
-  fetch(BACKEND+'/cosmetics_data?user_id='+S.userId,{headers:{'ngrok-skip-browser-warning':'1'}})
+  fetch(BACKEND+'/cosmetics_data?v=2&modi=scalata&user_id='+S.userId,{headers:{'ngrok-skip-browser-warning':'1'}})
     .then(function(r){return r.json();})
     .then(function(d){
       if(!d||!d.ok){_cosMsg(host,'Errore caricamento');return;}
@@ -40284,7 +40284,7 @@ function _cosStatLabel(stat){
   return m[key]||stat;
 }
 function _cosBaseLook(mode){
-  return mode==='turf'?twrLook():mode==='glad'?gladLook():mode==='calcio'?derbyLook():mode==='scalata'?deadpeakLook():twrCarLook();
+  return mode==='turf'?twrLook():mode==='glad'?gladLook():mode==='calcio'?derbyLook():mode==='scalata'?dpkLook():twrCarLook();   // COSMETICI DP 19/09
 }
 function _cosPatched(mode,patch){
   var b=_cosBaseLook(mode),o={},k;
@@ -40308,9 +40308,7 @@ function _cosDrawPreview(cv,mode,patch){
       ctx.drawImage(bspr,W/2-bsz/2*bsc,H*0.52-bsz/2*bsc,bsz*bsc,bsz*bsc);
     }else if(mode==='scalata'){
       // DEAD PEAK: sprite di gara vero (seat 0 — la tinta resta il seat, V2)
-      var sspr=sclSprite(0,false,sclNormLook(look)),ssc=H*1.05/64;
-      ctx.imageSmoothingEnabled=true;
-      ctx.drawImage(sspr,W/2-32*ssc,H*0.52-32*ssc,64*ssc,64*ssc);
+      dpkAnteprima(cv,dpkNorm(patch||{}),(look.co|0)>0?(look.co|0)-1:0,false);   // COSMETICI DP 19/09: lo scalatore nuovo col SOLO set, nel tuo colore
     }else{
       var spr=rcCarSprite(look);
       var targetL=H*0.74,scale=targetL/(spr.lw*spr.ppu);
@@ -40350,8 +40348,8 @@ function renderCosmeticsCards(){
     html+='<div class="q-card '+rc+'" style="display:flex;gap:11px;align-items:center;">'
       +'<canvas id="'+cid+'" width="88" height="80" style="width:88px;height:80px;flex-shrink:0;border-radius:10px;background:radial-gradient(circle at 50% 40%,rgba(40,48,72,.6),rgba(8,10,18,.92));"></canvas>'
       +'<div style="flex:1;min-width:0;">'
-        +'<div class="q-name" style="font-size:13px;">'+cd.name+'</div>'
-        +'<div class="q-desc">'+cd.desc+'</div>'
+        +'<div class="q-name" style="font-size:13px;">'+cos2NomeSet(cd)+'</div>'
+        +'<div class="q-desc">'+cos2DescSet(cd)+'</div>'
         +'<div class="q-bar-c"><div class="q-fill" style="width:'+pct+'%;"></div></div>'
         +'<div class="q-prog"><span>'+_cosStatLabel(stat)+'</span><b>'+Math.min(p,goal)+' / '+goal+'</b></div>'
         +'<div style="margin-top:8px;">'+btn+'</div>'
@@ -40371,13 +40369,15 @@ function cosClaim(mode,id){
     .then(function(r){return r.json();})
     .then(function(d){
       if(d&&d.ok){
-        if(COS.data)COS.data.unlocked=d.unlocked;
-        S.cosmetics=S.cosmetics||{};S.cosmetics.unlocked=d.unlocked;
+        var u2=cos2Unl(d);   // COSMETICI DP 19/09: la scalata coi set nuovi, il resto come prima
+        if(COS.data)COS.data.unlocked=u2;
+        S.cosmetics=S.cosmetics||{};S.cosmetics.unlocked=u2;
         toast('🎉 Cosmetico sbloccato!','ok',2000);
         try{TWS.play('gold',0.7);}catch(e){}
         renderCosmeticsCards();
         try{if(typeof dbEdOnCos==='function')dbEdOnCos(mode);}catch(e){}   // editor DERBY aperto
         try{if(typeof dpEdOnCos==='function')dpEdOnCos(mode);}catch(e){}   // editor DEAD PEAK aperto
+        try{if(typeof cos2OnCos==='function')cos2OnCos(mode);}catch(e){}   // COSMETICI DP 19/09: editor dello scalatore nuovo
       }else{
         toast('⚠️ Sfida non completata','err',2000);
       }
@@ -40393,6 +40393,7 @@ function cosEquip(mode,id){
       if(d&&d.ok){
         var key=mode==='turf'?'gb_gangster':mode==='glad'?'gb_gladiator':mode==='calcio'?'gb_derby':mode==='scalata'?'gb_deadpeak':'gb_car';
         if(d.look){try{localStorage.setItem(key,JSON.stringify(d.look));}catch(e){}}
+        if(mode==='scalata'&&d.look_v2){try{localStorage.setItem('gb_dpk',JSON.stringify(d.look_v2));}catch(e){}try{dpkRiHello();}catch(e){}}   // COSMETICI DP 19/09
         try{if(typeof RTD!=='undefined'&&RTD)RTD._lookC={};}catch(e){}
         if(COS.data){COS.data.equipped=COS.data.equipped||{};COS.data.equipped[mode]=id;}
         S.cosmetics=S.cosmetics||{};S.cosmetics.equipped=S.cosmetics.equipped||{};S.cosmetics.equipped[mode]=id;
@@ -40401,6 +40402,7 @@ function cosEquip(mode,id){
         renderCosmeticsCards();
         try{if(typeof dbEdOnCos==='function')dbEdOnCos(mode);}catch(e){}   // editor DERBY aperto
         try{if(typeof dpEdOnCos==='function')dpEdOnCos(mode);}catch(e){}   // editor DEAD PEAK aperto
+        try{if(typeof cos2OnCos==='function')cos2OnCos(mode);}catch(e){}   // COSMETICI DP 19/09: editor dello scalatore nuovo
       }else{
         toast('⚠️ Non ancora sbloccato','err',2000);
       }
@@ -46415,7 +46417,8 @@ function twrProfile(){
   if(!photo){try{if(typeof dlMyPhoto==='function')photo=dlMyPhoto()||'';}catch(e){}}
   return {name:(S.name||'Player'),photo_url:photo,xp:(S.xp||0),
           dw:(S.duelWins||0),dl:(S.duelLosses||0),wins:(S.wins||0),look:twrLook(),car:twrCarLook(),glad:(typeof gladLook==='function'?gladLook():undefined),
-          blg:(typeof derbyLook==='function'?derbyLook():undefined),scl:(typeof deadpeakLook==='function'?deadpeakLook():undefined)};
+          blg:(typeof derbyLook==='function'?derbyLook():undefined),scl:(typeof deadpeakLook==='function'?deadpeakLook():undefined),
+          dp2:(typeof dpkDp2==='function'?dpkDp2():undefined),dpk:(typeof dpkLook==='function'?dpkLook():undefined)};   // COSMETICI DP 19/09
 }
 function twrLookSync(){
   // pull the saved look from the backend once per session (server wins)
@@ -46434,6 +46437,289 @@ function twrLookSync(){
     }).catch(function(){});
 }
 function twrName(id){return TWR.names[id]||('#'+id);}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COSMETICI DP 19/09 — lo SCALATORE del Dead Peak nuovo (i fagiolotti dell'iframe deadpeak.html).
+// Il look sta nel backend in `dp_look` (indici; il possesso dei premium lo controlla il backend al
+// salvataggio). Nel profilo del server real-time viaggia due volte:
+//   · dp2 {c,h,o}  colore, cappello di serie, occhi — lo legge GIA' il Dead Peak online (LOOK_API);
+//   · dpk          il look intero coi premium dei set — lo legge deadpeak.html patchato.
+// I set nuovi (dpk_*) arrivano da /cosmetics_data?v=2&modi=scalata: negli altri giochi non cambia niente.
+// Solo aspetto: niente di questo blocco tocca soldi, poste o partite.
+// ═══════════════════════════════════════════════════════════════════════════
+var DPK_ARTE_VER='20e55729';
+function cos2En(){return (typeof GB_LANG!=='undefined'&&GB_LANG==='en');}
+function cos2N(tab,i){var r=tab&&tab[i];return r?r[cos2En()?1:0]:'';}
+var DPK2_MAX={co:10,ca:24,oc:13,de:14,fi:6,sc:9,mo:7,ri:6,em:6,ol:4};                // = cosmetics_common.DPK_IDX_MAX
+var DPK2_FREE={co:[0,1,2,3,4,5,6,7,8,9,10],ca:[0,1,2,3,4,5,6,7,8,9,10],oc:[0,1,2,3],de:[0,1,2,3,4],fi:[0,1],sc:[0,1],mo:[0],ri:[0],em:[0],ol:[0,1,2,3,4]};
+var DPK2_TINTE=['#f7c531','#5fc93a','#ea4038','#9d5ee6','#2f8fea','#ff8a1f','#ff7fb8','#36d3d6','#e8ecef','#555b69'];
+// il ponte verso LOOK_API (stessi id di client/look.js e della lista del server): = cosmetici_v2.dp2_da_dpk
+var DPK2_COLORI=['giallo','verde','rosso','viola','blu','arancio','rosa','ciano','bianco','antracite'];
+var DPK2_CAP=['','nessuno','arrampicata','militare','cantiere','visiera','minatore','lana','aviatore','alpino','bandana',
+  'militare','lana','lana','bandana','visiera','lana','','','militare','visiera','','','',''];   // 11-24 premium: il di serie piu' simile
+var DPK2_OCCHI=['tondi','grandi','furbi','ciglia','occhiali'];
+function cos2Idx(v,max){v=(typeof v==='number'||typeof v==='string')?(v|0):0;return (v<0||v>max)?0:v;}
+function cos2Hex(v,d){return (typeof v==='string'&&/^#[0-9a-fA-F]{6}$/.test(v))?v:d;}
+function dpkNorm(l){l=l||{};var o={},k;for(k in DPK2_MAX)o[k]=cos2Idx(l[k],DPK2_MAX[k]);return o;}
+function dpkTintaVicina(hex){
+  if(!cos2Hex(hex,''))return 0;
+  var scl={'#f87171':3,'#38bdf8':5,'#a3e635':2,'#facc15':1,'#c084fc':4,'#fb923c':6,'#2dd4bf':8,'#f472b6':7,'#e5e7eb':9,'#94a3b8':10}[hex.toLowerCase()];if(scl)return scl;   // i 10 colori dell'editor vecchio: stesso nome
+  var r=parseInt(hex.substr(1,2),16),g=parseInt(hex.substr(3,2),16),b=parseInt(hex.substr(5,2),16),best=0,bd=-1;
+  for(var i=0;i<10;i++){var t=DPK2_TINTE[i],d=2*Math.pow(r-parseInt(t.substr(1,2),16),2)+4*Math.pow(g-parseInt(t.substr(3,2),16),2)+3*Math.pow(b-parseInt(t.substr(5,2),16),2);if(bd<0||d<bd){bd=d;best=i+1;}}
+  return best;
+}
+// il look di chi non ha mai salvato: la tinta dal colore scelto nell'editor vecchio (niente premium regalati)
+function dpkLook(){
+  try{var s=JSON.parse(localStorage.getItem('gb_dpk')||'null');if(s)return dpkNorm(s);}catch(e){}
+  var v=(typeof deadpeakLook==='function')?deadpeakLook():{};
+  var gg=v?(v.gg|0):0;
+  return dpkNorm({co:dpkTintaVicina(v&&v.bodyCol),ol:(gg===1||gg===2)?4:0});   // occhialoni SCURI/SPECCHIO -> OCCHIALI (come la migrazione)
+}
+function dpkDp2(l){
+  l=dpkNorm(l||dpkLook());
+  return {c:l.co>0?DPK2_COLORI[l.co-1]:'',h:DPK2_CAP[l.ca]||'',o:DPK2_OCCHI[l.ol]||'tondi'};
+}
+// una volta per sessione: il server vince (il GET calcola dal look vecchio se il nuovo manca, senza scrivere)
+function dpkSync(cb){
+  if(!S.userId)return;
+  if(window.__dpkSync)return;window.__dpkSync=1;   // cb solo dopo una lettura vera (una volta a sessione)
+  fetch(BACKEND+'/dp_look?user_id='+S.userId,{headers:{'ngrok-skip-browser-warning':'1'}})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d&&d.ok&&d.look&&d.salvato){try{localStorage.setItem('gb_dpk',JSON.stringify(d.look));}catch(e){}}
+      else if(d&&d.ok&&d.look){try{if(!localStorage.getItem('gb_dpk'))localStorage.setItem('gb_dpk',JSON.stringify(d.look));}catch(e){}}
+      if(cb)cb();
+    }).catch(function(){window.__dpkSync=0;if(cb)cb();});
+}
+// il look nuovo arriva al server real-time: sulla socket aperta si ripete l'hello (stessa forma di
+// rtdConnect, solo in lobby e con initData giovane: dopo 20 h lo porta la prossima connessione)
+function dpkRiHello(){
+  try{
+    if(typeof RTD==='undefined'||!RTD.ws||RTD.ws.readyState!==1||RTD.spec||RTD.tour)return;
+    if(RTD.ui&&RTD.ui!=='lobby')return;
+    if(performance.now()>20*3600*1000)return;
+    var initData='';
+    try{initData=(window.gbInitData&&window.gbInitData())||(window.Telegram&&window.Telegram.WebApp&&window.Telegram.WebApp.initData)||'';}catch(e){}
+    RTD.ws.send(JSON.stringify({t:'hello',user_id:String(S.userId||''),init_data:initData,profile:twrProfile()}));
+  }catch(e){}
+}
+// l'arte (arte_base + arte_corpo e sangue con gli agganci + LOOK_API + cosmetici) arriva pigra:
+// e' la STESSA di deadpeak.html (monta_arte.py la ritaglia da li')
+function dpkArteCarica(cb){
+  if(window.DPM&&DPM.COSMETICI&&DPM.ARTE&&DPM.ARTE.corpo){if(cb)cb(true);return;}
+  (window.__dpkArteCb||(window.__dpkArteCb=[])).push(cb);
+  if(window.__dpkArteVolo)return;window.__dpkArteVolo=1;
+  var sc=document.createElement('script');sc.src='dpk_arte.js?v='+DPK_ARTE_VER;
+  var fine=function(ok){var l=window.__dpkArteCb||[];window.__dpkArteCb=[];window.__dpkArteVolo=0;l.forEach(function(f){try{if(f)f(ok&&!!(window.DPM&&DPM.COSMETICI));}catch(e){}});};
+  sc.onload=function(){fine(true);};sc.onerror=function(){fine(false);};
+  document.head.appendChild(sc);
+}
+function dpkDisegna(ctx,look,tinta,X,Y,S2,modi){
+  var D=window.DPM;if(!D||!D.COSMETICI)return false;
+  var A=D.ARTE,an=A.nuovaAnim(),c={p:{x:0,y:0,vx:0,vy:0,grounded:true,wallside:0,skidT:0,wjLock:0}};
+  an.blink=99;an.t=0.3;an.lookX=0.6;
+  if(modi)modi(an,c.p);
+  A.corpo(ctx,c,an,X,Y,S2,1,D.COSMETICI.risolvi(look,tinta));
+  return true;
+}
+// lucchetti: 0 libero/sbloccato · 1 bloccato (c'e' un set che lo da') · 2 non esiste
+function cos2Stato(mode,f,i){
+  if((DPK2_FREE[f]||[]).indexOf(i)>=0)return 0;
+  var cat=(COS.data&&COS.data.catalog&&COS.data.catalog[mode])||[],unl=(COS.data&&COS.data.unlocked&&COS.data.unlocked[mode])||[],c2,nota=0;
+  for(var k=0;k<cat.length;k++){c2=cat[k];if(c2.look_patch&&c2.look_patch[f]===i){nota=1;if(unl.indexOf(c2.id)>=0)return 0;}}
+  return nota?1:2;
+}
+function cos2SetDi(mode,f,i){
+  var cat=(COS.data&&COS.data.catalog&&COS.data.catalog[mode])||[];
+  for(var k=0;k<cat.length;k++)if(cat[k].look_patch&&cat[k].look_patch[f]===i)return cat[k];
+  return null;
+}
+function cos2NomeSet(cd){return cd?((cos2En()&&cd.name_en)?cd.name_en:cd.name):'?';}
+function cos2DescSet(cd){return cd?((cos2En()&&cd.desc_en)?cd.desc_en:cd.desc):'';}
+// sbloccati: dalla risposta v1 del riscatto si prende la vista v2 SOLO per la scalata
+function cos2Unl(d){
+  var u={},k,src=(d&&d.unlocked)||{};for(k in src)u[k]=src[k];
+  if(d&&d.unlocked_v2&&d.unlocked_v2.scalata)u.scalata=d.unlocked_v2.scalata;
+  return u;
+}
+function cos2Carica(cb){
+  if(!S.userId){if(cb)cb();return;}
+  fetch(BACKEND+'/cosmetics_data?v=2&modi=scalata&user_id='+S.userId,{headers:{'ngrok-skip-browser-warning':'1'}})
+    .then(function(r){return r.json();})
+    .then(function(d){if(d&&d.ok){COS.data=d;S.rtStats=d.stats||d.progress||null;S.cosmetics={unlocked:d.unlocked||{},equipped:d.equipped||{}};}if(cb)cb();})
+    .catch(function(){if(cb)cb();});
+}
+function cos2Req(cd){
+  var st=cd.challenge.stat,g=cd.challenge.goal,en=cos2En();
+  if(/_games$/.test(st))return en?('Play '+g+' DEAD PEAK'):('Gioca '+g+' DEAD PEAK');
+  if(/_wins$/.test(st))return en?('Win '+g+' DEAD PEAK'):('Vinci '+g+' DEAD PEAK');
+  if(/_kills$/.test(st))return en?('Take out '+g+' rivals'):('Fai fuori '+g+' rivali');
+  if(/_deaths$/.test(st))return en?('Die '+g+' times'):('Muori '+g+' volte');
+  return g+' × '+st;
+}
+function cos2Griglia(host,mode,prev){
+  if(!host)return;
+  var cat=(COS.data&&COS.data.catalog&&COS.data.catalog[mode])||[];
+  if(!cat.length){host.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--txt3);font-size:10px;padding:14px;">⏳ '+(cos2En()?'Loading…':'Caricamento…')+'</div>';return;}
+  var prog=COS.data.progress||{},unl=(COS.data.unlocked&&COS.data.unlocked[mode])||[],eq=(COS.data.equipped&&COS.data.equipped[mode])||null,html='',en=cos2En();
+  cat.forEach(function(cd){
+    var goal=cd.challenge.goal,p=prog[cd.challenge.stat]||0,pct=Math.min(100,Math.round(p/goal*100));
+    var isU=unl.indexOf(cd.id)>=0,isE=(eq===cd.id),claim=(!isU&&p>=goal),btn;
+    if(isE)btn='<button class="db-sk-btn" disabled style="background:linear-gradient(145deg,#39ff14,#10b981);color:#000;">'+(en?'EQUIPPED ✓':'EQUIPAGGIATO ✓')+'</button>';
+    else if(isU)btn='<button class="db-sk-btn" onclick="cosEquip(\''+mode+'\',\''+cd.id+'\')" style="background:linear-gradient(145deg,#ffd700,#ff9500);color:#000;">'+(en?'EQUIP':'EQUIPAGGIA')+'</button>';
+    else if(claim)btn='<button class="db-sk-btn" onclick="cosClaim(\''+mode+'\',\''+cd.id+'\')" style="background:linear-gradient(145deg,#22d3ee,#a855f7);color:#000;">'+(en?'CLAIM 🎉':'RISCUOTI 🎉')+'</button>';
+    else btn='<button class="db-sk-btn" disabled style="background:rgba(255,255,255,.06);color:#71717a;">🔒 '+(en?'LOCKED':'BLOCCATO')+'</button>';
+    html+='<div class="db-sk-card rar-'+cd.rarity+'">'+(claim?'<span class="db-sk-new">NEW</span>':'')
+      +'<canvas id="c2sk_'+cd.id+'" width="120" height="96" style="width:84px;height:67px;"></canvas>'
+      +'<div class="db-sk-name">'+cos2NomeSet(cd)+'</div>'
+      +'<div class="db-sk-req">'+(isU?cos2DescSet(cd):cos2Req(cd))+'</div>'
+      +'<div class="db-sk-bar"><div class="db-sk-fill" style="width:'+(isU?100:pct)+'%;"></div></div>'
+      +'<div class="db-sk-req" style="margin-top:2px;">'+(isU?(en?'UNLOCKED':'SBLOCCATO'):Math.min(p,goal)+' / '+goal)+'</div>'
+      +'<div>'+btn+'</div></div>';
+  });
+  host.innerHTML=html;
+  cat.forEach(function(cd){var cv=document.getElementById('c2sk_'+cd.id);if(cv)prev(cv,cd,unl.indexOf(cd.id)<0);});
+}
+function cos2Sagoma(cv){   // bloccato: sagoma scura, il set non si spoilera
+  var c=cv.getContext('2d');c.save();c.globalCompositeOperation='source-in';c.fillStyle='#181f2c';c.fillRect(0,0,cv.width,cv.height);c.restore();
+}
+function dpkAnteprima(cv,look,tinta,sagoma,modi){
+  var c=cv.getContext('2d');c.clearRect(0,0,cv.width,cv.height);
+  if(!dpkDisegna(c,look,tinta,cv.width/2,cv.height*0.9,cv.height*0.62,modi)){
+    dpkArteCarica(function(ok){if(ok){dpkDisegna(c,look,tinta,cv.width/2,cv.height*0.9,cv.height*0.62,modi);if(sagoma)cos2Sagoma(cv);}});
+    return;
+  }
+  if(sagoma)cos2Sagoma(cv);
+}
+
+// ═══════════════ EDITOR DELLO SCALATORE (il fagiolotto del Dead Peak nuovo) ═══════════════
+var DPK_ED={look:null,raf:null,t0:0};
+var DPK_ED_CAMPI=[
+  ['🎨',['COLORE','COLOUR'],'co'],['🎩',['CAPPELLO','HAT'],'ca'],['👀',['OCCHI','EYES'],'ol'],['🥸',['FACCIA','FACE'],'oc'],
+  ['🎗️',['DECORO','BODY DETAIL'],'de'],['✨',['FINITURA','FINISH'],'fi'],['💨',['SCIA','TRAIL'],'sc'],
+  ['💥',['MORTE','DEATH'],'mo'],['🌟',['RINASCITA','RESPAWN'],'ri'],['🏁',['ESULTANZA IN VETTA','SUMMIT CHEER'],'em']];
+function deadpeakEditor(){
+  var en=cos2En();
+  DPK_ED.look=dpkLook();DPK_ED.t0=performance.now();DPK_ED.morto=0;
+  rtdOv('<div class="pvp-m-title" style="color:#fbbf24;">🎨 '+(en?'YOUR CLIMBER':'IL TUO SCALATORE')+'</div>'
+    +'<div class="rc-ed-stage" data-dp="1"><canvas id="dpk-ed-cv" width="360" height="230"></canvas></div>'
+    +'<div class="rc-ed-note">'+(en?'Everyone in the match sees your climber like this. Your colour is yours if nobody before you took it: otherwise you get the first free one.':'In partita tutti ti vedono cosi’. Il colore e’ tuo se nessuno prima di te l’ha preso: altrimenti ricevi il primo libero.')+'</div>'
+    +'<div class="rc-ed-secs dp-secs" id="dpk-secs"><div style="text-align:center;color:var(--txt3);font-size:10px;padding:12px;">⏳</div></div>'
+    +'<div class="rc-ed-h" style="margin-top:16px;">🏆 '+(en?'SETS TO UNLOCK':'SET DA SBLOCCARE')+'<span class="rc-ed-badge">'+(en?'by playing — no purchases':'solo giocando — niente acquisti')+'</span></div>'
+    +'<div id="dpk-skins" class="db-sk-grid"></div>'
+    +'<button class="action-btn gold" style="width:100%;margin-top:14px;" onclick="dpkEdSalva()">💾 '+(en?'SAVE CLIMBER':'SALVA SCALATORE')+'</button>'
+    +'<div class="rc-ed-note">'+(en?'Rivals see the new look from your next match.':'Gli avversari vedranno il nuovo look dalla prossima partita.')+'</div>'
+    +'<button class="action-btn" style="width:100%;margin-top:8px;background:#1f2937;color:#cbd5e1;" onclick="dpkEdChiudi()">'+(en?'CLOSE':'CHIUDI')+'</button>',true);
+  dpkArteCarica(function(ok){
+    if(!ok){if(typeof deadpeakEditorV1==='function'){deadpeakEditorV1();}return;}   // arte non arrivata: resta l'editor di prima
+    dpkEdSezioni();
+    var griglia=function(){cos2Griglia(document.getElementById('dpk-skins'),'scalata',function(cv,cd,sag){dpkAnteprima(cv,dpkNorm(cd.look_patch),dpkEdTinta(cd.look_patch),sag);});};
+    dpkSync(function(){if(!document.getElementById('dpk-ed-cv'))return;DPK_ED.look=dpkLook();dpkEdSegna();});
+    cos2Carica(function(){dpkEdSezioni();griglia();});
+    var loop=function(){
+      var ov=document.getElementById('arc-overlay');
+      if(!document.getElementById('dpk-ed-cv')||!ov||!ov.classList.contains('show')){DPK_ED.raf=null;return;}
+      try{dpkEdStage();}catch(e){}
+      DPK_ED.raf=requestAnimationFrame(loop);
+    };
+    if(DPK_ED.raf)cancelAnimationFrame(DPK_ED.raf);
+    DPK_ED.raf=requestAnimationFrame(loop);
+  });
+}
+function dpkEdTinta(l){l=l||DPK_ED.look;return (l.co|0)>0?(l.co|0)-1:((DPK_ED.look&&(DPK_ED.look.co|0)>0)?(DPK_ED.look.co|0)-1:0);}
+function dpkEdSezioni(){
+  var host=document.getElementById('dpk-secs');if(!host||!window.DPM||!DPM.COSMETICI)return;
+  var N=DPM.COSMETICI.NOMI,html='';
+  DPK_ED_CAMPI.forEach(function(fd){
+    var f=fd[2];
+    html+='<div class="dp-field"><div class="dp-field-h"><span class="dp-field-ic">'+fd[0]+'</span><span class="dp-field-nm">'+fd[1][cos2En()?1:0]+'</span><span class="dp-field-cur" id="dpk-cur-'+f+'"></span></div><div class="'+(f==='co'?'twr-swrow':'twr-optrow')+'" data-f="'+f+'">';
+    for(var i=0;i<=DPK2_MAX[f];i++){
+      var st=cos2Stato('scalata',f,i);if(st===2)continue;
+      var nm=cos2N(N[f],i);
+      if(f==='co'&&i===0)html+='<button class="twr-opt" data-i="0" onclick="dpkEdSet(\'co\',0)">'+(cos2En()?'SEAT':'DEL POSTO')+'</button>';
+      else if(f==='co')html+='<span class="twr-sw" data-i="'+i+'" title="'+nm+'" style="background:'+DPK2_TINTE[i-1]+';" onclick="dpkEdSet(\'co\','+i+')"></span>';
+      else if(st===1)html+='<button class="twr-opt locked" onclick="dpkEdBloccato(\''+f+'\','+i+')">🔒 '+nm+'</button>';
+      else html+='<button class="twr-opt" data-i="'+i+'" onclick="dpkEdSet(\''+f+'\','+i+')">'+(DPK2_FREE[f].indexOf(i)<0?'★ ':'')+nm+'</button>';
+    }
+    html+='</div></div>';
+  });
+  host.innerHTML=html;dpkEdSegna();
+}
+function dpkEdSegna(){
+  document.querySelectorAll('#dpk-secs [data-f]').forEach(function(row){
+    var f=row.getAttribute('data-f'),cur=DPK_ED.look[f]|0;
+    row.querySelectorAll('[data-i]').forEach(function(b){b.classList.toggle('sel',parseInt(b.getAttribute('data-i'),10)===cur);});
+    var el=document.getElementById('dpk-cur-'+f);
+    if(el&&window.DPM&&DPM.COSMETICI)el.textContent=(f==='co'&&cur===0)?(cos2En()?'SEAT':'DEL POSTO'):cos2N(DPM.COSMETICI.NOMI[f],cur);
+  });
+}
+function dpkEdSet(f,i){
+  if(cos2Stato('scalata',f,i|0)!==0)return dpkEdBloccato(f,i);
+  DPK_ED.look[f]=i|0;
+  // si rivede subito cio' che si e' scelto: scia e morte partono dal loro momento del palco
+  var T=7000,da={sc:1200,mo:4900,ri:5900,em:3300}[f];
+  DPK_ED.t0=performance.now()-(da||0);DPK_ED.morto=0;
+  dpkEdSegna();
+  try{TWS.play('pick',0.5);}catch(e){}
+}
+function dpkEdBloccato(f,i){
+  try{TWS.play('err',0.4);}catch(e){}
+  var cd=cos2SetDi('scalata',f,i);
+  toast('🔒 '+(cos2En()?('Unlock "'+cos2NomeSet(cd)+'" by playing DEAD PEAK'):('Sblocca "'+cos2NomeSet(cd)+'" giocando DEAD PEAK')),'warn',2600);
+}
+function dpkEdSalva(){
+  var lk=dpkNorm(DPK_ED.look),en=cos2En();
+  try{localStorage.setItem('gb_dpk',JSON.stringify(lk));}catch(e){}
+  fetch(BACKEND+'/dp_look',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},body:JSON.stringify({user_id:S.userId,look:lk})})
+    .then(function(r){if(!r.ok)throw 0;return r.json();})
+    .then(function(d){if(d&&d.ok&&d.look){try{localStorage.setItem('gb_dpk',JSON.stringify(d.look));}catch(e){}}dpkRiHello();toast('✅ '+(en?'Climber saved':'Scalatore salvato'),'ok',2000);try{TWS.play('gold',0.7);}catch(e){}})
+    .catch(function(){dpkRiHello();toast('⚠️ '+(en?'Saved on this device only — will sync later':'Salvato solo su questo dispositivo — verrà risincronizzato'),'warn',3000);});
+  try{if(typeof grHaptic==='function')grHaptic('pick');}catch(e){}
+  dpkEdChiudi();
+}
+function dpkEdChiudi(){
+  if(DPK_ED.raf){cancelAnimationFrame(DPK_ED.raf);DPK_ED.raf=null;}
+  rtdOvClose();
+  if(typeof RTD!=='undefined'&&(RTD.ui==='lobby'||RTD.ui===''))rtdShowLobby();
+}
+// palco: fermo → corsa con scia → salto → vetta con l'esultanza → morte a tema → rinascita (7 s)
+function dpkEdStage(){
+  var cv=document.getElementById('dpk-ed-cv');if(!cv||!window.DPM)return;
+  var c=cv.getContext('2d'),W=cv.width,H=cv.height,now=performance.now(),T=7000,t=(now-DPK_ED.t0)%T,A=DPM.ARTE,SG=DPM.SANGUE,D=DPM.COSMETICI;
+  if(t<0)t+=T;
+  var gr=c.createLinearGradient(0,0,0,H);gr.addColorStop(0,'#1a2030');gr.addColorStop(1,'#0c1018');c.fillStyle=gr;c.fillRect(0,0,W,H);
+  c.fillStyle='#5a6272';c.fillRect(0,H*0.84,W,H*0.16);c.fillStyle='#98a1ae';c.fillRect(0,H*0.84,W,4);
+  var lk=dpkNorm(DPK_ED.look),L=D.risolvi(lk,dpkEdTinta(lk)),S2=58,Y=H*0.84,an=DPK_ED.an||(DPK_ED.an=A.nuovaAnim());
+  var p={x:0,y:0,vx:0,vy:0,grounded:true,wallside:0,skidT:0,wjLock:0},X=W*0.3;
+  an.arrivo=0;an.nato=0;
+  if(t<1200){an.lookX=0.5;}
+  else if(t<2600){var k=(t-1200)/1400;X=W*(0.18+0.6*k);p.vx=13;an.fase=t/90;an.t=t/1000;
+    if(!an.scie||Math.random()<0.5){an.scie=[];for(var s=4;s>0;s--)an.scie.push({x:-s*0.5,y:0,a:0.1*(5-s),sx:1,sy:1,f:1});}}
+  else if(t<3300){var k2=(t-2600)/700;X=W*0.78;p.grounded=false;p.vy=(0.5-k2)*20;Y=H*0.84-Math.sin(k2*Math.PI)*60;an.scie=[];}
+  else if(t<4900){X=W*0.62;an.arrivo=(t-3300)/1000+0.01;}
+  else if(t<5900){
+    var giro=Math.floor((now-DPK_ED.t0)/T);
+    if(DPK_ED.morto!==giro+1){
+      DPK_ED.morto=giro+1;for(var q=0;q<SG.P.t.length;q++)SG.P.t[q]=0;
+      if(SG.liv==null)SG.liv=2;SG.morte(0,0.6,1,2,'sega',L);
+    }
+    var V={S:S2,sx:function(x){return W*0.5+x*S2;},sy:function(y){return H*0.84-y*S2;}};
+    SG.aggiorna(1/60,{M:{solido:function(cx,cy){return cy<0;},unavia:function(){return false;}}},-99);
+    A.corpoMorto(c,A.nuovaAnim(),W*0.5,H*0.84,S2,L,Math.min(1,(t-4900)/100));
+    SG.disegnaParticelle(c,V);
+    return;
+  }else{X=W*0.5;an.nato=Math.min(0.49,(t-5900)/1000*0.5+0.001);}
+  an.t=(an.t||0)+0.016;
+  A.corpo(c,{p:p},an,X,Y,S2,1,L);
+}
+// hook di cosClaim/cosEquip: rinfresca l'editor aperto (lucchetti e griglia)
+function cos2OnCos(mode){
+  if(!COS.data||mode!=='scalata')return;
+  if(document.getElementById('dpk-ed-cv')){
+    DPK_ED.look=dpkLook();dpkEdSezioni();
+    cos2Griglia(document.getElementById('dpk-skins'),'scalata',function(cv,cd,sag){dpkAnteprima(cv,dpkNorm(cd.look_patch),dpkEdTinta(cd.look_patch),sag);});
+  }
+}
 function twrRR(ctx,x,y,w,h,r){
   ctx.beginPath();
   ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
@@ -60819,6 +61105,7 @@ function rtdShowLobby(keepOv){
     if(RTD.game==='scalata'){   // editor scalatore + skin (SKINS_SPEC §B)
       h+='<button class="action-btn" style="width:100%;margin:10px 0 2px;background:linear-gradient(135deg,#101c2c,#0a1420);border:1px solid rgba(56,189,248,.5);color:#7dd3fc;" onclick="deadpeakEditor()">🎨 IL TUO SCALATORE — personalizza</button>';
       deadpeakLookSync();
+      try{dpkSync(dpkRiHello);}catch(e){}   // COSMETICI DP 19/09: il look nuovo (backend vince) e poi al server
     }
   }
   h+='<div class="tw-rules">';
@@ -62063,7 +62350,7 @@ window.lctBtn=lctBtn;window.lctOpen=lctOpen;
 // Pages INSIEME.
 var DPRT_ON=true;
 var DPRT={wrap:null,fr:null,pronto:false,coda:[],aperto:false,nascosto:false,firma:"",fineScena:false,loads:0,spec:false,tgEv:false,bloccato:false};
-var DPRT_VER="8dd1ce3fa933";
+var DPRT_VER="2310479d827b";
 function dprtUrl(){return "deadpeak.html?guscio=1&v="+DPRT_VER+"&lang="+((window.GB_LANG==="en")?"en":"it");}
 var DPRT_URL=dprtUrl();
 var DPRT_ORIGIN=location.origin;
@@ -91688,7 +91975,7 @@ function dbReqLabel(cd){
 }
 function dbCosLoad(){
   if(!S.userId){dbEdGrid();return;}
-  fetch(BACKEND+'/cosmetics_data?user_id='+S.userId,{headers:{'ngrok-skip-browser-warning':'1'}})
+  fetch(BACKEND+'/cosmetics_data?v=2&modi=scalata&user_id='+S.userId,{headers:{'ngrok-skip-browser-warning':'1'}})
     .then(function(r){return r.json();})
     .then(function(d){
       if(!d||!d.ok)return;
@@ -94659,7 +94946,7 @@ function sclJelly(an,dir,mag,ph){an.jlT=performance.now();an.jlDx=dir||0;an.jlMa
 // /cosmetics_data. Unlock SERVER-authoritative: DP_FREE/DP_GATE sono solo UX —
 // la verita' e' _deadpeak_sanitize al POST /deadpeak.
 var DP_ED={look:null,ci:0,raf:null,t0:0,bgCv:null,dashCyc:-1,clangCyc:-1,spark:null};
-function deadpeakEditor(){
+function deadpeakEditorV1(){   // COSMETICI DP 19/09: editor dello scalatore VECCHIO (riserva se dpk_arte.js non arriva)
   DP_ED.look=deadpeakLook();
   DP_ED.ci=Math.max(0,SCL_COLS.indexOf(DP_ED.look.bodyCol||''));   // swatch evidenziato = colore salvato ('' ⇒ 0)
   DP_ED.t0=performance.now();DP_ED.bgCv=null;
@@ -94930,7 +95217,7 @@ function dpReqLabel(cd){
 }
 function dpCosLoad(){
   if(!S.userId){dpEdGrid();return;}
-  fetch(BACKEND+'/cosmetics_data?user_id='+S.userId,{headers:{'ngrok-skip-browser-warning':'1'}})
+  fetch(BACKEND+'/cosmetics_data?v=2&modi=scalata&user_id='+S.userId,{headers:{'ngrok-skip-browser-warning':'1'}})
     .then(function(r){return r.json();})
     .then(function(d){
       if(!d||!d.ok)return;
