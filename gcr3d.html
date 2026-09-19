@@ -3186,6 +3186,12 @@ void main(){
                     cappello, squadra, capelli, cappotto)
        texel 10     lampo bianco (colpito) · lampeggio · luccichio lente · scuro
        texel 11..   17 ossa, 3 texel ciascuna = matrice 3x4 (righe)
+       texel 62     GCR finitura arma: metallo rgb · a = 1+emissione (0 = di serie)
+       texel 63     GCR finitura arma: impugnatura rgb · a = 1+emissione
+   GCR (cosmetici gcr_look): look.ab abito 0-5, look.hat 5 bombetta 6 panama, look.acc 5 garofano,
+     look.fa finitura armi 0-4. Campo mancante = 0 = come prima (look vecchio identico).
+   GCR wave 2: hat 7 basco, 8 fedora con piuma; ab 6 giacca di pelle, 7 smoking bianco; acc 6 orologio, 7 bocchino; fa 5 incisa, 6 avorio.
+     Bit 48+ nella maschera C = texel 1 .a (0 per i look di prima).
    · Rig a pezzi rigidi, pose-chiave interpolate a mano, braccia a IK a due
      ossa sulle armi a due mani. Zero allocazioni nel fotogramma.
    Contratto: G3.mafiosi.crea(scene,{max, fx, sangue}) -> { inizio, aggiungi, fine, xray, punti, stat, fx(F), sangue(n) }
@@ -3218,19 +3224,23 @@ void main(){
     FEDORA: 14, COPPOLA: 15, BANDANA: 16, CILINDRO: 17, CAPELLI: 18, CHIGNON: 19,
     OCC_SCURI: 20, OCC_TONDI: 21, SIGARO: 22, CATENA: 23, CICATRICE: 24, GIUBBOTTO: 25, GRANATA: 26, BAFFI: 27,
     KNIFE: 28, BAT: 29, PISTOL: 30, SMG: 31, SHOTGUN: 32, ROCKET: 33, SNIPER: 34, UZI: 35, LMG: 36, MAGNUM: 37,
-    VAMPATA: 38, OCCHI: 39
+    VAMPATA: 38, OCCHI: 39,
+    BOMBETTA: 40, PANAMA: 41, GAROFANO: 42, PAPILLON: 43, PELLICCIA_AB: 44,   // GCR
+    BASCO: 45, FEDORA_PIUMA: 46, PELLE: 47, OROLOGIO: 48, BOCCHINO: 49, REVERS: 50   // GCR wave 2 (48+ = maschera C)
   };
 
   // ── COLORI: 0-7 dell'istanza, 8+ fissi (a = emissione: 0..1, 2 brace, 3 lente) ─
   const K = { GIACCA: 0, PANT: 1, CAMICIA: 2, PELLE: 3, CAPPELLO: 4, SQUADRA: 5, CAPELLI: 6, CAPPOTTO: 7,
     NERO: 8, FERRO: 9, ACCIAIO: 10, LEGNO: 11, ORO: 12, PERLA: 13, CUOIO: 14, PELO: 15, ROSSO: 16,
-    BRACE: 17, LENTE: 18, VAMPA: 19, CROMO: 20, OLIVA: 21, CICA: 22, KEVLAR: 23, SIGARO: 24, LAMA: 25, GRAN: 26 };
+    BRACE: 17, LENTE: 18, VAMPA: 19, CROMO: 20, OLIVA: 21, CICA: 22, KEVLAR: 23, SIGARO: 24, LAMA: 25, GRAN: 26, PAGLIA: 27, PIUMA: 28, PELLE_N: 29 };
   const FISSI = [
     [0.05, 0.055, 0.07, 0], [0.40, 0.44, 0.52, 0.04], [0.80, 0.85, 0.92, 0.12], [0.62, 0.40, 0.20, 0],
     [1.0, 0.80, 0.22, 0.35], [0.96, 0.94, 0.88, 0.25], [0.30, 0.18, 0.10, 0], [0.90, 0.84, 0.72, 0],
     [0.85, 0.16, 0.18, 0.1], [1.0, 0.45, 0.08, 2], [0.50, 0.95, 1.0, 3], [1.0, 0.92, 0.50, 1],
     [0.92, 0.95, 1.0, 0.25], [0.36, 0.42, 0.24, 0], [0.70, 0.22, 0.22, 0], [0.24, 0.27, 0.22, 0],
-    [0.42, 0.28, 0.16, 0], [0.95, 0.97, 1.0, 0.3], [0.30, 0.42, 0.20, 0]
+    [0.42, 0.28, 0.16, 0], [0.95, 0.97, 1.0, 0.3], [0.30, 0.42, 0.20, 0],
+    [0.88, 0.80, 0.58, 0.06],   // GCR: paglia del panama
+    [1, 1, 1, 0.08], [0.16, 0.17, 0.2, 0.12]   // GCR wave 2: piuma (il VS usa il colore del cappello), pelle quasi nera lucida (gia' schiarita)
   ];
 
   // ═══ COSTRUTTORE DELLA GEOMETRIA (solo in crea) ═══════════════════════════
@@ -3240,7 +3250,7 @@ void main(){
     this.conta = {};   // triangoli per bit
   }
   const CP = Costruttore.prototype;
-  CP.usa = function (osso, bit, col, sh, gess) { this.osso = osso; this.bit = bit; this.col = col; this.sh = sh == null ? 1 : sh; this.gess = !!gess; return this; };
+  CP.usa = function (osso, bit, col, sh, gess) { this.osso = osso; this.bit = bit; this.col = col; this.sh = sh == null ? 1 : sh; this.gess = gess === 2 ? 2 : !!gess; return this; };   // GCR: gess 2 = righe viste solo col gessato forzato
   // triangolo orientato: se la normale non guarda "vuoi" lo gira
   CP.tri = function (a, b, c, vx, vy, vz) {
     let ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], wx = c[0] - a[0], wy = c[1] - a[1], wz = c[2] - a[2];
@@ -3252,7 +3262,7 @@ void main(){
     for (const p of [a, b, c]) {
       this.P.push(p[0] - pv[0], p[1] - pv[1], p[2] - pv[2]); this.N.push(nx, ny, nz);
       this.B.push(this.osso); this.Vb.push(this.bit); this.K.push(this.col); this.S.push(this.sh);
-      this.T.push(this.gess ? (Math.abs(nx) > Math.abs(nz) ? p[2] : p[0]) : -99);
+      this.T.push(this.gess ? (Math.abs(nx) > Math.abs(nz) ? p[2] : p[0]) + (this.gess === 2 ? 100 : 0) : -99);
     }
     this.conta[this.bit] = (this.conta[this.bit] || 0) + 1;
   };
@@ -3338,8 +3348,8 @@ void main(){
     const busto = (bit, col, sh, gess, gr) => g.usa(O_BUS, bit, col, sh, gess).blocco(0, 0.505, 0, 0.15 * gr, 0.25, 0.22 * gr, { k: [1.02, 1.38], km: [0.95, 1] });
     busto(V.GIACCA, K.GIACCA, 1, true, 1);
     busto(V.CAMICIA, K.CAMICIA, 1, false, 1);
-    g.usa(O_BUS, V.GILET, K.CAPPOTTO, 1).blocco(0, 0.5, 0, 0.162, 0.2, 0.235, { k: [1.02, 1.3], km: [0.98, 1] });
-    g.usa(O_BUS, V.CAPPOTTO, K.CAPPOTTO, 1).blocco(0, 0.505, 0, 0.172, 0.262, 0.245, { k: [1.02, 1.36], km: [1.02, 1.04] });
+    g.usa(O_BUS, V.GILET, K.CAPPOTTO, 1, 2).blocco(0, 0.5, 0, 0.162, 0.2, 0.235, { k: [1.02, 1.3], km: [0.98, 1] });
+    g.usa(O_BUS, V.CAPPOTTO, K.CAPPOTTO, 1, 2).blocco(0, 0.505, 0, 0.172, 0.262, 0.245, { k: [1.02, 1.36], km: [1.02, 1.04] });
     // bavero del cappotto (spalle alzate: fa la sagoma del boss)
     g.usa(O_BUS, V.CAPPOTTO, K.CAPPOTTO, 0.8).blocco(-0.02, 0.625, 0, 0.13, 0.04, 0.3, { k: [0.8, 0.8] });
     // pettorina: camicia a V + cravatta + fazzoletto
@@ -3362,6 +3372,36 @@ void main(){
     // catena d'oro con medaglione
     g.usa(O_BUS, V.CATENA, K.ORO, 1).anello(0.07, 0.082, 0.585, 0.6, 8, { c: [0.012, 0, 0], s: [1, 1] });
     g.usa(O_BUS, V.CATENA, K.ORO, 1).blocco(0.092, 0.53, 0, 0.012, 0.045, 0.045);
+    // GCR · garofano rosso all'occhiello (bavero sinistro) col gambo
+    g.usa(O_BUS, V.GAROFANO, K.ROSSO, 1.15).tornio([[0, -0.012], [0.026, -0.004], [0.034, 0.012], [0.018, 0.022], [0, 0.018]], 6, { c: [0.1, 0.585, -0.078], asse: 'x' });
+    g.usa(O_BUS, V.GAROFANO, K.OLIVA, 1).blocco(0.094, 0.555, -0.072, 0.008, 0.04, 0.008, { sh: [0, 0.006] });
+    // GCR · pelliccia dell'abito 4 (7 spicchi invece di 9: tiene il caso peggiore sotto i 1044 triangoli)
+    g.usa(O_BUS, V.PELLICCIA_AB, K.PELO, 1).tornio([[0.05, 0.585], [0.13, 0.595], [0.15, 0.635], [0.12, 0.675], [0.06, 0.68], [0.05, 0.585]], 7, { c: [0, 0, 0], s: [0.95, 1.1] });
+    // GCR · papillon dello smoking (colore squadra, come la cravatta)
+    g.usa(O_BUS, V.PAPILLON, K.SQUADRA, 1.1).blocco(0.097, 0.607, 0.026, 0.016, 0.034, 0.04, { asse: 'z', km: [0.35, 0.4] });
+    g.usa(O_BUS, V.PAPILLON, K.SQUADRA, 1.1).blocco(0.097, 0.607, -0.026, 0.016, 0.034, 0.04, { asse: 'z', k: [0.35, 0.4] });
+    g.usa(O_BUS, V.PAPILLON, K.SQUADRA, 0.85).blocco(0.1, 0.607, 0, 0.016, 0.018, 0.016);
+    // GCR wave 2 · giacca di pelle corta: busto, colletto, fascia in vita, zip d'acciaio col tiretto della squadra, maniche intere
+    g.usa(O_BUS, V.PELLE, K.PELLE_N, 1.05).blocco(0, 0.535, 0, 0.17, 0.2, 0.24, { k: [1.02, 1.3], km: [1.0, 1.02] });
+    g.usa(O_BUS, V.PELLE, K.PELLE_N, 0.85).blocco(-0.012, 0.642, 0, 0.14, 0.036, 0.27, { k: [0.85, 0.9] });
+    g.usa(O_BUS, V.PELLE, K.PELLE_N, 0.8).blocco(0, 0.44, 0, 0.176, 0.026, 0.248);
+    g.usa(O_BUS, V.PELLE, K.ACCIAIO, 1).blocco(0.089, 0.535, 0.012, 0.006, 0.19, 0.008);
+    g.usa(O_BUS, V.PELLE, K.SQUADRA, 1.1).blocco(0.093, 0.6, 0.012, 0.01, 0.026, 0.018);
+    for (const lato of [-1, 1]) {
+      const ob = lato < 0 ? O_BSX : O_BDX, oa = lato < 0 ? O_ASX : O_ADX;
+      g.usa(ob, V.PELLE, K.PELLE_N, 1.05).blocco(0, 0.54, 0.165 * lato, 0.084, 0.14, 0.084, { km: [0.92, 0.92] });
+      g.usa(oa, V.PELLE, K.PELLE_N, 1).blocco(0, 0.415, 0.17 * lato, 0.072, 0.12, 0.072, { km: [0.88, 0.88] });
+      g.usa(oa, V.PELLE, K.PELLE_N, 0.8).blocco(0, 0.362, 0.17 * lato, 0.066, 0.022, 0.066);
+    }
+    // GCR wave 2 · orologio d'oro al polso sinistro (cinturino + quadrante sul lato esterno)
+    g.usa(O_ASX, V.OROLOGIO, K.ORO, 1.1).blocco(0, 0.372, -0.17, 0.076, 0.024, 0.076);
+    g.usa(O_ASX, V.OROLOGIO, K.ORO, 1.25).blocco(0, 0.372, -0.212, 0.046, 0.04, 0.012);
+    // GCR wave 2 · revers dello smoking bianco (colore del vestito)
+    for (const lato of [-1, 1]) g.usa(O_BUS, V.REVERS, K.CAPPOTTO, 1).blocco(0.08, 0.565, 0.042 * lato, 0.008, 0.11, 0.028, { sh: [0, 0.014 * lato], shm: [0, -0.016 * lato] });
+    // GCR wave 2 · bocchino lungo nero con la sigaretta e la brace
+    g.usa(O_TES, V.BOCCHINO, K.NERO, 1).cil('x', 0.14, 0.702, 0.03, 0.007, 0.009, 0.1, 5);
+    g.usa(O_TES, V.BOCCHINO, K.PERLA, 1.1).cil('x', 0.215, 0.702, 0.03, 0.011, 0.011, 0.055, 5);
+    g.usa(O_TES, V.BOCCHINO, K.BRACE, 1).cil('x', 0.246, 0.702, 0.03, 0.012, 0.011, 0.01, 5);
     // giubbotto antiproiettile: piastra sopra a tutto
     g.usa(O_BUS, V.GIUBBOTTO, K.KEVLAR, 1).blocco(0, 0.52, 0, 0.2, 0.19, 0.27, { k: [1, 1.12] });
     g.usa(O_BUS, V.GIUBBOTTO, K.KEVLAR, 0.7).blocco(0.102, 0.52, 0, 0.012, 0.12, 0.12);
@@ -3369,7 +3409,7 @@ void main(){
     // ── falde del cappotto (lunghe fino al polpaccio) ──
     for (const lato of [-1, 1]) {
       const o = lato < 0 ? O_FSX : O_FDX;
-      g.usa(o, V.FALDE, K.CAPPOTTO, 0.95).blocco(0, 0.255, 0.064 * lato, 0.176, 0.29, 0.122, { km: [1.3, 1.25], shm: [0, 0.018 * lato] });
+      g.usa(o, V.FALDE, K.CAPPOTTO, 0.95, 2).blocco(0, 0.255, 0.064 * lato, 0.176, 0.29, 0.122, { km: [1.3, 1.25], shm: [0, 0.018 * lato] });
     }
 
     // ── braccia ──
@@ -3377,10 +3417,10 @@ void main(){
       const z = 0.165 * lato, ob = lato < 0 ? O_BSX : O_BDX, oa = lato < 0 ? O_ASX : O_ADX;
       g.usa(ob, V.MANICHE, K.GIACCA, 1, true).blocco(0, 0.54, z, 0.078, 0.14, 0.078, { km: [0.9, 0.9] });
       g.usa(ob, V.MANICHE_CAM, K.CAMICIA, 1).blocco(0, 0.54, z, 0.074, 0.14, 0.074, { km: [0.9, 0.9] });
-      g.usa(ob, V.MANICHE_CAP, K.CAPPOTTO, 1).blocco(0, 0.54, z, 0.084, 0.14, 0.084, { km: [0.92, 0.92] });
+      g.usa(ob, V.MANICHE_CAP, K.CAPPOTTO, 1, 2).blocco(0, 0.54, z, 0.084, 0.14, 0.084, { km: [0.92, 0.92] });
       const za = 0.17 * lato;
       g.usa(oa, V.MANICHE, K.GIACCA, 0.95, true).blocco(0, 0.415, za, 0.066, 0.12, 0.066, { km: [0.85, 0.85] });
-      g.usa(oa, V.MANICHE_CAP, K.CAPPOTTO, 0.95).blocco(0, 0.415, za, 0.074, 0.12, 0.074, { km: [0.88, 0.88] });
+      g.usa(oa, V.MANICHE_CAP, K.CAPPOTTO, 0.95, 2).blocco(0, 0.415, za, 0.074, 0.12, 0.074, { km: [0.88, 0.88] });
       g.usa(oa, V.MANICHE, K.CAMICIA, 1).blocco(0, 0.36, za, 0.06, 0.02, 0.06);
       g.usa(oa, V.MANICHE_CAP, K.CAMICIA, 1).blocco(0, 0.36, za, 0.06, 0.02, 0.06);
       g.usa(oa, V.MANICHE_CAM, K.PELLE, 1).blocco(0, 0.405, za, 0.056, 0.13, 0.056, { k: [1.08, 1.08] });
@@ -3429,6 +3469,24 @@ void main(){
     g.usa(O_CAP, V.CILINDRO, K.CAPPELLO, 0.85).anello(0.07, 0.135, 0.792, 0.806, 10);
     g.usa(O_CAP, V.CILINDRO, K.CAPPELLO, 1).tornio([[0, 0.8], [0.078, 0.8], [0.086, 0.985], [0, 0.985]], 9);
     g.usa(O_CAP, V.CILINDRO, K.SQUADRA, 1.1).anello(0.08, 0.087, 0.81, 0.845, 9);
+    // GCR · bombetta: cupola tonda, tesa corta, fascia della squadra
+    g.usa(O_CAP, V.BOMBETTA, K.CAPPELLO, 1).tornio([[0, 0.8], [0.084, 0.8], [0.093, 0.852], [0.08, 0.902], [0.042, 0.93], [0, 0.934]], 8, { s: [1.04, 1] });
+    g.usa(O_CAP, V.BOMBETTA, K.CAPPELLO, 0.7).anello(0.07, 0.118, 0.795, 0.809, 10, { s: [1.1, 1] });
+    g.usa(O_CAP, V.BOMBETTA, K.SQUADRA, 1.1).anello(0.086, 0.095, 0.806, 0.83, 8, { s: [1.06, 1] });
+    // GCR · panama: paglia chiara, cupola col solco, tesa larga, nastro del colore del cappello
+    g.usa(O_CAP, V.PANAMA, K.PAGLIA, 1).tornio([[0, 0.8], [0.088, 0.802], [0.093, 0.858], [0.078, 0.882], [0.038, 0.874], [0, 0.866]], 8, { s: [1.08, 1] });
+    g.usa(O_CAP, V.PANAMA, K.PAGLIA, 0.88).anello(0.07, 0.165, 0.792, 0.806, 10, { s: [1.08, 1] });
+    g.usa(O_CAP, V.PANAMA, K.CAPPELLO, 1.1).anello(0.088, 0.098, 0.806, 0.836, 8, { s: [1.08, 1] });
+    // GCR wave 2 · basco: disco morbido spostato di lato, falda che cade, picciolo della squadra
+    g.usa(O_CAP, V.BASCO, K.CAPPELLO, 1).tornio([[0, 0.795], [0.09, 0.8], [0.114, 0.826], [0.102, 0.85], [0.052, 0.86], [0, 0.861]], 8, { c: [-0.006, 0, 0.014], s: [1.04, 1] });
+    g.usa(O_CAP, V.BASCO, K.CAPPELLO, 0.85).blocco(-0.01, 0.832, 0.108, 0.12, 0.022, 0.05, { shm: [-0.024, 0.01] });
+    g.usa(O_CAP, V.BASCO, K.SQUADRA, 1.1).blocco(-0.006, 0.868, 0.014, 0.016, 0.016, 0.016);
+    // GCR wave 2 · fedora con piuma: la fedora con la tesa a 7 spicchi (stessi triangoli) + piuma del colore del cappello
+    g.usa(O_CAP, V.FEDORA_PIUMA, K.CAPPELLO, 1).tornio([[0, 0.8], [0.088, 0.802], [0.094, 0.865], [0.075, 0.893], [0.03, 0.886], [0, 0.872]], 8, { s: [1.08, 1] });
+    g.usa(O_CAP, V.FEDORA_PIUMA, K.CAPPELLO, 0.85).anello(0.07, 0.168, 0.792, 0.808, 7, { s: [1.08, 1] });
+    g.usa(O_CAP, V.FEDORA_PIUMA, K.SQUADRA, 1.1).anello(0.086, 0.097, 0.806, 0.834, 8, { s: [1.08, 1] });
+    g.usa(O_CAP, V.FEDORA_PIUMA, K.PIUMA, 1.1).blocco(-0.03, 0.852, -0.1, 0.15, 0.014, 0.034, { asse: 'x', km: [0.25, 0.3], shm: [0.07, -0.01] });
+    g.usa(O_CAP, V.FEDORA_PIUMA, K.PIUMA, 0.9).blocco(-0.02, 0.846, -0.108, 0.1, 0.012, 0.026, { asse: 'x', km: [0.3, 0.3], shm: [0.035, -0.022] });
     // capelli corti tirati indietro con ciuffo
     g.usa(O_CAP, V.CAPELLI, K.CAPELLI, 1).tornio([[0, 0.735], [0.086, 0.745], [0.092, 0.795], [0.066, 0.833], [0, 0.842]], 8, { c: [-0.01, 0, 0] });
     g.usa(O_CAP, V.CAPELLI, K.CAPELLI, 1.1).blocco(0.045, 0.828, 0, 0.08, 0.03, 0.12, { asse: 'x', k: [0.6, 0.8] });
@@ -3537,7 +3595,24 @@ void main(){
     { nome: 'consigliere', bit: [V.CAPPOTTO, V.MANICHE_CAP, V.FALDE, V.CINTURA, V.CRAVATTA, V.OCC_TONDI], cap: V.CILINDRO, gess: 0, suit: '#8a7a58',
       bac: [0.9, 1, 0.9], bus: [0.9, 1.05, 0.88], tes: [0.98, 1.02, 0.98], cap_: [1, 1, 1], bra: [0.88, 1.04, 0.88], gam: [0.84, 1.08, 0.84], fal: [1.02, 0.88, 1.06], curvo: 0.22 }
   ];
-  const CAP_LOOK = [V.FEDORA, V.COPPOLA, V.BANDANA, V.CILINDRO, V.CAPELLI];
+  const CAP_LOOK = [V.FEDORA, V.COPPOLA, V.BANDANA, V.CILINDRO, V.CAPELLI, V.BOMBETTA, V.PANAMA, V.BASCO, V.FEDORA_PIUMA];   // GCR: 5 bombetta, 6 panama · wave 2: 7 basco, 8 fedora con piuma
+  // GCR · abiti (look.ab): 0 di serie · 1 gessato (capi dell'archetipo + righe forzate) · 2 gilet · 3 trench · 4 pelliccia · 5 smoking
+  const CAPI = (1 << V.GIACCA) | (1 << V.CAMICIA) | (1 << V.GILET) | (1 << V.MANICHE) | (1 << V.MANICHE_CAM) | (1 << V.CAPPOTTO) | (1 << V.MANICHE_CAP) |
+    (1 << V.FALDE) | (1 << V.PELLICCIA) | (1 << V.BRETELLE) | (1 << V.CINTURA) | (1 << V.CRAVATTA);
+  const ABITI = [null, null, [V.CAMICIA, V.GILET, V.MANICHE_CAM, V.CRAVATTA], [V.CAPPOTTO, V.MANICHE_CAP, V.FALDE, V.CINTURA, V.CRAVATTA],
+    [V.CAPPOTTO, V.MANICHE_CAP, V.FALDE, V.PELLICCIA_AB], [V.GIACCA, V.MANICHE, V.PAPILLON],
+    [V.CAMICIA, V.PELLE], [V.GIACCA, V.MANICHE, V.PAPILLON, V.REVERS]];   // wave 2: 6 giacca di pelle, 7 smoking bianco
+  const ABITO_COL = [-1, -1, 2, 5, 4, 1, 3, 1];
+  const SMOK_B = new Float32Array([0.95, 0.94, 0.9]);   // colori dei capi come l'archetipo che li porta di serie (autista, consigliere, donna, sicario)
+  // GCR · finiture delle armi (look.fa): [metallo r,g,b,em, impugnatura r,g,b,em]
+  const FINITURE = [null,
+    [0.17, 0.19, 0.24, 0.05, 0.24, 0.14, 0.08, 0],        // 1 brunita: acciaio azzurrato scuro, noce scuro
+    [0.60, 0.67, 0.78, 0.10, 0.07, 0.07, 0.08, 0.04],     // 2 cromo: acciaio a specchio freddo, ebano
+    [1.00, 0.74, 0.20, 0.30, 0.94, 0.89, 0.76, 0.1],      // 3 oro: oro, avorio
+    [0.90, 0.86, 0.95, 0.80, 0.98, 0.94, 1.00, 0.90],     // 4 madreperla: lilla perlato, bianco perla (em +0,6 = segnale dell'iridescenza)
+    [0.13, 0.11, 0.09, 1.25, 0.10, 0.07, 0.05, 0],        // 5 incisa: metallo scuro col luccichio d'oro che corre (em +1,2 = segnale), ebano
+    [0.84, 0.86, 0.90, 0.15, 0.96, 0.92, 0.80, 0.12]];    // 6 avorio: metallo chiaro, avorio
+  const intero = (v, a, b) => { v = v | 0; return v < a || v > b ? 0 : v; };
 
   // colore esadecimale -> rgb 0..1 senza allocare
   function esa(str, out, o) {
@@ -3559,13 +3634,16 @@ void main(){
   // configura l'istanza (solo quando cambia qualcosa: niente allocazioni)
   function configura(sl) {
     const a = ARCH[sl.arch], lk = sl.look, c = sl.col;
-    let mA = 1, mB = 0;
-    const bit = b => { if (b < 0) return; if (b < 24) mA |= (1 << b); else mB |= (1 << (b - 24)); };
+    let mA = 1, mB = 0, mC = 0;   // GCR wave 2: mC = bit 48+
+    const bit = b => { if (b < 0) return; if (b < 24) mA |= (1 << b); else if (b < 48) mB |= (1 << (b - 24)); else mC |= (1 << (b - 48)); };
     for (let i = 0; i < a.bit.length; i++) bit(a.bit[i]);
     bit(V.OCCHI);
     // cappello: il look vince
     let cap = a.cap;
-    if (lk && lk.hat != null) { cap = CAP_LOOK[(lk.hat | 0) % 5]; if (cap === V.CAPELLI && sl.arch === 4) cap = V.CHIGNON; }
+    if (lk && lk.hat != null) { const hi = lk.hat | 0; cap = hi >= 5 && hi < 9 ? CAP_LOOK[hi] : CAP_LOOK[hi % 5]; if (cap === V.CAPELLI && sl.arch === 4) cap = V.CHIGNON; }
+    // GCR · abito: sostituisce solo i capi (gli accessori dell'archetipo restano)
+    const ab = lk ? intero(lk.ab, 0, 7) : 0;
+    if (ab >= 2) { mA &= ~CAPI; const ca = ABITI[ab]; for (let i = 0; i < ca.length; i++) bit(ca[i]); }
     bit(cap); sl.cap = cap;
     // accessorio del look (0 = solo quelli dell'archetipo)
     const acc = lk && lk.acc != null ? (lk.acc | 0) : 0;
@@ -3574,11 +3652,16 @@ void main(){
     if (acc === 2) bit(V.SIGARO);
     if (acc === 3) bit(V.CATENA);
     if (acc === 4) bit(V.CICATRICE);
+    if (acc === 5) bit(V.GAROFANO);
+    if (acc === 6) bit(V.OROLOGIO);
+    if (acc === 7) bit(V.BOCCHINO);
     if (mA & (1 << V.OCC_SCURI)) mB &= ~(1 << (V.OCCHI - 24));
     if (mA & (1 << V.OCC_TONDI)) mB &= ~(1 << (V.OCCHI - 24));
     if (sl.giubbotto) bit(V.GIUBBOTTO);
     const w = ARMI_I[sl.arma]; bit(w.bit);
-    sl.maskA = mA; sl.maskB = mB; sl.gess = a.gess;
+    sl.maskA = mA; sl.maskB = mB; sl.maskC = mC; sl.gess = ab === 1 ? 2 : ab >= 2 ? 0 : a.gess;
+    // GCR · finitura dell'arma (texel 62-63)
+    { const fi = FINITURE[lk ? intero(lk.fa, 0, 6) : 0], f = sl.fin; if (fi) { for (let i = 0; i < 8; i++) f[i] = fi[i]; f[3] += 1; f[7] += 1; } else f.fill(0); }
     // colori
     if (!(lk && esa(lk.suit, c, 0))) esa(a.suit, c, 0);
     { const lum = c[0] * 0.3 + c[1] * 0.55 + c[2] * 0.15; if (lum < 0.2) { const k = (0.2 - lum) / 0.2 * 0.55; c[0] += (0.36 - c[0]) * k; c[1] += (0.4 - c[1]) * k; c[2] += (0.52 - c[2]) * k; } }
@@ -3591,12 +3674,12 @@ void main(){
       if (hatOk) { c[15] = c[12]; c[16] = c[13]; c[17] = c[14]; } else { c[15] = 0.75; c[16] = 0.12; c[17] = 0.16; }
     }
     // cappello: fedora e cilindro scuri tinti, coppola e bandana del colore pieno
-    if (cap === V.FEDORA || cap === V.CILINDRO) { TMP3[0] = c[12]; TMP3[1] = c[13]; TMP3[2] = c[14]; misto(c, 12, TMP3, 0, NERO_T, 0, 0.5); }
+    if (cap === V.FEDORA || cap === V.CILINDRO || cap === V.BOMBETTA || cap === V.FEDORA_PIUMA) { TMP3[0] = c[12]; TMP3[1] = c[13]; TMP3[2] = c[14]; misto(c, 12, TMP3, 0, NERO_T, 0, 0.5); }
     // capelli
     const ch = skin === 4 ? CAPELLI_R : sl.arch === 4 ? CAPELLI_D : CAPELLI_C;
     c[18] = ch[0]; c[19] = ch[1]; c[20] = ch[2];
     // per archetipo
-    const ar = sl.arch;
+    const ar = ab >= 2 ? ABITO_COL[ab] : sl.arch;   // GCR: i colori dei capi seguono l'abito
     if (ar === 2) {            // autista: gilet = vestito, camicia bianca, pantaloni scuri
       c[21] = c[0]; c[22] = c[1]; c[23] = c[2];
       c[6] = BIANCO[0]; c[7] = BIANCO[1]; c[8] = BIANCO[2];
@@ -3612,6 +3695,9 @@ void main(){
       if (ar === 5) { TMP3[0] = c[0]; TMP3[1] = c[1]; TMP3[2] = c[2]; misto(c, 21, TMP3, 0, BIANCO, 0, 0.12); }
       misto(c, 3, c, 0, SCURO, 0, ar === 1 ? 0.25 : 0.55);
     }
+    // GCR wave 2: giacca di pelle = camicia del colore del vestito · smoking bianco = giacca bianca, revers e pantaloni del vestito
+    if (ab === 6) { c[6] = c[0]; c[7] = c[1]; c[8] = c[2]; }
+    else if (ab === 7) { for (let i = 0; i < 3; i++) { c[3 + i] = c[i]; c[21 + i] = c[i]; c[i] = SMOK_B[i]; } }
   }
 
   // ═══ SHADER ═══════════════════════════════════════════════════════════════
@@ -3625,8 +3711,8 @@ void main(){
   int row=int(aIst+0.5);
   vec4 h0=texelFetch(uOssa,ivec2(0,row),0);
   int vb=int(aV+0.5);
-  int m=vb<24?int(h0.r+0.5):int(h0.g+0.5);
-  int bt=vb<24?vb:vb-24;
+  int m=vb<24?int(h0.r+0.5):vb<48?int(h0.g+0.5):int(texelFetch(uOssa,ivec2(1,row),0).a+0.5);   // GCR wave 2: maschera C
+  int bt=vb<24?vb:vb<48?vb-24:vb-48;
   vW=vec3(0.0); vN=vec3(0.0,1.0,0.0); vC=vec3(0.0); vE=0.0; vA=h0.b; vS=-99.0;
   if(((m>>bt)&1)==0||h0.b<0.01){ gl_Position=vec4(0.0,0.0,-2.0,1.0); return; }
   int c=${TX_OSSA}+int(aB+0.5)*3;
@@ -3639,14 +3725,20 @@ void main(){
   vec4 ex=texelFetch(uOssa,ivec2(10,row),0);
   vec3 alb; float em=0.0;
   if(k<8){ alb=texelFetch(uOssa,ivec2(2+k,row),0).rgb; }
+  else if(k==${K.PIUMA}){ alb=clamp(texelFetch(uOssa,ivec2(6,row),0).rgb*2.0-vec3(0.06,0.07,0.12),0.0,1.0); em=0.08; }   // GCR piuma: il colore del cappello prima della tinta scura
   else { vec4 f=uFix[k-8]; alb=f.rgb; em=f.a;
+    if(aB>13.5&&aB<15.5){ vec4 fm=texelFetch(uOssa,ivec2(62,row),0);   // GCR finitura dell'arma
+      if(fm.a>0.5){ bool met=k==${K.FERRO}||k==${K.ACCIAIO}||k==${K.CROMO}||k==${K.OLIVA}||k==${K.LAMA}, imp=k==${K.LEGNO}||k==${K.CUOIO}||k==${K.NERO};
+        if(met||imp){ vec4 fz=met?fm:texelFetch(uOssa,ivec2(63,row),0); alb=fz.rgb; em=fz.a-1.0;
+          if(fm.a>2.15){ if(met){ float gl=pow(0.5+0.5*sin(uTime*2.6+dot(w,vec3(9.0,13.0,7.0))),6.0); em=0.05+0.5*gl; alb=mix(alb,vec3(1.0,0.8,0.32),0.18+0.6*gl); } }   // incisa: righe d'oro che luccicano
+          else if(fm.a>1.55){ em-=0.6; alb*=0.82+0.36*(0.5+0.5*cos(6.2832*(vec3(0.0,0.33,0.67)+dot(w,vec3(1.7,0.9,1.3))))); } } } }   // madreperla: iridescente
     if(em>2.5){ em=0.3+0.7*ex.b; }
     else if(em>1.5){ float s=sin(uTime*2.3+float(row)*1.7); s=s*s; em=0.45+0.55*s; alb*=0.75+0.45*s; } }
   alb*=aSh;
   alb=mix(alb,vec3(1.0,0.97,0.92),ex.r);
   alb*=ex.a;
   vE=max(em,ex.g);
-  if(h0.a>0.5&&aStr>-50.0) vS=aStr;
+  if(h0.a>0.5&&aStr>-50.0){ if(aStr<50.0) vS=aStr; else if(h0.a>1.5) vS=aStr-100.0; }   // GCR: capi a cappotto rigati solo col gessato forzato
   vC=uFlag>0.5?texelFetch(uOssa,ivec2(1,row),0).rgb:alb;
   gl_Position=projectionMatrix*viewMatrix*vec4(w,1.0);
 }`;
@@ -3749,12 +3841,13 @@ vec3 mafGessato(vec3 c){ if(vS<-50.0) return c; float q=vS*62.0; float f=fract(q
     let xrayOn = false;
 
     // triangoli visibili per omino: il caso peggiore su archetipi x cappelli x accessori x armi
-    const trisDi = (mA, mB) => { let n = 0; for (const b in g.conta) { const bi = +b; if (bi < 24 ? (mA >> bi) & 1 : (mB >> (bi - 24)) & 1) n += g.conta[b]; } return n; };
+    const trisDi = (mA, mB, mC) => { let n = 0; for (const b in g.conta) { const bi = +b; if (bi < 24 ? (mA >> bi) & 1 : bi < 48 ? (mB >> (bi - 24)) & 1 : ((mC | 0) >> (bi - 48)) & 1) n += g.conta[b]; } return n; };
     let triMax = TRI_MAX;
-    if (!triMax) { const sl = nuovoSlot(-1);
-      for (let a = 0; a < 6; a++) for (let w = 0; w < ARMI_I.length; w++) for (let h = 0; h < 5; h++) for (let ac = 0; ac < 5; ac++) {
-        sl.arch = a; sl.arma = w; sl.look = { hat: h, acc: ac }; sl.giubbotto = true; configura(sl);
-        triMax = Math.max(triMax, trisDi(sl.maskA, sl.maskB | (1 << (V.VAMPATA - 24))));
+    if (!triMax && !(opz && opz.contaTri === false)) { const sl = nuovoSlot(-1), lkT = { hat: 0, acc: 0, ab: 0 };   // GCR: + abiti 0-7, cappelli 0-8, accessori 0-7 (le armi sono bit esclusivi: si somma la piu' pesante); opz.contaTri false = salta
+      let armaMax = 0; for (let w = 0; w < ARMI_I.length; w++) { const b = ARMI_I[w].bit; if (b >= 0) armaMax = Math.max(armaMax, g.conta[b] || 0); }
+      for (let a = 0; a < 6; a++) for (let ab = 0; ab < 8; ab++) for (let h = 0; h < 9; h++) for (let ac = 0; ac < 8; ac++) {
+        lkT.hat = h; lkT.acc = ac; lkT.ab = ab; sl.arch = a; sl.arma = 0; sl.look = lkT; sl.giubbotto = true; configura(sl);
+        triMax = Math.max(triMax, trisDi(sl.maskA, sl.maskB | (1 << (V.VAMPATA - 24)), sl.maskC) + armaMax);
       } TRI_MAX = triMax; }
 
     // ── slot degli omini ──
@@ -3770,8 +3863,8 @@ vec3 mafGessato(vec3 c){ if(vS<-50.0) return c; float q=vS*62.0; float f=fract(q
         vT0: -1e9, vDx: 0, vDy: 0, vV: 0.6, yVolo: 0, vSegno: 1, vAtterrato: false, vMacchia: 0, vMx: 0, vMz: 0,
         sedOn: false, sdX: 0, sdY: 0, sdZ: 0, sdYaw: 0, ricOn: false, rT0: 0, rDur: 1,
         // chiavi del look (si riconfigura solo se cambiano)
-        kLook: null, kSuit: null, kHat: -9, kHatCol: null, kSkin: -9, kAcc: -9, kArch: -9, kArma: -9, kSq: null, kGiub: false,
-        maskA: 1, maskB: 0, gess: 0, cap: 0, col: new Float32Array(24),
+        kLook: null, kSuit: null, kHat: -9, kHatCol: null, kSkin: -9, kAcc: -9, kArch: -9, kArma: -9, kSq: null, kGiub: false, kAb: -9, kFa: -9,
+        maskA: 1, maskB: 0, maskC: 0, gess: 0, cap: 0, col: new Float32Array(24), fin: new Float32Array(8),
         // stato animato
         yH: 0, yA: 0, yM: 0, velS: 0, fase: 0, mirK: 1, carK: 0, accK: 0, px: 0, pz: 0, yT: 0, yMorte: 0, nuovo: true,
         punti: { bocca: [0, 0, 0], mano: [0, 0, 0], testa: [0, 0, 0], busto: [0, 0, 0] }
@@ -3839,10 +3932,10 @@ vec3 mafGessato(vec3 c){ if(vS<-50.0) return c; float q=vS*62.0; float f=fract(q
       // riconfigura solo se il look e' cambiato
       const lk = sl.look;
       if (sl.kLook !== lk || sl.kArch !== sl.arch || sl.kArma !== sl.arma || sl.kSq !== sl.squadra || sl.kGiub !== sl.giubbotto ||
-        (lk && (sl.kSuit !== lk.suit || sl.kHat !== lk.hat || sl.kHatCol !== lk.hatCol || sl.kSkin !== lk.skin || sl.kAcc !== lk.acc))) {
+        (lk && (sl.kSuit !== lk.suit || sl.kHat !== lk.hat || sl.kHatCol !== lk.hatCol || sl.kSkin !== lk.skin || sl.kAcc !== lk.acc || sl.kAb !== lk.ab || sl.kFa !== lk.fa))) {
         configura(sl);
         sl.kLook = lk; sl.kArch = sl.arch; sl.kArma = sl.arma; sl.kSq = sl.squadra; sl.kGiub = sl.giubbotto;
-        if (lk) { sl.kSuit = lk.suit; sl.kHat = lk.hat; sl.kHatCol = lk.hatCol; sl.kSkin = lk.skin; sl.kAcc = lk.acc; }
+        if (lk) { sl.kSuit = lk.suit; sl.kHat = lk.hat; sl.kHatCol = lk.hatCol; sl.kSkin = lk.skin; sl.kAcc = lk.acc; sl.kAb = lk.ab; sl.kFa = lk.fa; }
       }
     }
 
@@ -3872,13 +3965,13 @@ vec3 mafGessato(vec3 c){ if(vS<-50.0) return c; float q=vS*62.0; float f=fract(q
     // riscaldamento del JIT: passa per TUTTI i rami della posa (armi, eventi, stati) prima della partita,
     // cosi' a partita in corso non ci sono de-ottimizzazioni (e allocazioni) al primo morto o alla prima auto.
     // 140 fotogrammi x 24 omini: ogni omino passa per tutti gli 8 stati (k) in un giro; una volta per pagina
-    if (!RISCALDATO) (function riscalda() {
+    if (!RISCALDATO && !(opz && opz.riscalda === false)) (function riscalda() {   // GCR: opz.riscalda false (editor: un omino solo, niente blocchi)
       RISCALDATO = true; inRiscaldo = true;
       const st = [], NA = NOMI_ARMI.length;
       for (let i = 0; i < 24; i++) {
         const e = {};
         st.push({ x: 10 + i, y: 10, hy: 0, fx: 1, fy: 0.3 * (i % 3 - 1), ax: i % 2 ? -1 : 0.2, ay: 1, vel: (i % 4) * 1.1, mira: i % 3 === 0 ? false : i % 3 === 1 ? true : null,
-          arma: NOMI_ARMI[i % NA], archetipo: i % 6, look: i % 5 ? { suit: '#22d3ee', hatCol: '#ffd700', hat: i % 5, skin: i % 5, acc: i % 5 } : null, squadra: i % 2 ? '#f472b6' : null,
+          arma: NOMI_ARMI[i % NA], archetipo: i % 6, look: i % 5 ? { suit: '#22d3ee', hatCol: '#ffd700', hat: i % 9, skin: i % 5, acc: i % 8, ab: i % 8, fa: i % 7 } : null, squadra: i % 2 ? '#f472b6' : null,
           vivo: true, nascosto: i % 7 === 2, alfa: 1, lampeggia: i % 5 === 1, giubbotto: i % 4 === 1, carica: 0, codice: [1, 0, 0], eventi: e });
       }
       let t = 100;
@@ -3903,6 +3996,8 @@ vec3 mafGessato(vec3 c){ if(vS<-50.0) return c; float q=vS*62.0; float f=fract(q
         }
         fine(1 / 30, t);
       }
+      // GCR: i resti negli slot come prima del look nuovo (i colori che un archetipo non scrive restano quelli del riscaldo)
+      for (let i = 0; i < st.length; i++) { const sl = SL[i]; if (sl.id !== '__riscaldo' + i) continue; sl.look = i % 5 ? { suit: '#22d3ee', hatCol: '#ffd700', hat: i % 5, skin: i % 5, acc: i % 5 } : null; sl.col.fill(0); configura(sl); }
       inizio(); fine(0, t);          // libera tutti gli slot
       inRiscaldo = false;
       for (let i = 0; i < MAX; i++) SL[i].nuovo = true;
@@ -4265,14 +4360,15 @@ vec3 mafGessato(vec3 c){ if(vS<-50.0) return c; float q=vS*62.0; float f=fract(q
     if (nascondiArma && w.bit >= 0) { if (w.bit < 24) mA &= ~(1 << w.bit); else mBk &= ~(1 << (w.bit - 24)); }
     if (alfa < 0.01) { mA = 0; mBk = 0; }
     D[base] = mA; D[base + 1] = mBk; D[base + 2] = alfa; D[base + 3] = sl.gess;
-    D[base + 4] = sl.cod[0]; D[base + 5] = sl.cod[1]; D[base + 6] = sl.cod[2]; D[base + 7] = 0;
+    D[base + 4] = sl.cod[0]; D[base + 5] = sl.cod[1]; D[base + 6] = sl.cod[2]; D[base + 7] = alfa < 0.01 ? 0 : sl.maskC;   // GCR wave 2: maschera C
     const col = sl.col;
     for (let k = 0; k < 8; k++) { const o = base + 8 + k * 4; D[o] = col[k * 3]; D[o + 1] = col[k * 3 + 1]; D[o + 2] = col[k * 3 + 2]; D[o + 3] = 0; }
     const ox = base + 40; D[ox] = lampo; D[ox + 1] = lamp; D[ox + 2] = 0.2 + 0.8 * sl.carK; D[ox + 3] = scuro;
+    { const fn = sl.fin, of = base + 248; for (let i = 0; i < 8; i++) D[of + i] = fn[i]; }   // GCR finitura dell'arma (texel 62-63)
     scriviOsso(D, base, O_BAC, H, bac[0], bac[1], bac[2]);
     scriviOsso(D, base, O_BUS, B, bus[0], bus[1], bus[2]);
     scriviOsso(D, base, O_TES, T, tes[0] * TESTA_K, tes[1] * TESTA_K, tes[2] * TESTA_K);
-    const cs = ar.cap_, largo = (sl.arch === 4 && sl.cap === V.FEDORA) ? 1.3 : 1;
+    const cs = ar.cap_, largo = (sl.arch === 4 && (sl.cap === V.FEDORA || sl.cap === V.FEDORA_PIUMA)) ? 1.3 : 1;
     scriviOsso(D, base, O_CAP, C, cs[0] * largo * CAP_K, cs[1] * CAP_K, cs[2] * largo * CAP_K);
     scriviOsso(D, base, O_BSX, FR[O_BSX], bra[0], bra[1], bra[2]);
     scriviOsso(D, base, O_ASX, FR[O_ASX], bra[0], bra[1], bra[2]);
@@ -4702,7 +4798,7 @@ void main(){
   else if(parte>2.5&&parte<3.5&&nuovo){ float a=smoothstep(0.42,0.72,iZ.w)*(0.16+0.06*sin(uTime*11.0+iC.y*7.0)); float c=cos(a), s=sin(a); vec3 q=p-aPiv; p=aPiv+vec3(q.x*c+q.z*s,q.y,-q.x*s+q.z*c); n=vec3(n.x*c+n.z*s,n.y,-n.x*s+n.z*c); }   // portiera sfondata che sbatte
   else if(parte>0.5&&parte<1.5){ float a=iK.w*0.6; float c=cos(a), s=sin(a); vec3 q=p-aPiv; p=aPiv+vec3(q.x*c-q.y*s,q.x*s+q.y*c,q.z); n=vec3(n.x*c-n.y*s,n.x*s+n.y*c,n.z); }
   vec3 vern=iC.rgb, contr;
-  if(iP.x>0.5&&iP.x<1.5){ vern=mix(vern,vec3(0.02,0.02,0.03),0.8); contr=vec3(0.11,0.11,0.13); }
+  if(iP.x>0.5&&iP.x<1.5&&iC.a<1.5){ vern=mix(vern,vec3(0.02,0.02,0.03),0.8); contr=vec3(0.11,0.11,0.13); }   // GCR: iC.a>=2 = vernice del giocatore
   else if(iP.x>2.5) contr=vec3(0.93,0.93,0.90);
   else contr=mix(vern,vec3(0.93,0.88,0.74),0.78);
   vec3 col=vern; float em=0.0;
@@ -5417,6 +5513,7 @@ void main(){
       if (s.fx || s.fy) { st.fx = s.fx; st.fy = s.fy; }
       st.hp = s.hp == null ? 3 : G3.clamp(s.hp | 0, 0, 3);
       st.occ = s.occupata ? 1 : 0; st.stallo = s.stallo ? 1 : 0; st.io = s.io ? 1 : 0; st.sagoma = s.sagoma === false ? 0 : 1;
+      st.pers = s.personalizzata ? 2 : 0;   // GCR: colore dal look di chi guida (s.personalizzata)
       st.forma = (((s.forma | 0) % 4) + 4) % 4;
       const col = s.colore || G3.PAL.auto[st.i % G3.PAL.auto.length];
       if (col !== st.colStr) { st.colStr = col; const v = parseInt(col.slice(1), 16); st.r = ((v >> 16) & 255) / 255; st.g = ((v >> 8) & 255) / 255; st.b = (v & 255) / 255; }
@@ -5523,7 +5620,7 @@ void main(){
         const o = n * 4;
         P[o] = st.forma; P[o + 1] = st.danno; P[o + 2] = st.occ * st.sagoma; P[o + 3] = st.porta;
         L[o] = st.fari; L[o + 1] = st.stop; L[o + 2] = st.fSx > 0 ? st.lamp : 0; L[o + 3] = st.fDx > 0 ? st.lamp : 0;
-        C[o] = st.r; C[o + 1] = st.g; C[o + 2] = st.b; C[o + 3] = st.io;
+        C[o] = st.r; C[o + 1] = st.g; C[o + 2] = st.b; C[o + 3] = st.io + (st.pers || 0);
         K[o] = st.cr; K[o + 1] = st.cg; K[o + 2] = st.cb; K[o + 3] = st.cofano;
         Z[o] = st.dz[0]; Z[o + 1] = st.dz[1]; Z[o + 2] = st.dz[2]; Z[o + 3] = st.dz[3];
         G[o] = st.vetri; G[o + 1] = st.gomme; G[o + 2] = st.pezzi; G[o + 3] = (st.modo || st.pezzi || st.vetri || st.bruciaFine > 0) ? 1 + G3.clamp(st.annerito, 0, 0.99) : 0;
@@ -8047,12 +8144,21 @@ vC=aCol*ic; vE=0.0; gl_Position=projectionMatrix*viewMatrix*w; }`;
     const tempo = () => performance.now() / 1000;
     const hex3 = h => G3.hex3(h);
     const COL_IO = hex3('#22d3ee'), COL_NEM = hex3('#ef4444'), COL_ORO = hex3('#fbbf24'), COL_CAVEAU = hex3('#5eead4'), COL_TETTO = hex3('#fb923c');
-    function look(pid) { try { return OS.twrLookOf ? OS.twrLookOf(pid) : null; } catch (e) { return null; } }
+    // GCR: prima il look nuovo della pagina (ospite.gcrLookOf, gia' normalizzato), se no il vecchio (campi nuovi = 0)
+    function look(pid) { try { if (OS.gcrLookOf) { const g = OS.gcrLookOf(pid); if (g) return g; } return OS.twrLookOf ? OS.twrLookOf(pid) : null; } catch (e) { return null; } }
+    const intero = (v, a, b) => { v = v | 0; return v < a || v > b ? 0 : v; };
     function archetipo(lk, pid) {
       if (!lk) { let h = 0; const s = String(pid); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h % 6; }
+      const ar = intero(lk.ar, 0, 6); if (ar > 0) return ar - 1;          // GCR figura scelta: 1 boss .. 6 consigliere
       const hat = lk.hat | 0, acc = lk.acc | 0;
-      if (hat === 0) return acc === 1 ? 1 : 0; if (hat === 1) return 2; if (hat === 2) return 3; if (hat === 3) return 5; return 4;
+      if (hat === 0) return acc === 1 ? 1 : 0; if (hat === 1) return 2; if (hat === 2) return 3; if (hat === 3) return 5;
+      if (hat === 5 || hat === 8) return acc === 1 ? 1 : 0; if (hat === 6) return 1; if (hat === 7) return 3;   // GCR AUTO: bombetta e fedora con piuma come la fedora, panama al sicario, basco al picciotto
+      return 4;
     }
+    // GCR · insegne in coda: si disegnano DOPO tutti i segni (se la pool e' piena si perde un'insegna, mai una vita o un nome)
+    const GCR_AUTO = G3.segni.GCR_AUTO, GCR_INSEGNE = G3.segni.GCR_INSEGNE;
+    const INS_Q = []; let insN = 0; for (let i = 0; i < 48; i++) INS_Q.push({ x: 0, y: 0, z: 0, e: '', s: 0, a: 0, sopra: false });
+    function insegna(x, y, z, e, s, a, sopra) { if (insN >= INS_Q.length) return; const q = INS_Q[insN++]; q.x = x; q.y = y; q.z = z; q.e = e; q.s = s; q.a = a; q.sopra = sopra; }
     function nome(pid) { try { return OS.twrName ? OS.twrName(pid) : (nomi[pid] || pid); } catch (e) { return String(pid); } }
     function altezzaTetto(x, y) { const b = M.bldAt(x, y); if (b < 0) return 0; const B = M.bldById[b]; return B && !B.down ? B.hTop : 0; }
     // GCR_CASINO_PIANI: quota del pavimento del piano `piano` nel rettangolo del casino' (0 fuori, o casino' crollato)
@@ -8100,6 +8206,8 @@ vC=aCol*ic; vE=0.0; gl_Position=projectionMatrix*viewMatrix*w; }`;
         }
         case 'kill': {
           const s = P.get(e.victim); if (s) { s.ev.morte = now; s.vivo = false; }
+          { const kk = e.who != null ? P.get(e.who) : null, mo = kk && kk.lk ? intero(kk.lk.mo, 0, 6) : 0, kx = e.x != null ? e.x : s ? s.x : null, ky = e.y != null ? e.y : s ? s.y : null;
+            if (mo && kx != null) { SG.ko(mo, kx, ky, s ? s.hy : 0, now); F.scintille(kx, (s ? s.hy : 0) + 0.45, ky, 6, G3.segni.GCR_KO_SCI[mo]); } }   // GCR effetto KO di chi elimina
           if (e.x != null) { F.impatto(e.x, 0.45, e.y, 0, 0, 'corpo'); F.anello(e.x, 0.05, e.y, 1.2, [1, 0.3, 0.25], 0.7, true); }
           if (e.who === me) cam.scossa(0.3);
           break;
@@ -8187,7 +8295,7 @@ vC=aCol*ic; vE=0.0; gl_Position=projectionMatrix*viewMatrix*w; }`;
       const lp = OS.twrLerpSnaps ? OS.twrLerpSnaps() : null;
       const myId = TWR.myId, spec = !!TWR.spec || !myId;
       const rows = lp ? (lp.b.p || []) : (raw.p || []);
-      R.inizio(); A.inizio(); SG.inizio();
+      R.inizio(); A.inizio(); SG.inizio(); insN = 0;
       BERS.length = 0; BERS.saleBid = -1;
       ioCache = null;
 
@@ -8306,9 +8414,11 @@ vC=aCol*ic; vE=0.0; gl_Position=projectionMatrix*viewMatrix*w; }`;
         if (tr.colpo) { ev.colpo = tr.colpo; tr.colpo = null; }
         const mia = !!(you.in_car && meRow && Math.hypot(c[0] - meRow[1], c[1] - meRow[2]) < 0.8);
         // il guidatore vero si vede se e' nello snapshot (seduto dal modulo mafiosi); se no la sagoma del modulo auto
-        let conOmino = false; if (c[3]) for (const [, q] of P) { if (q.visto === now && q.inAuto && Math.hypot(q.x - cx, q.y - cy) < 0.9) { conOmino = true; break; } }
+        let conOmino = false, guida = null; if (c[3]) for (const [, q] of P) { if (q.visto === now && q.inAuto && Math.hypot(q.x - cx, q.y - cy) < 0.9) { conOmino = true; guida = q; break; } }
+        // GCR: colore e insegna dal look di chi la guida (io, o l'omino seduto dentro); se no il colore del mondo
+        const lkG = mia && ioCache ? ioCache.lk : guida ? guida.lk : null, auG = lkG && c[3] ? intero(lkG.au, 0, 12) : 0, insG = lkG && c[3] ? intero(lkG.ins, 0, 10) : 0;
         const sa = tr.s || (tr.s = { codice: [0, 0, 0] });
-        sa.x = cx; sa.y = cy; sa.fx = c[4]; sa.fy = c[5]; sa.hp = c[2]; sa.occupata = !!c[3]; sa.stallo = !!c[6]; sa.forma = tr.forma; sa.colore = tr.colore; sa.io = mia; sa.sagoma = !conOmino; sa.eventi = ev;
+        sa.x = cx; sa.y = cy; sa.fx = c[4]; sa.fy = c[5]; sa.hp = c[2]; sa.occupata = !!c[3]; sa.stallo = !!c[6]; sa.forma = tr.forma; sa.colore = auG ? GCR_AUTO[auG] : tr.colore; sa.personalizzata = auG > 0; sa.io = mia; sa.sagoma = !conOmino; sa.eventi = ev;
         if (fis) {
           const d = tr.danni; d[0] = c[14]; d[1] = c[15]; d[2] = c[16]; d[3] = c[17];
           sa.yaw = Math.atan2(c[5], c[4]); sa.vx = c[8]; sa.vy = c[9]; sa.w = c[10]; sa.slip = c[11]; sa.gas = c[12]; sa.fm = c[13]; sa.danni = d;
@@ -8317,6 +8427,7 @@ vC=aCol*ic; vE=0.0; gl_Position=projectionMatrix*viewMatrix*w; }`;
           const ap = mia && TWR.ap && TWR.ap.s; if (ap) { sa.fx = ap.fx; sa.fy = ap.fy; sa.yaw = Math.atan2(ap.fy, ap.fx); sa.vx = ap.vx; sa.vy = ap.vy; sa.w = ap.w; }
         }
         A.aggiungi(tr.id, sa);
+        if (insG) { const n = Math.hypot(sa.fx, sa.fy) || 1; insegna(cx + sa.fx / n * 0.4, 0.4, cy + sa.fy / n * 0.4, GCR_INSEGNE[insG], 0.22, 1, false); }   // GCR insegna sul muso
         if (mia) mioAuto = tr;
         if (AU) {   // riga auto: 0-6 di oggi; 7..24 col protocollo della fisica (_STATO_K.md: 22 brucia, 24 marcia -1 = retro)
           const s = AUS, nuovo = c.length > 22;
@@ -8517,8 +8628,9 @@ vC=aCol*ic; vE=0.0; gl_Position=projectionMatrix*viewMatrix*w; }`;
         for (let k = 0; k < n; k++) { const a = s.x - tot / 2 + w / 2 + k * (w + g); V3.set(a - s.x, 0, 0); SG.barra(s.x + (a - s.x) * 1, yTop, s.y, w, 0.08, isMe ? [0.2, 0.95, 0.6] : [1, 0.25, 0.25], 1, true); }
         if (s.flags & MM.F_SHIELD) SG.anello(s.x, s.y, s.hy + 0.01, [0.22, 1, 0.08], 0.8, 1.1, 1);
         const dCam = Math.hypot(s.x - tx, s.y - ty);
-        if (isMe) SG.scritta(s.x, yTop + 0.14, s.y, G3.T('TU'), 0.2, '#7ee9fb', 1, true);
-        else if (dCam < 5.5) SG.scritta(s.x, yTop + 0.14, s.y, String(nome(id)).slice(0, 10) + ((row && row[9] > 1) ? ' ·LV' + row[9] : ''), 0.17, '#ffffff', Math.max(0.25, 1 - dCam / 6), true);
+        const insE = s.lk ? GCR_INSEGNE[intero(s.lk.ins, 0, 10)] : null;   // GCR insegna a sinistra del nome (o di «TU»)
+        if (isMe) { const wN = SG.scritta(s.x, yTop + 0.14, s.y, G3.T('TU'), 0.2, '#7ee9fb', 1, true); if (insE) insegna(s.x - wN / 2 - 0.12, yTop + 0.13, s.y, insE, 0.22, 1, true); }
+        else if (dCam < 5.5) { const aN = Math.max(0.25, 1 - dCam / 6), wN = SG.scritta(s.x, yTop + 0.14, s.y, String(nome(id)).slice(0, 10) + ((row && row[9] > 1) ? ' ·LV' + row[9] : ''), 0.17, '#ffffff', aN, true); if (insE) insegna(s.x - wN / 2 - 0.1, yTop + 0.13, s.y, insE, 0.19, aN, true); }
         if (row && row[9] >= 4) SG.emoji(s.x, yTop + 0.3, s.y, '👑', 0.22, 1, true);
         if (s.alto && !isMe) SG.segnoBill(s.x, yTop + 0.34, s.y, 0.34, 5, COL_TETTO, 1, true);
         if (isMe) SG.segnoBill(s.x, yTop + 0.52 + Math.sin(now * 4) * 0.05, s.y, 0.36, 5, COL_IO, 1, true);
@@ -8529,6 +8641,9 @@ vC=aCol*ic; vE=0.0; gl_Position=projectionMatrix*viewMatrix*w; }`;
           SG.segnoBill(s.x, s.hy + G3.OMINO.testa + 0.3, s.y, 0.3 + 0.09 * Math.sin(now * 8), 8, [1, 1, 1], 0.9, true);
         }
       }
+      // GCR: insegne in coda ed effetti KO (quasi trasparenti davanti alla mia linea di mira)
+      for (let i = 0; i < insN; i++) { const q = INS_Q[i]; SG.emoji(q.x, q.y, q.z, q.e, q.s, q.a, q.sopra); }
+      { const miro = me && you.alive !== false && TWR.aim && TWR.aim.on; SG.koDisegna(now, me ? me.x : 0, me ? me.y : 0, miro ? TWR.aim.ax : 0, miro ? TWR.aim.ay : 0); }
       // 10) la mia mira: laser, arco del lancio
       if (me && you.alive && !you.in_car) {
         if (TWR.aim && TWR.aim.on) {
@@ -8607,12 +8722,72 @@ vC=aCol*ic; vE=0.0; gl_Position=projectionMatrix*viewMatrix*w; }`;
   const THREE = window.THREE, G3 = window.G3, U = G3.U;
 
   // ── atlante: emoji 64px (righe 0-3) + scritte 256x40 (righe sotto) ─────────
-  const EMOJI = ['📦', '🎁', '❤️', '🛡️', '🗡️', '🏏', '🔫', '💥', '🍾', '💣', '🪤', '💨', '👁️', '👟', '🚀', '🌀', '⛓️', '💢', '⚡', '🎯', '💰', '👑', '💀', '🪂', '🔥', '⬆️', '⚠️', '🚁', '🚨', '🕴️', '🎩', '✖️', '💎'];   // GCR_CASINO_CAVEAU: 💎 = la cassa del caveau (indice 32, riga 2: dentro le 4 righe)
+  const EMOJI = ['📦', '🎁', '❤️', '🛡️', '🗡️', '🏏', '🔫', '💥', '🍾', '💣', '🪤', '💨', '👁️', '👟', '🚀', '🌀', '⛓️', '💢', '⚡', '🎯', '💰', '👑', '💀', '🪂', '🔥', '⬆️', '⚠️', '🚁', '🚨', '🕴️', '🎩', '✖️', '💎',   // GCR_CASINO_CAVEAU: 💎 = la cassa del caveau (indice 32, riga 2: dentro le 4 righe)
+    // GCR · insegne (look.ins; 🗡️ e 💎 ci sono gia': 💎 NON va ripetuto, IC terrebbe l'ultimo e la cassa del caveau cambierebbe cella) + sprite degli effetti KO dipinti in codice (§)
+    '♠️', '🌹', '🎲', '💵', '🦁', '§banconota', '§banconota2', '§petalo', '§petalo2', '§fiche_r', '§fiche_b', '§fiche_v', '§fiche_n', '§coriandolo', '§coriandolo2',
+    // GCR wave 2 · insegne jolly, serpente, calice + sprite colombe e carte
+    '🃏', '🐍', '🍷', '§colomba', '§colomba2', '§carta_c', '§carta_p', '§carta_q', '§carta_f'];
+  // GCR · tabelle del look nuovo: colori dell'auto (look.au 1-9) e insegne (look.ins 1-7)
+  const GCR_AUTO = [null, '#2c2f38', '#d6c496', '#6e1526', '#66743a', '#1f3566', '#0d7446', '#b98a26', '#98a3b3', '#c8102e', '#ece9e1', '#4a1d6e', '#f2b705'];   // wave 2: 10 bianco perla, 11 viola mafia, 12 giallo taxi
+  const GCR_INSEGNE = [null, '♠️', '🌹', '🎲', '🗡️', '💵', '💎', '🦁', '🃏', '🐍', '🍷'];   // wave 2: 8 jolly, 9 serpente, 10 calice
+  const GCR_KO_SPR = [null, ['§banconota', '§banconota2'], ['§petalo', '§petalo2'], ['§fiche_r', '§fiche_b', '§fiche_v', '§fiche_n'], ['§coriandolo', '§coriandolo2'], ['§colomba', '§colomba2'], ['§carta_c', '§carta_p', '§carta_q', '§carta_f']];
+  const GCR_KO_SCI = [null, [0.35, 0.95, 0.45], [1, 0.3, 0.4], [1, 0.85, 0.4], [1, 0.82, 0.25], [1, 1, 1], [1, 0.92, 0.7]];   // colore delle scintille (le accende il mondo)
+  const GCR_KO_DUR = 0.9, GCR_KO_N = 14;
   const IC = {}; EMOJI.forEach((e, i) => { IC[e] = i; });
   const LOOT_IC = { MEDIKIT: '❤️', VEST: '🛡️', KNIFE: '🗡️', PISTOL: '🔫', BAT: '🏏', SHOTGUN: '💥', MOLOTOV: '🍾', GRENADE: '💣', TRAP: '🪤', SMOKE: '💨', INTEL: '👁️', SPRINT: '👟', ROCKET: '🚀', UZI: '🌀', LMG: '⛓️', MAGNUM: '💢', SMG: '⚡', SNIPER: '🎯' };
   const LOOT_CAT = { PISTOL: 0, SMG: 0, SHOTGUN: 0, ROCKET: 0, SNIPER: 0, UZI: 0, LMG: 0, MAGNUM: 0, KNIFE: 1, BAT: 1, MEDIKIT: 2, VEST: 2, MOLOTOV: 3, GRENADE: 3, TRAP: 3, SMOKE: 3, INTEL: 3, SPRINT: 3 };
   const CAT_COL = [[0.89, 0.35, 0.28], [0.91, 0.59, 0.24], [0.35, 0.78, 0.47], [0.35, 0.59, 0.92]];
   const S = 1024, EC = 64, ROWS_E = 4, TW = 256, TH = 40;
+  // GCR · sprite dipinti in codice (uguali su ogni telefono): asso di picche su carta bianca, banconota, petali, fiches, coriandoli
+  function rett(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+  function disegnaSprite(g, e, x, y) {
+    const cx = x + EC / 2, cy = y + EC / 2;
+    g.save();
+    if (e === '♠️') {
+      g.fillStyle = '#fbfaf5'; g.strokeStyle = '#1f2937'; g.lineWidth = 3; rett(g, cx - 19, cy - 26, 38, 52, 6); g.fill(); g.stroke();
+      g.fillStyle = '#111111'; g.font = '900 40px "Segoe UI Symbol","Apple Symbols","Noto Sans Symbols",serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('♠', cx, cy + 2);
+    } else if (e === '§banconota' || e === '§banconota2') {
+      g.translate(cx, cy); g.rotate(e === '§banconota' ? -0.25 : 0.3);
+      g.fillStyle = '#2f8a4a'; rett(g, -27, -15, 54, 30, 3); g.fill(); g.strokeStyle = '#bff0c8'; g.lineWidth = 2; rett(g, -23, -11, 46, 22, 2); g.stroke();
+      g.fillStyle = '#d9f7df'; g.beginPath(); g.ellipse(0, 0, 9, 9, 0, 0, 6.283); g.fill();
+      g.fillStyle = '#1d5e30'; g.font = '900 14px Arial,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('$', 0, 1);
+    } else if (e === '§petalo' || e === '§petalo2') {
+      g.translate(cx, cy); g.rotate(e === '§petalo' ? 0.6 : -0.9);
+      const gr = g.createRadialGradient(-4, -6, 2, 0, 0, 24); gr.addColorStop(0, e === '§petalo' ? '#ffa3b5' : '#ff7a93'); gr.addColorStop(1, e === '§petalo' ? '#e11d48' : '#be123c');
+      g.fillStyle = gr; g.beginPath(); g.moveTo(0, 22); g.bezierCurveTo(-22, 6, -16, -20, 0, -22); g.bezierCurveTo(16, -20, 22, 6, 0, 22); g.fill();
+    } else if (e.indexOf('§fiche') === 0) {
+      const c = e === '§fiche_r' ? '#d11a2a' : e === '§fiche_b' ? '#1d4ed8' : e === '§fiche_v' ? '#15803d' : '#7c3aed';
+      g.fillStyle = c; g.beginPath(); g.arc(cx, cy, 25, 0, 6.283); g.fill();
+      g.fillStyle = '#ffffff'; for (let k = 0; k < 8; k++) { g.save(); g.translate(cx, cy); g.rotate(k * 0.7854); g.fillRect(-4, -25, 8, 9); g.restore(); }
+      g.strokeStyle = '#ffffff'; g.lineWidth = 2.5; g.beginPath(); g.arc(cx, cy, 15, 0, 6.283); g.stroke();
+      g.fillStyle = c; g.beginPath(); g.arc(cx, cy, 12, 0, 6.283); g.fill();
+    } else if (e === '§coriandolo' || e === '§coriandolo2') {
+      g.translate(cx, cy); g.rotate(e === '§coriandolo' ? 0.35 : -0.5);
+      g.fillStyle = e === '§coriandolo' ? '#ffd24a' : '#f5b301'; if (e === '§coriandolo') g.fillRect(-13, -13, 26, 26); else g.fillRect(-20, -8, 40, 16);
+      g.fillStyle = 'rgba(255,255,255,.55)'; g.fillRect(-10, -7, 8, 6);
+    } else if (e === '§colomba' || e === '§colomba2') {
+      // colomba bianca vista di lato con bordo grigio (si legge anche su fondo chiaro); 2 = ali giu'
+      const su = e === '§colomba';
+      g.translate(cx, cy); g.lineJoin = 'round'; g.strokeStyle = '#64748b'; g.lineWidth = 2.5; g.fillStyle = '#ffffff';
+      g.beginPath(); g.ellipse(0, 6, 17, 9, -0.15, 0, 6.283); g.fill(); g.stroke();                                   // corpo
+      g.beginPath(); g.arc(15, -1, 7, 0, 6.283); g.fill(); g.stroke();                                                 // testa
+      g.fillStyle = '#f59e0b'; g.beginPath(); g.moveTo(21, -2); g.lineTo(28, 1); g.lineTo(21, 3); g.fill();          // becco
+      g.fillStyle = '#ffffff'; g.beginPath(); g.moveTo(-16, 8); g.lineTo(-27, 2); g.lineTo(-25, 13); g.closePath(); g.fill(); g.stroke();   // coda
+      g.beginPath();
+      if (su) { g.moveTo(-8, 2); g.quadraticCurveTo(-14, -24, 8, -26); g.quadraticCurveTo(2, -10, 8, 2); }
+      else { g.moveTo(-8, 8); g.quadraticCurveTo(-12, 28, 6, 26); g.quadraticCurveTo(4, 16, 8, 8); }
+      g.closePath(); g.fill(); g.stroke();                                                                             // ala
+      g.fillStyle = '#0f172a'; g.beginPath(); g.arc(17, -3, 1.6, 0, 6.283); g.fill();                                  // occhio
+    } else if (e.indexOf('§carta') === 0) {
+      // carta da gioco: bianca, bordo scuro, seme grande (cuori/quadri rossi, picche/fiori neri)
+      const seme = e === '§carta_c' ? '\u2665' : e === '§carta_q' ? '\u2666' : e === '§carta_p' ? '\u2660' : '\u2663';
+      const rosso = e === '§carta_c' || e === '§carta_q';
+      g.translate(cx, cy); g.rotate(e === '§carta_c' ? -0.3 : e === '§carta_p' ? 0.25 : e === '§carta_q' ? 0.5 : -0.1);
+      g.fillStyle = '#fbfaf5'; g.strokeStyle = '#1f2937'; g.lineWidth = 2.5; rett(g, -17, -24, 34, 48, 5); g.fill(); g.stroke();
+      g.fillStyle = rosso ? '#dc2626' : '#111111'; g.font = '900 30px "Segoe UI Symbol","Apple Symbols","Noto Sans Symbols",serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(seme, 0, 2);
+    }
+    g.restore();
+  }
 
   function Atlante() {
     const c = document.createElement('canvas'); c.width = S; c.height = S;
@@ -8620,7 +8795,7 @@ vC=aCol*ic; vE=0.0; gl_Position=projectionMatrix*viewMatrix*w; }`;
     g.clearRect(0, 0, S, S);
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.font = '52px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
-    EMOJI.forEach((e, i) => { const x = (i % 16) * EC, y = ((i / 16) | 0) * EC; g.fillText(e, x + EC / 2, y + EC / 2 + 3); });
+    EMOJI.forEach((e, i) => { const x = (i % 16) * EC, y = ((i / 16) | 0) * EC; if (e.charCodeAt(0) === 167 || e === '♠️') disegnaSprite(g, e, x, y); else g.fillText(e, x + EC / 2, y + EC / 2 + 3); });   // GCR: sprite dipinti
     this.c = c; this.g = g; this.tex = new THREE.CanvasTexture(c); this.tex.flipY = false; this.tex.minFilter = THREE.LinearFilter; this.tex.generateMipmaps = false;
     this.scritte = new Map(); this.prossima = 0; this.maxScritte = ((S - ROWS_E * EC) / TH | 0) * (S / TW | 0);
   }
@@ -8777,6 +8952,8 @@ void main(){ vec4 w=modelMatrix*vec4(position,1.0); vW=w.xyz; vN=normalize(mat3(
 
     const mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), vs = new THREE.Vector3(), vp = new THREE.Vector3(), eY = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
     let nc = 0, no = 0, ng = 0, nt = 0;
+    // GCR · effetti KO: al massimo 6 insieme (il piu' vecchio lascia il posto), 0,9 s, sprite che salgono a ~0,8 celle e ricadono
+    const KO = []; for (let i = 0; i < 6; i++) KO.push({ on: false, t0: 0, x: 0, y: 0, hy: 0, mo: 0, seme: 0 });
     const api = {
       atl, LOOT_IC, LOOT_CAT,
       inizio() { pTerra.n = pTerraAdd.n = pBill.n = pBillSopra.n = 0; nb = 0; nc = no = ng = nt = 0; },
@@ -8785,7 +8962,36 @@ void main(){ vec4 w=modelMatrix*vec4(position,1.0); vW=w.xyz; vN=normalize(mat3(
       alone(x, y, hy, r, rgb, a) { quad(pTerraAdd, x, hy + 0.025, y, r, r, 2, true, null, rgb[0], rgb[1], rgb[2], a); },
       terra(x, y, hy, sx, sy, forma, rgb, a, add) { quad(add ? pTerraAdd : pTerra, x, hy + 0.02, y, sx, sy, forma, true, null, rgb[0], rgb[1], rgb[2], a); },
       emoji(x, y, z, e, s, a, sopra) { quad(sopra ? pBillSopra : pBill, x, y, z, s, s, 0, false, atl.uvEmoji(e), 1, 1, 1, a); },
-      scritta(x, y, z, testo, h, colore, a, sopra) { const r = atl.uvScritta(testo, colore); quad(sopra ? pBillSopra : pBill, x, y, z, h * r.asp, h, 0, false, r.uv, 1, 1, 1, a); },
+      scritta(x, y, z, testo, h, colore, a, sopra) { const r = atl.uvScritta(testo, colore); quad(sopra ? pBillSopra : pBill, x, y, z, h * r.asp, h, 0, false, r.uv, 1, 1, 1, a); return h * r.asp; },   // GCR: ritorna la larghezza
+      // GCR · effetto KO nuovo (mo 1 banconote · 2 petali · 3 fiches · 4 coriandoli d'oro) sul punto del morto; t = orologio del mondo
+      ko(mo, x, y, hy, t) {
+        mo = mo | 0; if (mo < 1 || mo > 6) return;   // wave 2: 5 colombe, 6 carte
+        let k = KO[0]; for (let i = 0; i < KO.length; i++) { const q = KO[i]; if (!q.on) { k = q; break; } if (q.t0 < k.t0) k = q; }
+        k.on = true; k.t0 = t; k.x = x; k.y = y; k.hy = hy || 0; k.mo = mo; k.seme = Math.abs(x * 7.13 + y * 3.71) % 6.2832;
+      },
+      // GCR · disegna i KO vivi (tra inizio e fine). mx,mz,ax,ay = io e la mia mira (ax=ay=0: non miro): davanti alla mira quasi trasparenti
+      koDisegna(t, mx, mz, ax, ay) {
+        const n0 = Math.hypot(ax || 0, ay || 0), ux = n0 > 1e-6 ? ax / n0 : 0, uy = n0 > 1e-6 ? ay / n0 : 0;
+        for (let j = 0; j < KO.length; j++) {
+          const k = KO[j]; if (!k.on) continue;
+          const tt = t - k.t0; if (tt >= GCR_KO_DUR || tt < 0) { k.on = false; continue; }
+          const spr = GCR_KO_SPR[k.mo], fade = tt < 0.08 ? tt / 0.08 : tt > 0.6 ? (GCR_KO_DUR - tt) / 0.3 : 1;
+          const hr = 1 - Math.exp(-4.5 * tt), qy = 0.3 + 2.2 * tt - 2.6 * tt * tt;
+          const s = k.mo === 4 ? 0.1 : k.mo === 1 ? 0.17 : k.mo === 5 ? 0.22 : k.mo === 6 ? 0.16 : 0.14, colombe = k.mo === 5, nKo = colombe ? 7 : GCR_KO_N;
+          for (let i = 0; i < nKo; i++) {
+            const a = k.seme + i * 2.39996, h1 = Math.sin(i * 12.9898 + k.seme * 3.1) * 43758.5453, rn = h1 - Math.floor(h1);
+            // colombe: partono dal morto e volano via in alto allargandosi · gli altri: salgono a ~0,8 celle e ricadono
+            const r = colombe ? (0.15 + 0.55 * rn) * (0.3 + 0.8 * tt) : (0.25 + 0.5 * rn) * hr, px = k.x + Math.cos(a) * r, pz = k.y + Math.sin(a) * r;
+            const py = colombe ? k.hy + 0.4 + (1.1 + 0.6 * rn) * tt : k.hy + Math.max(0.04, qy * (0.75 + 0.35 * rn));
+            let al = fade;
+            if (n0 > 1e-6) { const dx = px - mx, dz = pz - mz; if (dx * ux + dz * uy > 0 && Math.abs(dx * uy - dz * ux) < 0.5) al *= 0.25; }
+            const fl = 0.3 + 0.7 * Math.abs(Math.cos(tt * 9 + i * 1.3));
+            if (colombe) quad(pBill, px, py, pz, s, s, 0, false, atl.uvEmoji(spr[((tt * 9 + i) | 0) & 1]), 1, 1, 1, al);   // battito d'ali (2 fotogrammi)
+            else quad(pBill, px, py, pz, k.mo === 2 ? s : s * fl, k.mo === 2 ? s * fl : s, 0, false, atl.uvEmoji(spr[i % spr.length]), 1, 1, 1, al);
+          }
+        }
+      },
+      koVivi() { let n = 0; for (let j = 0; j < KO.length; j++) if (KO[j].on) n++; return n; },
       barra(x, y, z, w, h, rgb, a, sopra) { quad(sopra ? pBillSopra : pBill, x, y, z, w, h, 6, false, null, rgb[0], rgb[1], rgb[2], a); },
       segnoBill(x, y, z, s, forma, rgb, a, sopra) { quad(sopra ? pBillSopra : pBill, x, y, z, s, s, forma, false, null, rgb[0], rgb[1], rgb[2], a); },
       trave: beam,
@@ -8812,7 +9018,7 @@ void main(){ vec4 w=modelMatrix*vec4(position,1.0); vW=w.xyz; vN=normalize(mat3(
     };
     return api;
   }
-  G3.registra('segni', { crea, LOOT_IC, LOOT_CAT, CAT_COL });
+  G3.registra('segni', { crea, LOOT_IC, LOOT_CAT, CAT_COL, GCR_AUTO, GCR_INSEGNE, GCR_KO_SCI, EMOJI });   // GCR: EMOJI per l'editor (scalda i glifi a pezzi)
 })();
 
 

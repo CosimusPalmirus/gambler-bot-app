@@ -3,7 +3,7 @@
    il pannello; le clip (deadpeak/clip/*.mp4, 400x400, 2-4 s, senza audio) partono solo quando si vedono.
    Le regole sono quelle del motore sul server (climb2_rt.py 20260919b): se cambia una regola, si cambia QUI.
    Campi di una voce: k chiave, ic emoji, c clip (nome del file senza .mp4, facoltativo), it/en: t titolo, x testo.
-   Oggetti: id, usi, ic, c, it/en. */
+   Oggetti: id, img (deadpeak/icone/<img>.webp, le icone del gioco), usi, ic (emoji di riserva), c, it/en. */
 var DP_ISTR = {
   ver: "20260919b",
   ui: {
@@ -80,40 +80,40 @@ var DP_ISTR = {
   ],
 
   oggetti: [
-    { id: 1, ic: "🪝", usi: 2, c: "rampino",
+    { id: 1, img: "rampino", ic: "🪝", usi: 2, c: "rampino",
       it: { t: "RAMPINO", x: "Voli all’anello d’oro a tiro (in alto davanti se non miri). Senza anello tira giù un rivale." },
       en: { t: "GRAPPLE", x: "You fly to a golden ring in range (up and forward if you don’t aim). With no ring it pulls a rival down." } },
-    { id: 2, ic: "📌", usi: 1, c: "chiodo",
+    { id: 2, img: "chiodo", ic: "📌", usi: 1, c: "chiodo",
       it: { t: "CHIODO", x: "Piantalo coi piedi a terra: alla prossima morte rinasci lì. Una piccozza lo spacca, la lava lo copre." },
       en: { t: "PITON", x: "Plant it with your feet on the ground: your next death respawns you there. A pickaxe breaks it, the lava covers it." } },
-    { id: 3, ic: "🧱", usi: 1, c: "muro_oggetto",
+    { id: 3, img: "muro", ic: "🧱", usi: 1, c: "muro_oggetto",
       it: { t: "MURO", x: "Colonna di 3 blocchi davanti a te (per il salto a muro o per chiudere la strada). Levetta giù = ponte di 3. Dura 8 secondi." },
       en: { t: "WALL", x: "A 3-block column in front of you (to wall-jump or to block the way). Stick down = a 3-block bridge. Lasts 8 seconds." } },
-    { id: 4, ic: "⛏️", usi: 2, c: "piccozza",
+    { id: 4, img: "piccozza", ic: "⛏️", usi: 2, c: "piccozza",
       it: { t: "PICCOZZA", x: "Fendente davanti: sbalza i rivali e spacca le pareti crepate, cioè i passaggi segreti." },
       en: { t: "PICKAXE", x: "A swing in front: knocks rivals away and breaks cracked walls, which are the secret passages." } },
-    { id: 5, ic: "🪨", usi: 1, c: "masso",
+    { id: 5, img: "masso", ic: "🪨", usi: 1, c: "masso",
       it: { t: "MASSO", x: "Rotola, rimbalza, cade dalle porte: travolge chi sta sotto e fa scoppiare le mine." },
       en: { t: "BOULDER", x: "Rolls, bounces, drops through doors: bowls over whoever is below and sets off mines." } },
-    { id: 6, ic: "✨", usi: 1, c: "magnesite",
+    { id: 6, img: "magnesite", ic: "✨", usi: 1, c: "magnesite",
       it: { t: "MAGNESITE", x: "Salto più alto per 5 secondi: arrivi sui ripiani alti 4." },
       en: { t: "CHALK", x: "Higher jump for 5 seconds: you reach 4-high ledges." } },
-    { id: 7, ic: "⛓️", usi: 2, c: "catena",
+    { id: 7, img: "catena", ic: "⛓️", usi: 2, c: "catena",
       it: { t: "CATENA", x: "Incatena un rivale davanti a te per un secondo e mezzo (lui pigia SALTO per liberarsi). Se va a vuoto l’uso torna." },
       en: { t: "CHAIN", x: "Chains a rival ahead of you for a second and a half (they mash JUMP to break free). If it misses, you get the use back." } },
-    { id: 8, ic: "🪜", usi: 1, c: "scala",
+    { id: 8, img: "scala", ic: "🪜", usi: 1, c: "scala",
       it: { t: "SCALA", x: "Tre pioli sopra di te, uno ogni due righe: si sale saltando. Durano 20 secondi e valgono per tutti." },
       en: { t: "LADDER", x: "Three rungs above you, one every two rows: you climb by jumping. They last 20 seconds and anyone can use them." } },
-    { id: 9, ic: "🍯", usi: 1, c: "colla",
+    { id: 9, img: "colla", ic: "🍯", usi: 1, c: "colla",
       it: { t: "COLLA", x: "Chiazza dietro di te: chi ci passa va piano per un secondo." },
       en: { t: "GLUE", x: "A puddle behind you: whoever steps in slows down for a second." } },
-    { id: 10, ic: "🧨", usi: 1, c: "petardo",
+    { id: 10, img: "petardo", ic: "🧨", usi: 1, c: "petardo",
       it: { t: "PETARDO", x: "Mina dietro di te: chi la calpesta la accende e viene sbalzato." },
       en: { t: "FIRECRACKER", x: "A mine behind you: whoever steps on it lights it and gets blasted." } },
-    { id: 11, ic: "🛎️", usi: 1, c: "trampolino",
+    { id: 11, img: "trampolino", ic: "🛎️", usi: 1, c: "trampolino",
       it: { t: "TRAMPOLINO", x: "Pedana davanti a te: rimbalzo fisso di 5 celle, per tutti." },
       en: { t: "TRAMPOLINE", x: "A pad in front of you: a fixed 5-cell bounce, for everyone." } },
-    { id: 12, ic: "🧼", usi: 1, c: "sapone",
+    { id: 12, img: "sapone", ic: "🧼", usi: 1, c: "sapone",
       it: { t: "SAPONE", x: "Lastra dietro di te: chi ci corre sopra non riesce a frenare." },
       en: { t: "SOAP", x: "A slick behind you: whoever runs on it can’t brake." } }
   ],
