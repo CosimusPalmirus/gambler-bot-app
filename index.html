@@ -17042,6 +17042,12 @@ html.oz-l #bxrt-rot{display:none!important;}
     "PRONTO…":"READY…",
     "TRASCINA PER MIRARE":"DRAG TO AIM",
     "Mira e tira":"Aim and shoot",
+    "spaccata, tavolo aperto, piene o spezzate · poi l'8 nella buca che CHIAMI: dentro quella vinci, anche con un fallo nello stesso tiro":"break, open table, solids or stripes · then the 8 in the pocket you CALL: in that one you win, even with a foul in the same shot",
+    "Falli e 8 sbagliata":"Fouls and the wrong pocket",
+    "bianca in buca, bilia sbagliata o nessuna sponda = palla in mano · l'8 in un'altra buca torna sul tavolo ed è fallo: non si perde":"cue ball potted, wrong ball or no rail = ball in hand · the 8 in another pocket goes back on the table and it is a foul: you do not lose",
+    "serie piene 2-8 o rigate 9-15 · la 8 e la 15 solo nelle centrali, opposte fra loro · in un'altra buca tornano sul tavolo (fallo)":"solids 2-8 or stripes 9-15 · the 8 and the 15 only in the side pockets, in opposite ones · in another pocket they go back on the table (foul)",
+    "La 1 per ultima, e si CHIAMA":"The 1 last, and you CALL it",
+    "a serie finita scegli la buca: dentro quella vinci, in un'altra la 1 torna sul tavolo ed è fallo":"once your series is done pick the pocket: in that one you win, in another the 1 goes back on the table and it is a foul",
     "trascina sul tavolo per mirare · tira giù la barra per la forza":"drag on the table to aim · pull the bar down for power",
     "Regole 8-ball":"8-ball rules",
     "spaccata, tavolo aperto, piene o spezzate · poi l'8 nella buca che chiami":"break, open table, solids or stripes · then the 8 in the pocket you call",
@@ -79844,7 +79850,14 @@ function rtdDrawShove(ctx,raw,lp,now,w,hh){
     'lontano dalla zona': 'outside the area', 'ALTO': 'TOP', 'BASSO': 'DRAW', 'aspetta…': 'wait…', 'TIRA': 'PULL',
     'SI RIACCHITA': 'BALL RESPOTTED', 'la 1 va imbucata PER ULTIMA': 'the 1 must be potted LAST',
     'RIGATE': 'STRIPES', 'HAI LE RIGATE': 'YOU ARE STRIPES', 'LA 1 IN BUCA!': 'THE 1 IS DOWN!',
-    'IMBUCA LA 1: VINCI': 'POT THE 1 AND WIN', 'Bilia rimessa sul tavolo': 'Ball put back on the table'
+    'IMBUCA LA 1: VINCI': 'POT THE 1 AND WIN', 'Bilia rimessa sul tavolo': 'Ball put back on the table',
+    'SCEGLI LA BUCA PER LA 1': 'CALL THE POCKET FOR THE 1', 'CHIAMA': 'CALLS',
+    'la 1 in quella buca': 'the 1 in that pocket', 'l\'8 in quella buca': 'the 8 in that pocket',
+    'QUI': 'HERE', 'CHIAMATA': 'CALLED',
+    'l\'8 e\' entrata in un\'altra buca': 'the 8 went into another pocket',
+    'la 1 e\' entrata in un\'altra buca': 'the 1 went into another pocket',
+    'L\'8 nella buca sbagliata': 'The 8 in the wrong pocket',
+    'La 1 nella buca sbagliata': 'The 1 in the wrong pocket'
   };
   var LANG = 'it';
   function T(s) { return LANG === 'en' && EN[s] ? EN[s] : s; }
@@ -80456,12 +80469,17 @@ function rtdDrawShove(ctx,raw,lp,now,w,hh){
     else if (k === 'turn') {
       if (e.who === me) { this.say(T('TOCCA A TE'), '#ffd84a', null, 1400); sfx('turn'); haptic('light'); }
     } else if (k === 'foul') {
-      var why = { scratch: 'Bianca in buca', nohit: 'Nessuna bilia colpita', wrong: 'Prima bilia sbagliata', norail: 'Nessuna sponda dopo il colpo', off: 'Bilia fuori dal tavolo', time: 'Tempo scaduto', riacchito: 'Bilia rimessa sul tavolo' }[e.f] || '';
+      var why = { scratch: 'Bianca in buca', nohit: 'Nessuna bilia colpita', wrong: 'Prima bilia sbagliata', norail: 'Nessuna sponda dopo il colpo', off: 'Bilia fuori dal tavolo', time: 'Tempo scaduto', riacchito: 'Bilia rimessa sul tavolo', '8buca': "L'8 nella buca sbagliata", '1buca': 'La 1 nella buca sbagliata' }[e.f] || '';
       var mine = e.who === me;
       this.say(T('FALLO'), '#ff5a5a', T(why) + (mine ? '' : ' · ' + T('PALLA IN MANO')), 2200);
       sfx('foul'); if (!mine) haptic('medium'); else haptic('err');
     } else if (k === 'respot') {
-      this.say(T('SI RIACCHITA'), '#ffb14a', T(e.n === 1 ? 'la 1 va imbucata PER ULTIMA' : 'la ' + e.n + ' va SOLO in buca centrale'), 1800, true);
+      var perche = e.f === '8buca' ? "l'8 e' entrata in un'altra buca"
+        : e.f === '1buca' ? "la 1 e' entrata in un'altra buca"
+          : e.n === 1 ? 'la 1 va imbucata PER ULTIMA'
+            : ((e.n === 8 || e.n === 15) && this.q15()) ? 'la ' + e.n + ' va SOLO in buca centrale'
+              : 'la ' + e.n + ' torna sul tavolo';
+      this.say(T('SI RIACCHITA'), '#ffb14a', T(perche), 1800, true);
       sfx('foul', 0.7);
     } else if (k === 'groups') {
       var g = e.g === 'solid' ? 'PIENE' : (this.q15() ? 'RIGATE' : 'SPEZZATE');
@@ -80494,7 +80512,11 @@ function rtdDrawShove(ctx,raw,lp,now,w,hh){
     var now = performance.now(), lag = 0;
     // chi arriva a tiro gia' iniziato (spettatore, riconnessione): si salta avanti
     if (this.raw && this.raw.time != null && e.t != null && this.raw.time - e.t > 0.3) lag = Math.min(8, this.raw.time - e.t);
-    this.play = { sid: e.sid, t0: now - lag * 1000, done: 0, evSeen: 0, pw: c[2], who: e.who, rest: null };
+    this.play = { sid: e.sid, t0: now - lag * 1000, done: 0, evSeen: 0, pw: c[2], who: e.who, rest: null, pk: (e.pk == null ? null : e.pk) };
+    if (e.pk != null && e.who !== this.me) {
+      this.say(this.nameOf(e.who) + ' ' + T('CHIAMA'), '#ffd84a',
+        T(this.q15() ? 'la 1 in quella buca' : "l'8 in quella buca"), 1600, true);
+    }
     this.lastSid = e.sid; this.hand = null; this.dragHand = false; this.charging = false; this.spinOpen = false;
     this.trail = [];
     for (var i = 0; i < 16; i++) if (S.on[i]) this.pos[i] = [S.x[i], S.y[i]]; else delete this.pos[i];
@@ -80597,7 +80619,7 @@ function rtdDrawShove(ctx,raw,lp,now,w,hh){
     if (!this.myTurn()) { this.ptr[id] = { kind: 'none' }; return; }
     if (this.inRect(ui.spin, x, y, 6)) { this.ptr[id] = { kind: 'spinbtn' }; return; }
     if (this.inRect(ui.power, x, y, 10)) {
-      if (this.needCall()) { this.say(T('SCEGLI LA BUCA PER L\'8'), '#ffd84a', T('Tocca una buca'), 1400, true); this.ptr[id] = { kind: 'none' }; return; }
+      if (this.needCall()) { this.say(T(this.q15() ? 'SCEGLI LA BUCA PER LA 1' : 'SCEGLI LA BUCA PER L\'8'), '#ffd84a', T('Tocca una buca'), 1400, true); this.ptr[id] = { kind: 'none' }; return; }
       if (this.hand && this.handBad) { this.ptr[id] = { kind: 'none' }; return; }
       this.ptr[id] = { kind: 'power', x0: x, y0: y }; this.charging = true; this.power = 0; return;
     }
@@ -80691,15 +80713,27 @@ function rtdDrawShove(ctx,raw,lp,now,w,hh){
     if (!this._lastIn || now - this._lastIn > 90) { this._lastIn = now; this.send({ t: 'in', mx: x, my: y }); }
   };
   CP.needCall = function (any) {
-    var r = this.raw; if (!r || r.mode === '815' || !r.on8 || !r.on8[this.me]) return false;
+    // 20/09: la buca si chiama sia per l'8 (biliardo 8) sia per la 1 (8-15).
+    var r = this.raw; if (!r || !r.on8 || !r.on8[this.me]) return false;
     return any ? true : this.call == null;
+  };
+  CP.callBall = function () { return this.q15() ? 1 : 8; };
+  // LA BUCA CHIAMATA DA CHI TIRA, anche quando non sono io: dal vivo arriva
+  // nello snapshot (`cpk`), durante il tiro dal diario (`shot.pk`). Serve
+  // all'avversario e agli spettatori: e' un gioco a soldi, la chiamata si deve
+  // vedere prima che la bilia parta.
+  CP.callAltrui = function () {
+    if (this.play && this.play.pk != null) return this.play.pk;
+    var r = this.raw; if (!r || !r.on8 || r.moving) return null;
+    var t = r.turn; if (t == null || t === this.me) return null;
+    return (r.on8[t] && r.cpk != null) ? r.cpk : null;
   };
   CP.sendAim = function () {
     var now = performance.now();
     if (this._lastAim && now - this._lastAim < 110) return;
     this._lastAim = now;
     var m = 1 + this.power;
-    this.send({ t: 'aim', ax: Math.cos(this.aim) * m, ay: Math.sin(this.aim) * m, on: 1 });
+    this.send({ t: 'aim', ax: Math.cos(this.aim) * m, ay: Math.sin(this.aim) * m, on: 1, pk: this.needCall(true) ? this.call : null });
   };
   CP.shoot = function () {
     var pw = this.power; this.power = 0;
@@ -80813,15 +80847,30 @@ function rtdDrawShove(ctx,raw,lp,now,w,hh){
       c.fillStyle = 'rgba(255,220,90,' + (0.07 + 0.04 * Math.sin(now / 300)) + ')';
       c.fillRect(0, PF.KITCHEN, W, L - PF.KITCHEN);
     }
-    // buche da chiamare per l'8
+    // LE BUCHE DA CHIAMARE (l'8 nel biliardo 8, la 1 nel 8-15)
     if (mine && this.needCall(true)) {
+      var nb = this.callBall();
       PF.PK.forEach(function (pk, i) {
         var sel = P.call === i, a = sel ? 0.95 : 0.35 + 0.3 * Math.sin(now / 220 + i);
         c.strokeStyle = sel ? 'rgba(255,215,64,' + a + ')' : 'rgba(255,255,255,' + a + ')';
         c.lineWidth = sel ? 0.008 : 0.005;
         c.beginPath(); c.arc(pk[0], pk[1], pk[2] * 1.35, 0, TAU); c.stroke();
-        if (sel) { c.fillStyle = 'rgba(255,215,64,.25)'; c.fill(); }
+        if (sel) {
+          c.fillStyle = 'rgba(255,215,64,.25)'; c.fill();
+          P.label(pk[0] + (pk[0] < W / 2 ? 0.075 : -0.075), pk[1] + (pk[1] < L / 2 ? 0.055 : -0.055), nb + ' \u2192 ' + T('QUI'), 0.024, '#ffd84a');
+        }
       });
+    }
+    // LA BUCA CHIAMATA DALL'ALTRO: la vedono avversario e spettatori
+    var ca = this.callAltrui();
+    if (ca != null && PF.PK[ca]) {
+      var pkA = PF.PK[ca], aa = 0.55 + 0.35 * Math.sin(now / 240);
+      c.strokeStyle = 'rgba(255,215,64,' + aa + ')';
+      c.lineWidth = 0.007;
+      c.beginPath(); c.arc(pkA[0], pkA[1], pkA[2] * 1.35, 0, TAU); c.stroke();
+      c.fillStyle = 'rgba(255,215,64,.18)'; c.fill();
+      this.label(pkA[0] + (pkA[0] < W / 2 ? 0.075 : -0.075), pkA[1] + (pkA[1] < L / 2 ? 0.055 : -0.055),
+        this.callBall() + ' \u2192 ' + T('CHIAMATA'), 0.022, '#ffd84a');
     }
     // 8-15: la 8 e la 15 vanno SOLO nelle centrali, e in quelle opposte
     if (this.q15() && !raw.over) {
@@ -80912,14 +80961,14 @@ function rtdDrawShove(ctx,raw,lp,now,w,hh){
       else this.drawCue([st.x, st.y], st.ang, k2 < 1 ? 0.012 + st.pw * 0.24 * (1 - k2) : 0, k2 < 1 ? 1 : Math.max(0, 1 - (k2 - 1) / 4), false);
     }
   };
-  CP.label = function (x, y, txt, size) {
+  CP.label = function (x, y, txt, size, col) {
     var c = this.ctx;
     c.save();
     if (this.land) { c.translate(x, y); c.rotate(Math.PI / 2); c.translate(-x, -y); }
     c.font = 'bold ' + size + 'px system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
     var w = c.measureText(txt).width + size;
     c.fillStyle = 'rgba(0,0,0,.55)'; roundRect(c, x - w / 2, y - size * 0.75, w, size * 1.5, size * 0.4); c.fill();
-    c.fillStyle = '#fff'; c.fillText(txt, x, y + size * 0.05);
+    c.fillStyle = col || '#fff'; c.fillText(txt, x, y + size * 0.05);
     c.restore();
   };
   CP.drawGuide = function (now) {
@@ -81252,12 +81301,12 @@ var P2_LOBBY=true;
 function p2Lobby(){try{return P2_LOBBY||localStorage.getItem('gb_p2')==='1';}catch(e){return P2_LOBBY;}}
 if(typeof RTD_G!=='undefined'&&RTD_G.pool8)RTD_G.pool8.rules2=[
   ['👆','Mira e tira','trascina sul tavolo per mirare · tira giù la barra per la forza'],
-  ['🎱','Regole 8-ball',"spaccata, tavolo aperto, piene o spezzate · poi l'8 nella buca che chiami"],
-  ['⚠️','Falli',"bianca in buca, bilia sbagliata o nessuna sponda = palla in mano all'altro"]];
+  ['🎱','Regole 8-ball',"spaccata, tavolo aperto, piene o spezzate · poi l'8 nella buca che CHIAMI: dentro quella vinci, anche con un fallo nello stesso tiro"],
+  ['⚠️','Falli e 8 sbagliata',"bianca in buca, bilia sbagliata o nessuna sponda = palla in mano · l'8 in un'altra buca torna sul tavolo ed è fallo: non si perde"]];
 if(typeof RTD_G!=='undefined'&&RTD_G.pool15)RTD_G.pool15.rules2=[
   ['👆','Mira e tira','trascina sul tavolo per mirare · tira giù la barra per la forza'],
-  ['🎱','Regole 8-15',"serie piene 2-8 o rigate 9-15 · la 8 e la 15 solo nelle buche centrali, opposte fra loro"],
-  ['1️⃣','La 1 per ultima',"e' neutra: la imbuchi a serie finita e vinci · prima torna sul tavolo ed e' fallo"]];
+  ['🎱','Regole 8-15',"serie piene 2-8 o rigate 9-15 · la 8 e la 15 solo nelle centrali, opposte fra loro · in un'altra buca tornano sul tavolo (fallo)"],
+  ['1️⃣','La 1 per ultima, e si CHIAMA',"a serie finita scegli la buca: dentro quella vinci, in un'altra la 1 torna sul tavolo ed è fallo"]];
 var RTD_BALLCOL=['#f5f5f0','#f2c000','#2258c9','#c9282e','#5b2a86','#e0742a','#2e7d43','#7a2230','#151515',
                  '#f2c000','#2258c9','#c9282e','#5b2a86','#e0742a','#2e7d43','#7a2230'];
 function rtdDrawPool(ctx,raw,lp,now,w,hh){
