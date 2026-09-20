@@ -3862,7 +3862,7 @@ vec3 mafGessato(vec3 c){ if(vS<-50.0) return c; float q=vS*62.0; float f=fract(q
         saleOn: false, sT0: 0, sDur: 1, sDir: 1, sCx: 0, sCz: 0, sH0: 0, sH1: 0,
         autoOn: false, auEntra: -1e9, auEsce: -1e9, auPx: 0, auPz: 0, auYaw: 0,
         vT0: -1e9, vDx: 0, vDy: 0, vV: 0.6, yVolo: 0, vSegno: 1, vAtterrato: false, vMacchia: 0, vMx: 0, vMz: 0,
-        sedOn: false, sdX: 0, sdY: 0, sdZ: 0, sdYaw: 0, ricOn: false, rT0: 0, rDur: 1,
+        sedOn: false, sdX: 0, sdY: 0, sdZ: 0, sdYaw: 0, sdRol: 0, sdBec: 0, sdVano: 0, ricOn: false, rT0: 0, rDur: 1,   // GCR_PILOTA_2009
         // chiavi del look (si riconfigura solo se cambiano)
         kLook: null, kSuit: null, kHat: -9, kHatCol: null, kSkin: -9, kAcc: -9, kArch: -9, kArma: -9, kSq: null, kGiub: false, kAb: -9, kFa: -9,
         maskA: 1, maskB: 0, maskC: 0, gess: 0, cap: 0, col: new Float32Array(24), fin: new Float32Array(8),
@@ -3927,7 +3927,8 @@ vec3 mafGessato(vec3 c){ if(vS<-50.0) return c; float q=vS*62.0; float f=fract(q
       const au = e && e.auto; sl.autoOn = !!au;
       if (au) { sl.auEntra = au.entra != null ? au.entra : -1e9; sl.auEsce = au.esce != null ? au.esce : -1e9; sl.auPx = +au.px || 0; sl.auPz = +au.pz || 0; sl.auYaw = +au.yaw || 0; }
       const sd = e && e.seduto; sl.sedOn = !!sd;
-      if (sd) { sl.sdX = +sd.x || 0; sl.sdY = +sd.y || 0; sl.sdZ = +sd.z || 0; sl.sdYaw = +sd.yaw || 0; }
+      if (sd) { sl.sdX = +sd.x || 0; sl.sdY = +sd.y || 0; sl.sdZ = +sd.z || 0; sl.sdYaw = +sd.yaw || 0;
+        sl.sdRol = +sd.rol || 0; sl.sdBec = +sd.bec || 0; sl.sdVano = +sd.vano || 0; }   // GCR_PILOTA_2009
       const ri = e && e.ricarica; sl.ricOn = !!ri;
       if (ri) { sl.rT0 = +ri.t0 || 0; sl.rDur = +ri.dur || 1; }
       // riconfigura solo se il look e' cambiato
@@ -4198,11 +4199,19 @@ vec3 mafGessato(vec3 c){ if(vS<-50.0) return c; float q=vS*62.0; float f=fract(q
     }
     const seduto = sl.sedOn && !morto && (autoK < 0 || autoK >= 1 || (t - sl.auEntra) > 0.35);
     if (seduto) {
-      rootX = sl.sdX; rootY = sl.sdY - hip0; rootZ = sl.sdZ; rootYaw = sl.sdYaw; hipDrop = 0; bob = 0;
+      // GCR_PILOTA_2009: taglia da pilota (non esce piu' dal tetto) e bacino SUL sedile.
+      // hip0 va tolto SCALATO: mT(H, hip0) avviene DOPO mScala(MR, S), quindi con `- hip0` il bacino
+      // finiva a sdY + hip0*(S-1), cioe' ~7 cm di cella troppo in alto, e l'omino galleggiava sull'auto.
+      const vanoAuto = sl.sdVano > 0 ? sl.sdVano : PILOTA_VANO;
+      S = Math.min(S * PILOTA_K, (vanoAuto - PILOTA_ARIA) / altaTesta(ar, sl.cap));
+      rootX = sl.sdX; rootY = sl.sdY - hip0 * S; rootZ = sl.sdZ; rootYaw = sl.sdYaw; hipDrop = 0; bob = 0;
       thL = thR = 1.5; shL = shR = -1.5; thxL = 0.08; thxR = -0.08;
       swL = swR = 1.1; elL = elR = 0.6; abL = abR = 0.05; twist = 0; bendF = 0.05; bendS = 0; nod = 0;
       headYaw = clamp(angDiff(sl.sdYaw, sl.yA), -0.9, 0.9);
       armaIK = false; sinW = 0; nascondiArma = true; flash = 0; alfa = clamp(sl.alfa, 0, 1); lampo = 0; ricW = 0;
+      // GCR_PILOTA_2009: entrando, l'omino a piedi sfuma a zero sulla portiera; il pilota seduto si
+      // accendeva di colpo nello stesso fotogramma. Ora sale in 0,15 s: nessuno scatto all'entrata.
+      if (autoK >= 0 && t - sl.auEntra < 0.5) alfa *= smooth(0.35, 0.5, t - sl.auEntra);
     } else if (autoK >= 0) {
       const e = ease(autoK);
       if (autoK >= 1 && !sl.sedOn) alfa = 0;
@@ -4273,6 +4282,9 @@ vec3 mafGessato(vec3 c){ if(vS<-50.0) return c; float q=vS*62.0; float f=fract(q
 
     // ═══ TELAI ═══
     mId(MR); mT(MR, rootX, rootY + lift * S, rootZ); mRy(MR, rootYaw);
+    // GCR_PILOTA_2009: da seduto il pilota si inclina COL sedile (rollio e beccheggio dell'auto), attorno
+    // al bacino: l'ordine T·Ry·Rz·Rx e' lo stesso dell'istanza dell'auto (Euler YZX), quindi i segni tornano.
+    if (seduto && (sl.sdRol || sl.sdBec)) { mT(MR, 0, hip0 * S, 0); mRz(MR, sl.sdBec); mRx(MR, sl.sdRol); mT(MR, 0, -hip0 * S, 0); }
     if (volC) { mT(MR, 0, volC, 0); mRz(MR, ang); mRx(MR, volRoll); mT(MR, 0, -volC, 0); } else if (ang) mRz(MR, ang);
     mScala(MR, S);
     const H = FR[O_BAC]; mCp(H, MR); mT(H, 0, hip0 + hipDrop + bob, 0);
@@ -4390,6 +4402,23 @@ vec3 mafGessato(vec3 c){ if(vS<-50.0) return c; float q=vS*62.0; float f=fract(q
   const VOLO_RIALZO = 1.15;   // dall'atterraggio: 0,6 s a terra + 0,5 s per rialzarsi
   const SCALA_BASE = 1.08;
   const TESTA_K = 1.1, CAP_K = 1.16;   // testa e cappello eroici: sono la sagoma che si legge dall'alto
+  // ── GCR_PILOTA_2009 · IL PILOTA DENTRO L'AUTO ──────────────────────────────
+  // A piedi l'omino e' alto 1,12 celle e l'auto e' lunga 1,20: l'uomo e' 2,6 volte piu' grande del vero (e'
+  // voluto, deve leggersi a 40 px). Dentro l'auto quella misura non ci sta: testa e cappello uscivano dal
+  // tetto. Da seduto l'omino va in scala d'AUTO (PILOTA_K) e, se il cappello uscirebbe lo stesso, si
+  // rimpicciolisce quanto basta: sopra il sedile c'e' `vano` di aria (0,38 celle), meno PILOTA_ARIA.
+  const PILOTA_K = 0.52, PILOTA_ARIA = 0.02, PILOTA_VANO = 0.38;
+  // cima di ogni cappello nello spazio del modello (il perno del cappello sta a 0,80): dice quanto e' alto
+  const CIMA_CAP = {};
+  // (misurate sul modello nel Chrome vero — banco/pilota: cima del cappello, piuma compresa, + 0,005 di grazia)
+  CIMA_CAP[V.FEDORA] = 0.898; CIMA_CAP[V.FEDORA_PIUMA] = 0.930; CIMA_CAP[V.COPPOLA] = 0.855;
+  CIMA_CAP[V.BANDANA] = 0.836; CIMA_CAP[V.CILINDRO] = 0.989; CIMA_CAP[V.BOMBETTA] = 0.934;
+  CIMA_CAP[V.PANAMA] = 0.887; CIMA_CAP[V.BASCO] = 0.877; CIMA_CAP[V.CAPELLI] = 0.843; CIMA_CAP[V.CHIGNON] = 0.903;
+  // quanto e' alto QUESTO omino dal bacino alla cima del cappello, nello spazio del modello, seduto e dritto
+  function altaTesta(ar, cap) {
+    const c = CIMA_CAP[cap], h = (c == null ? 0.90 : c) - 0.80;
+    return 0.03 * ar.bac[1] + 0.24 * ar.bus[1] + 0.16 * ar.tes[1] * TESTA_K + h * ar.cap_[1] * CAP_K;
+  }
 
   G3.registra('mafiosi', { crea, ARMI: NOMI_ARMI, ARCHETIPI: ARCH.map(a => a.nome) });
 
@@ -4469,6 +4498,11 @@ vec3 mafGessato(vec3 c){ if(vS<-50.0) return c; float q=vS*62.0; float f=fract(q
     { nome: 'pickup', L: 1.22, W: 0.60, wf: 0.40, wr: -0.36, wz: 0.26, wr0: 0.11, sx: 0.12, sz: -0.10 },
     { nome: 'coupe', L: 1.18, W: 0.60, wf: 0.36, wr: -0.33, wz: 0.26, wr0: 0.10, sx: -0.10, sz: -0.10 }
   ];
+  // GCR_PILOTA_2009: l'aria fra il sedile (0,12 + il dy della forma) e il cielo del vetro sopra la testa del
+  // guidatore. Misurata sulla geometria delle 4 forme (banco/pilota, Chrome vero): 0,3800 per tutte e quattro —
+  // il dy di ogni forma e' fatto apposta perche' il guidatore ci stia. Il pilota vero ci si infila dentro.
+  const VANO_SEDILE = 0.38;
+  const _pS = new THREE.Vector3(), _qS = new THREE.Quaternion(), _eS = new THREE.Euler();
 
   // ── costruttore di geometria: quad a facce piatte, orientati da soli ─────
   function Geo() { this.pos = []; this.nor = []; this.am = []; this.piv = []; this.tri = 0; }
@@ -5830,7 +5864,13 @@ void main(){
       const st = mappa.get(id); if (!st || !st.vivo) return null;
       const f = FORME[st.forma], P = st.pt;
       aMondo(st, f.sx, -(f.W / 2 + 0.22)); P.porta[0] = W[0]; P.porta[1] = 0; P.porta[2] = W[1];
-      aMondo(st, f.sx, f.sz); P.sedile.x = W[0]; P.sedile.y = 0.12 + st.alt + st.altBase; P.sedile.z = W[1]; P.sedile.yaw = st.yaw;
+      // GCR_PILOTA_2009: il sedile e' un punto VERO della carrozzeria — imbardata, rollio e beccheggio come
+      // l'istanza (Euler YZX, gli stessi segni), piu' rialzo e vibrazione, piu' il dy della forma. Cosi' il pilota
+      // resta incollato al sedile anche nei sobbalzi e nelle curve, e sta alla quota della sagoma finta.
+      _pS.set(f.sx, 0.12 + (f.dy || 0), f.sz);
+      _eS.set(st.rol + st.rolS, st.yaw, st.bec + st.becS, 'YZX'); _qS.setFromEuler(_eS); _pS.applyQuaternion(_qS);
+      P.sedile.x = st.x + _pS.x; P.sedile.y = st.alt + st.vib + st.altBase + _pS.y; P.sedile.z = st.y + _pS.z;
+      P.sedile.yaw = st.yaw; P.sedile.rol = st.rol + st.rolS; P.sedile.bec = st.bec + st.becS; P.sedile.vano = VANO_SEDILE;
       P.centro[0] = st.x; P.centro[1] = 0.3 + st.alt; P.centro[2] = st.y; P.yaw = st.yaw;
       return P;
     }
@@ -8676,6 +8716,23 @@ vC=aCol*ic; vE=0.0; gl_Position=projectionMatrix*viewMatrix*w; }`;
           if (c) { if (s.autoEv && s.autoEv.k === 'car_enter' && now - s.autoEv.t < 0.5) c.ev.entra = s.autoEv.t; }
         } else if (s.autoEv && s.autoEv.k === 'car_exit' && now - s.autoEv.t < 0.5) { const c = autoVicina(s.x, s.y); if (c) c.ev.esce = s.autoEv.t; }
         s.ev.seduto = seduto;
+        // GCR_SPARIZIONI_2009 · LO STATO COMANDA, NON L'EVENTO (20/09/2026, agente B).
+        // `s.ev.auto` nasceva SOLO da `car_enter`/`car_exit` e non veniva mai riconciliato con `s.inAuto`.
+        // Il motore manda `car_exit` in UNA sola delle strade con cui ti tira fuori dall'auto: se l'auto
+        // ESPLODE sotto e tu sopravvivi, o se l'auto svanisce dalla lista, l'evento non arriva (provato:
+        // banco/spia/prova_motore_carexit.py). Un feed intero si perde anche quando uno snapshot arriva
+        // mentre il 3D non e' attivo (90_ponte GCR3D.snap). Da li' in poi 20_mafiosi posa() vedeva
+        // `autoK >= 1 && !sedOn` e scriveva ALFA 0: l'omino in scena e INVISIBILE per tutto il resto
+        // della partita (misurato: un episodio da 9,98 s). Qui l'uscita si RICOSTRUISCE dallo stato,
+        // alla posizione di ADESSO: mai un omino disegnato dove non e'.
+        // I 0,6 s di attesa servono al buffer di riproduzione (85 ms fissi, 300 per chi guarda):
+        // `car_enter` arriva sempre PRIMA che `s.inAuto` diventi vero, e senza l'attesa la cura
+        // mangerebbe l'animazione di entrata in auto.
+        // `s.autoExFatto` = il tempo dell'entrata gia' convertita: si converte UNA VOLTA SOLA. Se lo
+        // STESSO `car_enter` tornasse a ogni fotogramma, la sintesi riscriverebbe `esce = now` ogni
+        // giro, `ax` resterebbe 0, `autoK` inchiodato a 1 e si tornerebbe ad ALFA 0: la cura che
+        // ricrea il difetto che cura. Un evento che ci inventiamo noi va inventato una volta.
+        if (!s.inAuto && s.autoEv && s.autoEv.k === 'car_enter' && now - s.autoEv.t > 0.6 && s.autoExFatto !== s.autoEv.t) { s.autoExFatto = s.autoEv.t; s.autoEv = { k: 'car_exit', t: now }; }
         if (s.autoEv) s.ev.auto = { entra: s.autoEv.k === 'car_enter' ? s.autoEv.t : 0, esce: s.autoEv.k === 'car_exit' ? s.autoEv.t : 0, px: s.x, pz: s.y, yaw: 0 };
         if (s.inAuto && !seduto) continue;
         const alfa = (s.flags & MM.F_HIDDEN) && isMe ? 0.5 : ((s.flags & MM.F_SMOKE) ? 0.6 : 1);

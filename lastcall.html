@@ -2273,6 +2273,29 @@ var LC_EN = {
   "GUARDA E SCEGLI": "LOOK AND CHOOSE",
   "RUBA ALLA CIECA": "STEAL BLIND",
   "non fa combinazione": "not a combination",
+  /* 20/09 · le frasi del tocco e i motivi dei rifiuti del server */
+  "Hai già scelto tre gettoni: prima togline uno.": "You already chose three chips: let one go first.",
+  "un attimo: il tavolo sta ancora mostrando l’ultima mossa": "one moment: the table is still showing the last move",
+  "il tavolo aspetta la scelta di un altro": "the table is waiting for someone else’s choice",
+  "Il tavolo aspetta la scelta di un altro.": "The table is waiting for someone else’s choice.",
+  "tocca la carta, non fra le carte": "tap the card itself, not between the cards",
+  "gettoni lasciati": "chips let go",
+  "nessuno ha carte da rubare": "nobody has cards to steal",
+  "la mossa non e’ passata: riprova": "the move did not go through: try again",
+  "adesso tocca a un altro": "it is someone else’s turn",
+  "prima finisci la scelta aperta": "finish the open choice first",
+  "il tempo del turno e’ finito": "your turn is out of time",
+  "il tavolo e’ andato avanti: riprova": "the table has moved on: try again",
+  "non e’ una combinazione": "not a combination",
+  "quel giocatore non si puo’ derubare": "that player cannot be robbed",
+  "quella carta non si gioca dalla mano": "that card is not played from your hand",
+  "non hai quella carta": "you do not have that card",
+  "sei al buio: puoi solo pescare": "you are in the dark: you can only draw",
+  "non c’e’ nessuno a cui darla": "there is nobody to give it to",
+  "la partita e’ finita": "the game is over",
+  "il tavolo non e’ ancora partito": "the table has not started yet",
+  "sei fuori dal locale": "you are out of the club",
+  "quella scelta non e’ tua": "that choice is not yours",
   "lascia stare": "never mind",
   "PESCA": "DRAW",
   "Sei fuori.": "You are out.",
@@ -7381,6 +7404,15 @@ var LCN = (function () {
     N.stat.rifiuti++;
     N.inviato = null;
     lcSuona("no");
+    /* ⛔ 20/09 · QUI C'ERA SOLO UN BIP. Una mossa rifiutata dal server non
+       diceva niente: il giocatore sentiva un suono e pensava che il gioco
+       fosse rotto. Il motivo lo manda il server (`perche`); se manca, si dice
+       almeno che la mossa non e' passata. */
+    N.ultimoNo = m.perche ? String(m.perche).slice(0, 80) : "";
+    try {
+      if (typeof messaggio === "function")
+        messaggio(N.ultimoNo || "la mossa non e’ passata: riprova");
+    } catch (e) { errore("rifiuto", e); }
     aggiorna();
   };
 
@@ -8528,11 +8560,28 @@ function chiediImpila(att) {
 function provaCombinazione() {
   var carte = selezioneCarte(), i;
   var forza = lcForzaCombo(carte);
-  if (!forza || !mioTurno()) { lcSuona("no"); return; }
+  /* ⛔ 20/09 · E SE NON SI PUO', SI DICE PERCHE'. Prima qui c'era solo un
+     bip: chi toccava RUBA ALLA CIECA mentre il tavolo stava ancora mostrando
+     la mossa di prima non capiva niente e pensava al gioco rotto. */
+  if (!forza) { lcSuona("no"); messaggio("non e’ una combinazione"); return; }
+  if (!mioTurno()) {
+    lcSuona("no");
+    messaggio(G.turno !== IO ? "adesso tocca a un altro"
+              : (R.occupata() ? "un attimo: il tavolo sta ancora mostrando l’ultima mossa"
+                 : (attesa ? "prima finisci la scelta aperta"
+                           : "il tavolo aspetta la scelta di un altro")));
+    return;
+  }
+  /* ⛔ 20/09 · SENZA NESSUNO DA DERUBARE IL PANNELLO NON SI APRE.
+     Prima si apriva comunque, senza una riga dentro e senza via d'uscita: il
+     pannello copre la tela e ferma anche i tocchi, e la pagina restava
+     bloccata li' fino alla mossa dopo del server. */
+  var v = lcVivi(G), quanti = 0;
+  for (i = 0; i < v.length; i++) if (v[i].id !== IO && v[i].mano.length) quanti++;
+  if (!quanti) { lcSuona("no"); messaggio("nessuno ha carte da rubare"); return; }
   apriScelta(forza === 3 ? "GUARDI E SCEGLI" : "UNA CARTA COPERTA",
     forza === 3 ? "Tre gettoni: gli guardi la mano e prendi quello che vuoi."
                 : "Due gettoni: scegli chi derubare, poi tocca una delle sue carte coperte.");
-  var v = lcVivi(G);
   for (i = 0; i < v.length; i++)
     if (v[i].id !== IO && v[i].mano.length) (function (id) {
       bottoneGiocatore(id, G.giocatori[id].nome + " · " + G.giocatori[id].mano.length + " carte", function () {
@@ -8543,6 +8592,8 @@ function provaCombinazione() {
         aggiorna();
       });
     })(v[i].id);
+  /* ⭐ 20/09 · una via d'uscita: un pannello senza uscita e' una pagina rotta */
+  bottone("lascia stare", function () { chiudiScelta(); });
 }
 
 /* ⭐ 15/09 · DUE GETTONI: UNA CARTA COPERTA. Il server manda solo quante
@@ -9808,7 +9859,7 @@ function dentro(q, x, y) {
       non ha strisciato: su un telefono uno scorrimento non e' una scelta.
    ⭐ E anche il MAZZO si tocca: toccarlo e' pescare. E' il gesto che uno fa
       d'istinto, e il mazzo acceso al tuo turno lo suggerisce. */
-var TOCCO = null, schedaDa = 0, schedaDito = false;
+var TOCCO = null, schedaDa = 0, schedaDito = false, schedaGiu = 0;
 
 function puntoTela(ev) {
   var r = cv.getBoundingClientRect();
@@ -9833,6 +9884,17 @@ function suMazzoPunto(x, y) {
    RIPOSO di ogni carta, dall'ultima alla prima; solo fuori da tutti, la parte
    in piu' della carta alzata. Sul telefono e' anche lo sfogliare: il dito che
    scorre verso destra entra nella carta dopo e la alza. */
+/* ⭐ 20/09 · la FASCIA DELLA MANO: da dove comincia il ventaglio, in giu'.
+   Un tocco qui dentro che non becca nessuna carta e' un errore di mira. */
+function nellaFasciaMano(y) {
+  var k, i, Q, ymin = 1e9;
+  for (k = 0; k < manoQuad.length; k++) {
+    Q = manoQuad[k].q;
+    for (i = 0; i < (Q.length >> 1); i++) if (Q[i * 2 + 1] < ymin) ymin = Q[i * 2 + 1];
+  }
+  return manoQuad.length > 0 && y >= ymin - 10;
+}
+
 function cartaSotto(x, y) {
   var i;
   for (i = manoQuad.length - 1; i >= 0; i--) if (dentro(manoQuad[i].q, x, y)) return manoQuad[i];
@@ -9910,7 +9972,16 @@ cv.addEventListener('pointerup', function (ev) {
     else { lcSuona('no'); messaggio(G.turno === IO ? 'prima finisci la scelta' : 'adesso tocca a ' + lcAttuale(G).nome); }
     return;
   }
-  if (selezione.length) { selezione = []; aggiorna(); }
+  /* ⛔ 20/09 · UN TOCCO CHE SBAGLIA DI POCO NON BUTTA VIA LA COPPIA.
+     Prima QUALUNQUE tocco fuori da una carta azzerava la selezione, in
+     silenzio: chi mirava al secondo gettone e finiva nel filo di tappeto fra
+     due carte ricominciava da zero senza sapere perche'. Adesso dentro la
+     fascia della mano e' un ERRORE DI MIRA (la selezione resta e si dice dove
+     toccare); sul tappeto e' una RINUNCIA, e anche quella si dice. */
+  if (selezione.length) {
+    if (nellaFasciaMano(p.y)) { lcSuona('no'); messaggio('tocca la carta, non fra le carte'); }
+    else { selezione = []; messaggio('gettoni lasciati'); aggiorna(); }
+  }
 });
 cv.addEventListener('pointercancel', function () { TOCCO = null; });
 /* ...e dove il browser lo permette il clic fantasma non nasce proprio: il
@@ -10034,9 +10105,18 @@ function tastoScheda(testo, fn, spento, stile) {
     /* ⛔ collaudo 13/09 · IL CLIC FANTASMA. Sul telefono la scheda si apre
        al dito che si alza, e il clic sintetico dello STESSO tocco arriva dopo
        e cade sul tasto appena comparso sotto il dito (i tasti stanno sopra la
-       fascia della mano): un tocco solo GIOCAVA la carta senza mostrarla. Un
-       tasto aperto da un tocco non risponde nei primi 450 ms. */
-    if (schedaDito && ora() - schedaDa < 450) return;
+       fascia della mano): un tocco solo GIOCAVA la carta senza mostrarla.
+       ⛔ 20/09 · QUI C'ERA UN TEMPO MORTO DI 450 ms, ED E' IL DIFETTO CHE IL
+       PROPRIETARIO HA SEGNALATO («non mi fa giocare due carte caveau»): chi
+       toccava il tasto meno di mezzo secondo dopo aver aperto la carta
+       PERDEVA IL TOCCO, e niente lo diceva. Per una coppia di gettoni i
+       tocchi sono quattro (carta, tasto, carta, tasto), quindi capitava
+       spesso; e solo sul telefono, col mouse mai (`schedaDito`).
+       Adesso il fantasma si riconosce per quello che E', non per quando
+       arriva: nasce da un dito SCESO SULLA TELA prima che la scheda
+       esistesse, quindi dentro la scheda non c'e' nessun pointerdown dopo
+       `schedaDa`. Un secondo tocco vero ce l'ha, e vale subito. */
+    if (schedaDito && schedaGiu <= schedaDa) return;
     lcSuona('tocco'); if (fn) fn();
   };
   document.getElementById('schedaTasti').appendChild(b);
@@ -10060,9 +10140,13 @@ function riempiScheda() {
 
   if (LC_GETTONI.indexOf(id) >= 0 || id === 'jolly') {
     var scelto = selezione.indexOf(i) >= 0;
+    /* ⛔ 20/09 · un tasto spento senza motivo e' un gioco rotto: con tre
+       gettoni gia' scelti il tasto era grigio e la riga sopra non lo diceva. */
     nota.textContent = scelto
       ? 'È fra i gettoni che hai scelto.'
-      : 'Da solo non vale niente. Scegline DUE uguali e rubi una carta alla cieca; TRE e guardi la mano e scegli. Il JOLLY vale come qualunque gettone.';
+      : (selezione.length >= 3
+         ? 'Hai già scelto tre gettoni: prima togline uno.'
+         : 'Da solo non vale niente. Scegline DUE uguali e rubi una carta alla cieca; TRE e guardi la mano e scegli. Il JOLLY vale come qualunque gettone.');
     tastoScheda(scelto ? 'TOGLILO' : 'SCEGLI PER COMBINARE', function () {
       chiudiScheda(); scegliGettone(i);
     }, !scelto && selezione.length >= 3, 'grande');
@@ -10071,8 +10155,12 @@ function riempiScheda() {
     if (no) {
       nota.textContent = 'Non si gioca dalla mano: ' + no + '.';
     } else if (!mioTurno()) {
+      /* ⛔ 20/09 · prima diceva «Prima finisci la scelta aperta» anche quando
+         la scelta aperta era di UN ALTRO giocatore: il giocatore cercava una
+         scelta che non c'era. */
       nota.textContent = G.turno !== IO ? 'Adesso tocca a ' + lcAttuale(G).nome + '. La potrai giocare al tuo turno.'
-        : (R.occupata() ? 'Un attimo: il tavolo sta ancora mostrando l’ultima mossa.' : 'Prima finisci la scelta aperta.');
+        : (R.occupata() ? 'Un attimo: il tavolo sta ancora mostrando l’ultima mossa.'
+           : (attesa ? 'Prima finisci la scelta aperta.' : 'Il tavolo aspetta la scelta di un altro.'));
       tastoScheda('GIOCA', null, true, 'grande');
     } else if (CARTE_BERSAGLIO.indexOf(id) >= 0 && !bersagliValidi(id).length) {
       /* la carta non esce mai dalla mano se non c'e' nessuno a cui darla */
@@ -10091,12 +10179,19 @@ function riempiScheda() {
   tastoScheda('INDIETRO', chiudiScheda, false);
 }
 
-/* toccare fuori dalla carta chiude. ⚠️ Non nei primi 350 ms: su un telefono
-   il clic sintetico del tocco che ha APERTO la scheda arriva dopo, e la
-   richiuderebbe subito. */
+/* ⭐ 20/09 · QUALUNQUE DITO CHE SCENDE DENTRO LA SCHEDA SI SEGNA L'ORA.
+   E' il modo esatto di riconoscere il clic fantasma: quello nasce da un dito
+   sceso sulla TELA, prima che la scheda esistesse, e non lascia traccia qui.
+   Serve a `tastoScheda` e al tocco fuori dalla carta. */
+elScheda.addEventListener('pointerdown', function () { schedaGiu = ora(); }, true);
+elScheda.addEventListener('touchstart', function () { schedaGiu = ora(); }, true);
+
+/* toccare fuori dalla carta chiude. ⚠️ Non col clic fantasma del tocco che ha
+   APERTO la scheda: la richiuderebbe subito (20/09: era un tempo morto di
+   350 ms, adesso e' la prova del pointerdown). */
 elScheda.addEventListener('click', function (ev) {
   if (ev.target !== elScheda && ev.target.id !== 'schedaCarta') return;
-  if (ora() - schedaDa < 350) return;
+  if (schedaGiu <= schedaDa) return;
   chiudiScheda();
 });
 
