@@ -45981,7 +45981,7 @@ var TWR={
    ⚠️ Niente WebGL2 = niente iframe: la sonda si fa una volta sola.
    A mano: localStorage gb_gcr3d = '1' (acceso) / '0' (mai, vince su tutto). */
 var TWR_3D=true;    // RILASCIO 15/09: 3D per tutti al posto del 2D (riserva 2D automatica: niente WebGL2, errore, contesto perso, non pronto in 8 s)
-var TWR3D_VER='oz1-r20260920-84eb1926';   // CECCHINO3
+var TWR3D_VER='oz1-r20260920-c23041e7';   // CECCHINO3 · VETRINA_2009 (md5 del gcr3d.html nuovo)
 var TWR3D={ok:false,fr:null,g:null,monta:0,err:null};
 function twr3dLang(){return (window.GB_LANG==='en')?'en':'it';}
 /* ═══ AVVIO3D (gcr_avvio3d, 19/09) · SUBITO IN 3D ═════════════════════════════════════════════════════
@@ -46874,8 +46874,13 @@ function twrOpenEditor(){
   var en=gcr2En();
   GCR_ED.look=gcrLook();GCR_ED.t0=performance.now();
   twrOv('<div class="tw-duel-t" style="color:#7ee9fb;text-shadow:0 0 16px rgba(34,211,238,.6);">🎩 '+(en?'YOUR MOBSTER':'IL TUO MAFIOSO')+'</div>'
-    +'<canvas id="gcr-ed-cv" width="300" height="220" style="display:block;width:220px;height:161px;margin:8px auto;background:radial-gradient(circle at 50% 40%,#101a2c,#080d18);border-radius:16px;border:1px solid rgba(34,211,238,.3);"></canvas>'
-    +'<div class="rc-ed-note">'+(en?'Figure, outfit, car, weapon finish, emblem and takedown effect show up in the 3D city.':'Figura, abito, auto, finitura armi, insegna ed effetto KO si vedono nella città 3D.')+'</div>'
+    +'<div id="gcr-ed-box" style="position:relative;width:min(264px,74vw);height:clamp(190px,38vh,300px);margin:8px auto;background:radial-gradient(circle at 50% 40%,#101a2c,#080d18);border-radius:16px;border:1px solid rgba(34,211,238,.3);overflow:hidden;touch-action:none;">'   // VETRINA_2009
+    +'<canvas id="gcr-ed-cv" width="300" height="220" style="position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);width:100%;height:auto;display:block;"></canvas>'
+    +'<div id="gcr-ed-3d" style="position:absolute;left:0;top:0;width:100%;height:100%;display:none;"></div>'
+    +'<div id="gcr-ed-gira" style="position:absolute;left:0;right:0;bottom:5px;text-align:center;font-size:9px;letter-spacing:.08em;color:#7ee9fb;opacity:.7;pointer-events:none;display:none;">'+(en?'DRAG TO TURN':'TRASCINA PER GIRARE')+'</div>'
+    +'</div>'
+    +'<div id="gcr-ed-badge" style="display:flex;gap:6px;justify-content:center;align-items:center;flex-wrap:wrap;margin:0 auto 4px;max-width:300px;"></div>'
+    +'<div class="rc-ed-note">'+(en?'This is your real mobster: the very one that walks the streets of Gambler City. Car, emblem and takedown effect show up in the match.':'Questo è il tuo mafioso vero: lo stesso che si vede per le strade di Gambler City. Auto, insegna ed effetto KO si vedono in partita.')+'</div>'   // VETRINA_2009
     +'<div id="gcr-secs"></div>'
     +'<div class="twr-edit-lbl" style="margin-top:12px;">🏆 '+(en?'SETS TO UNLOCK':'SET DA SBLOCCARE')+'<span class="rc-ed-badge" style="margin-left:6px;">'+(en?'by playing — no purchases':'solo giocando — niente acquisti')+'</span></div><div id="gcr-skins" class="db-sk-grid"></div>'
     +'<div class="tw-ov-btns"><button class="action-btn gold" onclick="gcrEdSalva()">💾 '+(en?'SAVE':'SALVA')+'</button>'
@@ -46883,13 +46888,127 @@ function twrOpenEditor(){
   gcrSync();
   gcrEdSezioni();
   gcr2Carica(function(){if(!GCR_ED.look)return;gcrEdSezioni();gcr2Griglia(document.getElementById('gcr-skins'));});
+  gcrEdBadge();                     // VETRINA_2009: auto, insegna ed effetto KO (non stanno sul corpo)
+  gcrEdLoop2D();                    // il 2D disegna SUBITO: se il 3D non arriva, il riquadro non e' mai vuoto
+  gcrVetApri();                     // ... e intanto nasce la vetrina 3D (muore con l'editor)
+}
+// ═══════════════ VETRINA_2009 · IL MAFIOSO IN 3D DENTRO L'EDITOR ═══════════════
+// L'anteprima dell'editor era il disegno 2D di ieri (twrDrawDude) con qualche emoji: si sceglieva
+// una cosa e se ne vedeva un'altra. Adesso dentro il riquadro c'e' l'OMINO VERO della partita:
+// un iframe su gcr3d.html (lo STESSO indirizzo dell'iframe della partita, quindi la stessa copia
+// in cache: nessun peso in piu' sulla rete) che apre GCR3D.vetrina, cioe' 20_mafiosi.js con gli
+// stessi shader e la stessa luce. Nessuna citta', nessuna rete, nessun suono: 2 draw call.
+//   · nasce SOLO quando si apre l'editor e muore quando si chiude (la lobby non paga niente)
+//   · si trascina col dito e col mouse (il dito lo prende l'iframe); da sola gira piano
+//   · scelta di figura/abito/completo/cappello/pelle/extra/finitura = cambio immediato
+//   · se qualcosa non va (niente WebGL2, contesto perso, non pronta in 25 s) torna l'anteprima 2D
+//     di prima, senza buchi: il riquadro e' lo stesso e il 2D sta sotto, gia' disegnato.
+// auto, insegna ed effetto KO non stanno sul corpo: restano le targhette qui sotto (gcrEdBadge).
+var GCR_VET={fr:null,g:null,ok:false,t0:0,tim:null,vig:null,err:null,mai:false};
+// Quanto si aspetta il 3D. Non e' un limite di prestazioni: e' il limite oltre il quale si smette di
+// sperare. Intanto il 2D e' sulla tela e si usa l'editor come prima, quindi aspettare non costa niente;
+// su un telefono lento in 4G il gcr3d.html (400 KB con gzip, spesso gia' in cache per la partita) puo'
+// prendersi una decina di secondi. Misurato in 4G + CPU x4: ~9 s a cache fredda.
+var GCR_VET_MAX=25000;
+function gcrVetSrc(){return 'gcr3d.html?v='+encodeURIComponent(TWR3D_VER)+'&lang='+((window.GB_LANG==='en')?'en':'it');}
+function gcrVetBox(){return document.getElementById('gcr-ed-3d');}
+function gcrVetApri(){
+  if(GCR_VET.mai)return false;
+  var host=gcrVetBox();if(!host)return false;
+  if(GCR_VET.fr)return true;
+  if(typeof twr3dBase!=='function'||!twr3dBase()){GCR_VET.mai=true;return false;}   // niente WebGL2, o 3D spento a mano
+  var fr=document.createElement('iframe');
+  fr.id='gcr-vet';fr.setAttribute('aria-hidden','true');fr.setAttribute('tabindex','-1');fr.setAttribute('scrolling','no');
+  fr.style.cssText='position:absolute;left:0;top:0;width:100%;height:100%;border:0;display:block;background:transparent;';
+  fr.src=gcrVetSrc();
+  host.appendChild(fr);
+  GCR_VET.fr=fr;GCR_VET.t0=Date.now();GCR_VET.ok=false;GCR_VET.err=null;GCR_VET.g=null;
+  var scaduta=function(){return Date.now()-GCR_VET.t0>GCR_VET_MAX;};
+  var aspettaFoto=function(g){
+    if(GCR_VET.fr!==fr)return;
+    if(g.vetrina.errore)return gcrVet2D('vetrina: '+g.vetrina.errore);
+    if(g.vetrina.fotogrammi>0)return gcrVetMostra();
+    if(scaduta())return gcrVet2D('vetrina: nessun fotogramma in '+GCR_VET_MAX+' ms');
+    GCR_VET.tim=setTimeout(function(){aspettaFoto(g);},60);
+  };
+  var prova=function(){
+    if(GCR_VET.fr!==fr)return;
+    var g=null;try{g=fr.contentWindow&&fr.contentWindow.GCR3D;}catch(e){g=null;}
+    if(g&&g.errore)return gcrVet2D('gcr3d: '+g.errore);
+    if(g&&g.pronto&&g.vetrina){
+      var ok=false;
+      try{ok=g.vetrina.avvia({look:gcrNorm(GCR_ED.look||gcrLook()),arma:'PISTOL'});}catch(e){GCR_VET.err=String((e&&e.message)||e);}
+      if(!ok)return gcrVet2D('vetrina: '+((g.vetrina&&g.vetrina.errore)||GCR_VET.err||'avvia no'));
+      GCR_VET.g=g;aspettaFoto(g);return;
+    }
+    if(g&&g.pronto&&!g.vetrina)return gcrVet2D('gcr3d vecchio: niente vetrina');
+    if(scaduta())return gcrVet2D('gcr3d: non pronto in '+GCR_VET_MAX+' ms');
+    GCR_VET.tim=setTimeout(prova,80);
+  };
+  GCR_VET.tim=setTimeout(prova,60);
+  return true;
+}
+function gcrVetMostra(){
+  var host=gcrVetBox(),cv=document.getElementById('gcr-ed-cv'),su=document.getElementById('gcr-ed-gira');
+  if(!host)return;
+  GCR_VET.ok=true;
+  host.style.display='block';
+  if(cv)cv.style.visibility='hidden';
+  if(su)su.style.display='block';
+  if(GCR_ED.raf){cancelAnimationFrame(GCR_ED.raf);GCR_ED.raf=null;}   // il 2D smette di ridisegnare sotto
+  if(GCR_VET.vig)clearInterval(GCR_VET.vig);
+  GCR_VET.vig=setInterval(function(){
+    var g=GCR_VET.g;if(!g||!GCR_VET.fr){return;}
+    try{
+      if(g.errore||(g.vetrina&&g.vetrina.errore))return gcrVet2D('vetrina: '+((g.vetrina&&g.vetrina.errore)||g.errore));
+      // se nel frattempo parte la partita (l'editor era rimasto aperto): la vetrina se ne va, il 3D vero ha la precedenza
+      if(typeof TWR!=='undefined'&&TWR&&(TWR.ui==='match'||TWR.ui==='search'||TWR.ui==='spec'))return gcrVet2D('partita in corso');
+      if(g.vetrina&&g.vetrina.toccata&&su)su.style.display='none';
+    }catch(e){gcrVet2D('vetrina: '+String((e&&e.message)||e));}
+  },700);
+}
+// il ripiego: via il 3D, torna l'anteprima di prima (stesso riquadro, nessun buco)
+function gcrVet2D(perche){
+  try{console.warn('[vetrina] torno al 2D: '+perche);}catch(e){}
+  GCR_VET.err=perche;GCR_VET.ok=false;GCR_VET.mai=true;
+  gcrVetButta();
+  var cv=document.getElementById('gcr-ed-cv'),su=document.getElementById('gcr-ed-gira'),host=gcrVetBox();
+  if(host)host.style.display='none';
+  if(su)su.style.display='none';
+  if(cv){cv.style.visibility='visible';gcrEdLoop2D();}
+}
+function gcrVetButta(){
+  if(GCR_VET.tim){clearTimeout(GCR_VET.tim);GCR_VET.tim=null;}
+  if(GCR_VET.vig){clearInterval(GCR_VET.vig);GCR_VET.vig=null;}
+  try{if(GCR_VET.g&&GCR_VET.g.vetrina)GCR_VET.g.vetrina.ferma();}catch(e){}
+  try{if(GCR_VET.fr&&GCR_VET.fr.parentNode)GCR_VET.fr.parentNode.removeChild(GCR_VET.fr);}catch(e){}
+  GCR_VET.fr=null;GCR_VET.g=null;
+}
+function gcrVetChiudi(){GCR_VET.ok=false;GCR_VET.mai=false;gcrVetButta();}
+function gcrVetLook(){
+  if(!GCR_VET.ok||!GCR_VET.g||!GCR_ED.look)return;
+  try{GCR_VET.g.vetrina.look(gcrNorm(GCR_ED.look));}catch(e){gcrVet2D('look: '+String((e&&e.message)||e));}
+}
+function gcrVetInfo(){try{return GCR_VET.g&&GCR_VET.g.vetrina?GCR_VET.g.vetrina.info():null;}catch(e){return null;}}
+// il giro del 2D: si accende solo quando il 3D non c'e' (riserva) e si spegne da solo a editor chiuso
+function gcrEdLoop2D(){
+  if(GCR_ED.raf)cancelAnimationFrame(GCR_ED.raf);
   var loop=function(){
     var cv=document.getElementById('gcr-ed-cv');
-    if(!cv||!GCR_ED.look){GCR_ED.raf=null;return;}
+    if(!cv||!GCR_ED.look||GCR_VET.ok){GCR_ED.raf=null;return;}
     gcrAnteprima(cv,GCR_ED.look,false);GCR_ED.raf=requestAnimationFrame(loop);
   };
-  if(GCR_ED.raf)cancelAnimationFrame(GCR_ED.raf);
   GCR_ED.raf=requestAnimationFrame(loop);
+}
+// auto, insegna ed effetto KO non si vedono addosso: targhette sotto il riquadro (in italiano e in inglese)
+function gcrEdBadge(){
+  var h=document.getElementById('gcr-ed-badge');if(!h||!GCR_ED.look)return;
+  var g=gcrNorm(GCR_ED.look),en=gcr2En(),s='';
+  var pezzo=function(ic,txt){return '<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:999px;padding:2px 8px;font-size:10px;color:var(--txt2,#cbd5e1);">'+ic+'<b style="font-weight:700;letter-spacing:.03em;">'+txt+'</b></span>';};
+  s+=pezzo('<span style="display:inline-block;width:9px;height:9px;border-radius:3px;background:'+(GCR2_AUTO_HEX[g.au]||'#6b7280')+';"></span>',(en?'CAR':'AUTO')+' · '+gcr2N(GCR2_NOMI.au,g.au));
+  s+=pezzo(GCR2_INS_EMOJI[g.ins]||'—',(en?'EMBLEM':'INSEGNA')+' · '+gcr2N(GCR2_NOMI.ins,g.ins));
+  s+=pezzo(GCR2_MO_EMOJI[g.mo]||'—',(en?'TAKEDOWN':'EFFETTO KO')+' · '+gcr2N(GCR2_NOMI.mo,g.mo));
+  h.innerHTML=s;
 }
 function gcrEdSezioni(){
   var host=document.getElementById('gcr-secs');if(!host||!GCR_ED.look)return;
@@ -46933,7 +47052,7 @@ function gcrEdSegna(){
 function gcrEdSet(f,v){
   if(!GCR_ED.look)return;
   if(f!=='suit'&&f!=='hatCol'){if(gcr2Stato(f,v|0)!==0)return gcrEdBloccato(f,v);v=v|0;}
-  GCR_ED.look[f]=v;gcrEdSegna();
+  GCR_ED.look[f]=v;gcrEdSegna();gcrEdBadge();gcrVetLook();   // VETRINA_2009: la scelta si vede subito sul 3D
   try{TWS.play('pick',0.5);}catch(e){}
 }
 function gcrEdBloccato(f,i){
@@ -46960,6 +47079,7 @@ function gcrEdSalva(){
 }
 function gcrEdChiudi(){
   if(GCR_ED.raf){cancelAnimationFrame(GCR_ED.raf);GCR_ED.raf=null;}
+  gcrVetChiudi();   // VETRINA_2009: l'iframe della vetrina se ne va con l'editor (la lobby non paga niente)
   GCR_ED.look=null;twrOvClose();
 }
 // hook di cosClaim/cosEquip: rinfresca l'editor aperto (lucchetti e griglia) e, all'equip, il look nuovo
@@ -46968,6 +47088,7 @@ function gcr2OnCos(mode){
   TWR._myGcr=null;
   if(document.getElementById('gcr-ed-cv')&&GCR_ED.look){
     GCR_ED.look=gcrLook();gcrEdSezioni();gcr2Griglia(document.getElementById('gcr-skins'));
+    gcrEdBadge();gcrVetLook();   // VETRINA_2009
   }
 }
 function twrLookSync(){
@@ -79804,6 +79925,45 @@ function rtdDrawShove(ctx,raw,lp,now,w,hh){
     } catch (e) { }
   }
 
+  // ── LA FINESTRA DI TELEGRAM CHE SCAPPA (20/09) ────────────────────────────
+  // Difetto del proprietario: tirando GIU' la barra della potenza la schermata
+  // «va su e giu' come se si volesse togliere». Quel gesto NON e' della pagina:
+  // e' il client Telegram che legge lo scorrimento verticale come «chiudi la
+  // mini app», e ne' `touch-action:none` ne' `preventDefault` lo fermano.
+  // La cura e' quella che gia' usano i nostri tavoli in sovrapposizione
+  // (BOXE-RT, LUPUS, DEADPEAK, LAST CALL): `expand` + `disableVerticalSwipes`
+  // quando si apre il tavolo, `enableVerticalSwipes` quando si chiude.
+  // ⚠️ QUELLO CHE NON SI FA: gli altri congelano anche i contenitori che
+  // scorrono (`bx2Blocca`). Qui NO, e per una misura: sul tavolo del biliardo
+  // l'unico contenitore che verrebbe congelato e' `#arc-modal` (la finestrella
+  // dei messaggi, nascosta), e se poi si apre con un testo lungo non si
+  // scorrerebbe piu'. La tela ha gia' `touch-action:none`, quindi la pagina
+  // sotto non slitta comunque: il congelamento non serve e puo' solo togliere
+  // uno scorrimento che serve.
+  // Se l'API non ci fosse (client Telegram vecchi) si perde la cura, non la
+  // partita: tutto sotto `typeof` e `try`.
+  // ⚠️ LA CURA VALE SOLO SUL TAVOLO: si mette quando nasce il client del
+  // biliardo e si toglie quando muore (`p2Close`), mai su tutta la pagina —
+  // elenchi, istruzioni e lobby devono continuare a scorrere.
+  var TGH = false;
+  function tgTieni() {
+    if (TGH) return; TGH = true;
+    try {
+      var w = root.Telegram && root.Telegram.WebApp;
+      if (w) {
+        if (typeof w.expand === 'function') w.expand();
+        if (typeof w.disableVerticalSwipes === 'function') w.disableVerticalSwipes();
+      }
+    } catch (e) { }
+  }
+  function tgLascia() {
+    if (!TGH) return; TGH = false;
+    try {
+      var w = root.Telegram && root.Telegram.WebApp;
+      if (w && typeof w.enableVerticalSwipes === 'function') w.enableVerticalSwipes();
+    } catch (e) { }
+  }
+
   // ═════════════════════════════════════════════════════════════════════════
   // LE BILIE — sfere vere, disegnate pixel per pixel dall'orientamento
   // ═════════════════════════════════════════════════════════════════════════
@@ -80072,7 +80232,13 @@ function rtdDrawShove(ctx,raw,lp,now,w,hh){
     this.msgs = []; this.fx = []; this.trail = []; this.potAnim = [];
     this.strike = null;               // animazione della stecca che colpisce
     this.turnSeen = null; this.tick5 = -1; this.oppAim = null;
-    this.layout(); this.bindInput();
+    this.layout(); this.bindInput(); tgTieni();
+    // LA CINTURA: la pagina puo' uscire dal biliardo per strade che non
+    // distruggono il client (es. `go('home')` lascia la tela attaccata ma
+    // nascosta). Se non si restituisse lo scorrimento, elenchi e lobby
+    // resterebbero fermi per tutta la sessione: peggio del difetto. Quindi
+    // ogni mezzo secondo si guarda se la tela e' ancora attaccata e visibile.
+    this._tgT = root.setInterval(function () { P.tgGuarda(); }, 500);
   }
   var CP = Client.prototype;
 
@@ -80411,8 +80577,15 @@ function rtdDrawShove(ctx,raw,lp,now,w,hh){
     root.addEventListener('keydown', this._key);
     cv.style.touchAction = 'none';
   };
+  CP.tgGuarda = function () {
+    var viva = false;
+    try { viva = !!(this.cv && this.cv.isConnected && this.cv.offsetParent); } catch (e) { viva = false; }
+    if (viva) tgTieni(); else tgLascia();
+  };
   CP.destroy = function () {
     var cv = this.cv;
+    if (this._tgT) { try { root.clearInterval(this._tgT); } catch (e) { } this._tgT = null; }
+    tgLascia();
     if (this.bgcv) { try { this.bgcv.remove(); } catch (e) { } this.bgcv = null; }
     cv.removeEventListener('pointerdown', this._down); cv.removeEventListener('pointermove', this._move);
     cv.removeEventListener('pointerup', this._up); cv.removeEventListener('pointercancel', this._up);

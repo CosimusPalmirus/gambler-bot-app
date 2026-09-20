@@ -8242,6 +8242,17 @@ vC=aCol*ic; vE=0.0; gl_Position=projectionMatrix*viewMatrix*w; }`;
   const THREE = window.THREE, G3 = window.G3, U = G3.U, MM = G3.M;
   const V3 = new THREE.Vector3(), V3b = new THREE.Vector3();
 
+  // VETRINA_2009: la FIGURA del look, una copia sola (la partita e la vetrina dell'editor chiamano questa)
+  G3.archetipoDi = function (lk, pid) {
+    const intero = (v, a, b) => { v = v | 0; return v < a || v > b ? 0 : v; };
+    if (!lk) { let h = 0; const s = String(pid); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h % 6; }
+    const ar = intero(lk.ar, 0, 6); if (ar > 0) return ar - 1;          // GCR figura scelta: 1 boss .. 6 consigliere
+    const hat = lk.hat | 0, acc = lk.acc | 0;
+    if (hat === 0) return acc === 1 ? 1 : 0; if (hat === 1) return 2; if (hat === 2) return 3; if (hat === 3) return 5;
+    if (hat === 5 || hat === 8) return acc === 1 ? 1 : 0; if (hat === 6) return 1; if (hat === 7) return 3;   // GCR AUTO: bombetta e fedora con piuma come la fedora, panama al sicario, basco al picciotto
+    return 4;
+  };
+
   function crea(ctx) {
     // ctx: { scene, camera, renderer, M, citta, occ, cam, ospite, TWR }
     const { scene, camera, M, citta, occ, cam } = ctx;
@@ -8293,14 +8304,7 @@ vC=aCol*ic; vE=0.0; gl_Position=projectionMatrix*viewMatrix*w; }`;
     // GCR: prima il look nuovo della pagina (ospite.gcrLookOf, gia' normalizzato), se no il vecchio (campi nuovi = 0)
     function look(pid) { try { if (OS.gcrLookOf) { const g = OS.gcrLookOf(pid); if (g) return g; } return OS.twrLookOf ? OS.twrLookOf(pid) : null; } catch (e) { return null; } }
     const intero = (v, a, b) => { v = v | 0; return v < a || v > b ? 0 : v; };
-    function archetipo(lk, pid) {
-      if (!lk) { let h = 0; const s = String(pid); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h % 6; }
-      const ar = intero(lk.ar, 0, 6); if (ar > 0) return ar - 1;          // GCR figura scelta: 1 boss .. 6 consigliere
-      const hat = lk.hat | 0, acc = lk.acc | 0;
-      if (hat === 0) return acc === 1 ? 1 : 0; if (hat === 1) return 2; if (hat === 2) return 3; if (hat === 3) return 5;
-      if (hat === 5 || hat === 8) return acc === 1 ? 1 : 0; if (hat === 6) return 1; if (hat === 7) return 3;   // GCR AUTO: bombetta e fedora con piuma come la fedora, panama al sicario, basco al picciotto
-      return 4;
-    }
+    const archetipo = G3.archetipoDi;   // VETRINA_2009: sale al modulo (la vetrina dell'editor usa la stessa)
     // GCR · insegne in coda: si disegnano DOPO tutti i segni (se la pool e' piena si perde un'insegna, mai una vita o un nome)
     const GCR_AUTO = G3.segni.GCR_AUTO, GCR_INSEGNE = G3.segni.GCR_INSEGNE;
     const INS_Q = []; let insN = 0; for (let i = 0; i < 48; i++) INS_Q.push({ x: 0, y: 0, z: 0, e: '', s: 0, a: 0, sopra: false });
@@ -10410,6 +10414,7 @@ void main(){ vec4 w=modelMatrix*vec4(position,1.0); vW=w.xyz; vN=normalize(mat3(
     renderer.setClearColor(G3.PAL.fuori);
     renderer.info.autoReset = true;
     GCR3D.pronto = true;
+    G3.renderer = renderer;   // VETRINA_2009: la vetrina dell'editor disegna con QUESTO renderer
     // telefono che perde il contesto (memoria, app in background): la pagina torna al 2D (fotogramma lancia → twr3dCade)
     cv.addEventListener('webglcontextlost', ev => { ev.preventDefault(); GCR3D.perso = true; GCR3D.errore = 'WebGL: contesto perso'; }, false);
   } catch (e) { GCR3D.errore = String(e && e.message || e); }
@@ -10489,6 +10494,7 @@ void main(){ vec4 w=modelMatrix*vec4(position,1.0); vW=w.xyz; vN=normalize(mat3(
   GCR3D.avvia = function (o) {
     if (!GCR3D.pronto) return false;
     try {
+      if (GCR3D.vetrina && GCR3D.vetrina.attiva()) GCR3D.vetrina.ferma();   // VETRINA_2009: la partita vince sulla vetrina
       if (S) { S.attivo = false; try { S.mondo.dispose(); } catch (e) { } BUTTARE.push(S); S = null; }
       if (PREP) { prepTok++; if (PREP.S) BUTTARE.push(PREP.S); PREP.S = null; if (PREP.stato !== 'pronto') PREP.stato = 'annullato'; }
       else PREP = { stato: 'saltato' };
@@ -10737,6 +10743,247 @@ void main(){ vec4 w=modelMatrix*vec4(position,1.0); vW=w.xyz; vN=normalize(mat3(
   // per i banchi
   GCR3D._S = () => S;
   GCR3D.perf = on => { mostraPerf = on; if (elPerf) elPerf.hidden = !on; };
+})();
+
+
+/* ===== 95_vetrina.js ===== */
+/* ═══════════════════════════════════════════════════════════════════════════
+   95_vetrina.js — LA VETRINA DEL MAFIOSO (editor3d_2009, 20/09)
+   ───────────────────────────────────────────────────────────────────────────
+   Il proprietario: «designer del mafioso non fa vedere il modello in 3D».
+   L'anteprima dell'editor era il DISEGNO 2D di ieri (twrDrawDude) piu' qualche
+   emoji: si comprava una cosa e se ne vedeva un'altra. Qui c'e' l'omino VERO,
+   lo stesso di 20_mafiosi.js che si vede in partita, con gli stessi shader
+   (G3.materialiAttore) e la stessa tavolozza (G3.PAL).
+
+   COSA NON E': non e' la citta'. Niente mappa, niente palazzi, niente auto,
+   niente FX, niente audio, niente rete. Una scena con UN omino e un disco di
+   pavimento: 2 draw call, ~1000 triangoli, 2 programmi.
+
+   LA LUCE E' QUELLA DELLA PARTITA: le uniformi condivise (G3.U) restano quelle
+   del gioco; si spengono solo nebbia, buio e luci dinamiche (uFogOn=0), cioe'
+   esattamente come si vede il PROPRIO mafioso sotto gli occhi, in mezzo al
+   cerchio della vista, di notte, senza esplosioni intorno.
+
+   CONTRATTO (lo usa la patch della pagina, twrOpenEditor):
+     GCR3D.vetrina.avvia({look, arma, sfondo}) -> true/false   (una sola volta)
+     GCR3D.vetrina.look(lk)                  cambio immediato di completo/cappello/pelle/...
+     GCR3D.vetrina.gira(rad)                 gira di tanto (la pagina non la usa: il dito e' qui)
+     GCR3D.vetrina.attiva()                  true se sta disegnando
+     GCR3D.vetrina.fotogrammi                quanti fotogrammi ha disegnato (la pagina aspetta il primo)
+     GCR3D.vetrina.errore                    null | stringa (la pagina torna al 2D)
+     GCR3D.vetrina.info()                    {fps, ms_p50, ms_p95, calls, tris, programmi, memoria}
+     GCR3D.vetrina.ferma()                   smette e libera (la pagina poi butta l'iframe)
+   Il dito e il mouse li prende QUESTO file sulla sua tela: trascinare gira,
+   lasciare riprende la giostra lenta dopo un secondo e mezzo.
+   ═══════════════════════════════════════════════════════════════════════════ */
+(function () {
+  'use strict';
+  const THREE = window.THREE, G3 = window.G3, U = G3.U;
+  const GCR3D = window.GCR3D;
+  if (!GCR3D) return;
+
+  const VET = GCR3D.vetrina = { fotogrammi: 0, errore: null, toccata: false, versione: 'vetrina-20260920' };
+  let V = null;
+
+  // ── la luce della partita, senza nebbia ne' buio ──────────────────────────
+  function luceVetrina() {
+    U.uFogOn.value = 0;            // luce() = 1: pieno, come sotto i propri occhi
+    U.uBuio.value = 0; U.uDentro.value = 0; U.uFlag.value = 0;
+    U.uZone.value.set(0, 99);
+    U.uMe.value.set(0, 0, 99, -1);
+    U.uCasId.value = -9; U.uCasBase.value = 0;
+    const LP = U.uLP.value; for (let i = 0; i < LP.length; i++) LP[i].w = 0;
+  }
+
+  // ── il disco di pavimento: pozza di luce + ombra di contatto (1 programma) ─
+  const PAV_R = 1.9;
+  function pavimento() {
+    const geo = new THREE.CircleGeometry(PAV_R, 48);
+    geo.rotateX(-Math.PI / 2);
+    const mat = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false,
+      uniforms: { uPozza: { value: new THREE.Vector3(0.115, 0.165, 0.265) }, uOrlo: { value: new THREE.Vector3(0.030, 0.045, 0.080) } },
+      vertexShader: `varying vec2 vP; void main(){ vP=position.xz; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+      fragmentShader: `precision mediump float; uniform vec3 uPozza; uniform vec3 uOrlo; varying vec2 vP;
+void main(){
+  float r=length(vP)/${PAV_R.toFixed(2)};
+  float pozza=1.0-smoothstep(0.0,1.0,r);
+  float ombra=1.0-smoothstep(0.0,0.30,length(vP));
+  vec3 c=mix(uOrlo,uPozza,pozza);
+  c*=1.0-ombra*0.78;
+  gl_FragColor=vec4(c,pozza*0.95);
+}`
+    });
+    const m = new THREE.Mesh(geo, mat);
+    m.renderOrder = 0; m.frustumCulled = false; m.name = 'vetrina_pavimento';
+    return m;
+  }
+
+  // ── misura del fotogramma ─────────────────────────────────────────────────
+  function misura() { return { n: 0, ms: [], iv: [], ultimo: 0, fps: 0 }; }
+  const ord = a => a.slice().sort((x, y) => x - y);
+  const perc = (a, q) => (a.length ? a[Math.min(a.length - 1, Math.floor(a.length * q))] : 0);
+
+  VET.avvia = function (o) {
+    o = o || {};
+    if (V) { if (o.look) VET.look(o.look); return true; }
+    if (!GCR3D.pronto) { VET.errore = GCR3D.errore || 'WebGL2 assente'; return false; }
+    if (GCR3D._S && GCR3D._S()) { VET.errore = 'partita in corso'; return false; }
+    try {
+      const renderer = G3.renderer;
+      if (!renderer) throw new Error('renderer assente');
+      const cv = renderer.domElement;
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(26, 1, 0.05, 40);
+      luceVetrina();
+      const pav = pavimento(); scene.add(pav);
+      // max 1 = UN omino. riscalda:false e contaTri:false sono i due interruttori che 20_mafiosi.js tiene
+      // apposta per questo caso: il riscaldamento del JIT vuole 24 slot (con 1 solo va a sbattere) e il conto
+      // dei triangoli peggiori e' roba da partita. Niente blocchi all'apertura dell'editor.
+      const R = G3.mafiosi.crea(scene, { max: 1, scala: G3.OMINO.scala, fx: null, sangue: 0, contaTri: false, riscalda: false });
+      if (R.xray) R.xray(false);
+      renderer.setClearColor(o.sfondo || '#0a1220', 1);
+      V = {
+        scene, camera, R, pav, cv, renderer,
+        look: o.look || null, arma: o.arma || 'PISTOL',
+        ang: 0, giu: false, lx: 0, tocco: 0, t0: performance.now(), tPrec: performance.now(),
+        raf: null, M: misura(), w: 0, h: 0, pr: 0
+      };
+      VET.fotogrammi = 0; VET.errore = null;
+      ridimensiona(true);
+      // primo fotogramma: i programmi si compilano ADESSO (l'editor si apre gia' disegnato)
+      passo(performance.now(), 0);
+      legaDito();
+      V.raf = requestAnimationFrame(giro);
+      return true;
+    } catch (e) {
+      VET.errore = String((e && e.message) || e);
+      try { console.error('[vetrina]', e); } catch (x) { }
+      butta();
+      return false;
+    }
+  };
+
+  function ridimensiona(forza) {
+    const w = window.innerWidth || 240, h = window.innerHeight || 300;
+    const pr = Math.min(2, window.devicePixelRatio || 1);
+    if (!forza && w === V.w && h === V.h && pr === V.pr) return;
+    V.w = w; V.h = h; V.pr = pr;
+    if (V.renderer.getPixelRatio() !== pr) V.renderer.setPixelRatio(pr);
+    V.renderer.setSize(w, h, false);
+    V.camera.aspect = w / Math.max(1, h);
+    // il riquadro largo e basso (telefono girato) vede l'omino piu' da lontano
+    V.camera.fov = V.camera.aspect > 1.15 ? TEL.fovLargo : TEL.fov;
+    V.camera.updateProjectionMatrix();
+  }
+
+  // la giostra: ferma sotto il dito, lenta da sola dopo 1,5 s
+  const GIRO_LENTO = 0.34;      // rad/s (un giro in ~18 s)
+  const ATTESA = 1500;
+  // IL TELAIO. L'omino e' fatto per essere letto DALL'ALTO a 40 px (testa e cappello eroici, TESTA_K/CAP_K
+  // in 20_mafiosi.js): a occhio d'uomo la tesa del cappello copre la faccia e la PELLE non si vedrebbe.
+  // Percio' la vetrina guarda da poco sopra la cintura, quasi in piano: sotto la tesa, faccia in vista.
+  // Numeri scelti col banco banchi/telaio.mjs (foglio foto/telaio_*.png).
+  const TEL = { raggio: 3.10, alto: 0.95, mira: 0.50, fov: 26, fovLargo: 31 };
+  VET.telaio = function (o) { if (o) { for (const k in o) if (TEL[k] != null && o[k] != null) TEL[k] = o[k]; if (V) ridimensiona(true); } return TEL; };
+  function passo(now, dt) {
+    ridimensiona(false);
+    if (!V.giu && now - V.tocco > ATTESA) V.ang += GIRO_LENTO * dt;
+    V.camera.position.set(Math.cos(V.ang) * TEL.raggio, TEL.alto, Math.sin(V.ang) * TEL.raggio);
+    V.camera.lookAt(0, TEL.mira, 0);
+    U.uTime.value = (now - V.t0) / 1000;
+    U.uCamR.value.set(1, 0, 0).applyQuaternion(V.camera.quaternion);
+    U.uCamU.value.set(0, 1, 0).applyQuaternion(V.camera.quaternion);
+    const lk = V.look;
+    V.R.inizio();
+    V.R.aggiungi('vetrina', {
+      x: 0, y: 0, hy: 0, fx: 1, fy: 0, vel: 0, arma: V.arma,
+      look: lk, archetipo: G3.archetipoDi(lk, 'vetrina'), squadra: '#22d3ee',
+      io: true, vivo: true, nascosto: false, alfa: 1, lampeggia: false, giubbotto: false, eventi: {}
+    });
+    V.R.fine(dt, U.uTime.value);
+    V.renderer.render(V.scene, V.camera);
+    VET.fotogrammi++;
+  }
+
+  function giro() {
+    if (!V) return;
+    const t0 = performance.now();
+    try {
+      if (GCR3D.perso) throw new Error('WebGL: contesto perso');
+      const dt = Math.min(0.1, (t0 - V.tPrec) / 1000); V.tPrec = t0;
+      passo(t0, dt);
+    } catch (e) {
+      VET.errore = String((e && e.message) || e);
+      try { console.error('[vetrina]', e); } catch (x) { }
+      butta();
+      return;
+    }
+    const M = V.M, t1 = performance.now();
+    M.ms.push(t1 - t0); if (M.ms.length > 400) M.ms.shift();
+    if (M.ultimo) { const iv = t0 - M.ultimo; M.iv.push(iv); if (M.iv.length > 400) M.iv.shift(); M.fps = M.fps ? M.fps * 0.92 + (1000 / Math.max(1, iv)) * 0.08 : 1000 / Math.max(1, iv); }
+    M.ultimo = t0;
+    V.raf = requestAnimationFrame(giro);
+  }
+
+  // ── il dito e il mouse: trascinare gira ───────────────────────────────────
+  let legati = false;
+  function legaDito() {
+    if (legati) return; legati = true;
+    const cv = V.cv;
+    const giu = e => { if (!V) return; V.giu = true; V.lx = e.clientX; V.tocco = performance.now(); VET.toccata = true; try { cv.setPointerCapture(e.pointerId); } catch (x) { } };
+    const muovi = e => {
+      if (!V || !V.giu) return;
+      const dx = e.clientX - V.lx; V.lx = e.clientX; V.tocco = performance.now();
+      V.ang -= dx * 0.011;          // dito a destra = l'omino gira verso destra
+      if (e.cancelable) e.preventDefault();
+    };
+    const su = e => { if (!V) return; V.giu = false; V.tocco = performance.now(); try { cv.releasePointerCapture(e.pointerId); } catch (x) { } };
+    cv.addEventListener('pointerdown', giu, { passive: true });
+    cv.addEventListener('pointermove', muovi, { passive: false });
+    cv.addEventListener('pointerup', su, { passive: true });
+    cv.addEventListener('pointercancel', su, { passive: true });
+    cv.addEventListener('pointerleave', su, { passive: true });
+    window.addEventListener('resize', () => { if (V) ridimensiona(true); }, { passive: true });
+  }
+
+  VET.look = function (lk) { if (V) { V.look = lk || null; V.tocco = V.tocco || 0; } };
+  VET.arma = function (a) { if (V && a) V.arma = a; };
+  VET.gira = function (rad) { if (V) { V.ang += rad || 0; V.tocco = performance.now(); } };
+  VET.angolo = function (rad) { if (V && rad != null) { V.ang = rad; V.tocco = performance.now(); } return V ? V.ang : 0; };
+  VET.attiva = function () { return !!(V && V.raf != null); };
+
+  VET.info = function () {
+    const r = G3.renderer, M = V ? V.M : misura();
+    const ms = ord(M.ms), iv = ord(M.iv);
+    return {
+      fotogrammi: VET.fotogrammi, fps: +(M.fps || 0).toFixed(0),
+      ms_p50: +perc(ms, 0.5).toFixed(2), ms_p95: +perc(ms, 0.95).toFixed(2), ms_max: +((ms[ms.length - 1]) || 0).toFixed(2),
+      intervallo_p95: +perc(iv, 0.95).toFixed(2),
+      calls: r ? r.info.render.calls : 0, tris: r ? r.info.render.triangles : 0,
+      programmi: r ? r.info.programs.length : 0, memoria: r ? { geometrie: r.info.memory.geometries, texture: r.info.memory.textures } : null,
+      pr: r ? r.getPixelRatio() : 0, taglia: V ? [V.w, V.h] : null, errore: VET.errore
+    };
+  };
+
+  function butta() {
+    if (!V) return;
+    if (V.raf != null) { cancelAnimationFrame(V.raf); V.raf = null; }
+    try {
+      V.scene.traverse(o => {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => {
+          const u = m.uniforms || {}; for (const k in u) { const x = u[k] && u[k].value; if (x && x.isTexture) x.dispose(); }
+          m.dispose();
+        });
+      });
+    } catch (e) { }
+    try { G3.renderer.renderLists.dispose(); } catch (e) { }
+    U.uFogOn.value = 1;            // le uniformi tornano come le trova una partita
+    V = null;
+  }
+  VET.ferma = function () { butta(); VET.fotogrammi = 0; };
 })();
 
 </script>
