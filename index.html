@@ -80102,7 +80102,7 @@ function rtdDrawShove(ctx,raw,lp,now,w,hh){
     var tw = (land ? Lo : Wo) * s, th = (land ? Wo : Lo) * s;
     this.tr = { x: ax + (aw - tw) / 2, y: ay + (ah - th) / 2, w: tw, h: th };
     var bg = this.bgEnsure();
-    if (bg) { bg.width = cv.width; bg.height = cv.height; this.bgDirty = true; }
+    if (bg) { bg.width = cv.width; bg.height = cv.height; this.bgDirty = true; this.bgPosa(); }
     this.ox = this.tr.x + RAIL * s; this.oy = this.tr.y + RAIL * s;
     if (side) {
       var sw = Math.max(26, Math.min(34, this.tr.x + RAIL * s - 2));
@@ -80133,19 +80133,52 @@ function rtdDrawShove(ctx,raw,lp,now,w,hh){
   };
   // la tela di sotto: ci sta il tavolo, e non si ridisegna a ogni fotogramma
   CP.bgEnsure = function () {
-    if (this.o.noBg) return null;
+    if (this.o.noBg || this.bgNo) return null;
     if (this.bgcv) return this.bgcv;
     var par = this.cv.parentNode;
     if (!par) return null;
     var b = document.createElement('canvas');
     b.id = (this.cv.id || 'p2') + '-bg';
-    b.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;display:block;pointer-events:none;z-index:0;';
+    b.style.cssText = 'position:absolute;left:0;top:0;width:10px;height:10px;display:block;pointer-events:none;z-index:0;';
     try { par.insertBefore(b, this.cv); } catch (e) { return null; }
-    var cs = this.cv.style;
-    if (!cs.position) cs.position = 'relative';
-    cs.zIndex = '1';
+    // ⚠️ LA POSIZIONE DELLA TELA DEL GIOCO NON SI TOCCA. Qui prima c'era
+    //    `if (!cs.position) cs.position = 'relative'`: lo stile in linea era
+    //    vuoto (la pagina la mette `absolute` dal foglio di stile), quindi
+    //    quella riga la rendeva `relative` e la tela finiva CENTRATA dal flex
+    //    del riquadro — 163 px piu' in la' del tavolo, su un telefono.
+    //    Si guarda lo stile CALCOLATO e si interviene solo se e' `static`,
+    //    cioe' quando davvero non e' posizionata (e allora `relative` non la
+    //    sposta di un pixel).
+    var pos = '';
+    try { pos = root.getComputedStyle(this.cv).position; } catch (e) { pos = ''; }
+    if (pos === 'static' || pos === '') this.cv.style.position = 'relative';
+    this.cv.style.zIndex = '1';
     this.bgcv = b; this.bgctx = b.getContext('2d'); this.bgDirty = true;
     return b;
+  };
+
+  // la tela del tavolo si posa ESATTAMENTE dove sta la tela del gioco, misurando
+  // tutte e due; se non combaciano si rinuncia e il tavolo torna nella tela unica
+  CP.bgPosa = function () {
+    var b = this.bgcv;
+    if (!b) return;
+    var par = b.offsetParent || b.parentNode;
+    var rc = this.cv.getBoundingClientRect();
+    var rp = par && par.getBoundingClientRect ? par.getBoundingClientRect() : { left: 0, top: 0 };
+    b.style.left = (rc.left - rp.left) + 'px';
+    b.style.top = (rc.top - rp.top) + 'px';
+    b.style.width = rc.width + 'px';
+    b.style.height = rc.height + 'px';
+    var rb = b.getBoundingClientRect();
+    var d = Math.max(Math.abs(rb.left - rc.left), Math.abs(rb.top - rc.top),
+      Math.abs(rb.width - rc.width), Math.abs(rb.height - rc.height));
+    if (!(d < 0.5)) {
+      // niente acrobazie su un gioco a soldi: si torna alla tela unica
+      this.bgNo = true;
+      try { b.remove(); } catch (e) { }
+      this.bgcv = null; this.bgctx = null;
+      this.bgScarto = d;
+    }
   };
 
   // tavolo (metri) -> schermo (px css)
