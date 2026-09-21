@@ -90,6 +90,13 @@
     font-weight:700;letter-spacing:.04em;cursor:pointer;box-shadow:0 3px 0 #0006}
   button.az:active{transform:translateY(2px);box-shadow:0 1px 0 #0006}
   button.az[disabled]{opacity:.32;cursor:default;transform:none}
+  /* ★ CURA 21/09: SPENTO PER UN ATTIMO. Si vede spento come gli altri, ma
+     il tocco lo prende: un tasto `disabled` non fa nascere nessun `click`,
+     e il tocco spariva in silenzio. */
+  button.az.spento{opacity:.32;box-shadow:0 3px 0 #0006}
+  button.az.spento:active{transform:none}
+  button.az.attesa{opacity:.46;border-color:#7fd6a877}
+  button.az.preso{opacity:.72;border-color:#d8b25a}
   /* ⛔ collaudo 13/09 giro 2 · IL DITO VUOLE 44 PX. Sul telefono i tasti dei
      pannelli erano alti 34 px a 8 px l'uno dall'altro, e in IL BUTTAFUORI «me
      ne vado» (che ti elimina) stava accanto ad ALLUNGO LA MAZZETTA. Sul PC il
@@ -9969,7 +9976,12 @@ cv.addEventListener('pointerup', function (ev) {
   }
   if (t.mazzo) {
     if (mioTurno()) ioPesco();
-    else { lcSuona('no'); messaggio(G.turno === IO ? 'prima finisci la scelta' : 'adesso tocca a ' + lcAttuale(G).nome); }
+    /* ★ CURA 21/09: il turno e’ mio e il tavolo sta finendo di raccontare:
+       la pescata si TIENE e parte da sola. Prima il tocco si perdeva, e il
+       messaggio diceva «prima finisci la scelta» anche quando non c’era
+       nessuna scelta aperta. */
+    else if (G.turno === IO && !attesa) tieniIntenzione(ioPesco, null, 'preso: peschi appena il tavolo è pronto');
+    else { lcSuona('no'); messaggio(G.turno === IO ? 'prima finisci la scelta aperta' : 'adesso tocca a ' + lcAttuale(G).nome); }
     return;
   }
   /* ⛔ 20/09 · UN TOCCO CHE SBAGLIA DI POCO NON BUTTA VIA LA COPPIA.
@@ -10092,15 +10104,105 @@ function fraseTroncata(id) {
 
 function chiudiScheda() {
   scheda = null;
+  TASTI_FIRMA = '';
   elScheda.classList.remove('on');
 }
 
-function tastoScheda(testo, fn, spento, stile) {
-  var b = document.createElement('button');
-  b.className = 'az' + (stile ? ' ' + stile : '');
-  b.textContent = testo;
-  if (spento) b.disabled = true;
-  b.onclick = function (ev) {
+/* ★ CURA 21/09 · L’INTENZIONE ────────────────────────────
+   ⛔ IL DIFETTO, misurato il 21/09 su iPhone (webkit, tocchi veri):
+      20 tocchi su 20 su GIOCA andavano PERSI quando il dito scendeva
+      nell’istante in cui il turno stava arrivando; 0 su 20 a scheda ferma.
+      Il motivo NON era il tasto rifatto sotto il dito (misurato: 0 su 20):
+      era che in quell’istante il tavolo sta ancora raccontando la mossa di
+      prima, e GIOCA era messo `disabled`. UN TASTO `disabled` NON FA NASCERE
+      NESSUN `click`: il browser si mangia il tocco e non lo dice a nessuno.
+      Trenta millisecondi dopo il turno arriva, GIOCA torna verde, e il
+      giocatore ha visto un tasto verde che non ha fatto niente.
+   ⭐ LA CURA NON E’ UN TEMPO MORTO (un tempo morto di 450 ms e’ stato il
+      difetto del 20/09). Nessun tocco si butta piu’ via:
+      · un tasto spento PER UN ATTIMO (il turno e’ mio e il tavolo sta finendo
+        di raccontare) non e’ piu’ `disabled`: prende il tocco, lo TIENE, e
+        parte da solo appena si puo’;
+      · un tasto spento PER DAVVERO (tocca a un altro, la carta non si gioca)
+        prende il tocco e DICE PERCHE’, invece di stare muto.
+   ⚠ L’intenzione vale 1,8 secondi, e solo se la cosa chiesta e’ ancora
+      quella: la carta deve essere ANCORA in mano, allo STESSO posto. Se la
+      rubano, l’intenzione muore. Cosi’ non parte mai una carta che il
+      giocatore non ha toccato. */
+var INTENZIONE = null, INTENZIONE_MS = 1800, DENTRO_SCARICA = false;
+
+function tieniIntenzione(fn, valida, dillo) {
+  INTENZIONE = { fn: fn, valida: valida, fino: ora() + INTENZIONE_MS };
+  lcSuona('tocco');
+  messaggio(dillo || 'preso: parte appena il tavolo è pronto');
+}
+function scordaIntenzione() { INTENZIONE = null; }
+/* si chiama a ogni battito e alla fine di ogni riempiScheda: appena si puo’,
+   il tocco tenuto parte da solo */
+function scaricaIntenzione() {
+  if (!INTENZIONE || DENTRO_SCARICA) return;
+  if (ora() > INTENZIONE.fino) { INTENZIONE = null; return; }
+  try { if (INTENZIONE.valida && !INTENZIONE.valida()) { INTENZIONE = null; return; } }
+  catch (e) { INTENZIONE = null; return; }
+  if (!mioTurno()) return;
+  var fn = INTENZIONE.fn;
+  INTENZIONE = null;
+  DENTRO_SCARICA = true;
+  try { fn(); } catch (e) { if (typeof errore === 'function') errore('intenzione', e); }
+  DENTRO_SCARICA = false;
+}
+
+/* ⭐ I TASTI DELLA SCHEDA SI RIUSANO. `riempiScheda` gira a ogni `aggiorna()`:
+   prima buttava via i nodi con `innerHTML=''` e li rifaceva. Adesso si scrive
+   una FIRMA (testo + acceso/spento + stile + nota): se non cambia, il DOM non
+   si tocca affatto; se cambia, i nodi si RIUSANO. Non era la causa del tocco
+   perso, ma e’ il modo giusto: il tasto sotto il dito non sparisce piu’. */
+var TASTI_BUF = null, TASTI_FIRMA = '';
+
+function tastoScheda(testo, fn, spento, stile, atteso) {
+  var d = { testo: testo, fn: fn, spento: !!spento, stile: stile || '', atteso: !!atteso };
+  if (TASTI_BUF) { TASTI_BUF.push(d); return null; }
+  return posaUnTasto(document.getElementById('schedaTasti'), null, d);
+}
+
+function firmaTasti(lista) {
+  var f = '', i;
+  for (i = 0; i < lista.length; i++)
+    f += '\u0001' + lista[i].testo + '\u0002' + (lista[i].spento ? 1 : 0) +
+         (lista[i].atteso ? 'a' : '') + '\u0002' + lista[i].stile;
+  return f;
+}
+
+function posaTasti(lista) {
+  var box = document.getElementById('schedaTasti'), k, j;
+  var firma = firmaTasti(lista) + '\u0003' + document.getElementById('schedaNota').textContent;
+  var vecchi = box.children;
+  if (firma === TASTI_FIRMA && vecchi.length === lista.length) {
+    /* niente e’ cambiato: il DOM non si tocca. Si rinfrescano solo le
+       funzioni, che chiudono su `i` e `id`. */
+    for (k = 0; k < lista.length; k++) vecchi[k].__fn = lista[k].fn;
+    return;
+  }
+  TASTI_FIRMA = firma;
+  for (j = 0; j < lista.length; j++) posaUnTasto(box, vecchi[j] || null, lista[j]);
+  while (box.children.length > lista.length) box.removeChild(box.lastChild);
+}
+
+function posaUnTasto(box, b, d) {
+  var nuovo = !b;
+  if (nuovo) b = document.createElement('button');
+  var cl = 'az' + (d.stile ? ' ' + d.stile : '') + (d.spento ? (d.atteso ? ' spento attesa' : ' spento') : '');
+  if (b.className !== cl) b.className = cl;
+  if (b.textContent !== d.testo) b.textContent = d.testo;
+  if (b.disabled) b.disabled = false;     /* mai piu’ `disabled`: mangia i tocchi */
+  b.__fn = d.fn; b.__spento = d.spento; b.__atteso = d.atteso;
+  if (!b.__armato) { b.__armato = 1; b.onclick = tastoSchedaTocco; }
+  if (nuovo) box.appendChild(b);
+  return b;
+}
+
+function tastoSchedaTocco(ev) {
+    var b = this, fn = b.__fn;
     ev.stopPropagation();
     /* ⛔ collaudo 13/09 · IL CLIC FANTASMA. Sul telefono la scheda si apre
        al dito che si alza, e il clic sintetico dello STESSO tocco arriva dopo
@@ -10117,17 +10219,39 @@ function tastoScheda(testo, fn, spento, stile) {
        esistesse, quindi dentro la scheda non c'e' nessun pointerdown dopo
        `schedaDa`. Un secondo tocco vero ce l'ha, e vale subito. */
     if (schedaDito && schedaGiu <= schedaDa) return;
+    /* ★ CURA 21/09: il tocco non si butta MAI via. */
+    if (b.__spento) {
+      var perche = document.getElementById('schedaNota').textContent;
+      if (b.__atteso && fn && scheda) {
+        var i0 = scheda.i, id0 = scheda.id;
+        tieniIntenzione(fn, function () {
+          var me0 = G.giocatori[IO];
+          return !!(me0 && me0.vivo && me0.mano[i0] === id0);
+        }, 'preso: la carta parte appena il tavolo è pronto');
+        b.classList.add('preso');
+      } else {
+        lcSuona('no');
+        messaggio(perche || 'adesso non si può');
+      }
+      return;
+    }
     lcSuona('tocco'); if (fn) fn();
-  };
-  document.getElementById('schedaTasti').appendChild(b);
-  return b;
 }
 
 function riempiScheda() {
+  if (!scheda) { TASTI_FIRMA = ''; return; }
+  TASTI_BUF = [];
+  try { riempiSchedaCorpo(); } finally {
+    var lista = TASTI_BUF; TASTI_BUF = null;
+    if (scheda && lista) posaTasti(lista);
+  }
+  scaricaIntenzione();
+}
+
+function riempiSchedaCorpo() {
   if (!scheda) return;
   var me = G.giocatori[IO], id = scheda.id, i = scheda.i;
   var nota = document.getElementById('schedaNota');
-  document.getElementById('schedaTasti').innerHTML = '';
   if (scheda.altrui != null) {
     var lui = G.giocatori[scheda.altrui];
     if (G.fine || !lui || !lui.vivo || lui.segnate.indexOf(id) < 0 || attesa) { chiudiScheda(); return; }
@@ -10159,9 +10283,13 @@ function riempiScheda() {
          la scelta aperta era di UN ALTRO giocatore: il giocatore cercava una
          scelta che non c'era. */
       nota.textContent = G.turno !== IO ? 'Adesso tocca a ' + lcAttuale(G).nome + '. La potrai giocare al tuo turno.'
-        : (R.occupata() ? 'Un attimo: il tavolo sta ancora mostrando l’ultima mossa.'
+        : (R.occupata() ? 'Un attimo: il tavolo sta ancora mostrando l’ultima mossa. Tocca GIOCA: parte appena è pronto.'
            : (attesa ? 'Prima finisci la scelta aperta.' : 'Il tavolo aspetta la scelta di un altro.'));
-      tastoScheda('GIOCA', null, true, 'grande');
+      /* ★ CURA 21/09: spento PER UN ATTIMO (il turno e’ mio, il tavolo sta
+         finendo di raccontare): il tasto prende il tocco e lo tiene. */
+      var perUnAttimo = (G.turno === IO && !attesa);
+      tastoScheda('GIOCA', perUnAttimo ? function () { chiudiScheda(); giocaDallaMano(i, id); } : null,
+                  true, 'grande', perUnAttimo);
     } else if (CARTE_BERSAGLIO.indexOf(id) >= 0 && !bersagliValidi(id).length) {
       /* la carta non esce mai dalla mano se non c'e' nessuno a cui darla */
       nota.textContent = id === 'conto_aperto' ? 'Adesso non si gioca: hanno già tutti un conto aperto.'
@@ -10344,11 +10472,13 @@ function aggiorna() {
   if (selezione.length >= 2) {
     var forza = lcForzaCombo(selezioneCarte());
     tasto(forza === 3 ? "GUARDA E SCEGLI" : (forza === 2 ? "RUBA ALLA CIECA" : "non fa combinazione"),
-      provaCombinazione, !forza || !mioTurno());
+      provaCombinazione, !forza || !mioTurno(), !!forza && G.turno === IO && !attesa,
+      forza ? "adesso tocca a " + lcAttuale(G).nome : "questi gettoni non fanno combinazione");
     tasto("lascia stare", function () { selezione = []; aggiorna(); });
     return;
   }
-  tasto("PESCA", ioPesco, !mioTurno()).classList.add("grande");
+  tasto("PESCA", ioPesco, !mioTurno(), G.turno === IO && !attesa,
+        G.turno === IO ? "un attimo" : "adesso tocca a " + lcAttuale(G).nome).classList.add("grande");
 }
 
 var elAiutino = document.getElementById("aiutino");
@@ -10376,11 +10506,23 @@ function selezioneCarte() {
   for (i = 0; i < selezione.length; i++) c.push(p.mano[selezione[i]]);
   return c;
 }
-function tasto(testo, fn, spento) {
+function tasto(testo, fn, spento, atteso, perche) {
   var b = document.createElement("button");
-  b.className = "az"; b.textContent = lcT(testo);
-  if (spento) b.disabled = true;
-  b.onclick = function () { lcSuonoSveglia(); lcSuona("tocco"); fn(); };
+  /* ★ CURA 21/09 · come i tasti della scheda: un tasto `disabled` si mangia
+     il tocco senza dire niente. PESCA e RUBA ALLA CIECA sono spenti proprio
+     nell’istante in cui il tavolo sta finendo di raccontare la mossa di
+     prima, cioe’ quando il giocatore li tocca. */
+  b.className = "az" + (spento ? (atteso ? " spento attesa" : " spento") : "");
+  b.textContent = lcT(testo);
+  b.onclick = function () {
+    lcSuonoSveglia();
+    if (spento) {
+      if (atteso && fn) { tieniIntenzione(fn, null, 'preso: parte appena il tavolo è pronto'); b.classList.add('preso'); }
+      else { lcSuona("no"); if (perche) messaggio(perche); }
+      return;
+    }
+    lcSuona("tocco"); fn();
+  };
   elComandi.appendChild(b);
   return b;
 }
@@ -10561,6 +10703,7 @@ function battito() {
      arriva l'ultimo fotogramma o quando scade l'attesa della risposta */
   var mt = mioTurno() + "|" + LCN.tastiSpenti() + "|" + (G.fine ? 1 : 0) + "|" + (G.giocatori[IO].vivo ? 1 : 0);
   if (mt !== ultimoMio) { ultimoMio = mt; aggiorna(); }
+  scaricaIntenzione();      /* ★ CURA 21/09: appena si puo’, il tocco tenuto parte */
 
   if (finestraPend && elFinestra.classList.contains("on")) {
     var resta = (finestraFin - adesso);

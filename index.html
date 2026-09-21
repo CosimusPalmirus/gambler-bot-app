@@ -46132,7 +46132,8 @@ function twr3dMonta(){
       ok=g.avvia({TWR:TWR,ospite:{
         gbT:(typeof window.gbT==='function')?window.gbT:function(s){return s;},
         lang:twr3dLang(),TWS:TWS,twrLerpSnaps:twrLerpSnaps,twrBlocked:twrBlocked,
-        twrName:twrName,twrLookOf:twrLookOf,gcrLookOf:gcrLookOf,TWR_COL:TWR_COL,twrAutoMira:twrAutoMira}})===true;
+        twrName:twrName,twrLookOf:twrLookOf,gcrLookOf:gcrLookOf,TWR_COL:TWR_COL,twrAutoMira:twrAutoMira,twrAnticipo:twrAnticipo}})===true;   // AGENTE P1 (anticipo)
+      
     }catch(e){twr3dCade(e);return;}
     if(!ok){twr3dCade('gcr3d: avvia ha detto no');return;}
     TWR3D.g=g;TWR3D.g0=g;TWR3D.sj=null;TWR3D.sa=null;
@@ -47858,6 +47859,7 @@ function twrOnSnap(m){
   m.idx=idx;
   TWR.snaps.push(m);
   if(TWR.snaps.length>7)TWR.snaps.shift();
+  twrAnticStima(m);   // AGENTE P1 (anticipo): le due medie mobili del bersaglio
   TWR.lastRaw=m;
   TWR.you=m.you||TWR.you;
   if(TWR.map&&TWR.map.casino&&TWR.map.casino.piani)twrPianiSnap();   // GCR3D P1: livello nel casino' e minimappa al cambio piano
@@ -49128,7 +49130,7 @@ function twrC3Pc(){
       return n<10?null:{s:[dx/n,dy/n]};
     }
     if(!TWR.cv||!TWR.pred||!TWR.pred.ok||!TWR.cam||!TWR.cam.ok)return null;   // 2D: il punto del mondo sotto il cursore
-    var rw=wrap.getBoundingClientRect(),rc=TWR.cv.getBoundingClientRect(),cell=twrCell()/TWR.dpr;
+    var rw=wrap.getBoundingClientRect(),rc=TWR.cv.getBoundingClientRect(),cell=twrCell()*twrZTot()/TWR.dpr;   // GCR_ZOOM_2109: la cella DISEGNATA (senza lo zoom qui si spara dove non si guarda)
     var wx=TWR.cam.x+(c[0]+rw.left-rc.left-rc.width/2)/cell,wy=TWR.cam.y+(c[1]+rw.top-rc.top-rc.height/2)/cell;
     var ex=wx-TWR.pred.x,ey=wy-TWR.pred.y,m=Math.hypot(ex,ey);
     return m<0.3?null:{w:[ex/m,ey/m]};
@@ -49205,6 +49207,122 @@ function twrAutoMira(){
   return best;
 }
 
+/* ═══ AGENTE P1 (anticipo) · L'ANTICIPO SI VEDE (20/09/2026) ════════════════════
+   Dove sparare col fucile, con quello che la pagina HA GIA' (i fotogrammi del
+   server): nessun dato nuovo, nessuna richiesta in piu', nessun tocco al motore.
+   Il colpo NON viene spostato: si disegna soltanto il punto (lo fa 32_cecchino.js).
+
+   Perche' non basta la formula di twrAutoMira. Quella stima la velocita' da DUE
+   fotogrammi (0,05 s) e applica l'anticipo intero. Misurata sul fucile col
+   poligono del cantiere (300 prove per cella, terra, colpo carico):
+     contro chi CORRE   da 12% a 70% (3 celle)   bene
+     contro chi SCARTA  da 100% a 9,7% (3 celle) DIECI VOLTE PEGGIO
+   Un anticipo in retta su chi taglia manda il colpo dalla parte sbagliata di 2
+   celle = 4,8 corpi. Quindi l'anticipo si fida solo della COERENZA del bersaglio:
+     vEma = media mobile del VETTORE velocita'   (TWR_ANT_TAU s)
+     sEma = media mobile del MODULO              (la stessa TAU)
+     k    = |vEma| / sEma       0 = scarta, 1 = va dritto
+     velocita' usata = vEma * k^TWR_ANT_POT
+   Tre numeri per nemico: TWR.snaps tiene 7 fotogrammi (0,30 s) e una storia piu'
+   lunga non c'e'. */
+var TWR_ANT_TAU=0.40,TWR_ANT_POT=3,TWR_ANT_VMAX=7,TWR_ANT_CONO=0.82;   // 0,82 = 35 gradi
+/* LA VELOCITA' DEL COLPO, e va tenuta d'occhio: la pagina NON puo' leggere `SNIPER_SPEED`
+   dal motore (e' una costante del server). Se il motore cambia e questo numero no, il segno
+   anticipa TROPPO e il colpo parte davanti invece che dietro. Col colpo istantaneo il tempo
+   di volo e' zero, e il segno deve restare quasi addosso al bersaglio.
+     16   il motore di oggi          (volo 0,56 s a 9 celle)
+     48   il colpo veloce C2         (volo 0,19 s)
+     0    il colpo ISTANTANEO C1     (niente volo: resta solo buffer + ping)
+   Lo scrive l'applicatore con `--vel`. In piu', se in partita si vedono proiettili del
+   fucile, la pagina se lo MISURA da sola dai fotogrammi (`pr`: dx,dy sono celle/s) e si
+   corregge: cosi' un motore cambiato senza avvisare la pagina non la fa sbagliare in silenzio. */
+var TWR_ANT_VEL=16,TWR_ANT_VEL_VISTA=0;
+var TWR_ANT_ON=(function(){try{return !/[?&]anticipo=0/.test(location.search);}catch(e){return true;}})();
+try{TWR._antOn=TWR_ANT_ON;}catch(e){}   // il 3D legge l'interruttore da qui: l'iframe nasce con `gcr3d.html?v=..&lang=..` e NON riceve i parametri della pagina
+/* le due medie mobili, una volta per fotogramma del server (twrOnSnap) */
+function twrAnticStima(m){
+  if(!TWR_ANT_ON)return;
+  var A=TWR._antic||(TWR._antic={}),vis={},id,s,dt,vx,vy,n,a;
+  if(!TWR.snaps||TWR.snaps.length<=1){TWR._antic=A={};}   // partita nuova: le stime muoiono
+  var p=m.p||[];
+  for(var i=0;i<p.length;i++){
+    var r=p[i];id=r[0];vis[id]=1;
+    if(id===TWR.myId||!r[4]){delete A[id];continue;}       // io, o un morto: niente stima
+    s=A[id];
+    if(!s){A[id]={x:r[1],y:r[2],vx:0,vy:0,sp:0,ok:0,t:m.time};continue;}
+    dt=(m.time!=null&&s.t!=null)?(m.time-s.t):0.05;
+    if(!(dt>0.005)||dt>0.5){s.x=r[1];s.y=r[2];s.t=m.time;continue;}   // un buco di rete non e' una velocita'
+    vx=(r[1]-s.x)/dt;vy=(r[2]-s.y)/dt;n=Math.hypot(vx,vy);
+    s.x=r[1];s.y=r[2];s.t=m.time;
+    if(n>TWR_ANT_VMAX)continue;                            // spinta, salto, teletrasporto: campione buttato
+    if(!s.ok){s.vx=vx;s.vy=vy;s.sp=n;s.ok=1;continue;}
+    a=1-Math.exp(-dt/TWR_ANT_TAU);
+    s.vx+=(vx-s.vx)*a;s.vy+=(vy-s.vy)*a;s.sp+=(n-s.sp)*a;
+  }
+  for(id in A)if(!vis[id])delete A[id];                    // uscito dalla nebbia: la stima muore
+  /* la velocita' VERA del colpo, misurata: i proiettili del fucile nello snapshot portano
+     dx,dy in celle/s. Se il motore cambia senza che la pagina lo sappia, qui si vede. */
+  var pr=m.pr||[];
+  for(var j=0;j<pr.length;j++){
+    var q=pr[j];
+    if(q[2]!=='n')continue;                                // 'n' = il colpo del fucile
+    var sp=Math.hypot(q[3]||0,q[4]||0);
+    if(sp>1)TWR_ANT_VEL_VISTA=TWR_ANT_VEL_VISTA?TWR_ANT_VEL_VISTA*0.8+sp*0.2:sp;
+  }
+}
+/* IL SEGNO. `ax,ay` = dove punta la levetta NEL MONDO (0,0 = qualunque direzione).
+   Ritorna null, oppure
+     {id, x, y     dove il bersaglio E' disegnato adesso (interpolato)
+      mx, my       DOVE SPARARE
+      k            coerenza 0..1 (1 = va dritto, 0 = imprevedibile)
+      inc          il raggio dell'incertezza, in celle (l'anello tratteggiato)
+      d, lead}
+   Il bersaglio e' quello piu' ALLINEATO alla levetta entro 35 gradi, non il piu'
+   vicino: con la levetta si sceglie, come per le altre armi. Se `ax,ay` sono 0
+   (dito al centro) vince il piu' VICINO. Con `soloId` si chiede quel bersaglio e
+   nessun altro: e' quello che serve all'aggancio che segue, che non deve saltare
+   da solo su un altro. */
+function twrAnticipo(ax,ay,soloId){
+  if(!TWR_ANT_ON)return null;
+  var raw=TWR.lastRaw,you=(raw&&raw.you)||{};
+  if(!raw||!TWR.pred||!TWR.pred.ok||!you.alive||you.in_car)return null;
+  if(you.gun!=='SNIPER'||!(you.gun_ammo>0))return null;    // solo il fucile: le altre armi hanno gia' il loro aiuto
+  var rng=(you.z>=1?10:9)+0.6;                             // dal tetto la portata e' 10 (CG2_FUCILE_TETTO)
+  var spd=TWR_ANT_VEL_VISTA>0?TWR_ANT_VEL_VISTA:TWR_ANT_VEL;
+  var an=Math.hypot(ax||0,ay||0),dx0=an>1e-6?ax/an:0,dy0=an>1e-6?ay/an:0;
+  var lp=twrLerpSnaps(),best=null,bq=-2,p=raw.p||[];
+  var png=(TWR.ping||100)/1000;
+  for(var i=0;i<p.length;i++){
+    var r=p[i];
+    if(r[0]===TWR.myId||!r[4])continue;
+    if(soloId!=null&&r[0]!==soloId)continue;
+    var x=r[1],y=r[2];
+    var ra=lp&&lp.a&&lp.a.idx[r[0]],rb=lp&&lp.b&&lp.b.idx[r[0]];
+    if(ra&&rb){x=ra[1]+(rb[1]-ra[1])*lp.k;y=ra[2]+(rb[2]-ra[2])*lp.k;}
+    var ex=x-TWR.pred.x,ey=y-TWR.pred.y,d=Math.hypot(ex,ey);
+    if(d>rng||d<0.3)continue;
+    var q;
+    if(an>1e-6&&soloId==null){q=(ex*dx0+ey*dy0)/d;if(q<TWR_ANT_CONO)continue;}
+    else q=2-d/(rng+1);          // senza direzione (o con un bersaglio chiesto): il piu' vicino
+    if(q<=bq)continue;
+    bq=q;
+    var o={id:r[0],x:x,y:y,d:d,k:0,inc:0,lead:0,mx:x,my:y};
+    var s=TWR._antic&&TWR._antic[r[0]];
+    if(s&&s.ok&&s.sp>1e-6){
+      var kk=Math.hypot(s.vx,s.vy)/s.sp;if(kk>1)kk=1;
+      var g=Math.pow(kk,TWR_ANT_POT),vx=s.vx*g,vy=s.vy*g;
+      var lead=0.085+png+(spd>0?d/spd:0);
+      var px=x+vx*lead,py=y+vy*lead;
+      if(spd>0)lead=0.085+png+Math.hypot(px-TWR.pred.x,py-TWR.pred.y)/spd;   // un giro di raffinamento: chi scappa e' piu' lontano
+      o.mx=x+vx*lead;o.my=y+vy*lead;o.k=kk;o.lead=lead;
+      // l'incertezza: quanto anticipo NON sto mettendo. E' il raggio dell'anello
+      // tratteggiato, cioe' il «da qui a qui» che il segno deve dire.
+      o.inc=Math.hypot(s.vx,s.vy)*(1-g)*lead;
+    }
+    best=o;
+  }
+  return best;
+}
 // ── canvas & city ───────────────────────────────────────────────────
 // ORIZZONTALE (18/09/2026) · la vista di Gambler City col telefono girato.
 // Il verticale di QUESTO telefono: tela larga S-18 (padding 8+8, bordo 2) e alta
@@ -49310,6 +49428,115 @@ function twrCanvasInit(){
   twrDrawStatic();
   twrDrawMiniStatic();
 }
+/* GCR_ZOOM_2109 · LO ZOOM VARIABILE (21/09/2026, chiesto dal proprietario:
+   «se sono pochi giocatori e in un'area stretta devono vedersi un pochino piu'
+   grandi»).
+
+   ⚠️ PERCHE' NON SI TOCCA `TWR.VIEW`. `twrCell` ricava i px per cella da VIEW e
+   `twrDrawStatic` CUOCE tutta la citta' in una tela `size x cella`: cambiare
+   VIEW a partita in corso vuol dire ricuocere una bitmap da 2400 px, e a ogni
+   fotogramma il gioco muore. Lo zoom qui e' una SCALA AL MOMENTO DEL DISEGNO —
+   la stessa strada che la pagina usa gia' per lo spettatore (`twrSpvZ2d`, e
+   `_z2` in twrFrame che ristampa la tela cotta scalata). VIEW, la cottura e la
+   minimappa non cambiano di un pixel.
+
+   ⚠️ EQUITA', ed e' il vincolo che ha deciso la REGOLA. La cosa naturale — «se i
+   giocatori vicini a me sono pochi, zooma» — e' proibita due volte: (a) la
+   nebbia e' del server, quindi ognuno vede un insieme diverso e lo zoom
+   diventerebbe diverso per ognuno; (b) peggio, sarebbe una SPIA: la camera che
+   si stringe mentre un nemico si avvicina direbbe «c'e' qualcuno», cosa che la
+   nebbia nasconde. Su un gioco a soldi e' un vantaggio ingiusto.
+   Quindi la regola usa SOLO due numeri PUBBLICI, identici per tutti e gia'
+   scritti sull'HUD di ognuno:
+     · `raw.nv`  = quanti sono vivi, detto dal motore (S1 del 27/08) — la chip 👥
+     · `raw.zone`= lo spessore dell'anello — la chip della zona
+   Due giocatori della stessa partita, nello stesso istante, hanno lo STESSO
+   zoom sempre, qualunque cosa vedano. Non c'e' niente da sapere che lo zoom
+   possa svelare.
+
+   LA REGOLA in tre righe:
+     lato utile = size - 2*zone          (il quadrato sicuro, in celle)
+     apertura   = MAX fra «l'area e' ancora larga» e «i vivi sono ancora molti»
+     zoom       = 1 quando apertura=1 (esattamente la vista di oggi),
+                  fino a ZMAX quando apertura=0 (pochi vivi E area stretta)
+   Il MAX vuol dire che basta UNA delle due ragioni per restare larghi: si
+   stringe solo quando le due cose valgono insieme, che e' alla lettera la
+   richiesta.
+
+   IL PAVIMENTO e' 1,00: la vista di oggi. Nessuno vede mai MENO campo di quanto
+   il gioco gli ha sempre dato — il pavimento non e' una taratura, e' la
+   promessa che questo lavoro non toglie niente a nessuno.
+
+   IL TETTO e' 1,25, e non e' un numero scelto a gusto: e' il PREAVVISO. Il lato
+   corto della tela porta VIEW=10,5 celle, cioe' 5,25 celle dal centro al bordo,
+   e l'uomo piu' veloce del gioco fa 5,98 celle/s (3,2 + 0,12*9 di livello 10 +
+   1,1 di sprint + 0,6 di frenesia). Preavviso di oggi: 5,25/5,98 = 0,88 s. Al
+   tetto di 1,25 il mezzo campo scende a 4,20 celle e il preavviso a 0,70 s.
+   Sotto 0,70 s non si scende: 0,70 s e' il tempo per accorgersi e reagire, e
+   piu' su non si sale perche' la nebbia del server (SIGHT 5,5 celle) darebbe
+   comunque meno campo di quanto lo schermo ne mostrerebbe. Le auto (fino a 12
+   celle/s con una spinta) non entrano nel conto perche' si vedono sulla
+   MINIMAPPA a qualunque distanza (`raw.cars` non passa dalla nebbia).
+
+   LA COSTANTE DI TEMPO e' 1,25 s (K=0,8: `z += (bersaglio-z)*min(1,dt*0.8)`).
+   Scelta cosi': il salto piu' brusco possibile e' un morto che porta i vivi da
+   3 a 2, cioe' un terzo di apertura = 0,083 di zoom; con tau 1,25 s si spalma
+   su ~3 s a meno del 7% di scala al secondo, che l'occhio legge come un carrello
+   della camera e non come uno scatto. Piu' veloce si vede; piu' lento e la
+   vista arriva quando il duello e' finito. `dt` e' gia' tappato a 0,05 in
+   twrFrame, quindi una scheda tornata in primo piano non puo' saltare piu' del
+   4% in un fotogramma.
+
+   ANCHE IL 3D (deciso dal proprietario il 21/09). `TWR.zoomVar` e' LO STESSO
+   numero per le due viste: `gcr3d.html` lo legge da qui (il ponte lo passa come
+   `zPag` alla camera) e ci divide la larghezza della sua vista in celle. Non e'
+   una scala «equivalente a occhio»: nel 3D `P.W * C.zoom` E' gia' una larghezza
+   in celle, quindi dividerla per lo stesso z da' la stessa vista. Per questo
+   qui NON si torna 1 quando il 3D e' acceso: se ci si tornasse, le due viste
+   divergerebbero ogni volta che il 3D cade e il 2D riprende.
+   ⚠️ Il lisciamento sta TUTTO qui. Il 3D applica il numero secco, dopo il suo
+   `damp`: due lisciamenti in fila vorrebbero dire un terzo di secondo di 3D
+   diverso dal 2D a ogni cambio.
+   ⚠️ Lo SPETTATORE ha il suo zoom a rotella (`SV.zoom`, che nel 3D entra in
+   `zoomExtra`): qui si torna 1, quindi i due non possono mai essere diversi da
+   1 insieme e non si accumulano. */
+var TWR_ZV={ZMAX:1.25,AREA_STRETTA:9,AREA_LARGA:18,VIVI_POCHI:2,VIVI_MOLTI:5,K:0.8};
+function twrZoomBersaglio(raw){
+  var Z=TWR_ZV;
+  if(!raw)return 1;
+  var size=(TWR.map&&TWR.map.size)||22;
+  var lato=Math.max(4,size-2*(+raw.zone||0));                      // il quadrato sicuro
+  var vivi=(raw.nv!=null)?raw.nv:0;
+  if(raw.nv==null){vivi=0;(raw.p||[]).forEach(function(r){if(r[4])vivi++;});}   // server vecchio: si conta come faceva l'HUD
+  var kA=(lato-Z.AREA_STRETTA)/(Z.AREA_LARGA-Z.AREA_STRETTA);if(kA<0)kA=0;else if(kA>1)kA=1;
+  var kV=(vivi-Z.VIVI_POCHI)/(Z.VIVI_MOLTI-Z.VIVI_POCHI);if(kV<0)kV=0;else if(kV>1)kV=1;
+  var ap=kA>kV?kA:kV;                                              // basta UNA ragione per stare larghi
+  var z=Z.ZMAX+(1-Z.ZMAX)*ap;
+  /* IL FERMO. Uno snapshot storto (nv assente e `p` vuoto, zone NaN, un campo
+     nuovo che domani arriva stringa) non deve poter stringere la vista: se il
+     conto non da' un numero dentro [1, ZMAX] si torna a 1, cioe' alla vista di
+     sempre. `NaN>=1` e' falso, quindi NaN cade qui. */
+  return (z>=1)?(z<=Z.ZMAX?z:Z.ZMAX):1;
+}
+function twrZoomAvanza(raw,dt){
+  if(TWR.spec||(TWR.spV&&TWR.spV.on)){TWR.zoomVar=1;return 1;}   // GCR_ZOOM_2109: il 3D NON e' piu' escluso (legge TWR.zoomVar)
+  var b=twrZoomBersaglio(raw),z=TWR.zoomVar;
+  if(z==null||!(z>0)){TWR.zoomVar=b;return b;}                     // partita nuova: si parte sul bersaglio
+  var k=dt*TWR_ZV.K;if(!(k>0))k=0;else if(k>1)k=1;
+  z+=(b-z)*k;
+  if(z<1)z=1;else if(z>TWR_ZV.ZMAX)z=TWR_ZV.ZMAX;                  // pavimento e tetto, sempre
+  TWR.zoomVar=z;return z;
+}
+function twrZoomVar(){
+  if(TWR.spec||(TWR.spV&&TWR.spV.on))return 1;
+  var z=TWR.zoomVar;return (z>0)?z:1;
+}
+/* LA CELLA DISEGNATA = cella cotta x zoom dello spettatore x zoom variabile.
+   ⚠️ Chi traduce schermo->mondo (la MIRA col mouse, il trascinamento dello
+   spettatore, il riquadro sulla minimappa) DEVE passare da qui: la mira si
+   calcola dividendo per la cella, e una cella diversa da quella disegnata vuol
+   dire sparare dove non si guarda. */
+function twrZTot(){return twrSpvZ2d()*twrZoomVar();}
 function twrCell(){if(TWR._ozC>0)return TWR._ozC*TWR.dpr;return (TWR.cssW*TWR.dpr)/TWR.VIEW;}   // ORIZZONTALE: cella dalla regola
 function twrDrawStatic(){
   var size=TWR.map.size,cell=twrCell();
@@ -50661,7 +50888,7 @@ function twrSpvInput(wrap){
   function aTerra(cx,cy){
     // 3D: il punto a terra sotto il dito (gcr3d.aTerra); 2D: dalla cella della tela
     if(TWR3D.ok&&TWR3D.g&&TWR3D.g.aTerra&&TWR3D.fr){var rf=TWR3D.fr.getBoundingClientRect();return TWR3D.g.aTerra(cx-rf.left,cy-rf.top);}
-    var rc=TWR.cv.getBoundingClientRect(),cell=twrCell()*twrSpvZ2d()/TWR.dpr;
+    var rc=TWR.cv.getBoundingClientRect(),cell=twrCell()*twrZTot()/TWR.dpr;   // GCR_ZOOM_2109: la stessa cella del disegno
     return [TWR.cam.x+(cx-rc.left-rc.width/2)/cell,TWR.cam.y+(cy-rc.top-rc.height/2)/cell];
   }
   wrap.addEventListener('pointerdown',function(ev){
@@ -50739,7 +50966,8 @@ function twrFrame(){
   var dt=Math.min(0.05,(now-(TWR._lf||now))/1000);TWR._lf=now;
   // C14: media mobile dell'intervallo fra fotogrammi; sotto i 45 fps si tolgono gli shadowBlur piu' cari
   if(dt>0){TWR._fema=(TWR._fema||16.7)*0.95+dt*1000*0.05;TWR._lento=TWR._fema>22.2;}
-  var size=TWR.map.size,w=TWR.cv.width,hgt=TWR.cv.height,_cB=twrCell(),cell=_cB*twrSpvZ2d();   // SPETTATORE: zoom del 2D (1 per chi gioca)
+  twrZoomAvanza(TWR.lastRaw,dt);   // GCR_ZOOM_2109: lo zoom variabile avanza PIANO, una volta per fotogramma (mai dentro il disegno)
+  var size=TWR.map.size,w=TWR.cv.width,hgt=TWR.cv.height,_cB=twrCell(),cell=_cB*twrZTot();   // SPETTATORE: zoom del 2D (1 per chi gioca) + GCR_ZOOM_2109: zoom variabile
   var raw=TWR.lastRaw,you=raw.you||{};
   var lp=twrLerpSnaps();
 
@@ -50747,7 +50975,26 @@ function twrFrame(){
   var meRow=raw.idx[TWR.myId];
   if(meRow){
     if(!TWR.pred.ok){TWR.pred.x=meRow[1];TWR.pred.y=meRow[2];TWR.pred.ok=true;}
-    var spd=you.in_car?5.6:((you.smoke>0)?4.4:3.2+0.12*((you.lv||1)-1)+(you.sprint>0?1.1:0)+(raw.frenzy?0.6:0));
+    /* GCR_MOTO_2109 · M3 · LA VELOCITA' PREVISTA DEVE ESSERE QUELLA DEL MOTORE.
+       `_speed` del motore (turfwar_rt.py 2861-2868) e':
+           spd = 4.4 se fumo altrimenti 3.2 ;  spd += 0.12*(lv-1)
+           se sprint: +1.1 ;  se frenesia: +0.6
+           se MIRI col FUCILE: spd *= 0.45
+       La riga di prima sbagliava due volte, e sono due bugie PERMANENTI (non
+       transitori che si riassorbono): il tetto di 1,6 celle non scatta e
+       l'elastico tira per tutto il tempo.
+         · col FUMO restituiva 4,4 secco e BUTTAVA livello, sprint e frenesia:
+           col fumo a livello 8 e sprint il motore fa 5,98 e la pagina 4,4.
+           Misurato: l'omino disegnato sta 10 px CSS dal posto vero.
+         · non applicava mai il 0,45 del fucile mentre miri: il motore ti fa
+           camminare a 1,44 celle/s e la pagina ti disegnava a 3,2. Misurato:
+           22 px CSS (0,61 celle) di scarto in regime — e la mira, il laser e i
+           colpi partono da `TWR.pred`, cioe' da una posizione che non e' la tua.
+       `TWR.aim.on` e' la MIA levetta (nessun ritardo di rete) ed e' esattamente
+       la condizione con cui il motore accende `aiming` (set_aim: on e spinta
+       oltre 0,25). */
+    var spd=you.in_car?5.6:(((you.smoke>0)?4.4:3.2)+0.12*((you.lv||1)-1)+(you.sprint>0?1.1:0)+(raw.frenzy?0.6:0));
+    if(!you.in_car&&you.gun==='SNIPER'&&TWR.aim.on)spd*=0.45;
     /* GCR_AUTO_FISICA: con la fisica accesa l'auto propria si predice con lo STESSO passo del motore
        (twrAutoPredici), non come un punto a 5,6 c/s: quello si allontanava dall'auto vera di 0,35-0,66
        celle in media e fino a 2,2 (banchi/auto_predizione.mjs). Se predice, il resto qui sotto si salta. */
@@ -50773,9 +51020,67 @@ function twrFrame(){
        anche la storia, cosi' lo stesso errore non si conta due volte. */
     var _ph=TWR._ph||(TWR._ph=[]);
     _ph.push([now,TWR.pred.x,TWR.pred.y]);if(_ph.length>120)_ph.shift();
-    var _L=Math.min(400,Math.max(0,(TWR.ping||100)-25)),_tq=(raw.rx||now)-_L,_h=null;
-    for(var _hi=_ph.length-1;_hi>=0;_hi--){if(_ph[_hi][0]<=_tq){_h=_ph[_hi];break;}}
-    var ddx=meRow[1]-(_h?_h[1]:TWR.pred.x),ddy=meRow[2]-(_h?_h[2]:TWR.pred.y);
+    /* GCR_MOTO_2109 · M1 · L'ANCORA DELLA RICONCILIAZIONE NON E' L'ORA D'ARRIVO.
+       Il 24/08 la pagina ha smesso di interpolare GLI ALTRI sull'istante di
+       arrivo dei pacchetti (`twrClk`) proprio perche' il ballo della rete
+       diventava 1:1 ballo di VELOCITA'. Il TUO avatar non passava da li' — ma
+       passava da QUESTA riga, che cercava la storia a partire da `raw.rx`,
+       cioe' da `performance.now()` dell'istante in cui il pacchetto e' entrato.
+       Risultato misurato (banco/moto.mjs, rete che respira 80..240 ms): la
+       velocita' DISEGNATA del tuo omino ballava p95 13,6% e p99 26,2% a
+       fotogramma; sullo stesso banco con filo perfetto 0,001%. Cioe' il ballo
+       non era il gioco: era la rete che entrava nel conto.
+       Adesso l'ancora e' il TEMPO SERVER dello snapshot (`raw.time`, che il
+       passo fisso del 22/08 garantisce a 50 ms esatti) riportato sull'orologio
+       locale con un OFFSET MEDIATO (`TWR._srvOff`): la media di
+       `rx - time*1000` sugli ultimi ~2,5 s di pacchetti. Il ballo della rete
+       entra diviso 50 invece che intero.
+       ⚠️ PERCHE' NON `TWR._clk.pt`, che sembrerebbe la strada gia' fatta: `pt`
+       per progetto INSEGUE il bersaglio al 12% (riproduzione 0,88x-1,12x), ed
+       e' il compromesso giusto per interpolare GLI ALTRI, ma qui quel 12%
+       diventa 12% di ballo sulla velocita' del TUO omino. Provato: l'ancora su
+       `pt` porta il p99 da 26,2% a 13,3%, l'offset mediato lo porta sotto
+       l'1%. Si tiene la strada di `pt` come RIPIEGO, non come cura.
+       ⚠️ EQUITA': il ritardo MEDIO non cambia di un millisecondo — `_srvOff` E'
+       la media di `rx - time*1000`, quindi `_tq` cade in media esattamente dove
+       cadeva `raw.rx - _L`. Cambia solo che non ballonzola. E se il server non
+       manda l'orologio (`time` assente) si torna alla riga di ieri, identica.
+       ⚠️ L'offset si riaggancia di colpo oltre 350 ms (riconnessione, partita
+       nuova, scheda tornata in primo piano): lo stesso cancello di `twrClk`.
+
+       M2 · IL PING A SCIVOLO. `TWR.ping` e' un campione ogni 5000 ms
+       (setInterval del pingTimer): quando la rete peggiora, il valore salta
+       tutto in una volta e con lui salta il punto della storia — misurati 14 px
+       CSS di scatto dell'omino al rinfresco del campione. Con l'ancora di M1 il
+       valore di `_L` non decide piu' la MORBIDEZZA ma solo un offset costante
+       (invisibile): quindi si puo' lisciare forte. Costante di tempo 0,67 s. */
+    var _Lv=Math.min(400,Math.max(0,(TWR.ping||100)-25));
+    if(TWR._Ls==null)TWR._Ls=_Lv;else TWR._Ls+=(_Lv-TWR._Ls)*Math.min(1,dt*1.5);
+    var _L=TWR._Ls,_tq,_h=null;
+    if(raw.time!=null&&raw.rx!=null){
+      var _so=raw.rx-raw.time*1000;
+      if(TWR._srvOff==null||Math.abs(_so-TWR._srvOff)>350)TWR._srvOff=_so;
+      else if(raw.rx!==TWR._srvRx)TWR._srvOff+=(_so-TWR._srvOff)*0.02;   // solo sullo snapshot NUOVO
+      TWR._srvRx=raw.rx;
+      _tq=raw.time*1000+TWR._srvOff-_L;
+    }else _tq=(raw.rx||now)-_L;
+    /* GCR_MOTO_2109 · M4 · LA STORIA SI LEGGE INTERPOLATA. `_ph` ha un campione
+       per FOTOGRAMMA (16,7 ms a 60 fps) e `_tq` avanza di 50 ms per snapshot:
+       prendere «il campione appena prima» faceva saltare l'indice di 2, 3 o 4
+       fotogrammi a giro, e quel dente di sega entrava intero in `ddx`. Misurato
+       col banco: con l'ancora di M1 gia' ferma restava un ballo di velocita' p99
+       del 10,2%, tutto qui dentro; interpolando scende sotto l'1%.
+       Due campioni bastano perche' fra due fotogrammi il moto E' una retta:
+       e' lo stesso tipo di lettura che `twrLerpSnaps` fa sugli snapshot. */
+    var _hb=null;
+    for(var _hi=_ph.length-1;_hi>=0;_hi--){if(_ph[_hi][0]<=_tq){_h=_ph[_hi];_hb=_ph[_hi+1]||null;break;}}
+    var _hx,_hy;
+    if(_h&&_hb&&_hb[0]>_h[0]){
+      var _hkk=(_tq-_h[0])/(_hb[0]-_h[0]);if(_hkk<0)_hkk=0;else if(_hkk>1)_hkk=1;
+      _hx=_h[1]+(_hb[1]-_h[1])*_hkk;_hy=_h[2]+(_hb[2]-_h[2])*_hkk;
+    }else if(_h){_hx=_h[1];_hy=_h[2];}
+    else{_hx=TWR.pred.x;_hy=TWR.pred.y;}
+    var ddx=meRow[1]-_hx,ddy=meRow[2]-_hy;
     if(_ap){}   // GCR_AUTO_FISICA: la riconciliazione l'ha gia' fatta twrAutoPredici
     else if(Math.abs(ddx)>1.6||Math.abs(ddy)>1.6){TWR.pred.x=meRow[1];TWR.pred.y=meRow[2];TWR._ph=[];}
     else{var rk=twrRiconcilia(dt),_cx=ddx*rk,_cy=ddy*rk;TWR.pred.x+=_cx;TWR.pred.y+=_cy;
@@ -51815,7 +52120,7 @@ function twrDrawFx(ctx,cell,now,W2X,W2Y){
 function twrDrawMini(raw){
   if(!TWR.mini||!TWR.miniSt)return;
   if(TWR.pred.ok&&TWR.cv){
-    var cD=twrCell();
+    var cD=twrCell()*twrZTot();   // GCR_ZOOM_2109: la cella DISEGNATA (e' dove finisce l'omino sullo schermo)
     var sxD=((TWR.pred.x-TWR.cam.x)*cD+TWR.cv.width/2)/TWR.dpr;
     var syD=((TWR.pred.y-TWR.cam.y)*cD+TWR.cv.height/2)/TWR.dpr;
     TWR.mini.style.opacity=(sxD>TWR.cssW-116&&syD<116)?0.22:1;
@@ -51856,7 +52161,7 @@ function twrDrawMini(raw){
   // camera viewport
   var vw=TWR.VIEW*u,vh=TWR.VIEW*(TWR.cssH/TWR.cssW)*u;
   if(TWR._ozC>0){vw=TWR.cssW/TWR._ozC*u;vh=TWR.cssH/TWR._ozC*u;}   // ORIZZONTALE
-  var _zm=twrSpvZ2d();if(_zm!==1){vw/=_zm;vh/=_zm;}   // SPETTATORE: zoom del 2D
+  var _zm=twrZTot();if(_zm!==1){vw/=_zm;vh/=_zm;}   // SPETTATORE: zoom del 2D + GCR_ZOOM_2109: la minimappa resta ferma, il RIQUADRO si stringe
   c.strokeStyle='rgba(255,255,255,.35)';c.lineWidth=1;
   var _v3=TWR3D.ok&&TWR._vista3d&&TWR._vista3d.pts;   // GCR3D: la vista del 3D a terra
   if(_v3){c.beginPath();c.moveTo(_v3[0]*u,_v3[1]*u);c.lineTo(_v3[2]*u,_v3[3]*u);c.lineTo(_v3[4]*u,_v3[5]*u);c.lineTo(_v3[6]*u,_v3[7]*u);c.closePath();c.stroke();}
@@ -78824,8 +79129,22 @@ function rtdDrawPong(ctx,raw,lp,now,w,hh){
   // p row: [id, x, seat, pw, cannon, shield, pwkind]. Opponent paddle is
   // interpolated between ticks (smooth); my paddle keeps client prediction.
   var LPp=rtdLerpRow(plp,'p'),pgMyX=null;
-  (raw.p||[]).forEach(function(r){
-    var isMe=r[0]===RTD.myId;
+  /* LA MIA RIGA PER PRIMA (21/09/2026). Il proprietario, 20/09: «pong sembra
+     laggare per uno dei 2 giocatori». La prova dello scambio (due pagine vere
+     nella stessa partita, ognuna dietro la sua rete, e poi le reti scambiate di
+     posto — _levelup/pong_lato_2109) ha detto che il ritardo segue la RETE e non
+     il posto: a reti uguali i due posti sono identici entro 3 ms su ogni voce.
+     Questa e' l'UNICA asimmetria di posto che e' venuta fuori leggendo il
+     codice. Le righe di `raw.p` arrivano in ordine di POSTO, e `pgB3Frame()`
+     (che riempie B.fr) gira nel ramo `isMe` mentre `pgB3OppX()` (che lo legge)
+     gira in quello dell'avversario: al posto 1 l'avversario veniva disegnato col
+     B.fr del fotogramma PRIMA, vecchio di ~17 ms. Al posto 0 no.
+     Le due racchette stanno ai bordi opposti e non si sovrappongono: l'ordine di
+     disegno non cambia niente di quello che si vede. */
+  var _pRow=(raw.p||[]);
+  if(_pRow.length===2&&String(_pRow[0][0])!==String(RTD.myId))_pRow=[_pRow[1],_pRow[0]];
+  _pRow.forEach(function(r){
+    var isMe=String(r[0])===String(RTD.myId);   // come tutto il resto del pong: mai un === crudo (un id numerico da un lato e stringa dall'altro, e la pagina non riconosce la propria racchetta)
     var col=isMe?'#38bdf8':'#f87171';
     var seatBottom=flipP?(r[2]===1):(r[2]===0);   // paddle is on the near edge?
     var py=(seatBottom?MH-0.6:0.6)*sy;
