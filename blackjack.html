@@ -1035,9 +1035,17 @@ function applica(v){
     if (V.fiche.t !== sT.fiches) { V.fiche.t = sT.fiches; mostraFiches("t", sT.fiches); }
   }
   /* i tasti */
-  var puoi = !spett && v.fase === "scelta" && sB.stato === "gioca" && !sB.scelto && !V.scelta;
+  /* ⛔ 25/09 · LA SCELTA VALE UN GIRO SOLO. Prima si azzerava solo a mano
+     nuova: dopo una CARTA il giro dopo aveva la stessa fase e i tasti
+     restavano spenti fino allo scadere (seconda carta impossibile). */
+  var giro = v.mano + ":" + sB.n;
+  if (V.sceltaGiro !== giro) { V.scelta = null; V.sceltaGiro = giro; }
   if (!(v.fase === "scelta" && sB.stato === "gioca")) V.scelta = null;
   if (sB.scelto && V.scelta === null) V.scelta = sB.scelta || "?";
+  /* rete di sicurezza: una mossa che il server non conferma in 2,5 s (messaggio
+     perso per strada) non tiene i tasti spenti per tutto il giro */
+  if (V.scelta && !sB.scelto && V.sceltaT && ORA() - V.sceltaT > 2500) { V.scelta = null; V.sceltaT = 0; }
+  var puoi = !spett && v.fase === "scelta" && sB.stato === "gioca" && !sB.scelto && !V.scelta;
   var bs = document.querySelectorAll(".ab"), i;
   for (i = 0; i < bs.length; i++) {
     var a = bs[i].getAttribute("data-a");
@@ -1218,6 +1226,7 @@ function agisci(a){
   SU.sblocca(); SU.clic();
   if (V.scelta) return;
   V.scelta = a;
+  V.sceltaT = ORA();
   if (GUSCIO) su({ bj: "su", m: { t: "act", a: a } });
   else if (D.m) { if (!D.m.action("tu", a)) V.scelta = null; }
   try { var tg = window.Telegram && Telegram.WebApp; tg && tg.HapticFeedback && tg.HapticFeedback.impactOccurred("medium"); } catch(e){}
