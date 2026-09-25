@@ -100,16 +100,19 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--felt3);color:#ff
 #attesa{text-align:center;font-size:13px;font-weight:800;color:rgba(255,255,255,.85);height:18px;margin-top:8px;}
 /* ── carte ── */
 #layer{position:absolute;inset:0;pointer-events:none;}
-.card{position:absolute;left:0;top:0;will-change:transform;perspective:700px;}
-.card .in{position:absolute;inset:0;transform-style:preserve-3d;transition:transform .32s cubic-bezier(.3,.7,.3,1);}
-.card.su .in{transform:rotateY(180deg);}
-.card .fc2{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;
+/* CURA_ANDROID 25/09: niente 3D (girata in 2D), will-change solo in volo */
+.card{position:absolute;left:0;top:0;}
+.card.vola{will-change:transform;}
+.card .in{position:absolute;inset:0;}
+.card .fc2{position:absolute;inset:0;
   border-radius:9%/6.4%;overflow:hidden;box-shadow:0 3px 8px rgba(0,0,0,.45),0 0 0 .5px rgba(0,0,0,.4);}
-.card .fr{transform:rotateY(180deg);background:#fff;}
+.card .fr{display:none;background:#fff;}
+.card.su .fr{display:block;}
+.card.su .bk{display:none;}
 .card canvas{display:block;width:100%;height:100%;}
 .card.spento .fr{filter:grayscale(.7) brightness(.62);}
 .card.luce .fc2{box-shadow:0 0 0 2px var(--oro),0 0 22px rgba(232,193,90,.9);}
-.fiche{position:absolute;left:0;top:0;width:30px;height:30px;will-change:transform;}
+.fiche{position:absolute;left:0;top:0;width:30px;height:30px;}
 .fchip{display:inline-block;border-radius:50%;
   background:
    radial-gradient(circle at 50% 50%, #fff7df 0 30%, #c9922b 31% 37%, transparent 38%),
@@ -118,7 +121,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--felt3);color:#ff
 .fiche .fchip{width:100%;height:100%;}
 /* ── scritte grandi ── */
 #banner{position:absolute;left:0;right:0;top:44%;transform:translateY(-50%);text-align:center;pointer-events:none;z-index:5;}
-.bn{display:inline-block;background:rgba(3,20,12,.55);border-radius:22px;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);font-weight:1000;font-size:clamp(34px,11vw,58px);letter-spacing:.02em;padding:6px 18px;
+.bn{display:inline-block;background:rgba(3,20,12,.72);border-radius:22px;font-weight:1000;font-size:clamp(34px,11vw,58px);letter-spacing:.02em;padding:6px 18px;
   font-family:"Arial Black","Segoe UI Black",system-ui,sans-serif;}
 .bn.bj{color:#ffe08a;text-shadow:0 3px 0 #9a6412,0 6px 0 #5a3a08,0 0 30px rgba(255,210,90,.9);}
 .bn.bust{color:#ff5a64;text-shadow:0 3px 0 #6e0d14,0 0 24px rgba(255,60,70,.7);}
@@ -126,7 +129,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--felt3);color:#ff
 .bn.lose{color:#ffd0d3;text-shadow:0 3px 0 #551017;font-size:clamp(26px,8vw,42px);}
 .bn.pari{color:var(--oro);text-shadow:0 3px 0 #3a2a06;font-size:clamp(26px,8vw,40px);}
 .bn small{display:block;font-size:.36em;letter-spacing:.06em;margin-top:2px;font-family:system-ui,sans-serif;font-weight:900;}
-.coriandolo{position:absolute;width:8px;height:12px;border-radius:2px;left:0;top:0;will-change:transform;}
+.coriandolo{position:absolute;width:8px;height:12px;border-radius:2px;left:0;top:0;}
 .scuoti{animation:scuoti .42s cubic-bezier(.36,.07,.19,.97);}
 @keyframes scuoti{10%,90%{transform:translateX(-50%) translate3d(-2px,0,0)}20%,80%{transform:translateX(-50%) translate3d(4px,0,0)}30%,50%,70%{transform:translateX(-50%) translate3d(-7px,0,0)}40%,60%{transform:translateX(-50%) translate3d(7px,0,0)}}
 #stage.trema{animation:trema .35s;}
@@ -589,7 +592,8 @@ var SU = (function(){
 })();
 
 /* ═══════════ LE CARTE, DISEGNATE IN CODICE ═══════════ */
-var DPR = Math.min(2.5, window.devicePixelRatio || 1);
+var DPR = Math.min(2, window.devicePixelRatio || 1);
+var LITE = false; try { LITE = localStorage.getItem("gb_lite") === "1"; } catch (e) {}
 function seme(ctx, s, cx, cy, z){
   ctx.beginPath();
   if (s === 1) {            /* cuori */
@@ -701,7 +705,49 @@ function faccia(c, W, H){
   }
   return cv;
 }
-function dorso(W, H){
+/* QUEST NUOVE (25/09): il dorso «tavolo» di chi ha le carte (profilo tvl.db dal server RT) */
+function dorsoDi(lato){
+  try {
+    var me = String((V && V.me) || ""), pr = (V && V.profili) || {}, id = null, k;
+    if (lato === "m") return 0;            /* poker: le carte del tavolo sono di tutti */
+    if (lato === "b") id = me;
+    else for (k in pr) { if (k !== me) { id = k; break; } }
+    var p = id ? pr[id] : null, v = p && p.tvl ? (p.tvl.db | 0) : 0;
+    return (v === 1 || v === 2) ? v : 0;
+  } catch (e) { return 0; }
+}
+function dorsoSkin(W, H, st){
+  var pal = st === 1 ? { a: "#1f1f22", b: "#050506", l: "rgba(212,175,55,.35)", o: "#d4af37", m: "#0b0b0c", t: "♠" }
+                     : { a: "#3b0764", b: "#12001f", l: "rgba(250,204,21,.18)", o: "#facc15", m: "#1a0330", t: "" };
+  var cv = document.createElement("canvas");
+  cv.width = Math.round(W*DPR); cv.height = Math.round(H*DPR);
+  var x = cv.getContext("2d"); x.scale(DPR, DPR);
+  var g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, pal.a); g.addColorStop(1, pal.b);
+  x.fillStyle = g; tondo(x, 0, 0, W, H, W*.09); x.fill();
+  var m = W*.07;
+  x.save(); tondo(x, m, m, W - 2*m, H - 2*m, W*.05); x.clip();
+  x.strokeStyle = pal.l; x.lineWidth = Math.max(.6, W*.012);
+  for (var i = -H; i < W + H; i += W*.11) { x.beginPath(); x.moveTo(i, 0); x.lineTo(i + H, H); x.stroke(); x.beginPath(); x.moveTo(i + H, 0); x.lineTo(i, H); x.stroke(); }
+  if (st === 2) {   /* la facciata della Casa: tetto, finestre accese, la porta */
+    var fx = W*.2, fw = W*.6, fy = H*.3, fh = H*.46, r, c;
+    x.fillStyle = "#0d0118"; x.fillRect(fx, fy, fw, fh);
+    x.beginPath(); x.moveTo(fx - W*.05, fy); x.lineTo(W/2, fy - H*.14); x.lineTo(fx + fw + W*.05, fy); x.closePath(); x.fill();
+    x.fillStyle = "#facc15"; x.shadowColor = "#facc15"; x.shadowBlur = W*.06;
+    for (r = 0; r < 2; r++) for (c = 0; c < 3; c++) x.fillRect(fx + fw*(.12 + c*.3), fy + fh*(.12 + r*.3), fw*.16, fh*.16);
+    x.shadowBlur = 0; x.fillStyle = "#2a0a3d"; x.beginPath(); x.arc(W/2, fy + fh, fw*.16, Math.PI, 0); x.fill();
+  }
+  x.restore();
+  x.strokeStyle = pal.o; x.lineWidth = Math.max(1, W*.022); tondo(x, m, m, W - 2*m, H - 2*m, W*.05); x.stroke();
+  if (pal.t) {
+    x.fillStyle = pal.m; x.beginPath(); x.ellipse(W/2, H/2, W*.27, W*.27, 0, 0, 7); x.fill();
+    x.lineWidth = Math.max(1, W*.02); x.stroke();
+    x.fillStyle = pal.o; x.textAlign = "center"; x.textBaseline = "middle";
+    x.font = "900 " + (W*.3) + "px Georgia,'Times New Roman',serif"; x.fillText(pal.t, W/2, H/2 + W*.01);
+  }
+  return cv;
+}
+function dorso(W, H, st){
+  if (st === 1 || st === 2) return dorsoSkin(W, H, st);   /* QUEST NUOVE (25/09) */
   var cv = document.createElement("canvas");
   cv.width = Math.round(W*DPR); cv.height = Math.round(H*DPR);
   var x = cv.getContext("2d"); x.scale(DPR, DPR);
@@ -785,7 +831,7 @@ function creaCarta(lato, val){
   var el = document.createElement("div"); el.className = "card";
   el.style.width = w + "px"; el.style.height = h + "px";
   var inn = document.createElement("div"); inn.className = "in";
-  var bk = document.createElement("div"); bk.className = "fc2 bk"; bk.appendChild(dorso(w, h));
+  var bk = document.createElement("div"); bk.className = "fc2 bk"; bk.appendChild(dorso(w, h, dorsoDi(lato)));   /* QUEST NUOVE (25/09) */
   var fr = document.createElement("div"); fr.className = "fc2 fr";
   inn.appendChild(bk); inn.appendChild(fr); el.appendChild(inn);
   var c = { el: el, fr: fr, val: -1, su: false, w: w, h: h, lato: lato };
@@ -801,14 +847,31 @@ function mettiFaccia(c, val){
 }
 function vola(c, p, ritardo, dur){
   setTimeout(function(){
-    c.el.style.transition = "transform " + (dur || 380) + "ms cubic-bezier(.2,.8,.25,1)";
+    var d = dur || 380;
+    c.el.classList.add("vola");
+    c.el.style.transition = "transform " + d + "ms cubic-bezier(.2,.8,.25,1)";
     c.el.style.transform = trasf(p, c.rad ? " rotate(90deg)" : "");
+    clearTimeout(c.tv);
+    c.tv = setTimeout(function(){ c.el.classList.remove("vola"); }, d + 80);
   }, ritardo || 0);
 }
 function gira(c, ritardo){
   if (c.su) return;
   c.su = true;
-  setTimeout(function(){ c.el.classList.add("su"); SU.gira(); }, ritardo || 0);
+  setTimeout(function(){
+    SU.gira();
+    var inn = c.el.firstChild;
+    if (!inn || !inn.animate) { c.el.classList.add("su"); return; }
+    var a = inn.animate([{ transform: "scaleX(1)" }, { transform: "scaleX(0.02)" }], { duration: 130, easing: "ease-in" });
+    var fatto = false;
+    var gira2 = function(){
+      if (fatto) return; fatto = true;
+      c.el.classList.add("su");
+      try { inn.animate([{ transform: "scaleX(0.02)" }, { transform: "scaleX(1)" }], { duration: 150, easing: "ease-out" }); } catch (e) {}
+    };
+    a.onfinish = gira2;
+    setTimeout(gira2, 220);      /* se `finish` non arriva (WebView), la faccia si gira lo stesso */
+  }, ritardo || 0);
 }
 function sistemaFila(lato, ritardo){
   var arr = V.carte[lato], i;
@@ -878,6 +941,7 @@ function banner(cls, testo, sotto, durata){
   }, durata || 1300);
 }
 function coriandoli(n){
+  if (LITE) return;
   var app = $("app"), W = app.clientWidth, H = app.clientHeight, i, cols = ["#ffe08a", "#e8c15a", "#fff", "#3ddc84", "#ff6b6b"];
   if (!document.body.animate) return;
   for (i = 0; i < n; i++) (function(){
@@ -1197,6 +1261,7 @@ function gestisci(m){
   }
   if (m.t === "s" && m.bj) {
     if (m.g && m.g !== "bj1v1") return;
+    DIAG.ultimo = ORA();
     applica(m.bj);
     return;
   }
@@ -1259,6 +1324,11 @@ function agisci(a){
 var FPS = { on: Q.fps === "1", n: 0, t0: 0, peggio: 0, prec: 0, lista: [] };
 if (FPS.on) $("fps").style.display = "block";
 function ciclo(ts){
+  DIAG.rafT = ORA();
+  try { cicloCorpo(ts); } catch (e) { diag("ciclo", String(e && e.message || e)); }
+  requestAnimationFrame(ciclo);
+}
+function cicloCorpo(ts){
   if (!D.last) D.last = ts;
   var dt = Math.min(0.1, (ts - D.last)/1000); D.last = ts;
   if (FPS.on) {
@@ -1269,8 +1339,53 @@ function ciclo(ts){
   }
   if (!GUSCIO && !G.pausa) demoPasso(dt);
   if (V) giraOrologio();
-  requestAnimationFrame(ciclo);
 }
+/* ═══════════ IL GUARDIANO (25/09 sera: «a volte si impalla») ═══════════ */
+var DIAG = { ultimo: 0, rafT: 0, detto: {}, spenti: 0, vuoti: [] };
+function diag(chiave, dati){
+  var ora = ORA();
+  if (DIAG.detto[chiave] && ora - DIAG.detto[chiave] < 60000) return;
+  DIAG.detto[chiave] = ora;
+  var v = V && V.vista, io = v ? (v.io >= 0 ? v.io : 0) : 0, s = v ? v.seggi[io] : null;
+  var b = document.querySelector('.ab[data-a=carta]');
+  var stato = { f: v && v.fase, m: v && v.mano, o: v && v.orologio, st: s && s.stato, n: s && s.n,
+    sc: s && s.scelto, loc: V && V.scelta, en: b ? !b.disabled : null, vis: document.visibilityState,
+    fg: DIAG.ultimo ? Math.round((ora - DIAG.ultimo) / 100) / 10 : -1, raf: DIAG.rafT ? Math.round((ora - DIAG.rafT) / 100) / 10 : -1 };
+  var msg = "diag " + chiave + " " + JSON.stringify(stato) + (dati ? " " + String(dati).slice(0, 120) : "");
+  try { console.warn("[BJ] " + msg); } catch (e) {}
+  if (GUSCIO) su({ bj: "err", msg: msg.slice(0, 290) });
+}
+window.addEventListener("error", function(ev){ diag("js", (ev && ev.message || "?") + " @" + (ev && ev.lineno) + ":" + (ev && ev.colno)); });
+window.addEventListener("unhandledrejection", function(ev){ diag("promessa", ev && ev.reason && (ev.reason.message || ev.reason)); });
+setInterval(function(){
+  try {
+    var ora = ORA(), v = V && V.vista;
+    if (!v || document.visibilityState === "hidden") { DIAG.spenti = 0; return; }
+    /* D2: il ciclo di disegno fermo da >3 s: si rilancia */
+    if (DIAG.rafT && ora - DIAG.rafT > 3000) { diag("raf_fermo"); DIAG.rafT = ora; requestAnimationFrame(ciclo); }
+    if (!GUSCIO || !G.start || G.over || v.fase === "fine") return;
+    /* D4: nessun fotogramma dal server */
+    if (DIAG.ultimo && ora - DIAG.ultimo > 5000) diag("nessun_fotogramma");
+    /* D3: tasti spenti quando dovrebbero essere accesi */
+    var io = v.io >= 0 ? v.io : 0, s = v.seggi[io], b = document.querySelector('.ab[data-a=carta]');
+    if (v.io >= 0 && v.fase === "scelta" && s.stato === "gioca" && !s.scelto && v.orologio > 2 && b && b.disabled
+        && DIAG.ultimo && ora - DIAG.ultimo < 1500) {
+      if (++DIAG.spenti >= 3) { diag("tasti_spenti"); V.scelta = null; V.sceltaT = 0; applica(v); DIAG.spenti = 0; }
+    } else DIAG.spenti = 0;
+  } catch (e) { diag("guardiano", String(e && e.message || e)); }
+}, 1000);
+/* D5: tocchi sui tasti spenti */
+document.addEventListener("touchstart", function(ev){
+  try {
+    var b = ev.target && ev.target.closest && ev.target.closest(".ab");
+    if (!b || !b.disabled) return;
+    var ora = ORA();
+    DIAG.vuoti = DIAG.vuoti.filter(function(t){ return ora - t < 10000; });
+    DIAG.vuoti.push(ora);
+    if (DIAG.vuoti.length >= 3) { diag("tocchi_a_vuoto", b.getAttribute("data-a")); DIAG.vuoti = []; }
+  } catch (e) {}
+}, { passive: true, capture: true });
+
 vReset();
 setTimeout(function(){
   geometria();
