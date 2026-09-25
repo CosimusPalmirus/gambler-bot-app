@@ -2244,6 +2244,23 @@ var G3 = window.G3 = window.G3 || {};
     x.fillStyle = col; x.beginPath(); x.arc(64, 22, 10, 0, 6.283); x.fill(); x.beginPath(); x.arc(192, 106, 10, 0, 6.283); x.fill();
     return G3.tex(c);
   }
+  // QUEST NUOVE (25/09): le palline «tavolo» (fossette come quella di serie, altra pelle)
+  function telaPallinaSkin(col, pl) {
+    var c = G3.tela(256, 128), x = c.getContext('2d');
+    var g = x.createLinearGradient(0, 0, 0, 128);
+    if (pl === 1) { g.addColorStop(0, '#fff3b8'); g.addColorStop(.5, '#e6b422'); g.addColorStop(1, '#9a6c00'); }
+    else { g.addColorStop(0, '#f2fdff'); g.addColorStop(.45, '#7fe3ff'); g.addColorStop(1, '#0e8fc4'); }
+    x.fillStyle = g; x.fillRect(0, 0, 256, 128);
+    for (var j = 0; j < 9; j++) for (var i = 0; i < 18; i++) {
+      var px = (i + (j % 2) * 0.5) / 18 * 256, py = (j + 0.5) / 9 * 128;
+      var d = x.createRadialGradient(px - 1, py - 1, 0, px, py, 5);
+      d.addColorStop(0, pl === 1 ? 'rgba(80,50,0,.22)' : 'rgba(0,40,60,.16)'); d.addColorStop(1, 'rgba(0,0,0,0)');
+      x.fillStyle = d; x.beginPath(); x.arc(px, py, 5, 0, 6.283); x.fill();
+    }
+    x.fillStyle = col; x.fillRect(0, 58, 256, 12);
+    x.fillStyle = 'rgba(255,255,255,.7)'; x.fillRect(0, 62, 256, 3);
+    return G3.tex(c);
+  }
   function telaEtichetta(nome, col, img) {
     var c = G3.tela(256, 80), x = c.getContext('2d');
     x.font = '900 34px "Russo One", Impact, sans-serif';
@@ -2287,7 +2304,11 @@ var G3 = window.G3 = window.G3 || {};
     scena.add(scie);
 
     giocatori.forEach(function (g, idx) {
-      var mat = new T.MeshPhongMaterial({ map: telaPallina(g.col), shininess: 70, specular: '#555555' });
+      // QUEST NUOVE (25/09): pallina d'oro (metallo lucido) o cometa (azzurra); la fascia resta del giocatore
+      var pl = g.pl | 0;
+      var mat = pl === 1 ? new T.MeshPhongMaterial({ map: telaPallinaSkin(g.col, 1), shininess: 140, specular: '#fff1a8', emissive: '#3a2800' })
+        : pl === 2 ? new T.MeshPhongMaterial({ map: telaPallinaSkin(g.col, 2), shininess: 110, specular: '#e8fdff', emissive: '#06303a' })
+        : new T.MeshPhongMaterial({ map: telaPallina(g.col), shininess: 70, specular: '#555555' });
       var m = new T.Mesh(geo, mat);
       scena.add(m);
       var img = null;
@@ -2302,7 +2323,8 @@ var G3 = window.G3 = window.G3 || {};
       P[g.id] = {
         id: g.id, io: !!g.io, col: new T.Color(g.col), nome: g.nome, idx: idx, mesh: m, et: et,
         x: 0, y: 0, h: BR, vx: 0, vy: 0, vis: true, alfa: 1, q: new T.Quaternion(),
-        scia: [], giu: 0 // giu: animazione di caduta nel bicchiere (0..1)
+        scia: [], giu: 0, // giu: animazione di caduta nel bicchiere (0..1)
+        sc: pl === 1 ? new T.Color('#ffcf40') : (pl === 2 ? new T.Color('#7df9ff') : null), scA: pl === 2 ? 2.2 : (pl === 1 ? 1.6 : 1), scW: pl === 2 ? 1.5 : 1   // QUEST NUOVE (25/09): la scia
       };
     });
 
@@ -2360,11 +2382,11 @@ var G3 = window.G3 = window.G3 || {};
             var px = j >= 0 ? L[j * 2] : 0, pz = j >= 0 ? L[j * 2 + 1] : 0;
             var j2 = Math.min(j + 1, (L.length >> 1) - 1), nx = 0, nz = 0;
             if (j2 > j) { var tx = L[j * 2] - L[j2 * 2], tz = L[j * 2 + 1] - L[j2 * 2 + 1], tl = Math.hypot(tx, tz) || 1; nx = -tz / tl; nz = tx / tl; }
-            var w = BR * 0.55 * (1 - i / NS);
+            var w = BR * 0.55 * (1 - i / NS) * (bb.scW || 1);
             sp[(a0) * 3] = px + nx * w; sp[a0 * 3 + 1] = 0.015; sp[a0 * 3 + 2] = pz + nz * w;
             sp[(a0 + 1) * 3] = px - nx * w; sp[(a0 + 1) * 3 + 1] = 0.015; sp[(a0 + 1) * 3 + 2] = pz - nz * w;
-            var al = j >= 0 && L.length > 4 ? (1 - i / NS) * 0.32 * Math.min(1, sp2 / 3) : 0;
-            var c = bb.col;
+            var al = j >= 0 && L.length > 4 ? Math.min(1, (1 - i / NS) * 0.32 * Math.min(1, sp2 / 3) * (bb.scA || 1)) : 0;
+            var c = bb.sc || bb.col;
             for (var v = 0; v < 2; v++) { var ci = (a0 + v) * 4; sc[ci] = c.r * al; sc[ci + 1] = c.g * al; sc[ci + 2] = c.b * al; sc[ci + 3] = al; }
           }
           s++;
@@ -3037,7 +3059,8 @@ var G3 = window.G3 = window.G3 || {};
     var robot = G3.creaRobot(scena);
     var io = opz.io != null ? String(opz.io) : null;
     var nomi = {}, foto = {};
-    (opz.giocatori || []).forEach(function (g) { nomi[String(g.id)] = g.nome; if (g.foto) foto[String(g.id)] = g.foto; });
+    var pall = {};   // QUEST NUOVE (25/09): la pallina «tavolo» di ognuno (1 oro, 2 cometa)
+    (opz.giocatori || []).forEach(function (g) { nomi[String(g.id)] = g.nome; if (g.foto) foto[String(g.id)] = g.foto; if (g.pl) pall[String(g.id)] = g.pl | 0; });
     var palline = null, ids = [];
     var S = [];                      // campioni: {t, h, holes, b:{id:[x,y,n,in]}, sc, over, arr}
     var corsi = {}, sceneBuca = {}, B = null, vHole = 0;
@@ -3059,7 +3082,7 @@ var G3 = window.G3 = window.G3 || {};
     function preparaPalline(balls) {
       ids = Object.keys(balls);
       if (io && ids.indexOf(io) < 0) io = io;          // spettatore: nessuna e' mia
-      palline = G3.creaPalline(scena, ids.map(function (id) { return { id: id, nome: nomeDi(id), col: colDi(id), io: id === io, foto: foto[id] }; }));
+      palline = G3.creaPalline(scena, ids.map(function (id) { return { id: id, nome: nomeDi(id), col: colDi(id), io: id === io, foto: foto[id], pl: pall[id] | 0 }; }));
       ids.forEach(function (id) { colpi[id] = colpi[id] || {}; });
     }
     function scenaPer(h) {

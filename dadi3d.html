@@ -455,7 +455,10 @@ const t="170",e={LEFT:0,MIDDLE:1,RIGHT:2,ROTATE:0,DOLLY:1,PAN:2},n={ROTATE:0,PAN
   var STILI = {
     casino: { corpo: ['#fbfaf5', '#e9e5da'], pip: ['#050505', '#3a3a3a'], pip1: ['#9e0b22', '#e8364f'], bordo: 'rgba(0,0,0,.05)' },
     tu: { corpo: ['#2ad7ff', '#0a86c4'], pip: ['#f4fbff', '#ffffff'], pip1: null, bordo: 'rgba(255,255,255,.15)' },
-    lui: { corpo: ['#ff4d6a', '#b3102c'], pip: ['#fff4f5', '#ffffff'], pip1: null, bordo: 'rgba(255,255,255,.15)' }
+    lui: { corpo: ['#ff4d6a', '#b3102c'], pip: ['#fff4f5', '#ffffff'], pip1: null, bordo: 'rgba(255,255,255,.15)' },
+    // QUEST NUOVE (25/09): i dadi «tavolo» sbloccati con le quest (costruiti solo se servono)
+    oro: { corpo: ['#ffe27a', '#b8860b'], pip: ['#0b0802', '#2a1d05'], pip1: null, bordo: 'rgba(255,248,210,.55)' },
+    rubino: { corpo: ['#ff5a74', '#6a0014'], pip: ['#ffd34d', '#fff1b0'], pip1: null, bordo: 'rgba(255,200,210,.4)' }
   };
   // valore dipinto su ogni faccia della BoxGeometry (+X,-X,+Y,-Y,+Z,-Z) = DDF.FACCE
   var VAL_FACCIA = [3, 4, 1, 6, 2, 5];
@@ -892,6 +895,17 @@ const t="170",e={LEFT:0,MIDDLE:1,RIGHT:2,ROTATE:0,DOLLY:1,PAN:2},n={ROTATE:0,PAN
   function ultimaQ(sim, i) { var a = sim.fr[i], k = (sim.nf - 1) * 7; return [a[k + 3], a[k + 4], a[k + 5], a[k + 6]]; }
 
   // ─────────────────────────────── IL PONTE ───────────────────────────────
+  // QUEST NUOVE (25/09): il materiale di un dado: 1 oro (metallo), 2 rubino; il resto e' quello di sempre
+  function matDado(base, sk) {
+    var k = sk === 1 ? 'oro' : (sk === 2 ? 'rubino' : null);
+    if (!k || !D3._mats) return D3._mats[base];
+    if (!D3._mats[k]) {
+      var a = atlante(STILI[k]);
+      D3._mats[k] = new T.MeshStandardMaterial({ map: a.map, bumpMap: a.bump, bumpScale: 2.2,
+        roughness: k === 'oro' ? 0.3 : 0.18, metalness: k === 'oro' ? 0.78 : 0.05, envMapIntensity: k === 'oro' ? 1.25 : 1.0 });
+    }
+    return D3._mats[k];
+  }
   D3.monta = function (o) {
     o = o || {};
     stile = o.stile === 'duello' ? 'duello' : 'casino'; lingua = o.lingua || 'it';
@@ -900,7 +914,8 @@ const t="170",e={LEFT:0,MIDDLE:1,RIGHT:2,ROTATE:0,DOLLY:1,PAN:2},n={ROTATE:0,PAN
     nascondiNumeri(); anello.material.opacity = 0; camZoom.k = 0;
     busStato.k = 'fermo'; busStato.t = 0; busStato.x = WX - 0.75; busStato.z = 0;
     if (stile === 'casino') {
-      dadi[0].m.material = D3._mats.casino; dadi[1].m.material = D3._mats.casino;
+      var _sk = o.skin || {};   // QUEST NUOVE (25/09)
+      dadi[0].m.material = matDado('casino', _sk.casino | 0); dadi[1].m.material = matDado('casino', _sk.casino | 0);
       // a riposo: gli ultimi numeri usciti (o 3 e 4 prima del primo tiro), cosi' il tavolo
       // dice la stessa cosa del TOTALE scritto sotto quando si torna sulla pagina
       var qa = [0, 0, 0, 1], rv = (o.riposo && o.riposo.length === 2) ? o.riposo : [3, 4];
@@ -909,7 +924,8 @@ const t="170",e={LEFT:0,MIDDLE:1,RIGHT:2,ROTATE:0,DOLLY:1,PAN:2},n={ROTATE:0,PAN
       metti(0, [-0.9, H, 0.1], qa, dadi[0].fix); metti(1, [0.5, H, -0.2], F.qasse([0, 1, 0], 0.5), dadi[1].fix);
       dadi.forEach(function (d) { d.g.visible = true; d.g.scale.setScalar(1); d.stato = 'fermo'; });
     } else {
-      dadi[0].m.material = D3._mats.lui; dadi[1].m.material = D3._mats.tu;
+      var _sk2 = o.skin || {};   // QUEST NUOVE (25/09): il suo dado col SUO look, il mio col mio
+      dadi[0].m.material = matDado('lui', _sk2.lui | 0); dadi[1].m.material = matDado('tu', _sk2.tu | 0);
       dadi.forEach(function (d) { d.g.visible = false; d.stato = 'no'; });
     }
     inquadra(); disegna();
