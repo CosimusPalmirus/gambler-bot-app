@@ -2,6 +2,99 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<script>
+/* ═══ LITE_2509 · IL SEGNO «LITE» DEL TELEFONO (25/09/2026) ═══════════════════
+   PRIMA: gb_lite=1 lo scriveva rtdRafWatch alla prima pausa del disegno >2,5 s
+   in una partita dell'arcade — e la pausa piu' comune e' Telegram messo in
+   secondo piano — e non si toglieva MAI. Nei log del turfwar-rt: 20 giocatori
+   su 48, tutti e due gli admin. Col lite si spegnevano golf 3D, derby 3D, il
+   personalizzatore 3D del derby (e fino a ieri i dadi 3D).
+   ADESSO:
+   1. MIGRAZIONE, una volta sola (gb_lite_v='2'): i gb_lite salvati prima di
+      oggi si buttano; il telefono si rimisura.
+   2. A OGNI APERTURA si rimisura: resta solo un rAF MORTO a pagina visibile
+      (7 giorni) o un WebView vecchio (Chrome < 110). Il resto vale una sessione.
+   3. Una pausa conta solo a pagina VISIBILE e DAVANTI: non se e' nascosta, non
+      nei 6 s dopo il ritorno, non se il JS era congelato (battito da 500 ms in
+      ritardo >1,5 s = app in secondo piano). E ne servono DUE vere.
+   4. La lentezza vera si MISURA: in partita, a pagina visibile, per 10 s
+      fps medio < 18 E timer in ritardo di >12 ms in media (filo intasato).
+      Pochi fotogrammi col filo libero = il browser che rallenta il disegno.
+   5. Cosa decide la pagina: `?dbg` nell'indirizzo o localStorage gb_dbg='1' →
+      una riga in basso; sempre console.info('[LITE] …') e GBLITE.stato().
+   Lite non vuol dire piu' «niente 3D»: golf, derby e dadi 3D girano in
+   qualita' bassa. ═══════════════════════════════════════════════════════════ */
+(function(){
+  var L=null;try{L=window.localStorage;L.getItem('x');}catch(e){L=null;}
+  var G=window.GBLITE={v:2,perche:'',nascT:0,tornT:0,bluT:0,tic:0,gapT:0,colpi:0,fin:[],migrato:false,tolto:'',fpsVis:0};
+  try{
+    if(L&&L.getItem('gb_lite_v')!=='2'){
+      if(L.getItem('gb_lite')==='1'){L.removeItem('gb_lite');G.migrato=true;}
+      L.setItem('gb_lite_v','2');
+    }
+    if(L&&L.getItem('gb_lite')==='1'){
+      var p=L.getItem('gb_lite_perche')||'',t=+(L.getItem('gb_lite_t')||0);
+      var tieni=(p==='rafdead'&&Date.now()-t<7*864e5)||p==='ua';
+      if(tieni)G.perche=p+' (salvato)';
+      else{L.removeItem('gb_lite');L.removeItem('gb_lite_perche');L.removeItem('gb_lite_t');G.tolto=p||'vecchio';}
+    }
+  }catch(e){}
+  function ora(){return performance.now();}
+  try{
+    document.addEventListener('visibilitychange',function(){if(document.hidden)G.nascT=ora();else G.tornT=ora();});
+    window.addEventListener('pagehide',function(){G.nascT=ora();});
+    window.addEventListener('pageshow',function(){G.tornT=ora();});
+    window.addEventListener('blur',function(){G.bluT=ora();});
+    window.addEventListener('focus',function(){G.tornT=ora();});
+  }catch(e){}
+  // la pausa si spiega con la pagina nascosta / in secondo piano? (stringa vuota = no)
+  G.scusa=function(){
+    var n=ora();
+    if(document.hidden||document.visibilityState==='hidden')return 'pagina nascosta';
+    if(G.tornT&&n-G.tornT<6000)return 'appena tornata in primo piano';
+    if(G.gapT&&n-G.gapT<6000)return 'JS fermo (app in secondo piano)';
+    if(G.bluT&&G.bluT>G.tornT)return 'finestra non attiva';               // lasciata e non ancora ripresa
+    try{if(document.hasFocus&&!document.hasFocus())return 'finestra non attiva';}catch(e){}
+    return '';
+  };
+  // la lentezza VERA: fps medio del disegno in partita, a pagina visibile, su 10 s
+  G.misura=function(n,rit){
+    try{
+      if(typeof RTD==='undefined'||!RTD||RTD.lite)return;
+      if(typeof CUR==='undefined'||CUR!=='arc'||RTD.ui!=='match'||!RTD._rafT){G.fin=[];return;}
+      if(G.scusa()){G.fin=[];return;}
+      G.fin.push([n,RTD._rafN||0,rit||0]);
+      while(G.fin.length&&n-G.fin[0][0]>10000)G.fin.shift();
+      if(G.fin.length>=19){
+        var a=G.fin[0],b=G.fin[G.fin.length-1],fps=(b[1]-a[1])*1000/Math.max(1,b[0]-a[0]),rm=0;
+        for(var i=0;i<G.fin.length;i++)rm+=G.fin[i][2];rm/=G.fin.length;
+        G.fpsVis=fps;G.ritVis=rm;
+        // pochi fotogrammi E il filo principale INTASATO (i timer arrivano in ritardo): telefono lento.
+        // Pochi fotogrammi col filo libero = e' il browser che rallenta il disegno (finestra coperta):
+        // non e' il telefono, e non si segna niente.
+        if(fps<18&&rm>12){G.fin=[];if(typeof rtdLiteOn==='function')rtdLiteOn('lento: '+fps.toFixed(0)+' fps per 10 s, filo principale in ritardo di '+rm.toFixed(0)+' ms');}
+      }
+    }catch(e){}
+  };
+  G.tic=ora();
+  setInterval(function(){var n=ora(),rit=Math.max(0,n-G.tic-500);if(n-G.tic>1500)G.gapT=n;G.tic=n;G.misura(n,rit);},500);
+  G.stato=function(){
+    var on=false,p='';
+    try{on=!!((typeof RTD!=='undefined'&&RTD&&RTD.lite)||(L&&L.getItem('gb_lite')==='1'));p=G.perche||(L&&L.getItem('gb_lite_perche'))||'';}catch(e){}
+    return 'lite: '+(on?'SI, perche\' '+(p||'?'):'no')+(G.colpi?' · pause vere '+G.colpi:'')+(G.tolto?' · tolto all\'apertura ('+G.tolto+')':'')+
+      (G.migrato?' · gb_lite vecchio azzerato':'')+(G.fpsVis?' · fps partita '+G.fpsVis.toFixed(0)+', ritardo timer '+(G.ritVis||0).toFixed(0)+' ms':'');
+  };
+  try{console.info('[LITE] '+G.stato());}catch(e){}
+  var dbg=false;try{dbg=/dbg/.test(location.search+location.hash)||(L&&L.getItem('gb_dbg')==='1');}catch(e){}
+  if(dbg)setInterval(function(){
+    var d=document.getElementById('gblite-dbg');
+    if(!d&&document.body){d=document.createElement('div');d.id='gblite-dbg';
+      d.style.cssText='position:fixed;left:4px;bottom:4px;z-index:2147483647;font:700 10px/1.3 ui-monospace,monospace;color:#9fe8ff;background:rgba(0,0,0,.75);padding:3px 6px;border-radius:6px;pointer-events:none;max-width:96vw;';
+      document.body.appendChild(d);}
+    if(d)d.textContent='⚙ '+G.stato();
+  },700);
+})();
+</script>
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
 <!-- Cache-busting: tell browsers + Telegram WebView to never serve a stale version -->
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
@@ -61293,11 +61386,13 @@ function rtdSaveErr(e){
     return out;
   }catch(_e){return '';}
 }
-function rtdLiteOn(){
+function rtdLiteOn(perche){
   try{
     if(!RTD.lite){
       RTD.lite=true;
-      try{localStorage.setItem('gb_lite','1');}catch(_p){}
+      var _lp=String(perche||'altro');
+      try{localStorage.setItem('gb_lite','1');localStorage.setItem('gb_lite_perche',_lp.split(':')[0]);localStorage.setItem('gb_lite_t',String(Date.now()));}catch(_p){}
+      try{if(window.GBLITE)GBLITE.perche=_lp;console.info('[LITE] acceso: '+_lp);}catch(_c){}   /* LITE_2509 */
     }
     // campo calcio: ri-bake SUBITO a mezza risoluzione (il prossimo frame,
     // rianimato o da fallback, fa il blit scalato — vedi rtdDrawBolgia)
@@ -61319,8 +61414,9 @@ function rtdRafWatch(){
     if(!RTD._mdT0)RTD._mdT0=now;
     if(now-RTD._mdT0>3000&&(RTD._rafN||0)<10&&now-RTD._rafT>2500){
       if(!RTD._rdOnce){RTD._rdOnce=1;
-        try{localStorage.setItem('gb_lite','1');}catch(_p1){}
-        RTD.lite=true;
+        /* LITE_2509: un rAF fermo perche' la pagina e' nascosta non e' un telefono fragile */
+        var _lsc=window.GBLITE?GBLITE.scusa():'';
+        if(!_lsc)rtdLiteOn('rafdead');else{try{console.info('[LITE] rAF fermo scusato: '+_lsc);}catch(_i){}}
         try{if(!localStorage.getItem('gb_lasterr'))localStorage.setItem('gb_lasterr','rafdead rf:'+(RTD._rafN||0));}catch(_p2){}
         try{if(RTD.ws&&RTD.ws.readyState===1)RTD.ws.send(JSON.stringify({t:'clog',at:'rafdead',g:RTD.game,rf:RTD._rafN||0}));}catch(_p3){}
         try{rtdStartRaf();}catch(_r2){}   // tentativo revive (resetta _rafT: il ramo ricontrolla dopo 2.5s)
@@ -61339,7 +61435,11 @@ function rtdRafWatch(){
         if(!RTD._rsSent&&RTD.ws&&RTD.ws.readyState===1){RTD._rsSent=true;
           RTD.ws.send(JSON.stringify({t:'clog',at:'rafstall',g:RTD.game,ms:Math.round(now-RTD._rafT),msgs:RTD._wsN||0,lite:RTD.lite?1:0}));}
       }catch(_b){}
-      rtdLiteOn();
+      /* LITE_2509: la pausa conta solo a pagina visibile e davanti, e ne servono DUE */
+      (function(){var _sc=window.GBLITE?GBLITE.scusa():'';
+        if(_sc){try{console.info('[LITE] pausa del disegno scusata: '+_sc);}catch(_i){}return;}
+        if(window.GBLITE){GBLITE.colpi++;if(GBLITE.colpi<2){try{console.info('[LITE] prima pausa vera del disegno: ancora niente lite');}catch(_i2){}return;}}
+        rtdLiteOn('rafstall');})();
       // rianimazione: rtdStartRaf fa cancel (via rtdStopRaf) + ri-request e
       // azzera _rw/_rafT — lo stage va quindi impostato DOPO la chiamata.
       try{rtdStartRaf();}catch(_r){}
@@ -66016,7 +66116,7 @@ function rtdCanvasInit(){
   try{
     if(!RTD._uaChk){RTD._uaChk=1;
       var _um=/Chrome\/(\d+)/.exec(navigator.userAgent||'');
-      if(_um&&+_um[1]<110){RTD.lite=true;try{localStorage.setItem('gb_lite','1');}catch(_u2){}}
+      if(_um&&+_um[1]<110){RTD.lite=true;try{localStorage.setItem('gb_lite','1');localStorage.setItem('gb_lite_perche','ua');localStorage.setItem('gb_lite_t',String(Date.now()));if(window.GBLITE)GBLITE.perche='ua (Chrome '+_um[1]+')';}catch(_u2){}}   /* LITE_2509 */
     }
   }catch(_ua){}
   try{if(!RTD.lite&&localStorage.getItem('gb_lite')==='1')RTD.lite=true;}catch(_lt){}
@@ -94761,7 +94861,7 @@ function gf3dBase(){
 }
 function gf3dVuole(){
   if(RTD.game!=='golf')return false;
-  if(RTD.spec||RTD.lite)return false;
+  if(RTD.spec)return false;   /* LITE_2509: in lite il golf 3D gira in qualita' bassa (vedi gf3d avvia) */
   if(GF3D.giu&&GF3D.giu===GF3D.partita)return false;   // caduto in QUESTA partita
   return gf3dBase();
 }
@@ -94856,6 +94956,7 @@ function gf3dFotogramma(ctx,raw,lp,now,w,hh,dt){
   if(g.errore){gf3dCade('golf3d: '+g.errore);return false;}
   if(!GF3D.avviato){
     var ok=false;
+    if(RTD.lite){try{GF3D.fr.contentWindow.G3.qualita='bassa';}catch(_gq){}}   /* LITE_2509: dpr 1, niente antialias, meno particelle */
     try{ok=g.avvia({io:String(RTD.myId),giocatori:gf3dGiocatori(raw),lingua:gf3dLang(),suono:true,avvisa:gf3dAvvisa,vibra:gf3dVibra})===true;}
     catch(e){gf3dCade(e);return false;}
     if(!ok){gf3dCade('golf3d: avvia ha detto no ('+(g.errore||'?')+')');return false;}
@@ -96369,7 +96470,7 @@ var B3D={ok:false,fr:null,g:null,host:null,err:null,gl2:null,giu:null,nato:0,mon
   avviato:false,svelato:false,look:null,anim:null,righe:null,st:null,
   sc0:-1,sc1:-1,golden:false,gwP:-1,bzP:null,bordiK:'',bordiN:0,fpsT:0,prontoT:0};
 function blg3dLang(){return (window.GB_LANG==='en')?'en':'it';}
-function blg3dSrc(){return 'derby3d.html?v='+encodeURIComponent(BLG3D_VER)+'&lang='+blg3dLang();}
+function blg3dSrc(){return 'derby3d.html?v='+encodeURIComponent(BLG3D_VER)+'&lang='+blg3dLang()+((typeof RTD!=='undefined'&&RTD.lite)||(function(){try{return localStorage.getItem('gb_lite')==='1';}catch(e){return false;}})()?'&q=bassa':'');}   /* LITE_2509 */
 // interruttore + localStorage + WebGL2 (la sonda si fa UNA VOLTA SOLA)
 function blg3dBase(){
   var ls=null;
@@ -96395,7 +96496,7 @@ function blg3dVuole(){
      declassato li' puo' benissimo reggere il 3D, che di draw call ne fa 12.
      Se il proprietario vuole essere piu' prudente, la riga da aggiungere e':
        if(typeof blgReducedMode==='function'&&blgReducedMode())return false; */
-  if(RTD.lite)return false;
+  /* LITE_2509: in lite il derby 3D gira in qualita' bassa (blg3dSrc: ?q=bassa) */
   if(B3D.giu&&B3D.giu===(BLG.startAt||1))return false;   // caduto in QUESTA partita
   return blg3dBase();
 }
@@ -96769,7 +96870,7 @@ function blgBakeStatic(){
     try{console.error('blgBakeStatic fatal:',e);}catch(_c0){}
     try{rtdSaveErr(e);}catch(_s0){}
     BLG._bkRec=1;
-    try{rtdLiteOn();}catch(_l0){}   // persiste gb_lite (il suo ri-bake interno finisce nel ramo _bkRec)
+    try{rtdLiteOn('derby-bake');}catch(_l0){}   // persiste gb_lite (il suo ri-bake interno finisce nel ramo _bkRec)
     BLG._bkRec=0;
     try{blgBakeFallback();}catch(_f0){}
   }
@@ -98205,7 +98306,7 @@ function dbEd3dLookObj(){
 function dbEd3dApri(){
   if(DB3.mai||DB3.fr)return;
   try{if(!blg3dBase())return;}catch(e){return;}
-  if(typeof RTD!=='undefined'&&RTD.lite)return;
+  /* LITE_2509: niente porta per il lite, il 3D arriva in qualita' bassa */
   var cv=document.getElementById('db-ed-cv');if(!cv||!cv.parentNode)return;
   var st=cv.parentNode;
   try{
@@ -98313,6 +98414,7 @@ function derbyEditor(){
     // righe opzioni/skin/salva funzionano. I device pieni tengono l'anteprima animata.
     try{dbEdDrawLite();}catch(_dl){}
     if(DB_ED.raf){cancelAnimationFrame(DB_ED.raf);DB_ED.raf=null;}
+    try{dbEd3dApri();}catch(_d3r){}   /* LITE_2509: il 3D (12 draw call) regge anche dove il 2D ricco no */
     return;
   }
   try{dbEd3dApri();}catch(_d3a){}   // GIRO3 24/09: il 3D sopra il 2D
