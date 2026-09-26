@@ -495,16 +495,33 @@ var TV = window.TV = window.TV || {};
   // ── LA QUALITA' ────────────────────────────────────────────────────────
   // alta: pixel ratio fino a 2, ombre vere. bassa (telefono "lite" o fotogrammi
   // che mancano): pixel ratio 1, niente ombre vere (restano le macchie finte).
-  TV.Q = { alta: { pr: 2, ombre: true }, bassa: { pr: 1, ombre: false } };
+  /* 26/09 — IL TELEFONO («backgammon molto laggante» su Android). Tre profili:
+       alta     (PC)       pixel ratio fino a 2, ombre vere, PBR con riflessi, antialias, luci che pulsano
+       telefono (Android/iPhone, dito)  pixel ratio al massimo 1,5 e ADATTIVO (scende da solo fino a 1 se i
+                fotogrammi superano 20 ms per un secondo), niente ombre vere (macchie precotte), materiali
+                Phong (niente PMREM), texture ridotte senza rugosita', niente antialias, niente pulsazioni
+       bassa    (lite)     come il telefono ma pixel ratio 1 fisso
+     E in tutti: si disegna SOLO quando serve (vedi 90_ponte: nessun ciclo a scena ferma). */
+  TV.telefono = (function () {
+    try {
+      var ua = navigator.userAgent || '';
+      if (/Android|iPhone|iPad|iPod|Mobile/i.test(ua)) return true;
+      if (/[?&]telefono=1/.test(location.search)) return true;
+      return !!(window.matchMedia && matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 820);
+    } catch (e) { return false; }
+  })();
+  TV.Q = { alta: { pr: 2, ombre: true }, telefono: { pr: 1.5, ombre: false }, bassa: { pr: 1, ombre: false } };
+  TV.semplice = function () { return TV.telefono; };   // materiali semplici e texture ridotte
 
   // ── LA SCENA COMUNE ────────────────────────────────────────────────────
   // o = {canvas, lite, w, h}
   TV.Scena = function (o) {
     var S = this;
     S.cv = o.canvas;
-    var gl = S.cv.getContext('webgl2', { antialias: true, alpha: false, powerPreference: 'high-performance', stencil: false, depth: true });
+    var aa = !TV.telefono && !o.lite;   // al telefono l'antialias costa banda: a pixel ratio 1,5 non serve
+    var gl = S.cv.getContext('webgl2', { antialias: aa, alpha: false, powerPreference: 'high-performance', stencil: false, depth: true });
     if (!gl) throw new Error('niente WebGL2');
-    S.R = new T.WebGLRenderer({ canvas: S.cv, context: gl, antialias: true, powerPreference: 'high-performance', stencil: false });
+    S.R = new T.WebGLRenderer({ canvas: S.cv, context: gl, antialias: aa, powerPreference: 'high-performance', stencil: false });
     S.R.outputColorSpace = T.SRGBColorSpace;
     S.R.toneMapping = T.ACESFilmicToneMapping;
     S.R.toneMappingExposure = 1.05;
@@ -513,7 +530,9 @@ var TV = window.TV = window.TV || {};
     S.scena.background = new T.Color(0x07060a);
     S.cam = new T.PerspectiveCamera(34, 1, 0.1, 200);
     S.w = o.w || 300; S.h = o.h || 300;
-    S.qual = o.lite ? 'bassa' : 'alta';
+    S.qual = o.lite ? 'bassa' : (TV.telefono ? 'telefono' : 'alta');
+    S.pulsa = S.qual === 'alta';     // le luci che pulsano solo al PC: al telefono una scena ferma non si ridisegna
+    S.prMax = TV.Q[S.qual].pr; S.prOra = null; S.sporco = 3;
     S.lite = !!o.lite;
     S.anims = [];
     S.ora = 0;              // secondi di scena
@@ -523,7 +542,7 @@ var TV = window.TV = window.TV || {};
   };
   TV.Scena.prototype.applicaQualita = function () {
     var q = TV.Q[this.qual];
-    var dpr = Math.min(window.devicePixelRatio || 1, q.pr);
+    var dpr = Math.min(window.devicePixelRatio || 1, this.prOra || q.pr);
     this.R.setPixelRatio(dpr);
     this.R.shadowMap.enabled = !!q.ombre;
     this.ombre = !!q.ombre;
@@ -532,9 +551,15 @@ var TV = window.TV = window.TV || {};
     this.R.setSize(this.w, this.h, false);
   };
   TV.Scena.prototype.abbassa = function (perche) {
-    if (this.qual === 'bassa') return false;
-    this.qual = 'bassa'; this.abbassata = perche || 'fps';
-    this.applicaQualita();
+    // telefono: il pixel ratio scende a gradini (1,5 -> 1,25 -> 1); PC: alta -> bassa
+    if (this.qual === 'telefono' || this.qual === 'bassa') {
+      var ora = this.R.getPixelRatio(), nuovo = Math.max(1, Math.round((ora - 0.25) * 100) / 100);
+      if (nuovo >= ora) return false;
+      this.prOra = nuovo; this.abbassata = (perche || 'fps') + ' pr ' + nuovo; this.applicaQualita(); this.sporco = 2;
+      return true;
+    }
+    this.qual = 'bassa'; this.pulsa = false; this.abbassata = perche || 'fps';
+    this.applicaQualita(); this.sporco = 2;
     return true;
   };
   TV.Scena.prototype.misura = function (w, h) {
@@ -626,20 +651,30 @@ var TV = window.TV = window.TV || {};
   };
   TV.Scena.prototype.disegna = function () { this.R.render(this.scena, this.cam); };
   // misure: fps (finestra di 1 s), il lavoro del fotogramma in ms
-  TV.Scena.prototype.misuraFps = function (now, lavoro) {
+  /* misure. Si disegna solo quando serve, quindi i fotogrammi si contano SOLO fra due disegni di fila
+     (intervallo = il fotogramma vero); `giri` = tutti i giri del rAF, `disegni` = quelli che hanno disegnato. */
+  TV.Scena.prototype.misuraFps = function (now, lavoro, disegnato, prec) {
     var f = this.fps;
-    f.fot++;
-    if (!f.t0) f.t0 = now;
-    f.n++;
-    if (now - f.t0 >= 1000) {
-      f.v = f.n * 1000 / (now - f.t0); f.n = 0; f.t0 = now;
-      if (f.fot > 90) f.min = Math.min(f.min, f.v);
-      f.fin.push(f.v); if (f.fin.length > 60) f.fin.shift();
-      // fotogrammi che mancano per 4 secondi di fila -> qualita' bassa (una volta sola)
-      if (f.v < 38 && f.fot > 180) f.lenti++; else f.lenti = 0;
-      if (f.lenti >= 4) this.abbassa('fps');
-    }
+    f.giri = (f.giri || 0) + 1;
+    if (!disegnato) return;
+    f.disegni = (f.disegni || 0) + 1; f.fot++;
     f.lavori.push(lavoro); if (f.lavori.length > 600) f.lavori.shift();
+    if (!prec || !f.tPrec) { f.tPrec = now; return; }
+    var dt = now - f.tPrec; f.tPrec = now;
+    if (dt > 200) return;                          // una pausa (scena ferma), non un fotogramma lento
+    f.int = f.int || []; f.int.push(dt); if (f.int.length > 900) f.int.shift();
+    f.fin2 = f.fin2 || []; f.fin2.push([now, dt]);
+    while (f.fin2.length && now - f.fin2[0][0] > 1000) f.fin2.shift();
+    if (f.fin2.length >= 15) {
+      var m = 0; for (var i = 0; i < f.fin2.length; i++) m += f.fin2[i][1]; m /= f.fin2.length;
+      f.v = 1000 / m; if (f.fot > 60) f.min = Math.min(f.min, f.v);
+      f.fin.push(f.v); if (f.fin.length > 120) f.fin.shift();
+      // RISOLUZIONE ADATTIVA: un secondo intero di fotogrammi oltre 20 ms -> un gradino giu'
+      if (m > 20 && f.fot > 45 && (!f.tAbb || now - f.tAbb > 1500)) { f.tAbb = now; f.fin2 = []; this.abbassa('fotogramma ' + m.toFixed(1) + ' ms'); }
+      // e RISALE di un gradino se per 6 s di disegno i fotogrammi stanno sotto 12 ms (il carico dell'avvio e' passato)
+      if (m < 12 && this.prOra && this.prOra < this.prMax) { f.buoni = (f.buoni || 0) + 1; if (f.buoni > 6 * 15 && (!f.tAbb || now - f.tAbb > 6000)) { f.buoni = 0; f.tAbb = now; this.prOra = Math.min(this.prMax, this.prOra + 0.25); this.applicaQualita(); this.sporco = 2; this.abbassata = 'risalito pr ' + this.prOra; } }
+      else f.buoni = 0;
+    }
   };
   TV.Scena.prototype.info = function () {
     var f = this.fps, l = f.lavori.slice().sort(function (a, b) { return a - b; });
@@ -649,10 +684,79 @@ var TV = window.TV = window.TV || {};
       lavoroP50: l.length ? +l[l.length >> 1].toFixed(2) : null, lavoroP95: l.length ? +l[Math.floor(l.length * 0.95)].toFixed(2) : null,
       pixelRatio: this.R.getPixelRatio(), ombre: this.R.shadowMap.enabled, qualita: this.qual, abbassata: this.abbassata || null,
       drawCall: this.R.info.render.calls, triangoli: this.R.info.render.triangles, programmi: (this.R.info.programs || []).length,
-      fotogrammi: f.fot, w: this.w, h: this.h
+      fotogrammi: f.fot, giri: f.giri || 0, disegni: f.disegni || 0, w: this.w, h: this.h, telefono: !!TV.telefono,
+      intervalloP50: f.int && f.int.length ? +(f.int.slice().sort(function (a, b) { return a - b; })[f.int.length >> 1]).toFixed(1) : null,
+      texture: TV.memoria(this)
     };
   };
   TV._v1 = new T.Vector3();
+  // la memoria delle texture caricate (stima: w*h*4 byte, +1/3 per le mipmap)
+  TV.memoria = function (S) {
+    var visti = {}, n = 0, byte = 0, piu = 0;
+    function t(x) { if (!x || visti[x.uuid] || !x.image) return; visti[x.uuid] = 1; var w = x.image.width || 0, h = x.image.height || 0; n++; byte += w * h * 4 * 1.33; piu = Math.max(piu, w, h); }
+    S.scena.traverse(function (m) { (Array.isArray(m.material) ? m.material : (m.material ? [m.material] : [])).forEach(function (mt) { t(mt.map); t(mt.normalMap); t(mt.roughnessMap); t(mt.bumpMap); t(mt.emissiveMap); }); });
+    if (S.scena.background && S.scena.background.isTexture) t(S.scena.background);
+    return { n: n, MB: +(byte / 1048576).toFixed(1), lato: piu, env: !!S.scena.environment, ombre: S.R.shadowMap.enabled };
+  };
+  // la scena ha bisogno di un disegno (texture arrivata, stato nuovo...)
+  TV.sporca = function () { TV._sporca = 2; };
+  /* AL TELEFONO: i MeshStandardMaterial diventano MeshPhongMaterial (niente PMREM, niente rugosita' per
+     pixel: e' la parte cara del PBR). Stessa tinta, stessa trama, stesse normali; la lucentezza viene
+     dalla rugosita' (legno laccato lucido, feltro opaco). Le mappe che arrivano dopo le mette TV.pbr. */
+  TV.fono = function (m) {
+    if (!m || !m.isMeshStandardMaterial) return m;
+    if (m.userData.fono) return m.userData.fono;
+    var r = m.roughness == null ? 0.5 : m.roughness, met = m.metalness || 0;
+    var f = new T.MeshPhongMaterial({
+      color: m.color.clone(), map: m.map, normalMap: m.normalMap, bumpMap: m.bumpMap, bumpScale: m.bumpScale,
+      emissive: m.emissive ? m.emissive.clone() : 0, emissiveIntensity: m.emissiveIntensity, transparent: m.transparent, opacity: m.opacity,
+      side: m.side, vertexColors: m.vertexColors, depthWrite: m.depthWrite,
+      shininess: Math.max(4, Math.pow(1 - Math.min(0.95, r), 2) * 90), specular: met > 0.5 ? m.color.clone().multiplyScalar(0.9) : new T.Color(1, 0.97, 0.92).multiplyScalar(Math.max(0, 0.9 - r) * 0.3)
+    });
+    if (m.normalScale) f.normalScale = m.normalScale.clone();
+    if (met > 0.5) f.color.multiplyScalar(0.55);
+    m.userData.fono = f; f.userData.pbr = m;
+    return f;
+  };
+  TV.fonoScena = function (sc) {
+    sc.traverse(function (o) {
+      if (!o.material) return;
+      if (Array.isArray(o.material)) o.material = o.material.map(TV.fono); else o.material = TV.fono(o.material);
+    });
+  };
+  /* un gruppo FERMO (la tavola) diventa una maglia per materiale: meno draw call */
+  TV.statico = function (g) {
+    g.updateMatrixWorld(true);
+    var per = {}, via = [];
+    g.traverse(function (o) {
+      if (!o.isMesh || o.isInstancedMesh || Array.isArray(o.material) || !o.geometry.attributes.uv || o.material.transparent) return;
+      var k = o.material.uuid + (o.geometry.attributes.color ? 'c' : '') + (o.castShadow ? 's' : '');
+      (per[k] = per[k] || { m: o.material, l: [], ombra: o.castShadow, vc: !!o.geometry.attributes.color }).l.push(o);
+    });
+    Object.keys(per).forEach(function (k) {
+      var e = per[k]; if (e.l.length < 2) return;
+      var P = [], N = [], U = [], C = [];
+      e.l.forEach(function (o) {
+        var q = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+        q.applyMatrix4(o.matrixWorld);
+        var a = q.attributes;
+        for (var i = 0; i < a.position.array.length; i++) P.push(a.position.array[i]);
+        if (!a.normal) q.computeVertexNormals();
+        for (i = 0; i < q.attributes.normal.array.length; i++) N.push(q.attributes.normal.array[i]);
+        for (i = 0; i < a.uv.array.length; i++) U.push(a.uv.array[i]);
+        if (e.vc) for (i = 0; i < a.color.array.length; i++) C.push(a.color.array[i]);
+        via.push(o);
+      });
+      var geo = new T.BufferGeometry();
+      geo.setAttribute('position', new T.Float32BufferAttribute(P, 3)); geo.setAttribute('normal', new T.Float32BufferAttribute(N, 3)); geo.setAttribute('uv', new T.Float32BufferAttribute(U, 2));
+      if (e.vc) geo.setAttribute('color', new T.Float32BufferAttribute(C, 3));
+      var me = new T.Mesh(geo, e.m); me.castShadow = e.ombra; me.receiveShadow = true;
+      g.add(me);
+    });
+    via.forEach(function (o) { if (o.parent) o.parent.remove(o); });
+    // i figli tolti avevano matrici del mondo: le nuove maglie sono in coordinate del mondo, il gruppo deve essere fermo all'origine
+    return g;
+  };
 
   // ── HUD (DOM dentro l'iframe, sopra la tela 3D; niente dita) ───────────
   TV.Hud = function (host) {
@@ -691,7 +795,7 @@ var TV = window.TV = window.TV || {};
 })();
 
 
-window.TV=window.TV||{};TV.MANIFESTO={"versione":"20260925","pezzi":{"R":{"n":2016,"i":8928,"po":0,"alto":1.0463447795481642,"rag":0.3192360200398021,"no":24192,"io":32256,"i16":1},"P":{"n":1028,"i":4920,"po":50112,"alto":0.9277100345535568,"rag":0.25034387753626935,"no":62448,"io":66560,"i16":1},"B":{"n":1738,"i":8334,"po":76400,"alto":1.482380959858196,"rag":0.2795359537559634,"no":97256,"io":104208,"i16":1},"Q":{"n":1827,"i":8820,"po":120876,"alto":1.5671699244023762,"rag":0.35354416568151253,"no":142800,"io":150108,"i16":1},"K":{"n":2643,"i":12516,"po":167748,"alto":1.6411529748097908,"rag":0.36112374476568565,"no":199464,"io":210036,"i16":1},"N":{"n":1705,"i":7986,"po":235068,"alto":1.295579145713126,"rag":0.4214886460450702,"no":255528,"io":262348,"i16":1}},"file":{"avorio_c.webp":"e6fd66ddf3255f32e0b1d651cdbbc49c","avorio_n.webp":"db136933ae9d63fde682b4ad82c0c46d","avorio_r.webp":"a0ba462b028a1777dc6b0c0c1e21717c","bachelite_c.webp":"5952c711c595f892d9e11faaed63199f","bachelite_n.webp":"7471702ff227e1c3f609c8f11355c977","bachelite_r.webp":"1af179f13c2af13eab6343a7d8a7ad57","bosso_c.webp":"934e89c8bc4b8a749e1d82ef2bf01b42","bosso_n.webp":"ac98e8cb28cafa4a395f8991a9f09fc5","bosso_r.webp":"bc8ae75b4f7eac0733aaa1cfd8e60b8f","ciliegio_c.webp":"6019e9f424289ecc7cc136b9ef0cfd5d","ciliegio_n.webp":"7471702ff227e1c3f609c8f11355c977","ciliegio_r.webp":"024942ee87822d3f392808a9b812f31e","ebano_c.webp":"b662c94e8b54f3fd908d898318382378","ebano_n.webp":"1e2f7247ee4a0979749f9a8c4e9b1010","ebano_r.webp":"e6291a2ca07f0c47d61bf9aba32b43d4","feltro_c.webp":"d2972251e98d77dc9175652884a908a0","feltro_n.webp":"aa96b1d5c5633f2ada65caafafb409ff","feltro_r.webp":"cc3c0ce26dd1fc15f31edcaf8e689168","marmo_c.webp":"0190f63accae0989a23da0ee98779315","marmo_n.webp":"135a17a686294b3eb0e20a03df4edc49","marmo_r.webp":"98a097ff963331183b4251b534e04763","noce_c.webp":"965486719fc5b58f0906745cb9c6f410","noce_n.webp":"0f07c9d6dd0776f2f6583fa2a8a0c036","noce_r.webp":"9f701d6532a13e6d604d86e2bb26e49d","pelle_c.webp":"95f222446637bfc0e81134aee02a558f","pelle_n.webp":"52625bacaf99b3c43f00f8dac765673a","pelle_r.webp":"470ac99fb5558a45dbaed39750996b53","pezzi.bin":"1c3ba749973d14b302499041c20ace29","scacchiera_c.webp":"d9677db484c358b7c1f965d3ba7405e4","scacchiera_n.webp":"1d02d40a45e6552e67ec166e405a5c68","scacchiera_r.webp":"a7b19e1e746fa963547b3fb921c05430"}};
+window.TV=window.TV||{};TV.MANIFESTO={"versione":"20260925","pezzi":{"R":{"n":2016,"i":8928,"po":0,"alto":1.0463447795481642,"rag":0.3192360200398021,"no":24192,"io":32256,"i16":1},"P":{"n":1028,"i":4920,"po":50112,"alto":0.9277100345535568,"rag":0.25034387753626935,"no":62448,"io":66560,"i16":1},"B":{"n":1738,"i":8334,"po":76400,"alto":1.482380959858196,"rag":0.2795359537559634,"no":97256,"io":104208,"i16":1},"Q":{"n":1827,"i":8820,"po":120876,"alto":1.5671699244023762,"rag":0.35354416568151253,"no":142800,"io":150108,"i16":1},"K":{"n":2643,"i":12516,"po":167748,"alto":1.6411529748097908,"rag":0.36112374476568565,"no":199464,"io":210036,"i16":1},"N":{"n":1705,"i":7986,"po":235068,"alto":1.295579145713126,"rag":0.4214886460450702,"no":255528,"io":262348,"i16":1}},"file":{"avorio_c.webp":"e6fd66ddf3255f32e0b1d651cdbbc49c","avorio_n.webp":"db136933ae9d63fde682b4ad82c0c46d","avorio_r.webp":"a0ba462b028a1777dc6b0c0c1e21717c","bachelite_c.webp":"5952c711c595f892d9e11faaed63199f","bachelite_n.webp":"7471702ff227e1c3f609c8f11355c977","bachelite_r.webp":"1af179f13c2af13eab6343a7d8a7ad57","bosso_c.webp":"934e89c8bc4b8a749e1d82ef2bf01b42","bosso_n.webp":"ac98e8cb28cafa4a395f8991a9f09fc5","bosso_r.webp":"bc8ae75b4f7eac0733aaa1cfd8e60b8f","ciliegio_c.webp":"6019e9f424289ecc7cc136b9ef0cfd5d","ciliegio_n.webp":"7471702ff227e1c3f609c8f11355c977","ciliegio_r.webp":"024942ee87822d3f392808a9b812f31e","ebano_c.webp":"b662c94e8b54f3fd908d898318382378","ebano_n.webp":"1e2f7247ee4a0979749f9a8c4e9b1010","ebano_r.webp":"e6291a2ca07f0c47d61bf9aba32b43d4","feltro_c.webp":"d2972251e98d77dc9175652884a908a0","feltro_n.webp":"aa96b1d5c5633f2ada65caafafb409ff","feltro_r.webp":"cc3c0ce26dd1fc15f31edcaf8e689168","m/avorio_c.webp":"965d4c76f126acf7f0448b4ca6d6233d","m/avorio_n.webp":"15fb2bd5d9cfbe666d04ffffaa4eb2d3","m/bachelite_c.webp":"d8dd2ad34bb4af0aeef813cbb5014a58","m/bachelite_n.webp":"d745d6ae15ecd1a228367cef1852edb0","m/bosso_c.webp":"cbfe8c0c77e2c3be05168f8d0b182205","m/bosso_n.webp":"c30cb8a3eaf8c6b16f417b98bb49e805","m/ciliegio_c.webp":"7890053ddfab9869fd4a94115acde0ce","m/ciliegio_n.webp":"d745d6ae15ecd1a228367cef1852edb0","m/ebano_c.webp":"00242eed3aee93745d924c2a2c8d65f8","m/ebano_n.webp":"94d8229d9dfcad0788ec82d6882d42b5","m/feltro_c.webp":"be5e7bc1c9bb3074a63d6f5180409433","m/feltro_n.webp":"ca237665d235e67c02d8eed1103f516a","m/marmo_c.webp":"22de6cdcfcafa42fcfd5f4137828ba9b","m/marmo_n.webp":"e0f6bc02e3565ddcc28be2625bb7cc73","m/noce_c.webp":"178c8d786bb9f258cb251e220282faa1","m/noce_n.webp":"d1376c55ab446cdef58bb18c410dda36","m/pelle_c.webp":"d0e9e0272eec2b5e33abd12db1e3fcd0","m/pelle_n.webp":"b1cc3ecfd81f20609be41080701169ef","m/scacchiera_c.webp":"c8f21627fcfaadf35a057f3daccad900","m/scacchiera_n.webp":"3ec67de790ad62cc7eaf2c95da288386","marmo_c.webp":"0190f63accae0989a23da0ee98779315","marmo_n.webp":"135a17a686294b3eb0e20a03df4edc49","marmo_r.webp":"98a097ff963331183b4251b534e04763","noce_c.webp":"965486719fc5b58f0906745cb9c6f410","noce_n.webp":"0f07c9d6dd0776f2f6583fa2a8a0c036","noce_r.webp":"9f701d6532a13e6d604d86e2bb26e49d","pelle_c.webp":"95f222446637bfc0e81134aee02a558f","pelle_n.webp":"52625bacaf99b3c43f00f8dac765673a","pelle_r.webp":"470ac99fb5558a45dbaed39750996b53","pezzi.bin":"1c3ba749973d14b302499041c20ace29","scacchiera_c.webp":"d9677db484c358b7c1f965d3ba7405e4","scacchiera_n.webp":"1d02d40a45e6552e67ec166e405a5c68","scacchiera_r.webp":"a7b19e1e746fa963547b3fb921c05430"}};
 /* ── 05_risorse.js ── */
 /* 05_risorse.js — le RISORSE REALISTICHE (texture PBR e pezzi degli scacchi), tutte CC0 Poly Haven
  * (vedi risorse/cc0/FONTI.md). Stanno nella cartella tavolo3d_r/ accanto a tavolo3d.html e si
@@ -725,11 +829,12 @@ window.TV=window.TV||{};TV.MANIFESTO={"versione":"20260925","pezzi":{"R":{"n":20
     img.onload = function () {
       var t = new T.Texture(img);
       t.colorSpace = colore ? T.SRGBColorSpace : T.NoColorSpace;
-      t.anisotropy = 8; t.needsUpdate = true;
+      t.anisotropy = TV.telefono ? 2 : 8; t.needsUpdate = true;
       if (rip) t.wrapS = t.wrapT = T.RepeatWrapping;
       cache[nome] = t;
       var l = attese[nome]; attese[nome] = null;
       l.forEach(function (f) { try { f(t); } catch (e) { } });
+      TV.sporca();
     };
     img.onerror = function () { TV.risorseMancanti = (TV.risorseMancanti || 0) + 1; attese[nome] = null; };
     img.src = url(nome);
@@ -741,11 +846,12 @@ window.TV=window.TV||{};TV.MANIFESTO={"versione":"20260925","pezzi":{"R":{"n":20
   TV.pbr = function (mat, nome, o) {
     o = o || {};
     if (!TV.risorsePresenti()) return mat;
-    var rip = o.rip !== false, sc = o.scala || 1;
+    var rip = o.rip !== false, sc = o.scala || 1, pre = (TV.semplice() && TV.MANIFESTO && TV.MANIFESTO.file && TV.MANIFESTO.file['m/' + nome + '_c.webp']) ? 'm/' : '';
+    function tutti(fn) { fn(mat); if (mat.userData.fono) fn(mat.userData.fono); }
     function prep(t) { if (rip && sc !== 1) { t = t.clone(); t.repeat.set(sc, sc); t.needsUpdate = true; } return t; }
-    if (!o.senzaColore) TV.texFile(nome + '_c.webp', true, rip, function (t) { mat.map = prep(t); mat.color.setRGB(1, 1, 1); if (o.tinta) mat.color.set(o.tinta); mat.needsUpdate = true; });
-    TV.texFile(nome + '_n.webp', false, rip, function (t) { mat.normalMap = prep(t); var k = o.normale == null ? 1 : o.normale; mat.normalScale = new T.Vector2(k, k); mat.needsUpdate = true; });
-    TV.texFile(nome + '_r.webp', false, rip, function (t) { mat.roughnessMap = prep(t); mat.roughness = o.rugosita == null ? 1 : o.rugosita; mat.needsUpdate = true; });
+    if (!o.senzaColore) TV.texFile(pre + nome + '_c.webp', true, rip, function (t) { var tt = prep(t); var vec = mat.map; tutti(function (m) { m.map = tt; m.color.setRGB(1, 1, 1); if (o.tinta) m.color.set(o.tinta); if (m.isMeshPhongMaterial && m.userData.pbr && m.userData.pbr.metalness > 0.5) m.color.multiplyScalar(0.55); m.needsUpdate = true; }); if (vec && vec.isCanvasTexture && vec !== tt && !vec.userData.condivisa) vec.dispose(); });
+    TV.texFile(pre + nome + '_n.webp', false, rip, function (t) { var tt = prep(t), k = o.normale == null ? 1 : o.normale; tutti(function (m) { m.normalMap = tt; m.normalScale = new T.Vector2(k, k); m.needsUpdate = true; }); });
+    if (!pre) TV.texFile(nome + '_r.webp', false, rip, function (t) { mat.roughnessMap = prep(t); mat.roughness = o.rugosita == null ? 1 : o.rugosita; mat.needsUpdate = true; });
     return mat;
   };
   // i pezzi degli scacchi (pezzi.bin, geometrie del modello chess_set)
@@ -830,7 +936,8 @@ window.TV=window.TV||{};TV.MANIFESTO={"versione":"20260925","pezzi":{"R":{"n":20
     return rt.texture;
   }
   function panno(col1, col2, seme) {
-    var c = TV.tela(1024, 1024), x = c.getContext('2d'), r = TV.caso(seme || 5);
+    var N = TV.semplice() ? 512 : 1024, c = TV.tela(N, N), x = c.getContext('2d'), r = TV.caso(seme || 5);
+    x.scale(N / 1024, N / 1024);
     x.fillStyle = col2; x.fillRect(0, 0, 1024, 1024);
     // la pozza di luce della lampada (cotta nel panno: costa zero)
     var g = x.createRadialGradient(512, 512, 30, 512, 512, 520);
@@ -850,7 +957,7 @@ window.TV=window.TV||{};TV.MANIFESTO={"versione":"20260925","pezzi":{"R":{"n":20
     o = o || {};
     var sc = S.scena;
     sc.background = sfondo(o.panno === 'blu' ? 'blu' : 'caldo');
-    sc.environment = riflesso(S.R);
+    sc.environment = TV.semplice() ? null : riflesso(S.R);   // al telefono niente PMREM (materiali Phong)
     sc.environmentIntensity = 0.55;
     var P = { verde: ['#1d6b45', '#0c3321'], rosso: ['#6b1d2a', '#2e0c12'], blu: ['#1d3f6b', '#0c1a33'] }[o.panno || 'verde'];
     var L = Math.max(o.largo || 10, o.profondo || 10) * 3.2;
@@ -1165,6 +1272,7 @@ TV.giochi = TV.giochi || {};
     });
     var zoc = new T.Mesh(new T.BoxGeometry(L + 0.1, 0.3, L + 0.1), new T.MeshStandardMaterial({ color: 0x1c0e07, roughness: 0.7 }));
     zoc.position.y = -0.2; zoc.receiveShadow = true; g.add(zoc);
+    TV.statico(g);
     S.scena.add(g);
     return g;
   }
@@ -1402,16 +1510,17 @@ TV.giochi = TV.giochi || {};
         if (Math.abs(Math.floor(m[1] / 8) - Math.floor(m[0] / 8)) === 2) presaObbl = true;
         if (st.sel != null && m[0] === st.sel) dest[m[1]] = m;
       });
-      var pul = 0.5 + 0.5 * Math.sin(tempo * 5.2);
+      var pul = S.pulsa ? 0.5 + 0.5 * Math.sin(tempo * 5.2) : 0.75, moto = false;
       // pedine
       for (var k in pile) pile[k].inizio();
       macchie.inizio();
       st.pezzi.forEach(function (p) {
         var m = mio(p.v), isRe = re(p.v) || p.re2 > 0, key = m ? 'tu' : 'lui';
         var y = p.y, alza = 0;
-        if (!p.via && mine && st.sel === p.i) alza = 0.16 + Math.sin(tempo * 6) * 0.03;
+        if (!p.via && mine && st.sel === p.i) alza = 0.16 + (S.pulsa ? Math.sin(tempo * 6) * 0.03 : 0);
         else if (!p.via && mine && fonti[p.i] && st.sel == null) alza = 0.04 * pul;
         p.alza = TV.damp(p.alza || 0, alza, 14, dt);
+        if (Math.abs(p.alza - alza) > 0.002 || p.brilla > 0) moto = true;
         var yy = Y0 + y + p.alza;
         var col = cBase;
         if (p.brilla) { cTmp.setRGB(1 + p.brilla * 0.6, 1 + p.brilla * 0.5, 1 + p.brilla * 0.1); col = cTmp; }
@@ -1462,6 +1571,7 @@ TV.giochi = TV.giochi || {};
       }
       segni.fine(); dischi.fine();
       sc.passo(dt);
+      G.inMoto = moto || sc.P.length > 0 || (S.pulsa && mine);
       // la fascia in basso: di chi e' il turno, la presa obbligatoria, lo spareggio
       var testo = '', cl = '';
       if (raw) {
@@ -1618,7 +1728,8 @@ TV.giochi = TV.giochi || {};
   TV.Dadi.prototype.passo = function (dt, suona) {
     var D = this, c = D.cor, i;
     // il colore dei dadi gia' usati: si spengono
-    for (i = 0; i < 2; i++) { var mm = D.dadi[i].m.material; mm.color.lerp(D.spentiV[i] ? D.grigio : D.bianco, Math.min(1, dt * 8)); }
+    D.cambia = false;
+    for (i = 0; i < 2; i++) { var mm = D.dadi[i].m.material, dst = D.spentiV[i] ? D.grigio : D.bianco; if (Math.abs(mm.color.r - dst.r) > 0.004) { mm.color.lerp(dst, Math.min(1, dt * 8)); D.cambia = true; } }
     if (!c) return;
     c.ft += dt;
     var b = D.bus;
@@ -1759,6 +1870,7 @@ TV.giochi = TV.giochi || {};
       cx2.fillText(L('★ LA TUA CASA ★', '★ YOUR HOME ★'), 256, 34);
       var sc = new T.Mesh(new T.PlaneGeometry(4.6, 0.36), new T.MeshBasicMaterial({ map: TV.tex(ct), transparent: true, depthWrite: false }));
       sc.rotation.x = -Math.PI / 2; sc.position.set(BW / 2 + 3 * PW, 0.225, D / 2 + FR / 2); sc.visible = !spett; g.add(sc);
+      TV.statico(g);
       S.scena.add(g);
     })();
     function colX(k) { return k < 6 ? BW / 2 + (5 - k + 0.5) * PW : -BW / 2 - (k - 6 + 0.5) * PW; }
@@ -1774,6 +1886,8 @@ TV.giochi = TV.giochi || {};
 
     var geo = TV.pedinaGeo(R, H, 'backg');
     var pile = [new TV.Pila(S.scena, geo, TV.matPedina('avorio', 0xe8dcc0), 16), new TV.Pila(S.scena, geo, TV.matPedina('bachelite', 0x7a1418), 16)];
+    var macchie = new TV.Pila(S.scena, new T.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({ map: TV.disco(), color: 0x000000, transparent: true, opacity: S.ombre ? 0.25 : 0.5, depthWrite: false }), 34, false);
+    macchie.m.renderOrder = 1;
     var anelli = [new TV.Pila(S.scena, TV.intarsioGeo(R * 0.5, R * 0.62), TV.smalto(0x1d8fe0), 16, false), new TV.Pila(S.scena, TV.intarsioGeo(R * 0.5, R * 0.62), TV.ottone(), 16, false)];
     var segni = new TV.Segni(S.scena, TV.anelloTex(), 40, 3), dischi = new TV.Segni(S.scena, TV.disco(), 40, 2);
     var sc = new TV.Scintille(S.scena, 200);
@@ -1933,7 +2047,7 @@ TV.giochi = TV.giochi || {};
     G.passo = function (dt) {
       st.tempo += dt;
       var raw = st.raw; if (!raw) { pile[0].inizio(); pile[0].fine(); pile[1].inizio(); pile[1].fine(); return; }
-      var mine = mioTurno(), mv = mine ? (raw.mv || []) : [], pul = 0.5 + 0.5 * Math.sin(st.tempo * 5.2);
+      var mine = mioTurno(), mv = mine ? (raw.mv || []) : [], pul = S.pulsa ? 0.5 + 0.5 * Math.sin(st.tempo * 5.2) : 0.75;
       // voli in corso: chi arriva non si disegna ancora dove atterra
       var arriva = {};
       st.vol = st.vol.filter(function (v) {
@@ -1951,7 +2065,8 @@ TV.giochi = TV.giochi || {};
         return true;
       });
       pile[0].inizio(); pile[1].inizio(); anelli[0].inizio(); anelli[1].inizio();
-      function pedina(c, x, y, z, ry, col, rx) { pile[c].metti(x, y, z, ry, 1, col, rx); if (!rx) anelli[c].metti(x, y + H / 2 + 0.006, z, 0, 1, col); }
+      macchie.inizio();
+      function pedina(c, x, y, z, ry, col, rx) { pile[c].metti(x, y, z, ry, 1, col, rx); if (!rx) anelli[c].metti(x, y + H / 2 + 0.006, z, 0, 1, col); if (!rx && (y < Y0 + 0.02 || Math.abs(y - 0.2 - Y0) < 0.02)) macchie.metti(x + 0.04, y < 0.1 ? 0.004 : 0.205, z + 0.05, 0, R * 2.5, cB); }
       var fonti = {}; mv.forEach(function (m) { fonti[m[0]] = 1; });
       var selTop = null, fontiTop = [], conteggi = [];
       for (var e2 = 0; e2 < 24; e2++) {
@@ -1960,7 +2075,7 @@ TV.giochi = TV.giochi || {};
         for (var j = 0; j < cnt; j++) {
           var p = puntaXZ(e2, j), top = j === cnt - 1, alza = 0, col = cB;
           if (top && mine && c === st.seat) {
-            if (st.sel === e2) { alza = 0.22 + Math.sin(st.tempo * 6) * 0.03; col = cSel; selTop = p; }
+            if (st.sel === e2) { alza = 0.22 + (S.pulsa ? Math.sin(st.tempo * 6) * 0.03 : 0); col = cSel; selTop = p; }
             else if (st.sel == null && fonti[e2]) { alza = 0.04 * pul; fontiTop.push(p); }
           }
           pedina(c === st.seat ? 0 : 1, p.x, p.y + alza, p.z, j * 0.7, col);
@@ -1987,7 +2102,7 @@ TV.giochi = TV.giochi || {};
         var rx = v.tipo === 'fuori' ? (Math.PI / 2) * TV.smooth((k - 0.4) / 0.6) : (v.tipo === 'colpo' ? k * Math.PI * 4 : 0);
         pedina(v.c === st.seat ? 0 : 1, x, y, z, k * 3, v.tipo === 'colpo' && k < 0.5 ? cRosso : cB, rx);
       });
-      pile[0].fine(); pile[1].fine(); anelli[0].fine(); anelli[1].fine();
+      pile[0].fine(); pile[1].fine(); anelli[0].fine(); anelli[1].fine(); macchie.fine();
       // luci delle punte, anelli, dischi
       for (e2 = 0; e2 < 24; e2++) luci[e2].visible = false;
       segni.inizio(); dischi.inizio();
@@ -2030,6 +2145,7 @@ TV.giochi = TV.giochi || {};
       if (btnAnnulla._vis) btnAnnulla.style.transform = 'none';
       dadi.passo(dt, suona);
       sc.passo(dt);
+      G.inMoto = st.vol.length > 0 || dadi.inVolo() || dadi.cambia || sc.P.length > 0 || (st.scia && st.tempo - st.scia.t < 1.4) || (S.pulsa && mine);
       // la fascia
       var testo = '', cl = '';
       if (!raw.over) {
@@ -2173,6 +2289,7 @@ TV.giochi = TV.giochi || {};
     y.strokeStyle = '#c9963a'; y.lineWidth = 5; y.strokeRect(m0 - 4, m0 - 4, 1024 - 2 * m0 + 8, 1024 - 2 * m0 + 8);
     var cor = new T.Mesh(new T.BoxGeometry(L, 0.24, L), [null, null, new T.MeshStandardMaterial({ map: TV.tex(cc, false, 8), roughness: 0.5 }), null, null, null].map(function (mm) { return mm || TV.pbr(new T.MeshStandardMaterial({ color: 0x241108, roughness: 0.6 }), 'ciliegio', { rugosita: 0.6 }); }));
     cor.position.y = -0.125; cor.receiveShadow = true; cor.castShadow = true; g.add(cor);
+    TV.statico(g);
     S.scena.add(g);
     return g;
   }
@@ -2377,7 +2494,7 @@ TV.giochi = TV.giochi || {};
     var cB = new T.Color(1, 1, 1), cTmp = new T.Color(), vt = new T.Vector3();
     G.passo = function (dt) {
       st.tempo += dt;
-      var d = st.d, pul = 0.5 + 0.5 * Math.sin(st.tempo * 5);
+      var d = st.d, pul = S.pulsa ? 0.5 + 0.5 * Math.sin(st.tempo * 5) : 0.75, moto = false;
       // la regia: il rallentatore dello scacco matto avvicina la camera al re
       if (st.camBase) {
         var zp = st.zoomP || st.camBase.t, z = st.zoom;
@@ -2388,8 +2505,9 @@ TV.giochi = TV.giochi || {};
       macchie.inizio();
       var selP = st.sel;
       st.pezzi.forEach(function (p) {
-        var key = colore(p.p) + p.p.toUpperCase(), alza = (!p.via && selP === p.i && d && d.your_turn) ? 0.2 + Math.sin(st.tempo * 6) * 0.03 : 0;
+        var key = colore(p.p) + p.p.toUpperCase(), alza = (!p.via && selP === p.i && d && d.your_turn) ? 0.2 + (S.pulsa ? Math.sin(st.tempo * 6) * 0.03 : 0) : 0;
         p.alza = TV.damp(p.alza || 0, alza, 14, dt);
+        if (Math.abs(p.alza - alza) > 0.002 || p.brilla > 0) moto = true;
         var col = cB;
         if (p.brilla > 0) { cTmp.setRGB(1 + p.brilla, 1 + p.brilla * 0.8, 1 + p.brilla * 0.2); col = cTmp; }
         pile[key].metti(p.x, p.y + p.alza, p.z, p.ry, p.s, col, p.rx, p.rz);
@@ -2420,6 +2538,7 @@ TV.giochi = TV.giochi || {};
       }
       segni.fine(); dischi.fine();
       sc.passo(dt);
+      G.inMoto = moto || sc.P.length > 0 || st.zoom > 0.001 && st.zoom < 0.419 || (S.pulsa && d && (d.your_turn || (d.in_check_sq != null && d.in_check_sq >= 0)));
       var testo = '', cl = '';
       if (d && !d.result) {
         // la pagina scrive gia' di chi e' il turno e gli orologi: qui solo lo SCACCO, che non deve sfuggire
@@ -2459,27 +2578,45 @@ TV.giochi = TV.giochi || {};
 (function () {
   'use strict';
   var S = null, G = null, avvisa = null, raf = 0, tUlt = 0, ultimoFps = 0, gioco = '';
-  var P = window.TAV3D = { versione: '20260925', pronto: false, errore: null };
+  var P = window.TAV3D = { versione: '20260926', pronto: false, errore: null, perche: { sporco: 0, tex: 0, anim: 0, moto: 0 } };
   function cadi(msg) {
     if (!P.errore) P.errore = String(msg || 'errore');
     if (raf) { cancelAnimationFrame(raf); raf = 0; }
     try { if (avvisa) avvisa('caduto', P.errore); } catch (e) { }
   }
   window.addEventListener('error', function (e) { if (S) cadi('tavolo3d: ' + (e && e.message)); });
-  var ultimoGiro = 0;
+  var CONTINUO = /[?&]continuo=1/.test(location.search);   // solo per i banchi: disegna sempre (misura del costo pieno)
+  var ultimoGiro = 0, hudT = 0, chiave = '', chiaveUi = '', dPrec = false;
+  /* IL GIRO. Si DISEGNA solo quando serve: stato nuovo del server, selezione cambiata, texture arrivata,
+     animazioni in corso, dadi in volo, particelle, e al PC le luci che pulsano (G.inMoto). A scena ferma
+     il giro costa un confronto; il testo della fascia (i secondi del turno) si aggiorna 4 volte al secondo
+     senza ridisegnare il 3D. */
   function giro(now, manuale) {
     if (!manuale) raf = requestAnimationFrame(giro);
     ultimoGiro = performance.now();
     try {
       var dt = Math.min(0.05, Math.max(0, (now - (tUlt || now)) / 1000)); tUlt = now;
+      var serve = CONTINUO || S.sporco > 0 || TV._sporca > 0 || S.anims.length > 0 || G.inMoto || !!S.camFissa;
+      if (serve) { var W = P.perche; W.sporco += S.sporco > 0 ? 1 : 0; W.tex += TV._sporca > 0 ? 1 : 0; W.anim += S.anims.length > 0 ? 1 : 0; W.moto += G.inMoto ? 1 : 0; }
+      if (!serve) {
+        if (now - hudT > 250) { hudT = now; G.passo(0, now); }
+        S.misuraFps(now, 0, false, dPrec); dPrec = false;
+        return;
+      }
       var t0 = performance.now();
       S.passoAnim(dt);
       G.passo(dt, now);
       if (S.camFissa) { S.cam.position.copy(S.camFissa.p); S.cam.lookAt(S.camFissa.t); }
       S.disegna();
-      S.misuraFps(now, performance.now() - t0);
+      if (S.sporco > 0) S.sporco--; if (TV._sporca > 0) TV._sporca--;
+      S.misuraFps(now, performance.now() - t0, true, dPrec); dPrec = true;
       if (avvisa && now - ultimoFps > 30000 && S.fps.fot > 300) { ultimoFps = now; try { avvisa('fps', S.info()); } catch (e) { } }
     } catch (e) { cadi('tavolo3d fotogramma: ' + (e && e.message)); }
+  }
+  function chiaveDi(x) {
+    if (!x) return '';
+    return [x.bd, x.pts && x.pts.join(','), x.bar && x.bar.join(','), x.off && x.off.join(','), x.dice && x.dice.join(','), x.turn, x.rseq, x.undoN, x.over, x.chain,
+      x.board, x.last && JSON.stringify(x.last), x.result, x.check, x.your_turn, x.your_color, (x.mv || []).length, JSON.stringify(x.mv || []).length, (x.feed || []).length, x.seat].join('|');
   }
   P.avvia = function (o) {
     try {
@@ -2498,10 +2635,11 @@ TV.giochi = TV.giochi || {};
       G = mk(S, o);
       G.inquadra();
       S.applicaQualita();
+      if (TV.semplice()) TV.fonoScena(S.scena);   // telefono: materiali Phong (le mappe in arrivo li seguono)
       G.passo(0, performance.now());
       S.disegna();                       // il primo fotogramma, SUBITO
       window.addEventListener('resize', function () {
-        try { if (S) { S.misura(window.innerWidth, window.innerHeight); G.inquadra(); } } catch (e) { cadi(e && e.message); }
+        try { if (S) { S.misura(window.innerWidth, window.innerHeight); G.inquadra(); S.sporco = 2; } } catch (e) { cadi(e && e.message); }
       });
       raf = requestAnimationFrame(giro);
       try { if (avvisa) avvisa('pronto', P.versione); } catch (e) { }
@@ -2511,13 +2649,13 @@ TV.giochi = TV.giochi || {};
   // il padre batte il tempo a ogni suo fotogramma: se il rAF di questa pagina si e' fermato (telefoni
   // che lo perdono: la pagina ha il suo ripiego a intervallo), il fotogramma lo disegna il padre
   P.battito = function () { if (S && !P.errore && performance.now() - ultimoGiro > 150) giro(performance.now(), true); };
-  P.snap = function (x) { if (G && !P.errore) { try { G.snap(x); } catch (e) { cadi('tavolo3d snap: ' + (e && e.message)); } } };
-  P.ui = function (u) { if (G && !P.errore) { try { G.ui(u); } catch (e) { cadi('tavolo3d ui: ' + (e && e.message)); } } };
+  P.snap = function (x) { if (G && !P.errore) { try { G.snap(x); var k = chiaveDi(x); if (k !== chiave) { chiave = k; S.sporco = Math.max(S.sporco, 2); } } catch (e) { cadi('tavolo3d snap: ' + (e && e.message)); } } };
+  P.ui = function (u) { if (G && !P.errore) { try { G.ui(u); var k = JSON.stringify(u || null); if (k !== chiaveUi) { chiaveUi = k; S.sporco = Math.max(S.sporco, 2); } } catch (e) { cadi('tavolo3d ui: ' + (e && e.message)); } } };
   P.tocca = function (x, y) { if (!G || P.errore) return null; try { return G.tocca(x, y); } catch (e) { cadi('tavolo3d tocca: ' + (e && e.message)); return null; } };
   P.proietta = function (a, b, c) { return G ? G.proietta(a, b, c) : null; };
   P.stato = function () { return G && G.stato ? G.stato() : null; };
   // per le FOTO da vicino (banchi): la camera va a (px,py,pz) e guarda (tx,ty,tz); null = torna quella di gioco
-  P.camera = function (c) { if (!S) return; S.camFissa = c ? { p: new THREE.Vector3(c[0], c[1], c[2]), t: new THREE.Vector3(c[3], c[4], c[5]) } : null; if (!c) G.inquadra(); };
+  P.camera = function (c) { if (!S) return; S.sporco = 3; S.camFissa = c ? { p: new THREE.Vector3(c[0], c[1], c[2]), t: new THREE.Vector3(c[3], c[4], c[5]) } : null; if (!c) G.inquadra(); };
   P.info = function () { return S ? S.info() : null; };
   P.abbassa = function () { return S ? S.abbassa('padre') : false; };
   P.ferma = function () { if (raf) cancelAnimationFrame(raf); raf = 0; try { if (S) { S.fermaAnim(); S.R.dispose(); } } catch (e) { } S = null; G = null; };
