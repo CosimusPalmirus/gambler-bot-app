@@ -17144,6 +17144,7 @@ html.oz-l #bxrt-rot{display:none!important;}
     "piene (2-8) o rigate (9-15): il primo che imbuca sceglie la serie":"solids (2-8) or stripes (9-15): first to pot picks the set",
     "8 e 15 obbligate":"8 & 15 forced",
     "SOLO nelle buche centrali, in buche OPPOSTE tra loro · buca sbagliata = si riacchita":"ONLY in the center pockets, in OPPOSITE pockets · wrong pocket = re-spotted",
+    "SOLO nelle buche centrali, in buche OPPOSTE tra loro · non valgono come prima bilia della partita · buca sbagliata = si riacchita":"ONLY in the center pockets, in OPPOSITE pockets · they can't be the first ball of the game · wrong pocket = re-spotted",
     "La 1 è neutra":"The 1 is neutral",
     "va imbucata PER ULTIMA a serie chiusa: chi la mette vince · prima = si riacchita":"must be potted LAST once your set is done: potting it wins · early = re-spotted",
     "Piazza la dinamite":"Plant the dynamite",
@@ -61075,7 +61076,7 @@ var RTD_G={
   pool15:{title:'🎱 BILIARDO 8-15',color:'#34d399',input:'drag',
     hero:'BILIARDO — 8 E 15',sub:'La specialità italiana · regole professionali',
     rules:[['🎱','Le tue 7 bilie','piene (2-8) o rigate (9-15): il primo che imbuca sceglie la serie'],
-           ['🎯','8 e 15 obbligate','SOLO nelle buche centrali, in buche OPPOSTE tra loro · buca sbagliata = si riacchita'],
+           ['🎯','8 e 15 obbligate','SOLO nelle buche centrali, in buche OPPOSTE tra loro · non valgono come prima bilia della partita · buca sbagliata = si riacchita'],
            ['1️⃣','La 1 è neutra','va imbucata PER ULTIMA a serie chiusa: chi la mette vince · prima = si riacchita']]},
   alley:{title:'🧨 VICOLI',color:'#fb923c',input:'stick+bomb',
     hero:'VICOLI — CANTIERE',sub:'Dinamite nel cantiere di notte · una vita sola',
@@ -83536,6 +83537,9 @@ function rtdDrawShove(ctx,raw,lp,now,w,hh){
     'VITTORIA!': 'YOU WIN!', 'HAI PERSO': 'YOU LOST', 'TAVOLO APERTO': 'OPEN TABLE',
     'SPACCA!': 'BREAK!', 'EFFETTO': 'SPIN', 'MASSÉ': 'MASSÉ', 'AZZERA': 'RESET', 'OK': 'OK',
     'TIRA ◂': 'PULL ◂', 'MIRA FINE': 'FINE AIM', 'sposta la bianca': 'move the cue ball',
+    'SPOSTA LA PALLA': 'MOVE THE BALL', 'SPOSTA LA PALLA dove vuoi': 'MOVE THE BALL anywhere',
+    'SPOSTA LA PALLA nella zona in basso': 'MOVE THE BALL inside the bottom area',
+    'la 8 e la 15 non valgono come prima bilia': 'the 8 and 15 cannot be the first ball potted',
     'Tocca una buca': 'Tap a pocket', 'TOCCA A': 'TURN:', 'MIRA BLOCCATA · clic per sbloccare': 'AIM LOCKED · click to unlock',
     'clic sul tavolo per bloccare la mira': 'click the table to lock your aim', 'ha abbandonato': 'left the table',
     'lontano dalla zona': 'outside the area', 'ALTO': 'TOP', 'BASSO': 'DRAW', 'aspetta…': 'wait…', 'TIRA': 'PULL',
@@ -84109,6 +84113,9 @@ function rtdDrawShove(ctx,raw,lp,now,w,hh){
     if (key !== this.turnSeen && !raw.moving) {
       this.turnSeen = key;
       if (raw.turn === this.me) { this.autoAim(); this.call = null; this.power = 0; this.lock = false; }
+      // 01/10: chi riceve la palla in mano spesso non capisce che deve spostarla
+      if (raw.turn === this.me && raw.bih && !raw.brk && !raw.over)
+        this.say(T('PALLA IN MANO'), '#ffd84a', '\u270b ' + T(raw.bih === 'kitchen' ? 'SPOSTA LA PALLA nella zona in basso' : 'SPOSTA LA PALLA dove vuoi'), 3200);
     }
     this.oppAim = raw.aim || null;
     if (raw.hand && raw.turn !== this.me && !raw.moving) this.oppHand = [raw.hand[0] / KOLD, raw.hand[1] / KOLD]; else this.oppHand = null;
@@ -84167,6 +84174,7 @@ function rtdDrawShove(ctx,raw,lp,now,w,hh){
     } else if (k === 'respot') {
       var perche = e.f === '8buca' ? "l'8 e' entrata in un'altra buca"
         : e.f === '1buca' ? "la 1 e' entrata in un'altra buca"
+        : e.f === 'prima815' ? 'la 8 e la 15 non valgono come prima bilia'
           : e.n === 1 ? 'la 1 va imbucata PER ULTIMA'
             : ((e.n === 8 || e.n === 15) && this.q15()) ? 'la ' + e.n + ' va SOLO in buca centrale'
               : 'la ' + e.n + ' torna sul tavolo';
@@ -84539,7 +84547,7 @@ function rtdDrawShove(ctx,raw,lp,now,w,hh){
     var mine = this.myTurn();
     // zona di battuta con la palla in mano dietro la linea
     if (mine && raw.bih === 'kitchen') {
-      c.fillStyle = 'rgba(255,220,90,' + (0.07 + 0.04 * Math.sin(now / 300)) + ')';
+      c.fillStyle = 'rgba(255,220,90,' + ((this.hand ? 0.07 : 0.13) + 0.05 * Math.sin(now / 300)) + ')';
       c.fillRect(0, PF.KITCHEN, W, L - PF.KITCHEN);
     }
     // LE BUCHE DA CHIAMARE (l'8 nel biliardo 8, la 1 nel 8-15)
@@ -84632,7 +84640,14 @@ function rtdDrawShove(ctx,raw,lp,now,w,hh){
       c.strokeStyle = (mine && this.handBad) ? 'rgba(255,80,80,.95)' : 'rgba(255,255,255,' + (0.5 + 0.3 * Math.sin(now / 200)) + ')';
       c.lineWidth = 0.003; c.setLineDash([0.008, 0.006]);
       c.beginPath(); c.arc(hp[0], hp[1], R * 1.8, 0, TAU); c.stroke(); c.setLineDash([]);
-      if (mine && !this.dragHand) this.label(hp[0], hp[1] - R * 3.1, '✋ ' + T('sposta la bianca'), 0.024);
+      if (mine && !this.dragHand) {
+        if (!this.hand) {
+          var pz = 0.036 + 0.004 * Math.sin(now / 160);
+          c.strokeStyle = 'rgba(255,215,64,' + (0.55 + 0.4 * Math.sin(now / 160)) + ')'; c.lineWidth = 0.004;
+          c.beginPath(); c.arc(hp[0], hp[1], R * (2.4 + 0.5 * Math.sin(now / 160)), 0, TAU); c.stroke();
+          this.label(hp[0], hp[1] + (hp[1] > L * 0.85 ? -R * 4.2 : R * 4.2), '\u270b ' + T('SPOSTA LA PALLA'), pz, '#ffd84a');
+        } else this.label(hp[0], hp[1] - R * 3.1, '✋ ' + T('sposta la bianca'), 0.024);
+      }
     }
     // bilie che cadono in buca
     this.potAnim = this.potAnim.filter(function (a) {
