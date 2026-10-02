@@ -7996,6 +7996,7 @@ body.gb-nav-on .bnav{display:flex;}
 .tv3d-sc .ch-promo{z-index:9;}
 #pvp-overlay.ch3d-on #ch-board{visibility:hidden;}
 #trn-spec-ov.ch3d-on #trn-ch-mini{visibility:hidden;}
+#lobsp-st.ch3d-on #trn-ch-mini{visibility:hidden;}
 /* ── BOLGIA: replay-pill del gol (lower-third stile telecronaca) ── */
 .blg-pill{position:absolute;left:0;right:0;top:38%;display:flex;justify-content:center;pointer-events:none;z-index:6;}
 .blg-pill-in{display:flex;align-items:stretch;border-radius:8px;overflow:hidden;background:linear-gradient(100deg,rgba(4,8,16,.94),rgba(10,18,32,.88));border:1px solid rgba(255,255,255,.18);box-shadow:0 10px 34px rgba(0,0,0,.7),0 0 26px var(--blgc,#22c55e);transform-origin:left center;animation:blgPillIn .34s cubic-bezier(.16,1.2,.3,1) both,blgPillOut .3s ease-in 2.3s both;position:relative;}
@@ -44517,8 +44518,7 @@ function dlBjBoard(d,ancora){
     }
     // in torneo non si abbandona una posta, si abbandona il proprio turno:
     // l'etichetta lo dice, perche' "forfeit" fa pensare a dei soldi persi
-    html+='</div><button class="pvp-m-btn" onclick="dlBjCancel(false)">'
-      +(d.tour?'ABBANDONA IL MATCH (perdi il turno)':'LEAVE (forfeit)')+'</button>';
+    html+='</div>'+dlEsciBtn('bjl',d);   // ESCI DALLA PARTITA (02/10)
   } else if(d.tour){
     // TORNEO: nessuna cifra (la posta e' zero e ogni euro scritto qui sarebbe
     // una bugia) e nessuna rivincita — quella mano e' gia' agli atti del
@@ -44814,7 +44814,7 @@ function dlRrBoard(d){
       // una volta ogni tanto, mentre si spara ogni turno. Scritto in italiano,
       // col numero dentro un <b> per la stessa ragione dei gettoni.
       (d.can_spin?'<button class="pvp-m-btn" style="background:linear-gradient(135deg,#3b2470,#241048);color:#e9defc;font-size:12px;" onclick="dlRrSpin()"><span>🔄 GIRA IL TAMBURO <b>('+(d.spins_left||0)+')</b></span><span class="dlrr-fhint">ricarica da capo · passa il turno</span></button>':'')+
-      '<button class="pvp-m-btn" style="font-size:12px;opacity:.8;" onclick="dlRrCancel(false)">ABBANDONA</button>';
+      dlEsciBtn('rr',d,'font-size:12px;opacity:.8;');   // ESCI DALLA PARTITA (02/10)
   } else {
     var win=d.you_win;
     var res=win?'🏆 YOU SURVIVE':'💀 YOU\'RE OUT';
@@ -45476,8 +45476,7 @@ function dlRpsBoard(d,ancora){
     }
     // in torneo non si abbandona una posta, si abbandona il proprio turno:
     // l'etichetta lo dice, perche' "forfeit" fa pensare a dei soldi persi
-    html+='<button class="pvp-m-btn" onclick="dlRpsCancel(false)">'
-      +(d.tour?'ABBANDONA IL MATCH (perdi il turno)':'LEAVE (forfeit)')+'</button>';
+    html+=dlEsciBtn('rps',d);   // ESCI DALLA PARTITA (02/10)
   } else if(d.tour){
     // TORNEO: nessuna cifra (la posta e' zero e ogni euro scritto qui sarebbe
     // una bugia) e nessuna rivincita — quella partita e' gia' agli atti del
@@ -46621,8 +46620,7 @@ function dlChBoard(d,ancora){
     '<div class="ch-status">'+turnTxt+'</div>';
   // in torneo non si abbandona una posta, si abbandona il proprio turno:
   // l'etichetta lo dice, perche' "resign" fa pensare a dei soldi persi
-  if(playing){ html+='<button class="pvp-m-btn" onclick="dlChResign()">'
-      +(d.tour?'🏳️ ABBANDONA IL MATCH (perdi il turno)':'🏳️ RESIGN')+'</button>'; }
+  if(playing){ html+=dlEsciBtn('ch',d); }   // ESCI DALLA PARTITA (02/10)
   else if(d.tour){
     // TORNEO: nessuna cifra (la posta e' zero e ogni euro scritto qui sarebbe
     // una bugia) e nessuna rivincita — quella partita e' gia' agli atti del
@@ -46790,14 +46788,10 @@ function dlChAnimateSlide(mv,mangiato){
   }catch(e){}
 }
 function dlChResign(){
-  // in torneo non c'e' nessun piatto da regalare: si regala il TURNO, ed e'
-  // molto peggio. La domanda deve dire quello che succede davvero.
-  if(!confirm(DLCH.tour?'Abbandoni la partita? Passa l\'avversario e sei eliminato dal torneo.'
-                       :((DLCH.view&&DLCH.view.pratica)?'Ti arrendi? È un allenamento: nessuna perdita.'   /* ESCI_BOT_2709 */
-                       :'Resign this game? Your opponent wins the pot.'))) return;
-  dlChStopTick();
-  fetch(BACKEND+'/duel/ch_resign',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId})})
-    .then(function(r){return r.json();}).then(function(d){ if(d&&d.board){ DLCH.view=d; DLCH.sig=''; dlChStopPoll(); dlChBoard(d); dlChAfterDone(d); } }).catch(function(){});
+  // ESCI DALLA PARTITA (02/10): niente piu' confirm() del browser (muto in
+  // certe webview di Telegram). Stessa conferma e stessa rotta degli altri.
+  if(DLCH.view)DLESCI.v.ch=DLCH.view;
+  dlEsciDuello('ch');
 }
 function dlChAfterDone(d){
   dlChStopPoll(); dlChStopTick();
@@ -47126,8 +47120,7 @@ function dlBsPlacement(d){
     (allP?'<button class="pvp-m-btn gold" onclick="dlBsDeploy()">⚓ DEPLOY FLEET ▸ <span class="dlbj-timer" id="dlbs-timer"></span></button>'
         :'<div class="dlbs-deadline">deploy before <span class="dlbj-timer" id="dlbs-timer"></span></div>')+
     // in torneo non si abbandona una posta, si abbandona il proprio turno
-    '<button class="pvp-m-btn" onclick="dlBsCancel(false)">'
-    +((d&&d.tour)?'ABBANDONA IL MATCH (perdi il turno)':'LEAVE (forfeit)')+'</button></div>';
+    dlEsciBtn('bs',d)+'</div>';   // ESCI DALLA PARTITA (02/10)
   // SOLO LETTURA: chi e' al tavolo legge il tifo, non lo scrive
   if(d&&(d.tour||d.lob_lid))html+='<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>';
   dlModalHTML(html);
@@ -47158,8 +47151,7 @@ function dlBsWaiting(d){
     '<div class="pvp-search-dots"><span></span><span></span><span></span></div>'+
     '<div style="text-align:center;font-size:12px;color:var(--txt2);">Waiting for '+dlEsc((d&&d.opp_name)||'the enemy')+' to deploy…</div>'+
     // in torneo non si abbandona una posta, si abbandona il proprio turno
-    '<button class="pvp-m-btn" onclick="dlBsCancel(false)">'
-    +((d&&d.tour)?'ABBANDONA IL MATCH (perdi il turno)':'LEAVE (forfeit)')+'</button>'+
+    dlEsciBtn('bs',d)+   // ESCI DALLA PARTITA (02/10)
     // SOLO LETTURA: e' l'attesa piu' lunga del gioco (l'altro sta ancora
     // schierando), ed e' proprio li' che chi gioca vuole leggere il tifo
     ((d&&(d.tour||d.lob_lid))?'<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>':''));
@@ -47181,8 +47173,7 @@ function dlBsBoard(d,ancora){
     '<div class="dlbs-side-lbl"><span>⚓ YOUR FLEET</span><span class="dlbs-fleet-pips">'+dlBsShipPips(d.my_ships_left)+'</span></div>'+
     dlBsGridHTML('dlbs-own');
   // in torneo non si abbandona una posta, si abbandona il proprio turno
-  if(playing){ html+='<button class="pvp-m-btn" onclick="dlBsCancel(false)">'
-      +(d.tour?'ABBANDONA IL MATCH (perdi il turno)':'LEAVE (forfeit)')+'</button>'; }
+  if(playing){ html+=dlEsciBtn('bs',d); }   // ESCI DALLA PARTITA (02/10)
   else if(d.tour){
     // TORNEO: nessuna cifra (la posta e' zero e ogni euro scritto qui sarebbe
     // una bugia) e nessuna rivincita — quella battaglia e' gia' agli atti del
@@ -47410,11 +47401,9 @@ function dlPkdBoard(d, holdResult, ancora){
     // in torneo non si abbandona una posta, si abbandona il proprio turno:
     // l'etichetta lo dice, perche' "forfeit" fa pensare a dei soldi persi
     html+='<button class="pvp-m-btn gold" onclick="dlPkdDraw()">🔄 DRAW · swap the cards you didn\'t keep</button>'+
-      '<button class="pvp-m-btn" onclick="dlPkdCancel(false)">'
-      +(d.tour?'ABBANDONA IL MATCH (perdi il turno)':'LEAVE (forfeit)')+'</button>';
+      dlEsciBtn('pkd',d);   // ESCI DALLA PARTITA (02/10)
   } else if(playing){
-    html+='<button class="pvp-m-btn" onclick="dlPkdCancel(false)">'
-      +(d.tour?'ABBANDONA IL MATCH (perdi il turno)':'LEAVE (forfeit)')+'</button>';
+    html+=dlEsciBtn('pkd',d);   // ESCI DALLA PARTITA (02/10)
   } else if(d.tour){
     // TORNEO: nessuna cifra (la posta e' zero e ogni euro scritto qui sarebbe
     // una bugia) e nessuna rivincita — quella mano e' gia' agli atti del
@@ -47494,6 +47483,77 @@ function dlPkdCancel(silent){
       if(typeof loadBalance==='function')loadBalance().then(function(){dlUpdateStatsDom();});
     }).catch(function(){ dlCloseOverlay(); });
 }
+// ══ ESCI DAI SEI DUELLI DEL BACKEND (02/10/2026) ═══════════════════════════
+// Roulette russa, morra, navale, scacchi (e i vecchi blackjack/poker duello):
+// il tasto «🏳️ ESCI» sostituisce i vecchi LEAVE/ABBANDONA/RESIGN che uscivano
+// SENZA conferma (e gli scacchi col confirm() del browser, che in alcune
+// webview di Telegram e' muto). Conferma = gbEsciConferma (una per tutti),
+// poi /duel/abbandona: chi esce perde subito, l'avversario vince dalla stessa
+// liquidazione di una vittoria normale. Poi la schermata di fine del tavolo,
+// con le STESSE funzioni che il tavolo usa quando la partita finisce da sola.
+// Il tipo e la posta li dice la vista del server: pratica / tour / gratis /
+// bet_eur. I vecchi dlXxCancel restano per la coda (rimborso a 100 s).
+var DLESCI={v:{},busy:false};
+function dlEsciTipo(d){
+  d=d||{};
+  if(d.pratica)return 'allenamento';
+  if(d.tour)return 'torneo';
+  if(d.gratis)return 'gratis';
+  return 'soldi';
+}
+function dlEsciBtn(g,d,stile){
+  if(!d&&g==='bs'&&typeof DLBS!=='undefined')d=DLBS.lastView;
+  DLESCI.v[g]=d||DLESCI.v[g]||{};
+  return '<button class="pvp-m-btn dl-esci" id="dl-esci-'+g+'"'+(stile?' style="'+stile+'"':'')
+    +' onclick="dlEsciDuello(\''+g+'\')">🏳️ '+(window.GB_LANG==='en'?'LEAVE':'ESCI')+'</button>';
+}
+var DLESCI_FINE={
+  rr:function(d){ dlRrStopPoll(); dlRrStopTick(); DLRR.busy=false; DLRR.sig=''; dlRrBoard(d); dlRrAfterDone(d); },
+  rps:function(d){ dlRpsStopPoll(); dlRpsStopTick(); DLRPS.sig=''; dlRpsBoard(d); dlRpsAfterDone(d); },
+  bs:function(d){ dlBsStopPoll(); dlBsStopTick(); DLBS.sig=''; dlBsBoard(d); dlBsAfterDone(d); },
+  ch:function(d){ dlChStopPoll(); dlChStopTick(); DLCH.view=d; DLCH.sig=''; dlChBoard(d); dlChAfterDone(d); },
+  bjl:function(d){ dlBjStopPoll(); dlBjStopTick(); DLBJ.sig=''; dlBjBoard(d); dlBjAfterDone(d); },
+  pkd:function(d){ dlPkdStopPoll(); dlPkdStopTick(); DLPKD.sig=''; dlPkdBoard(d); dlPkdAfterDone(d); }
+};
+function dlEsciDuello(g){
+  var d=DLESCI.v[g]||{};
+  gbEsciConferma({tipo:dlEsciTipo(d), posta_eur:Number(d.bet_eur||0), uno_contro_uno:true}, function(){
+    if(DLESCI.busy)return;
+    DLESCI.busy=true;
+    var b=document.getElementById('dl-esci-'+g);
+    if(b){ b.disabled=true; b.style.opacity='.5'; }
+    function sblocca(){ DLESCI.busy=false; var b2=document.getElementById('dl-esci-'+g); if(b2){ b2.disabled=false; b2.style.opacity=''; } }
+    fetch(BACKEND+'/duel/abbandona',{method:'POST',headers:dlBjHdr(),body:JSON.stringify({user_id:S.userId,gioco:g})})
+      .then(function(r){return r.json();}).then(function(r){
+        DLESCI.busy=false;
+        if(!r||r.status!=='done'){ sblocca(); toast('⚠️ '+((r&&r.error)||'non puoi uscire adesso'),'err'); return; }
+        try{ (DLESCI_FINE[g]||function(){})(r); }catch(e){ try{console.error('[esci]',e);}catch(_){} }
+      }).catch(function(){ sblocca(); toast('Network error','err'); });
+  });
+}
+// ══ ESCI DALLA PARTITA, PASSO 2 (03/10/2026): CHI RESTA ════════════════════
+// Decisione del proprietario: chi resta al tavolo dopo l'uscita dell'altro non
+// vede una vittoria qualunque ma «Hai vinto: l'avversario è uscito». Il server
+// lo dice con `opp_abbandono` nella vista; qui si riscrive il titolo del
+// risultato (`.pvp-result`) dopo che il tavolo si e' disegnato — un punto solo
+// per sei tavoli e per soldi/gratis/torneo (anche dlTourFineHTML lo usa).
+function dlEsciOppTitolo(d){
+  try{
+    if(!d||!d.opp_abbandono)return;
+    if(!(d.status==='done'||d.state==='done'||d.over||d.result))return;
+    var m=document.getElementById('pvp-modal'); if(!m)return;
+    var t=m.querySelector('.pvp-result'); if(!t)return;
+    t.textContent=(window.GB_LANG==='en')?'🏳️ You win: your opponent left':'🏳️ Hai vinto: l’avversario è uscito';
+    t.className='pvp-result win dl-opp-uscito'; t.style.color='#39ff14';
+  }catch(e){}
+}
+(function(){
+  ['dlRrBoard','dlRpsBoard','dlBsBoard','dlChBoard','dlBjBoard','dlPkdBoard'].forEach(function(n){
+    var o=window[n]; if(typeof o!=='function'||o.__esciOpp)return;
+    var f=function(d){ var r=o.apply(this,arguments); dlEsciOppTitolo(d); return r; };
+    f.__esciOpp=1; window[n]=f;
+  });
+})();
 function dlSendChallenge(){
   if(!S.userId){ toast('Open in Telegram to play','err'); return; }
   var target=(document.getElementById('pvp-chal-user')||{}).value||'';
@@ -49505,7 +49565,7 @@ function twrOnMsg(m){
   // in torneo non si rimborsa niente perche' non si e' pagato niente
   if(t==='left'){if(TWR.tour){twrTourLeave();return;}TWR.ui='';twrShowLobby();toast('Buy-in rimborsato','ok',1600);if(typeof loadBalance==='function')loadBalance();return;}
   if(t==='refund'){if(TWR.tour){twrTourDone();return;}TWR.ui='';twrShowLobby();toast('Nessuno sfidante — rimborsato','warn',2200);if(typeof loadBalance==='function')loadBalance();return;}
-  if(t==='err'){
+  if(t==='err'){try{if(typeof gxErr==='function')gxErr('twr',m);}catch(_gx){}
     var e=m.msg||'errore';
     if(typeof lobWsCatch==='function'&&lobWsCatch(e)){TWR.ui='';return;}   // LOBBY APERTA: si torna alla cartolina
     var it={'insufficient balance':'Saldo insufficiente — deposita per entrare',
@@ -49580,6 +49640,7 @@ function twrOnMsg(m){
   if(t==='watch_ok'){twrWatchOk(m);return;}
   if(t==='s'){if(m.g==='tank')return;twrOnSnap(m);return;}
   if(t==='over'){if(m.game&&m.game!=='turf'&&!(m.tour&&TWR.spec))return;
+    if(m.abbandono&&!TWR.spec&&typeof gxFine==='function'&&gxFine('twr',m))return;   // ESCI_PARTITA 02/10
     if(TWR.spec){twrSpecOver(m);return;}
     TWR.over=m;TWS.engine(false);TWS.heart(false);twrShowOver(m);return;}
   // la chat del torneo: senza questo i frame cadevano nel vuoto e chi
@@ -54361,7 +54422,7 @@ function tkOnMsg(m){
   // fa pure cercare dei soldi nel saldo.
   if(t==='left'){if(TKD.tour){tkTourLeave();return;}TKD.ui='';tkShowLobby();toast('Buy-in rimborsato','ok',1600);if(typeof loadBalance==='function')loadBalance();return;}
   if(t==='refund'){if(TKD.tour){tkTourDone();return;}TKD.ui='';tkShowLobby();toast('Nessuno sfidante — rimborsato','warn',2200);if(typeof loadBalance==='function')loadBalance();return;}
-  if(t==='err'){
+  if(t==='err'){try{if(typeof gxErr==='function')gxErr('tkd',m);}catch(_gx){}
     var e=m.msg||'errore';
     var it={'insufficient balance':'Saldo insufficiente','already in a lobby':'Sei già in una lobby',
             'auth failed':'Autenticazione fallita — riapri da Telegram','not in a lobby':'Non sei in lobby',
@@ -54403,6 +54464,7 @@ function tkOnMsg(m){
   // scartava in silenzio e chi avanzava senza giocare restava sulla schermata
   // d'attesa finche' non chiudeva l'app.
   if(t==='over'&&(m.game==='tank'||(m.tour&&(TKD.tour||TKD.spec)))){
+    if(m.abbandono&&!TKD.spec&&typeof gxFine==='function'&&gxFine('tkd',m))return;   // ESCI_PARTITA 02/10
     if(TKD.spec){tkSpecOver(m);return;}
     TKD.over=m;tkShowOver(m);return;
   }
@@ -54497,6 +54559,7 @@ function tkTourDone(){
 }
 // back header (U4): come rtdBack — annulla in search, conferma in match.
 function tkBack(){
+  if(typeof gxIntercetta==='function'&&gxIntercetta('tkd'))return;   // ESCI_PARTITA 02/10
   if(TKD.spec){tkSpecExit();return;}   // TORNEO spettatore: unwatch + tabellone
   if(TKD.tour){   // TORNEO: mai la parola "puntata", e si torna al tabellone
     if(TKD.ui==='match'){
@@ -55752,7 +55815,7 @@ function gldOnMsg(m){
     GLD.ui='';gldShowLobby();toast('Buy-in rimborsato','ok',1600);if(typeof loadBalance==='function')loadBalance();return;
   }
   if(t==='refund'){GLD.ui='';gldShowLobby();toast('Nessuno sfidante — rimborsato','warn',2200);if(typeof loadBalance==='function')loadBalance();return;}
-  if(t==='err'){
+  if(t==='err'){try{if(typeof gxErr==='function')gxErr('gld',m);}catch(_gx){}
     var e=m.msg||'errore';
     var it={'insufficient balance':'Saldo insufficiente','already in a lobby':'Sei già in una lobby',
             'auth failed':'Autenticazione fallita — riapri da Telegram','not in a lobby':'Non sei in lobby',
@@ -55806,6 +55869,7 @@ function gldOnMsg(m){
   }
   if(t==='s'&&m.g==='glad'){gldOnSnap(m);return;}
   if(t==='over'&&m.game==='glad'){
+    if(m.abbandono&&!GLD.spec&&typeof gxFine==='function'&&gxFine('gld',m))return;   // ESCI_PARTITA 02/10
     if(GLD.spec){gldSpecOver(m);return;}
     if(m.tour&&!GLD.tour)return;   // TORNEO: match abbandonato — esito ignorato (l'hub si aggiorna via /tournament/state)
     GLD.over=m;GLD.heartOn=false;try{TWS.heart(false);}catch(e){}
@@ -56109,6 +56173,7 @@ function gldJoin(){
 }
 function gldLeave(){gldSend({t:'leave'});}
 function gldBack(){
+  if(typeof gxIntercetta==='function'&&gxIntercetta('gld'))return;   // ESCI_PARTITA 02/10
   if(GLD.spec){gldSpecExit();return;}   // TORNEO: uscita spettatore
   if(GLD.ui==='search'){
     if(GLD.tour){gldTourAbandon();return;}   // TORNEO: niente {t:'leave'} sul ticket — abbandono locale
@@ -60423,6 +60488,67 @@ function trnSpecDuelDipingi(p){
   ov.innerHTML=testa+riga+corpo+coda;
   try{if(typeof tv3dSpett==='function')tv3dSpett(p);}catch(_tsp){}   // TAVOLO3D 25/09: la scacchierina dello spettatore in 3D
 }
+// ══ ESCI DALLA PARTITA: LA CONFERMA (02/10/2026) ═══════════════════════════
+// Richiesta del proprietario: un tasto per uscire dalle partite in corso, anche
+// a soldi, con una conferma che dica CHIARO che si perde la posta; nelle
+// partite gratis il messaggio e' diverso. UNA finestra per tutti i giochi:
+// chi aggiunge il tasto a un gioco chiama questa e non ne scrive un'altra.
+//
+//   gbEsciConferma({tipo, posta_eur, uno_contro_uno}, onOk)
+//     tipo: 'soldi' | 'gratis' | 'torneo' | 'allenamento'
+//     posta_eur: la posta di CHI ESCE (solo 'soldi')
+//     uno_contro_uno: true = l'avversario vince subito; false = al tuo posto
+//                     continua un bot (decisioni del proprietario, 02/10)
+//
+// Niente confirm() del browser: in alcune webview di Telegram e' bloccato e
+// ritorna false senza mostrare niente (il tasto sembrerebbe rotto).
+// Testi SENZA apostrofi dentro stringhe a virgolette singole: accenti veri.
+function gbEsciConferma(o, onOk){
+  o=o||{};
+  var en=(window.GB_LANG==='en');
+  var tipo=String(o.tipo||'soldi'),uvu=!!o.uno_contro_uno;
+  var eur=Number(o.posta_eur||0);
+  var cifra='€ '+(isFinite(eur)?eur.toFixed(2).replace('.',','):'?');
+  var tit,txt,si,col;
+  if(tipo==='soldi'){
+    tit=en?'⚠️ LEAVE A CASH MATCH?':'⚠️ ESCI DA UNA PARTITA A SOLDI?';
+    txt=en?('You lose your stake of <b>'+cifra+'</b>. '+(uvu?'Your opponent wins the pot right now.':'It stays in the pot and a bot plays your seat until the end: you win nothing, even if the bot wins.')+' This cannot be undone.')
+          :('Perdi la tua posta di <b>'+cifra+'</b>. '+(uvu?'L’avversario vince il piatto adesso.':'Resta nel piatto e al tuo posto gioca un bot fino alla fine: non vinci niente, anche se il bot vince.')+' Non si torna indietro.');
+    si=en?('LEAVE AND LOSE '+cifra):('ESCO E PERDO '+cifra);col='#ef4444';
+  }else if(tipo==='torneo'){
+    tit=en?'🏆 LEAVE THE TOURNAMENT MATCH?':'🏆 ESCI DAL MATCH DEL TORNEO?';
+    txt=en?'You lose this match and you are out of the tournament.':'Perdi questo match e sei fuori dal torneo.';
+    si=en?'LEAVE THE TOURNAMENT':'ESCO DAL TORNEO';col='#f59e0b';
+  }else if(tipo==='allenamento'){
+    tit=en?'🤖 LEAVE PRACTICE?':'🤖 ESCI DALL’ALLENAMENTO?';
+    txt=en?'It is practice against the bots: you lose nothing.':'È un allenamento contro i bot: non perdi niente.';
+    si=en?'LEAVE':'ESCI';col='#22c55e';
+  }else{
+    tit=en?'🆓 LEAVE THIS FREE MATCH?':'🆓 ESCI DA QUESTA PARTITA GRATIS?';
+    txt=en?('No money is at stake. '+(uvu?'Your opponent wins the match.':'A bot takes your seat and the match goes on.'))
+          :('Non ci sono soldi in gioco. '+(uvu?'L’avversario vince la partita.':'Al tuo posto continua un bot e la partita va avanti.'));
+    si=en?'LEAVE':'ESCI';col='#38bdf8';
+  }
+  var vecchio=document.getElementById('gb-esci-ov');
+  if(vecchio&&vecchio.parentNode)vecchio.parentNode.removeChild(vecchio);
+  var ov=document.createElement('div');ov.id='gb-esci-ov';
+  ov.style.cssText='position:fixed;inset:0;z-index:10050;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;';
+  ov.innerHTML='<div style="width:100%;max-width:380px;background:linear-gradient(165deg,#141a2e,#0a0e1a);border:1px solid '+col+';border-radius:18px;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.7);color:#e5e7eb;font-family:Inter,system-ui,sans-serif;">'
+    +'<div style="font-family:\'Russo One\',sans-serif;font-size:16px;color:'+col+';margin-bottom:10px;">'+tit+'</div>'
+    +'<div style="font-size:14px;line-height:1.45;margin-bottom:16px;">'+txt+'</div>'
+    +'<button id="gb-esci-no" class="action-btn gold" style="width:100%;margin-bottom:8px;">'+(en?'STAY':'RESTO')+'</button>'
+    +'<button id="gb-esci-si" class="action-btn red" style="width:100%;background:'+col+';">'+si+'</button>'
+    +'</div>';
+  document.body.appendChild(ov);
+  function chiudi(){if(ov.parentNode)ov.parentNode.removeChild(ov);}
+  ov.addEventListener('click',function(ev){if(ev.target===ov)chiudi();});
+  document.getElementById('gb-esci-no').onclick=chiudi;
+  document.getElementById('gb-esci-si').onclick=function(){
+    chiudi();
+    try{if(window.Telegram&&Telegram.WebApp&&Telegram.WebApp.HapticFeedback)Telegram.WebApp.HapticFeedback.notificationOccurred('warning');}catch(e){}
+    try{onOk&&onOk();}catch(e){try{console.error('[esci]',e);}catch(_){}}
+  };
+}
 // ══ SPETTATORE DELLE LOBBY APERTE (02/10/2026) ══════════════════════════════
 // Richiesta del proprietario: sotto l'annuncio di una lobby nel gruppo, accanto
 // a GIOCA, un tasto per entrare come SPETTATORE con la chat come nei tornei.
@@ -60564,6 +60690,8 @@ function lobSpDipingi(){
       +'<div class="tw-note" style="text-align:center;margin:0 0 6px;">'+st+'</div>'
       +trnSpecScena(q.g,sc,pl)
       +'<div class="tw-note" style="text-align:center;opacity:.55;margin-top:6px;">differita di '+(((q.differita||{}).ritardo_s)||0)+'s — si vede quello che è già successo</div>';
+    // la scacchiera 3D, la stessa dei tornei (tv3dSpett), sopra quella 2D
+    if(q.g==='ch')setTimeout(function(){try{if(typeof tv3dSpett==='function')tv3dSpett(q);}catch(_t3){}},0);
   }else if(p.fase==='finita'){
     corpo=riga('🏁 Partita finita','Il risultato è nella cartolina del gruppo.');
   }else if(p.via==='duel'){
@@ -60618,17 +60746,30 @@ function trnSpecScena(g,s,pl){
       var pezzoMini=function(c){
         if(!PZ[c])return '';
         var u=(typeof chImgPezzo==='function')?chImgPezzo(c):null;
-        return u?('<img src="'+u+'" alt="" style="width:100%;height:100%;'
-                 +'object-fit:contain;display:block;">'):PZ[c];
+        if(u)return '<img src="'+u+'" alt="" style="width:100%;height:100%;object-fit:contain;display:block;">';
+        var nero=(c!==c.toUpperCase());
+        return '<span style="font-size:22px;line-height:1;color:'+(nero?'#15151c':'#f7f3e8')+';'
+          +'text-shadow:0 0 2px '+(nero?'#f7f3e8':'#15151c')+',0 0 1px '+(nero?'#f7f3e8':'#15151c')+';">'
+          +PZ[c.toLowerCase()]+'</span>';
       };
       if(typeof chPrecarica==='function')chPrecarica();
-      G='<div id="trn-ch-mini" style="display:grid;grid-template-columns:repeat(8,1fr);width:min(230px,72vw);margin:6px auto;border:1px solid rgba(255,200,60,.3);">';   // TAVOLO3D 25/09: l'id per il 3D
+      G='<div id="trn-ch-mini" style="display:grid;grid-template-columns:repeat(8,1fr);width:min(340px,84vw);margin:6px auto;border:1px solid rgba(255,200,60,.3);">';   // TAVOLO3D 25/09: l'id per il 3D
       for(var r=7;r>=0;r--)for(var c2=0;c2<8;c2++){
         var ch2=b.charAt(r*8+c2),dk=((r+c2)%2===0);
         G+='<div style="aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:16px;background:'+(dk?'rgba(255,255,255,.05)':'rgba(255,255,255,.13)')+';">'+pezzoMini(ch2)+'</div>';
       }
       G+='</div>';
     }
+    // CHI HA IL BIANCO (02/10/2026): il server manda `colori` per posto da
+    // sempre, la scena non lo scriveva e chi guarda non sapeva chi muove cosa
+    var cl=s.colori||[],chi='';
+    if(cl[0]||cl[1]){
+      var nmc=function(i){var q=(pl||[])[i]||{};return trnEsc(String(q.nome||('Sfidante '+(i?'B':'A'))));};
+      var wI=(cl[0]==='w')?0:((cl[1]==='w')?1:-1);
+      if(wI>=0)chi='<div style="display:flex;justify-content:center;gap:14px;font-size:12px;margin:4px 0 2px;">'
+        +'<span>♔ <b>'+nmc(wI)+'</b> bianco</span><span>♚ <b>'+nmc(1-wI)+'</b> nero</span></div>';
+    }
+    G=chi+G;
     var o=s.orologi||[0,0];
     function mmss(ms){var t=Math.max(0,Math.round(ms/1000));return Math.floor(t/60)+':'+('0'+(t%60)).slice(-2);}
     return G+barra('Orologio',mmss(o[0]),mmss(o[1]))
@@ -61644,7 +61785,7 @@ function rtdOnMsg(m){
     RTD.ui='';rtdShowLobby();toast('Buy-in rimborsato','ok',1500);if(typeof loadBalance==='function')loadBalance();return;
   }
   if(t==='refund'){RTD.ui='';rtdShowLobby();toast('Nessuno sfidante — rimborsato','warn',2000);if(typeof loadBalance==='function')loadBalance();return;}
-  if(t==='err'){
+  if(t==='err'){try{if(typeof gxErr==='function')gxErr('rtd',m);}catch(_gx){}
     var e=m.msg||'errore';
     // LOBBY APERTA: un `join_open` rifiutato torna alla CARTOLINA, che sa
     // dire cosa e' successo (piena, chiusa, scaduta). Mai un rimbalzo muto
@@ -61787,6 +61928,7 @@ function rtdOnMsg(m){
   }
   if(t==='s'&&(m.g in RTD_G)){rtdOnSnap(m);return;}
   if(t==='over'&&(m.game in RTD_G)){
+    if(m.abbandono&&!RTD.spec&&typeof gxFine==='function'&&gxFine('rtd',m))return;   // ESCI_PARTITA 02/10
     if(RTD.spec&&m.game==='scalata'&&typeof DPRT!=='undefined'&&DPRT.aperto)dprtGiu(m);   // 🗼 DP MEAT 15/09
     if(RTD.spec&&m.game==='lastcall'&&typeof LCRT!=='undefined'&&LCRT.spec&&LCRT.aperto){lcrtSpecOver(m);return;}   // 🍸 (02/10) prima il finale nell iframe
     if(RTD.spec&&m.game==='lupus'&&typeof LUPRT!=='undefined'&&LUPRT.aperto&&LUPRT.spec){luprtSpecOver(m);return;}   // 🐺 l'epilogo prima, poi il banner
@@ -64847,6 +64989,7 @@ function rtdLeave(){rtdSend({t:'leave'});}
 // (puntata persa) e fa teardown pulito prima di tornare a #duel.
 function rtdBack(){
   if(RTD.spec){rtdSpecExit();return;}   // TORNEO spettatore: unwatch + hub
+  if(typeof gxIntercetta==='function'&&gxIntercetta('rtd'))return;   // ESCI_PARTITA 02/10: in partita la conferma unica
   if(RTD.tour){                          // TORNEO giocatore: mai testo "puntata", si torna all'hub
     if(RTD.ui==='match'){
       if(!confirm('Sei in un match del torneo: se esci ora sei eliminato. Uscire?'))return;
@@ -86464,6 +86607,7 @@ function tv3dScSmonta(){
   s.host=null;s.fr=null;s.g=null;s.avviato=false;s.svelato=false;s.vista=null;s.modo='';
   var ov=document.getElementById('pvp-overlay');if(ov)ov.classList.remove('ch3d-on');
   var so=document.getElementById('trn-spec-ov');if(so)so.classList.remove('ch3d-on');
+  var ls=document.getElementById('lobsp-st');if(ls)ls.classList.remove('ch3d-on');
 }
 function tv3dScMonta(modo){
   var s=TV3D.sc;
@@ -86494,7 +86638,7 @@ function tv3dScGiro(){
   var s=TV3D.sc;s.raf=0;
   if(!s.host)return;
   var an=tv3dScAncora();
-  var aperto=(s.modo==='gioco')?(function(){var ov=document.getElementById('pvp-overlay');return !!(ov&&ov.classList.contains('show')&&an);})():!!(an&&TRNSP&&TRNSP.mid);
+  var aperto=(s.modo==='gioco')?(function(){var ov=document.getElementById('pvp-overlay');return !!(ov&&ov.classList.contains('show')&&an);})():!!(an&&((TRNSP&&TRNSP.mid)||(typeof LOBSP!=='undefined'&&LOBSP.on)));
   if(!aperto){tv3dScSmonta();return;}
   s.raf=requestAnimationFrame(tv3dScGiro);
   var G=tv3dScG();
@@ -86507,6 +86651,8 @@ function tv3dScGiro(){
   // il riquadro: esattamente sopra la scacchiera DOM (che resta al suo posto, invisibile)
   var r=an.getBoundingClientRect(),h=s.host,pr=(s.modo==='gioco')?h.parentNode.getBoundingClientRect():{left:0,top:0};
   var k=Math.round(r.left-pr.left)+','+Math.round(r.top-pr.top)+','+Math.round(r.width)+','+Math.round(r.height);
+  // LOBBY (02/10): la sala dello spettatore sta a z-index 9000, il 3D va sopra
+  if(s.modo!=='gioco'){var zz=(typeof LOBSP!=='undefined'&&LOBSP.on)?'9001':'';if(h.style.zIndex!==zz)h.style.zIndex=zz;}
   if(h._k!==k){h._k=k;h.style.left=Math.round(r.left-pr.left)+'px';h.style.top=Math.round(r.top-pr.top)+'px';h.style.width=Math.round(r.width)+'px';h.style.height=Math.round(r.height)+'px';}
   if(!s.avviato){
     var ok=false;
@@ -86526,18 +86672,64 @@ function tv3dScGiro(){
   if(!s.svelato){
     s.svelato=true;
     if(s.modo==='gioco'){var ov=document.getElementById('pvp-overlay');if(ov)ov.classList.add('ch3d-on');}
-    else{var so=document.getElementById('trn-spec-ov');if(so)so.classList.add('ch3d-on');}
+    else{var so=document.getElementById('trn-spec-ov');if(so)so.classList.add('ch3d-on');
+         var ls=document.getElementById('lobsp-st');if(ls)ls.classList.add('ch3d-on');}
   }
 }
 // chiamata da dlChBoard: la partita (o la fine) e' sul tavolo
+// ══ SCACCHI: 2D O 3D, LO SCEGLIE CHI GUARDA (02/10/2026) ═══════════════════
+// Richiesta del proprietario: dare l'opzione di scegliere la vista. Una
+// preferenza SOLO degli scacchi (`gb_ch_vista`: '2d' | '3d', di base 3D), che
+// vale per chi gioca e per chi guarda. Dama e backgammon restano con la loro
+// (`gb_tav3d`). L'interruttore si aggancia da solo all'angolo della
+// scacchiera che c'e' in pagina (`#ch-board` al tavolo, `#trn-ch-mini` per lo
+// spettatore): nessun tavolo deve sapere che esiste.
+function chVista(){var v='3d';try{v=localStorage.getItem('gb_ch_vista')||'3d';}catch(e){}return v==='2d'?'2d':'3d';}
+function chVistaSet(v){
+  try{localStorage.setItem('gb_ch_vista',v);}catch(e){}
+  if(v==='2d'){try{tv3dScSmonta();}catch(e){}}
+  else{
+    // si rimonta come la prima volta: tavolo (vista del giocatore) o spettatore
+    try{
+      if(document.getElementById('ch-board')&&typeof DLCH!=='undefined'&&DLCH.view)tv3dScacchi(DLCH.view);
+      else if(TV3D.sc._ultimaSpett)tv3dSpett(TV3D.sc._ultimaSpett);
+    }catch(e){}
+  }
+  chVistaChip();
+}
+function chVistaChip(){
+  var an=document.getElementById('ch-board')||document.getElementById('trn-ch-mini');
+  var c=document.getElementById('ch-vista-chip');
+  var r=an&&an.getBoundingClientRect();
+  if(!an||!r||r.width<40||!tv3dBaseCh()){if(c&&c.parentNode)c.parentNode.removeChild(c);return;}
+  if(!c){
+    c=document.createElement('div');c.id='ch-vista-chip';
+    c.style.cssText='position:fixed;z-index:10040;display:flex;border-radius:12px;overflow:hidden;border:1px solid rgba(255,215,0,.45);'
+      +'background:rgba(10,14,26,.85);font-family:\'Russo One\',sans-serif;font-size:11px;letter-spacing:.5px;box-shadow:0 2px 8px rgba(0,0,0,.5);';
+    document.body.appendChild(c);
+  }
+  var v=chVista(),k=v+'|'+Math.round(r.right)+','+Math.round(r.top);
+  if(c._k===k)return;
+  c._k=k;
+  function b(x,t){return '<button onclick="chVistaSet(\''+x+'\')" style="border:0;padding:5px 10px;cursor:pointer;font:inherit;'
+    +(v===x?'background:#ffd76b;color:#141a2e;':'background:transparent;color:#ffd76b;')+'">'+t+'</button>';}
+  c.innerHTML=b('2d','2D')+b('3d','3D');
+  c.style.left=Math.max(4,Math.round(r.right)-c.offsetWidth-4)+'px';
+  c.style.top=Math.max(4,Math.round(r.top)+4)+'px';
+}
+// il 3D degli scacchi si puo' scegliere solo dove il 3D c'e' (WebGL2, non
+// spento in blocco con gb_tav3d=0): altrove l'interruttore non compare
+function tv3dBaseCh(){try{return !!tv3dBase()&&!TV3D.sc.giu;}catch(e){return false;}}
+setInterval(function(){try{chVistaChip();}catch(e){}},400);
 function tv3dScacchi(d){
-  if(TV3D.sc.giu||!tv3dBase())return;
+  if(TV3D.sc.giu||!tv3dBase()||chVista()==='2d')return;
   if(!document.getElementById('ch-board'))return;
   tv3dScMonta('gioco');
 }
 // chiamata da trnSpecDuelDipingi: lo spettatore del torneo guarda una partita a scacchi
 function tv3dSpett(p){
-  if(TV3D.sc.giu||!tv3dBase())return;
+  TV3D.sc._ultimaSpett=p;
+  if(TV3D.sc.giu||!tv3dBase()||chVista()==='2d')return;
   if(!p||p.g!=='ch'||!document.getElementById('trn-ch-mini'))return;
   var sc=p.scena||{},u=sc.ultima;
   TV3D.sc.vista={spett:true,board:String(sc.scacchiera||''),turn:sc.tratto,your_color:'w',last:u?{from:u.da,to:u.a}:null};
@@ -115521,6 +115713,248 @@ function ebFrecce(){
 })();
 (function(){
   function via(){ try{ ebDom(); ebFrecce(); }catch(e){} if(!EB.timer)EB.timer=setInterval(ebTick,400); ebTick(); }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',via); else via();
+})();
+</script>
+<script>
+/* ══ ESCI DALLA PARTITA IN CORSO (02/10/2026) — ESCI_PARTITA_0210 ═══════════
+   Richiesta del proprietario: «un tasto per uscire dalle partite in corso anche
+   a soldi con un alert di conferma perche' sia chiaro che stai perdendo la
+   posta; nelle partite gratis il messaggio deve essere diverso».
+   UN tasto «🏳️ ESCI» per tutte le partite real-time (RTD con i suoi iframe —
+   Lupus, Last Call, Boxe, Blackjack/Poker 1v1, Dead Peak — Gambler City, Tank,
+   Colosseo), solo per chi SIEDE (mai per chi guarda), e UNA conferma:
+   gbEsciConferma. Dopo il si' parte {t:'abbandona'} sulla socket di quel gioco
+   e la risposta e' un `over` con `abbandono:true` (schermata «hai lasciato»)
+   o un `err` (il toast lo scrive gia' il gestore del gioco).
+   L'allenamento ha gia' la sua uscita (ESCI_BOT_2709, {t:'leave'}): qui gli si
+   da' solo lo stesso tasto e la stessa conferma.
+   ⚠️ Chi non preme il tasto non vede niente di diverso: il tasto sta dove in
+      partita c'era la freccia della testata (che in partita adesso porta qui).
+   Testi SENZA apostrofi dentro stringhe a virgolette singole: accenti veri. */
+var GX={on:'',attesa:null,tmr:0,timer:0,dlg:false};
+function gxEn(){ return (typeof GB_LANG!=='undefined'&&GB_LANG==='en'); }
+// La partita in cui siedo adesso, o null. Mai allenamento (ci pensa EB), mai
+// spettatore, mai a esito gia' arrivato.
+function gxCtx(){
+  var c=(typeof CUR!=='undefined')?CUR:'';
+  var fam='',O=null,send=null,scr='';
+  try{
+    if(c==='arc'&&window.RTD){fam='rtd';O=RTD;send=rtdSend;scr='arc';}
+    else if(c==='turf'&&window.TWR){fam='twr';O=TWR;send=twrSend;scr='turf';}
+    else if(c==='tank'&&window.TKD){fam='tkd';O=TKD;send=tkSend;scr='tank';}
+    else if(c==='glad'&&window.GLD){fam='gld';O=GLD;send=gldSend;scr='glad';}
+    if(!O||O.ui!=='match'||O.spec||O.practice||O.over)return null;
+    var me=String(O.myId==null?'':O.myId);
+    if(!me||me==='undefined'||me==='null')return null;
+    if(typeof LOBSP!=='undefined'&&LOBSP.on)return null;
+    if(fam==='rtd'){
+      // gli iframe hanno il loro flag di spettatore
+      var sp=[window.LUPRT,window.LCRT,window.BJRT,window.PKRT,window.DPRT,window.BXRT];
+      for(var i=0;i<sp.length;i++){ if(sp[i]&&sp[i].aperto&&sp[i].spec)return null; }
+    }
+  }catch(e){ return null; }
+  return {fam:fam,O:O,send:send,scr:scr,game:(fam==='rtd'?O.game:fam==='twr'?'turf':fam==='tkd'?'tank':'glad')};
+}
+// tipo / posta / uno contro uno, da quello che il client sa gia'
+function gxInfo(ctx){
+  var O=ctx.O, n=0;
+  try{ n=Object.keys(O.names||{}).length; }catch(e){}
+  var uvu=(n<=2);
+  if(O.tour)return {tipo:'torneo',posta_eur:0,uno_contro_uno:uvu};
+  var pot=Number(O.potEur)||0, card=null;
+  try{ if(typeof LOB!=='undefined'&&LOB.card&&String(LOB.card.game||'')===ctx.game)card=LOB.card; }catch(e){}
+  if(!(pot>0))return {tipo:'gratis',posta_eur:0,uno_contro_uno:uvu};
+  // la posta di CHI ESCE: la fascia con cui sono entrato, o quella della
+  // cartolina della lobby, purche' stia nel piatto; se no il piatto diviso
+  var posta=0, ok=function(v){ v=Number(v); return (v>0&&v<=pot+0.005)?v:0; };
+  if(GX.join&&GX.join.game===ctx.game&&Date.now()-GX.join.t<30*60000)posta=ok(GX.join.tier);
+  if(!posta&&card)posta=ok(card.stake_eur);
+  if(!posta)posta=pot/Math.max(1,n||2);
+  return {tipo:'soldi',posta_eur:Math.round(posta*100)/100,uno_contro_uno:uvu};
+}
+// la fascia con cui si entra (rtdJoin/twrJoin/tkJoin/gldJoin leggono il tier)
+(function(){
+  function avvolgi(nome,O,game){
+    var f=window[nome]; if(typeof f!=='function'||f.__gx)return;
+    var g=function(){ try{ var o=window[O]; GX.join={game:(typeof game==='function'?game():game),tier:parseFloat(o&&o.tier),t:Date.now()}; }catch(e){} return f.apply(this,arguments); };
+    g.__gx=1; window[nome]=g;
+  }
+  avvolgi('rtdJoin','RTD',function(){return window.RTD?RTD.game:'';});
+  avvolgi('twrJoin','TWR','turf'); avvolgi('tkJoin','TKD','tank'); avvolgi('gldJoin','GLD','glad');
+})();
+function gxCss(){
+  if(document.getElementById('gx-css'))return;
+  var st=document.createElement('style'); st.id='gx-css';
+  st.textContent=''
+   +'#gx-esci{position:fixed;z-index:2147482000;left:calc(10px + max(env(safe-area-inset-left,0px),var(--tg-left,0px)));'
+   +'top:calc(14px + max(env(safe-area-inset-top,0px),var(--tg-top,0px)));display:none;align-items:center;gap:6px;'
+   +'height:36px;padding:0 12px 0 10px;border-radius:18px;border:1px solid rgba(248,113,113,.55);'
+   +'background:rgba(10,14,26,.94);color:#f1f4fa;font:800 11px/1 Orbitron,"Russo One",sans-serif;letter-spacing:.8px;'
+   +'box-shadow:0 4px 14px rgba(0,0,0,.45);-webkit-tap-highlight-color:transparent;touch-action:manipulation;cursor:pointer;}'
+   +'#gx-esci b{font-size:14px;line-height:1;}'
+   +'#gx-esci.gx-dx{left:auto;right:calc(10px + max(env(safe-area-inset-right,0px),var(--tg-right,0px)));top:calc(52px + max(env(safe-area-inset-top,0px),var(--tg-top,0px)));}'
+   /* in orizzontale la barretta #oz-rail (← ⟲) sta in alto a sinistra: il tasto le si mette accanto */
+   +'#gx-esci.gx-rail{left:calc(54px + var(--oz-l,0px));top:calc(8px + var(--oz-t,0px));}'
+   +'#gx-esci:active{transform:scale(.96);}'
+   +'body.gx-on .screen.active>.game-hdr>.back-btn{visibility:hidden;}'
+   +'body.gx-on .screen.active>.game-hdr>.game-title{padding-left:44px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}';
+  document.head.appendChild(st);
+}
+function gxDom(){
+  gxCss();
+  var b=document.getElementById('gx-esci');
+  if(!b){
+    b=document.createElement('button'); b.id='gx-esci'; b.type='button';
+    b.setAttribute('aria-label',gxEn()?'Leave the match':'Esci dalla partita');
+    b.innerHTML='<b>🏳️</b><span>'+(gxEn()?'EXIT':'ESCI')+'</span>';
+    b.addEventListener('click',function(ev){ ev.preventDefault(); ev.stopPropagation(); gxChiedi(); });
+    document.body.appendChild(b);
+  }
+  return b;
+}
+function gxChiedi(){
+  var ctx=gxCtx(); if(!ctx||GX.attesa){ gxTick(); return; }
+  var info=gxInfo(ctx);
+  GX.dlg=true;
+  gbEsciConferma(info,function(){
+    GX.dlg=false;
+    var c2=gxCtx();
+    if(!c2||c2.fam!==ctx.fam){ toast(gxEn()?'The match is already over':'La partita è già finita','warn',1800); return; }
+    gxManda(c2,info);
+  });
+}
+function gxManda(ctx,info){
+  if(!ctx.O.wsOk||!ctx.O.ws){ toast(gxEn()?'No connection: try again in a moment':'Connessione assente: riprova fra un attimo','err',2200); return; }
+  GX.attesa={fam:ctx.fam,t:Date.now(),info:info};
+  try{ console.log('[ESCI_PARTITA] abbandona '+ctx.fam+' '+ctx.game+' '+info.tipo); }catch(e){}
+  ctx.send({t:'abbandona'});
+  if(GX.tmr)clearTimeout(GX.tmr);
+  GX.tmr=setTimeout(function(){
+    GX.tmr=0;
+    if(GX.attesa){ GX.attesa=null; gxTick(); toast(gxEn()?'The server did not answer: try again':'Il server non ha risposto: riprova','err',2400); }
+  },10000);
+  gxTick();
+}
+// `err` mentre si aspetta l'uscita: il toast lo scrive il gestore del gioco,
+// qui si ridà solo il tasto
+function gxErr(fam,m){
+  if(!GX.attesa||GX.attesa.fam!==fam)return;
+  GX.attesa=null; if(GX.tmr){clearTimeout(GX.tmr);GX.tmr=0;} gxTick();
+}
+function gxSoldi(v){ return '€ '+(Number(v)||0).toFixed(2).replace('.',','); }
+function gxHtml(info,m,fn){
+  var en=gxEn(), tipo=info.tipo, uvu=!!info.uno_contro_uno, h, tit, sub;
+  var posta=(m&&Number(m.posta_eur)>0)?Number(m.posta_eur):Number(info.posta_eur)||0;
+  if(tipo==='torneo'){
+    tit=en?'OUT OF THE TOURNAMENT':'SEI FUORI DAL TORNEO';
+    sub=en?'You left this match: you lose it and the tournament goes on without you.':'Hai lasciato il match: lo perdi e il torneo continua senza di te.';
+  }else if(tipo==='gratis'){
+    tit=en?'YOU LEFT THE MATCH':'HAI LASCIATO LA PARTITA';
+    sub=en?('Free match: you lost nothing. '+(uvu?'Your opponent wins the match.':'A bot plays your seat until the end.'))
+          :('Partita gratis: non hai perso niente. '+(uvu?'L’avversario vince la partita.':'Al tuo posto gioca un bot fino alla fine.'));
+  }else{
+    tit=en?'YOU LEFT THE MATCH':'HAI LASCIATO LA PARTITA';
+    sub=en?('You lost your stake of <b>'+gxSoldi(posta)+'</b>. '+(uvu?'Your opponent wins the pot.':'A bot plays your seat until the end: you win nothing.'))
+          :('Hai perso la tua posta di <b>'+gxSoldi(posta)+'</b>. '+(uvu?'L’avversario vince il piatto.':'Al tuo posto gioca un bot fino alla fine: non vinci niente.'));
+  }
+  h='<div class="gx-fine" data-tipo="'+tipo+'"><div style="font-size:44px;">🏳️</div><div class="tw-lose-t">'+tit+'</div>'
+   +'<div class="tw-ov-sub">'+sub+'</div>';
+  if(tipo==='torneo'){
+    h+='<div class="tw-ov-btns"><button class="action-btn gold" onclick="'+fn.tour+'">'+(en?'🏆 BACK TO THE TOURNAMENT':'🏆 TORNA AL TORNEO')+'</button></div>';
+  }else{
+    h+='<div class="tw-ov-btns"><button class="action-btn gold" onclick="'+fn.again+'">'+(fn.againLbl||'🔁 GIOCA ANCORA')+'</button>'
+     +'<button class="action-btn" onclick="'+fn.again+';'+fn.via+'">'+fn.viaLbl+'</button></div>';
+  }
+  return h+'</div>';
+}
+// l'over dell'abbandono: true = gestito (il gestore del gioco esce)
+function gxFine(fam,m){
+  try{
+    var O=(fam==='rtd')?RTD:(fam==='twr')?TWR:(fam==='tkd')?TKD:GLD;
+    if(O.spec)return false;
+    var info=(GX.attesa&&GX.attesa.fam===fam)?GX.attesa.info:null;
+    if(!info){
+      var c=gxCtx();
+      info=(c&&c.fam===fam)?gxInfo(c):{tipo:(O.tour||m.tour)?'torneo':(Number(m.pot_eur)>0?'soldi':'gratis'),posta_eur:0,uno_contro_uno:Object.keys(O.names||{}).length<=2};
+    }
+    GX.attesa=null; if(GX.tmr){clearTimeout(GX.tmr);GX.tmr=0;}
+    var ov=document.getElementById('gb-esci-ov'); if(ov&&ov.parentNode)ov.parentNode.removeChild(ov);
+    GX.dlg=false;
+    var tour=(info.tipo==='torneo');
+    try{TWS.play('lose');}catch(e){}
+    if(fam==='rtd'){
+      if(RTD.overTmr){clearTimeout(RTD.overTmr);RTD.overTmr=null;}
+      RTD.over=m; rtdStopRaf();
+      RTD.ui='';            // fuori dal match: rtdOvClose spegne gli iframe (Lupus, Last Call, Boxe, BJ, Poker, Dead Peak)
+      rtdOvClose();
+      try{ if(typeof LUPRT!=='undefined'&&LUPRT.aperto)rtdChiudiLupusRT(true); }catch(e){}
+      try{ wsNetBanner('arc',0); }catch(e){}
+      rtdOv(gxHtml(info,m,{tour:'rtdTourDone()',again:'rtdAgain()',againLbl:LBL_AGAIN,via:"go('duel')",viaLbl:'⚔️ PvP ARENA'}),true);
+      if(!tour)rtdShowLobby(true);
+    }else if(fam==='twr'){
+      TWR.over=m; TWR.ui='over'; try{TWS.engine(false);TWS.heart(false);}catch(e){}
+      twrStopRaf();
+      twrOv(gxHtml(info,m,{tour:'twrTourDone()',again:'twrAgain()',via:"go('home')",viaLbl:'🏠 HOME'}),true);
+      if(!tour)twrShowLobby(true);
+    }else if(fam==='tkd'){
+      TKD.over=m; TKD.ui='over'; tkStopRaf();
+      tkOv(gxHtml(info,m,{tour:'tkTourDone()',again:'tkAgain()',via:"go('duel')",viaLbl:'⚔️ PvP ARENA'}),true);
+      if(!tour)tkShowLobby(true);
+    }else{
+      try{GLD.mid='';TRN.chatSubbed=0;trnChatSub();trnChatSwap();}catch(_c){}
+      GLD.over=m; GLD.ui='over'; gldStopRaf();
+      gldOv(gxHtml(info,m,{tour:'gldTourExit()',again:'gldAgain()',via:"go('duel')",viaLbl:'⚔️ PvP ARENA'}),true);
+      if(!tour)gldShowLobby(true);
+    }
+    if(!tour&&typeof loadBalance==='function')loadBalance();
+    gxTick();
+    return true;
+  }catch(e){
+    try{console.error('[ESCI_PARTITA] fine',e);}catch(_){}
+    return false;     // un guasto qui lascia fare al gestore normale dell'over
+  }
+}
+// le altre porte d'uscita in partita (freccia della testata, «esci» degli
+// iframe che passano da rtdBack/tkBack/gldBack) portano alla stessa conferma
+function gxIntercetta(fam){
+  var c=gxCtx(); if(!c||c.fam!==fam)return false;
+  gxChiedi(); return true;
+}
+function gxTick(){
+  var c=gxCtx(), b=gxDom();
+  // mai sopra la sua stessa domanda (il tasto sta sopra a tutto, anche al velo)
+  var k=(c&&!GX.attesa&&!document.getElementById('gb-esci-ov'))?c.fam:'';
+  if(k!==GX.on){
+    GX.on=k; b.style.display=k?'flex':'none';
+    try{ document.body.classList.toggle('gx-on',!!k); }catch(e){}
+  }
+  // la domanda resta aperta solo finche' la partita c'e'
+  if(!c&&GX.dlg){ GX.dlg=false; var ov=document.getElementById('gb-esci-ov'); if(ov&&ov.parentNode)ov.parentNode.removeChild(ov); }
+  var dx=!!(c&&c.fam==='rtd'&&(RTD.game==='lastcall'||RTD.game==='lupus'));
+  if(b.classList.contains('gx-dx')!==dx)b.classList.toggle('gx-dx',dx);
+  var rl=false;
+  if(k&&!dx){ try{ var r=document.getElementById('oz-rail'); rl=!!(r&&r.classList.contains('su')&&getComputedStyle(r).display!=='none'); }catch(e){} }
+  if(b.classList.contains('gx-rail')!==rl)b.classList.toggle('gx-rail',rl);
+}
+// ALLENAMENTO: stesso tasto, stessa conferma (tipo 'allenamento'); l'uscita
+// resta quella di ESCI_BOT_2709 (ebEsci: {t:'leave'} + smontaggio)
+(function(){
+  if(typeof window.ebChiedi!=='function')return;
+  window.ebChiedi=function(){
+    if(!ebCtx()){ ebTick(); return; }
+    var ov=document.getElementById('gb-esci-ov');
+    if(ov){ if(ov.parentNode)ov.parentNode.removeChild(ov); return; }   // secondo «indietro» = chiudi la domanda
+    gbEsciConferma({tipo:'allenamento'},function(){ if(ebCtx())ebEsci(); });
+  };
+  function etichetta(){
+    var b=document.getElementById('eb-esci');
+    if(b&&!b.__gx){ b.__gx=1; b.innerHTML='<b>🏳️</b><span>'+(gxEn()?'EXIT':'ESCI')+'</span>'; }
+  }
+  window.__gxEtichetta=etichetta;
+})();
+(function(){
+  function via(){ try{ gxDom(); if(window.__gxEtichetta)__gxEtichetta(); }catch(e){} if(!GX.timer)GX.timer=setInterval(gxTick,400); gxTick(); }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',via); else via();
 })();
 </script>
