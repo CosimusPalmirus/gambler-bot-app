@@ -17454,6 +17454,21 @@ html.oz-l #bxrt-rot{display:none!important;}
     "Il vincitore avanza al prossimo round del torneo":"The winner advances to the next round of the tournament",
     "La squadra vincente avanza al prossimo round del torneo":"The winning team advances to the next round of the tournament",
     "🏆 TORNA AL TORNEO":"🏆 BACK TO THE TOURNAMENT",
+    "🏠 TORNA ALLA HOME":"🏠 BACK TO HOME",
+    "👁 SPETTATORE":"👁 SPECTATOR",
+    "Carico la lobby…":"Loading the lobby…",
+    "🙈 Questa partita non si può guardare":"🙈 This match can't be watched",
+    "La chat resta aperta: puoi commentare con chi aspetta qui.":"The chat stays open: talk with whoever is waiting here.",
+    "⏳ La partita non è ancora cominciata":"⏳ The match hasn't started yet",
+    "🚪 Lobby chiusa":"🚪 Lobby closed",
+    "🏁 Partita finita":"🏁 Match over",
+    "Partita finita":"Match over",
+    "Il risultato è nella cartolina del gruppo.":"The result is in the group card.",
+    "▶️ Partita in corso":"▶️ Match in progress",
+    "Arriva la prima mossa…":"First move coming…",
+    "I giocatori stanno entrando al tavolo: ti porto lì appena ci sono.":"Players are sitting down: you'll be taken there as soon as they're in.",
+    "In attesa dei due giocatori…":"Waiting for the two players…",
+    "Le partite di questa lobby non si guardano":"Matches of this lobby can't be watched",
     "Match non trovato — forse è già finito":"Match not found — it may be over already",
     "Room piena — troppi spettatori":"Room full — too many spectators",
     "Match non disponibile":"Match unavailable",
@@ -44331,6 +44346,15 @@ function dlTourSigP(d){
 // metterlo nei sei posti separati vorrebbe dire sei occasioni di dimenticarsene
 // meta' — che e' esattamente il difetto che si sta correggendo.
 function dlTourMid(d){
+  // LOBBY APERTA (02/10/2026): stesso canale, stessa chat in sola lettura,
+  // il mid e' il lid della lobby (`lob_lid` nella vista)
+  if(d&&!d.tour&&d.lob_lid){
+    var ml=String(d.lob_lid);
+    if(TRN.duelMid!==ml){TRN.duelMid=ml;TRN.duelLob=1;
+      if(CUR==='duel'){try{TRN.chatSubbed=0;trnChatSub();trnChatPaint();}catch(_cl){}}}
+    return;
+  }
+  if(d&&!d.tour&&TRN.duelLob){TRN.duelMid='';TRN.duelLob=0;}
   if(!d||!d.tour||!d.tour_mid)return;
   var m=String(d.tour_mid);
   if(TRN.duelMid===m)return;
@@ -44511,9 +44535,9 @@ function dlBjBoard(d,ancora){
       '<button class="pvp-m-btn" onclick="dlCloseOverlay()">CLOSE</button>';
   }
   // SOLO LETTURA: chi e' al tavolo legge il tifo, non lo scrive
-  if(d.tour)html+='<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>';
+  if(d.tour||d.lob_lid)html+='<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>';
   dlModalHTML(html);
-  if(d.tour)dlDuelChatMonta(d);
+  if(d.tour||d.lob_lid)dlDuelChatMonta(d);
   if(playing&&d.your_turn){ DLBJ.deadline=d.deadline_ms||0; dlBjStartTick(); } else { dlBjStopTick(); }
 }
 function dlBjAfterDone(d){
@@ -44824,7 +44848,7 @@ function dlRrBoard(d){
       '<button class="pvp-m-btn" onclick="dlCloseOverlay()">CLOSE</button>';
   }
   // SOLO LETTURA: chi e' al tavolo legge il tifo, non lo scrive
-  if(d.tour)html+='<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>';
+  if(d.tour||d.lob_lid)html+='<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>';
   dlModalHTML(html);
   if(d.tour)dlRrChatMonta(d);
   // IL RIDISEGNO E' CIO CHE RADDRIZZAVA L ARMA. dlModalHTML rifa tutto con
@@ -45470,9 +45494,9 @@ function dlRpsBoard(d,ancora){
       '<button class="pvp-m-btn" onclick="dlCloseOverlay()">CLOSE</button>';
   }
   // SOLO LETTURA: chi e' al tavolo legge il tifo, non lo scrive
-  if(d.tour)html+='<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>';
+  if(d.tour||d.lob_lid)html+='<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>';
   dlModalHTML(html);
-  if(d.tour)dlDuelChatMonta(d);
+  if(d.tour||d.lob_lid)dlDuelChatMonta(d);
   if(playing&&!picked){ DLRPS.deadline=d.deadline_ms||0; dlRpsStartTick(); } else { dlRpsStopTick(); }
 }
 function dlRpsAfterDone(d){
@@ -46644,9 +46668,9 @@ function dlChBoard(d,ancora){
   }
   html+='</div>';
   // SOLO LETTURA: chi e' al tavolo legge il tifo, non lo scrive
-  if(d.tour)html+='<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>';
+  if(d.tour||d.lob_lid)html+='<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>';
   dlModalHTML(html);
-  if(d.tour)dlDuelChatMonta(d);
+  if(d.tour||d.lob_lid)dlDuelChatMonta(d);
   dlChBindBoard(document.getElementById('ch-board'));
   if(playing) dlChStartTick(); else dlChStopTick();
   try{if(typeof tv3dScacchi==='function')tv3dScacchi(d);}catch(_tsc){}   // TAVOLO3D 25/09: la scacchiera 3D sopra quella DOM
@@ -47105,9 +47129,9 @@ function dlBsPlacement(d){
     '<button class="pvp-m-btn" onclick="dlBsCancel(false)">'
     +((d&&d.tour)?'ABBANDONA IL MATCH (perdi il turno)':'LEAVE (forfeit)')+'</button></div>';
   // SOLO LETTURA: chi e' al tavolo legge il tifo, non lo scrive
-  if(d&&d.tour)html+='<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>';
+  if(d&&(d.tour||d.lob_lid))html+='<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>';
   dlModalHTML(html);
-  if(d&&d.tour)dlDuelChatMonta(d);
+  if(d&&(d.tour||d.lob_lid))dlDuelChatMonta(d);
   // paint placed ships + wire tap-to-place
   DLBS.ships.forEach(function(s){ dlBsPaintShip('dlbs-place', dlBsCells(s), s.horiz, false); });
   for(var r=0;r<BS_N;r++)for(var c=0;c<BS_N;c++){ (function(r,c){ var el=document.getElementById('dlbs-place-'+r+'-'+c); if(!el)return; el.onclick=function(){ dlBsTryPlace(r,c); }; })(r,c); }
@@ -47138,8 +47162,8 @@ function dlBsWaiting(d){
     +((d&&d.tour)?'ABBANDONA IL MATCH (perdi il turno)':'LEAVE (forfeit)')+'</button>'+
     // SOLO LETTURA: e' l'attesa piu' lunga del gioco (l'altro sta ancora
     // schierando), ed e' proprio li' che chi gioca vuole leggere il tifo
-    ((d&&d.tour)?'<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>':''));
-  if(d&&d.tour)dlDuelChatMonta(d);
+    ((d&&(d.tour||d.lob_lid))?'<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>':''));
+  if(d&&(d.tour||d.lob_lid))dlDuelChatMonta(d);
 }
 // ── BATTLE phase ──
 function dlBsBoard(d,ancora){
@@ -47174,9 +47198,9 @@ function dlBsBoard(d,ancora){
   }
   html+='</div>';
   // SOLO LETTURA: chi e' al tavolo legge il tifo, non lo scrive
-  if(d.tour)html+='<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>';
+  if(d.tour||d.lob_lid)html+='<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>';
   dlModalHTML(html);
-  if(d.tour)dlDuelChatMonta(d);
+  if(d.tour||d.lob_lid)dlDuelChatMonta(d);
   dlBsRenderFireGrid(d, playing&&yourTurn);
   dlBsRenderOwnGrid(d);
   if(playing&&yourTurn){ DLBS.deadline=d.deadline_ms||0; dlBsStartTick(); } else dlBsStopTick();
@@ -47418,12 +47442,12 @@ function dlPkdBoard(d, holdResult, ancora){
       '<button class="pvp-m-btn" onclick="dlCloseOverlay()">CLOSE</button>';
   }
   // SOLO LETTURA: chi e' al tavolo legge il tifo, non lo scrive
-  if(d.tour)html+='<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>';
+  if(d.tour||d.lob_lid)html+='<div class="trn-ch-duel">'+trnChatHTML(true)+'</div>';
   dlModalHTML(html);
   // il montaggio sta QUI e non nel chiamante di proposito: `dlPkdRevealThenDone`
   // ridisegna il tavolo due volte a 1,7s di distanza, e la chat va riagganciata
   // dopo ENTRAMBE le volte.
-  if(d.tour)dlDuelChatMonta(d);
+  if(d.tour||d.lob_lid)dlDuelChatMonta(d);
   if(playing&&!youDrawn){ for(var i=0;i<5;i++){ if(DLPKD.held[i]){ var el=document.getElementById('dlpkd-c'+i); if(el)el.classList.add('held'); } } DLPKD.deadline=d.deadline_ms||0; dlPkdStartTick(); } else dlPkdStopTick();
 }
 function dlPkdDraw(){
@@ -49492,7 +49516,9 @@ function twrOnMsg(m){
   }
   if(t==='start'){
     if(m.game&&m.game!=='turf')return;
-    if(m.tour&&!TWR.tour)return;   // TORNEO: raduno abbandonato — niente render a sorpresa
+    if(m.tour&&!TWR.tour)return;
+    TWR.lobLid=String(m.lob_lid||'');   // LOBBY CHE SI GUARDA (02/10): il canale del tifo
+    if(TWR.lobLid)setTimeout(function(){try{trnChatSwap();}catch(_l){}},0);   // TORNEO: raduno abbandonato — niente render a sorpresa
     TWR.tour=!!m.tour;             // autoritativo dal server
     TWR.mid=m.mid||'';             // canale chat della MIA lobby
     TWR.practice=!!m.practice;
@@ -49639,7 +49665,7 @@ function twrShowSpecMatch(){
   el.innerHTML=''
     +'<div class="twr-hud">'
     +'<div class="twr-chip" style="color:#ffd76b;">👁 LIVE</div>'
-    +'<div class="twr-chip gold">🏆 TORNEO</div>'
+    +'<div class="twr-chip gold">'+(LOBSP.lid?'👁 LOBBY':'🏆 TORNEO')+'</div>'
     +'<div class="twr-chip" id="twr-alive">👥 –</div>'
     +'<div class="twr-chip red" id="twr-zone">☢ –</div>'
     +'<button class="twr-chip snd" id="twr-snd" onclick="twrSndToggle()">'+(TWS.on?'🔊':'🔇')+'</button>'
@@ -49671,7 +49697,7 @@ function twrSpecExit(){
   TWR.ui='';TWR.map=null;TWR.lastRaw=null;TWR.snaps=[];TWR.over=null;
   twrStopRaf();twrOvClose();wsNetBanner('turf',0);
   twr3dSmonta();   // GCR3D
-  go('torneo');
+  go(lobSpDove());
 }
 function twrSpecOver(m){
   TWR.over=m;TWR.ui='over';TWR.specRid=null;twrStopRaf();
@@ -49680,7 +49706,7 @@ function twrSpecOver(m){
   twrOv('<div style="font-size:44px;">🏁</div>'
     +'<div class="tw-win-t">MATCH FINITO</div>'
     +'<div class="tw-ov-sub">'+(wn?('Vince <b>'+trnEsc(String(wn))+'</b>'):'Nessun vincitore')+'</div>'
-    +'<div class="tw-ov-btns"><button class="action-btn gold" onclick="twrSpecExit()">🏆 TORNA AL TORNEO</button></div>', true);
+    +'<div class="tw-ov-btns"><button class="action-btn gold" onclick="twrSpecExit()">'+lobSpBtn()+'</button></div>', true);
 }
 function twrThrowStart(ev,code){
   ev.preventDefault();
@@ -54351,7 +54377,9 @@ function tkOnMsg(m){
   }
   if(t==='start'){
     if(m.game!=='tank')return;
-    if(m.tour&&!TKD.tour)return;   // TORNEO: raduno abbandonato — niente render su schermata nascosta
+    if(m.tour&&!TKD.tour)return;
+    TKD.lobLid=String(m.lob_lid||'');   // LOBBY CHE SI GUARDA (02/10): il canale del tifo
+    if(TKD.lobLid)setTimeout(function(){try{trnChatSwap();}catch(_l){}},0);   // TORNEO: raduno abbandonato — niente render su schermata nascosta
     TKD.tour=!!m.tour;             // autoritativo dal server (ripulisce flag stantii)
     TKD.practice=!!m.practice;     // idem: lo dice la stanza, non il client
     TKD.mid=m.mid||'';             // canale chat della MIA lobby (r:<mid>)
@@ -54697,7 +54725,7 @@ function tkShowSpecMatch(){
     +'<div class="twr-hp" id="tk-hp-me"></div>'
     +'<div class="twr-chip" style="color:#a3e635;">VS</div>'
     +'<div class="twr-hp" id="tk-hp-en"></div>'
-    +'<div class="twr-chip gold" style="margin-left:auto;">🏆 TORNEO</div>'
+    +'<div class="twr-chip gold" style="margin-left:auto;">'+(LOBSP.lid?'👁 LOBBY':'🏆 TORNEO')+'</div>'
     +'<div class="twr-chip red" id="tk-sd">🔥 –</div>'
     +'</div>'
     +'<div class="twr-status" id="tk-status"></div>'
@@ -54725,7 +54753,7 @@ function tkSpecExit(){
   TKD.spec=false;TKD.specRid=null;TKD.pendingWatch=null;TKD.tour=false;TKD.mid='';
   TKD.ui='';TKD.map=null;TKD.lastRaw=null;TKD.snaps=[];TKD.over=null;TKD.myId=null;
   tkStopRaf();tkOvClose();wsNetBanner('tank',0);
-  go('torneo');
+  go(lobSpDove());
 }
 function tkSpecOver(m){
   TKD.over=m;TKD.ui='over';TKD.specRid=null;tkStopRaf();
@@ -54734,7 +54762,7 @@ function tkSpecOver(m){
   tkOv('<div style="font-size:44px;">🏁</div>'
     +'<div class="tw-win-t">MATCH FINITO</div>'
     +'<div class="tw-ov-sub">'+(wn?('Vince <b>'+trnEsc(String(wn))+'</b>'):'Nessun vincitore')+'</div>'
-    +'<div class="tw-ov-btns"><button class="action-btn gold" onclick="tkSpecExit()">🏆 TORNA AL TORNEO</button></div>', true);
+    +'<div class="tw-ov-btns"><button class="action-btn gold" onclick="tkSpecExit()">'+lobSpBtn()+'</button></div>', true);
 }
 function tkShowMatch(){
   TKD.ui='match';tkOvClose();
@@ -55672,6 +55700,7 @@ function gldSend(o){if(o&&(o.t==='in'||o.t==='aim'))_gdInv++;
   if(GLD.wsOk){try{GLD.ws.send(JSON.stringify(o));}catch(e){}}}
 function gldOnMsg(m){
   var t=m.t;
+  if(t==='watch_peek'){if(typeof lobSpPeek==='function')lobSpPeek(m);return;}   // LOBBY APERTA (02/10)
   if(t==='pong'){gldNetPong(m);return;}   // 14/09 FEEL P: giro di rete misurato
   if(t==='hello_ok'){
     if(m.rate)GLD.rate=m.rate;
@@ -55690,7 +55719,7 @@ function gldOnMsg(m){
     // …e chi e' al TAVOLO di un match del binario duelli (14/09/2026): se la
     // socket si riapre mentre gioca, senza questo si riiscriveva solo al
     // prossimo colpo, e nel frattempo il tifo del match non arrivava
-    if(CUR==='torneo'||GLD.spec||GLD.tour||(CUR==='duel'&&TRN.duelMid)){TRN.chatSubbed=0;trnChatSub();}
+    if(CUR==='torneo'||GLD.spec||GLD.tour||(CUR==='duel'&&TRN.duelMid)||(typeof LOBSP!=='undefined'&&LOBSP.on)){TRN.chatSubbed=0;trnChatSub();}
     return;
   }
   if(t==='watch_list'){if(typeof trnOnWatchList==='function')trnOnWatchList(m.rooms||[]);return;}
@@ -55730,7 +55759,7 @@ function gldOnMsg(m){
             'ticket scaduto':(GLD.tour?'Match del torneo scaduto o già partito':'Match scaduto — le puntate sono state rimborsate'),
             'room piena':'Room piena — troppi spettatori','match non trovato':'Match non trovato — forse è già finito'};
     toast(it[e]||e,'err',2600);
-    if(e==='room piena'||e==='match non trovato'){if(GLD.spec){gldSpecExit();}else if(CUR==='glad'){GLD.ui='';go('torneo');}return;}   // TORNEO: watch fallito → hub (anche da spettatore dopo reconnect: room sparita → esci, niente canvas congelato)
+    if(e==='room piena'||e==='match non trovato'||e==='la partita non è ancora cominciata'||e==='questa partita non si può guardare'){if(GLD.spec||LOBSP.lid){gldSpecExit();}else if(CUR==='glad'){GLD.ui='';go('torneo');}return;}   // TORNEO: watch fallito → hub (anche da spettatore dopo reconnect: room sparita → esci, niente canvas congelato)
     if(e==='ticket scaduto'){
       GLD.ui='';
       if(GLD.tour){GLD.tour=false;go('torneo');}   // TORNEO: niente rimborsi — torna all'hub
@@ -55740,7 +55769,9 @@ function gldOnMsg(m){
   }
   if(t==='start'){
     if(m.game!=='glad')return;
-    if(m.tour&&!GLD.tour)return;   // TORNEO: raduno abbandonato — mai render/audio su schermata nascosta
+    if(m.tour&&!GLD.tour)return;
+    GLD.lobLid=String(m.lob_lid||'');   // LOBBY CHE SI GUARDA (02/10): il canale del tifo
+    if(GLD.lobLid)setTimeout(function(){try{trnChatSwap();}catch(_l){}},0);   // TORNEO: raduno abbandonato — mai render/audio su schermata nascosta
     GLD.retries=0;                 // 28/07: ogni match riparte col budget pieno di riconnessioni
     GLD.practice=!!m.practice;
     GLD.tour=!!m.tour;   // TORNEO: autoritativo dal server (ripulisce anche flag stantii)
@@ -56695,7 +56726,7 @@ function gldSpecExit(){
   GLD.spec=false;GLD.specRid=null;GLD.tour=false;GLD.pendingWatch=null;
   GLD.ui='';GLD.map=null;GLD.lastRaw=null;GLD.snaps=[];
   gldStopRaf();gldOvClose();wsNetBanner('glad',0);
-  go('torneo');
+  go(lobSpDove());
 }
 function gldSpecOver(m){
   GLD.over=m;GLD.ui='over';GLD.specRid=null;gldStopRaf();
@@ -56703,8 +56734,8 @@ function gldSpecOver(m){
   var wn=m.winner_name||((m.winner!=null)?gldNm(m.winner):null);
   gldOv('<div style="font-size:46px;" class="twr-trophy">🏆</div>'
     +'<div class="tw-win-t">'+(wn?(wn.toUpperCase()+' TRIONFA'):'MATCH CONCLUSO')+'</div>'
-    +'<div class="tw-ov-sub">Il vincitore avanza al prossimo round del torneo</div>'
-    +'<div class="tw-ov-btns"><button class="action-btn gold" onclick="gldSpecExit()">🏆 TORNA AL TORNEO</button></div>',true);
+    +'<div class="tw-ov-sub">'+(LOBSP.lid?'Partita finita':'Il vincitore avanza al prossimo round del torneo')+'</div>'
+    +'<div class="tw-ov-btns"><button class="action-btn gold" onclick="gldSpecExit()">'+lobSpBtn()+'</button></div>',true);
 }
 function gldOv(html,sticky){
   var o=document.getElementById('gld-overlay'),mm=document.getElementById('gld-modal');
@@ -58658,7 +58689,10 @@ function trnGC(g){
   // rifiuta lo spettatore («non si guarda una partita di last call»): la regia
   // dell'iframe e' costruita per un seggio e non sa fare lo spettatore. rtd:true
   // accende ENTRA (trnEnterMatch) e ALLENATI (trnTrainOk).
-  if(g==='lastcall')return {icon:'🍸',watch:false,rtd:true};
+  // 02/10/2026: dalla sala d'attesa di una LOBBY APERTA si guarda (iframe in
+  // modalita' spettatore, nebbia del server); dal tabellone dei tornei no.
+  // 02/10 sera: anche i TORNEI (decisione del proprietario), stessa nebbia
+  if(g==='lastcall')return {icon:'🍸',watch:true,rtd:true};
   // 🂡 BLACKJACK 1v1 (25/09): stanza del server RT; SI GUARDA (lo spettatore
   // vede solo le carte scoperte e nessun uid: banco_server.py g).
   if(g==='bj1v1')return {icon:'🃏',watch:true,rtd:true};   // 🃏 e non 🂡: su molti Android 🂡 e' un quadratino vuoto
@@ -60389,6 +60423,156 @@ function trnSpecDuelDipingi(p){
   ov.innerHTML=testa+riga+corpo+coda;
   try{if(typeof tv3dSpett==='function')tv3dSpett(p);}catch(_tsp){}   // TAVOLO3D 25/09: la scacchierina dello spettatore in 3D
 }
+// ══ SPETTATORE DELLE LOBBY APERTE (02/10/2026) ══════════════════════════════
+// Richiesta del proprietario: sotto l'annuncio di una lobby nel gruppo, accanto
+// a GIOCA, un tasto per entrare come SPETTATORE con la chat come nei tornei.
+// Il tasto apre la mini app con `startapp=guarda_<lid>` e si atterra QUI: una
+// sala d'attesa sopra la home, con la cartolina della lobby e la chat del suo
+// canale ('r:'+lid). Da qui:
+//   · lobby ancora aperta  -> si aspetta, e si chiacchiera;
+//   · partita sul server real-time -> appena la stanza esiste (`watch_peek`
+//     sulla socket dell'hub) si passa alla vista spettatore dei tornei, che
+//     non sa niente di lobby: il server le manda `mid`=lid, quindi la chat
+//     resta la stessa, e `LOBSP.lid` fa tornare alla home invece che al torneo;
+//   · uno dei sei duelli del backend -> la scena e' quella dei tornei
+//     (`trnSpecScena`), con la differita decisa dal server.
+// La regola di cosa si vede e' del SERVER (lista bianca, slot opachi): qui si
+// disegna quello che arriva, e basta.
+var LOBSP={on:false,lid:'',canale:'',timer:0,game:'',last:null,subWs:null,instradato:false,vietato:false};
+function lobSpGioco(g){
+  g=String(g||'');
+  try{for(var i=0;i<LOB_GAMES.length;i++)if(LOB_GAMES[i][0]===g)return {icon:LOB_GAMES[i][1],title:LOB_GAMES[i][2]};}catch(_e){}
+  return {icon:(typeof trnGameIcon==='function'?trnGameIcon(g):'🎮'),title:g.toUpperCase()};
+}
+// dove si torna uscendo da una vista spettatore: la home se si guardava una
+// lobby (e il ricordo si cancella), il torneo altrimenti — com'era prima
+function lobSpDove(){if(LOBSP.lid){LOBSP.lid='';return 'home';}return 'torneo';}
+function lobSpBtn(){return LOBSP.lid?'🏠 TORNA ALLA HOME':'🏆 TORNA AL TORNEO';}
+function lobSpOpen(lid){
+  lid=String(lid||'').replace(/[^A-Za-z0-9_-]/g,'');
+  if(!lid)return;
+  lobSpChiudi(true);
+  LOBSP.on=true;LOBSP.lid=lid;LOBSP.canale='r:'+lid;LOBSP.game='';LOBSP.last=null;
+  LOBSP.subWs=null;LOBSP.instradato=false;LOBSP.vietato=false;
+  try{TWS.init();TWS.res();}catch(_a){}
+  try{if(typeof trnInjectCSS==='function')trnInjectCSS();}catch(_c){}
+  lobSpMonta();
+  lobSpPoll(true);
+  LOBSP.timer=setInterval(function(){lobSpPoll(false);},2500);
+}
+// `tieni`=true: si chiude la sala ma si resta spettatori di quella lobby
+// (si sta passando al tavolo, o se ne sta aprendo un'altra)
+function lobSpChiudi(tieni){
+  if(LOBSP.timer){clearInterval(LOBSP.timer);LOBSP.timer=0;}
+  var era=LOBSP.on;
+  LOBSP.on=false;LOBSP.canale='';
+  if(!tieni)LOBSP.lid='';
+  var ov=document.getElementById('lobsp-ov');
+  if(ov&&ov.parentNode)ov.parentNode.removeChild(ov);
+  if(era){try{TRN.chatSubbed=0;trnChatSub();trnChatSwap();}catch(_s){}}
+}
+function lobSpEsci(){lobSpChiudi(false);if(CUR!=='home')go('home');}
+function lobSpMonta(){
+  var ov=document.getElementById('lobsp-ov');
+  if(ov)return ov;
+  ov=document.createElement('div');ov.id='lobsp-ov';
+  ov.style.cssText='position:fixed;inset:0;z-index:9000;overflow-y:auto;-webkit-overflow-scrolling:touch;'
+    +'background:radial-gradient(120% 80% at 50% 0%,#1d1a2e 0%,#0b0a12 70%);padding:14px 14px 28px;box-sizing:border-box;';
+  ov.innerHTML='<div style="max-width:560px;margin:0 auto;">'
+    +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">'
+    +'<span id="lobsp-tt" style="font-family:\'Russo One\',sans-serif;color:#ffd76b;font-size:15px;letter-spacing:.5px;">👁 SPETTATORE</span>'
+    +'<button class="action-btn red" style="margin-left:auto;width:auto;padding:6px 14px;font-size:12px;" onclick="lobSpEsci()">✖ ESCI</button></div>'
+    +'<div class="trn-card" id="lobsp-st" style="margin:0 0 12px;"><div class="tw-note" style="text-align:center;margin:0;">Carico la lobby…</div></div>'
+    +'<div id="lobsp-chat">'+trnChatHTML()+'</div>'
+    +'</div>';
+  document.body.appendChild(ov);
+  try{trnChatSwap();}catch(_p){}
+  return ov;
+}
+function lobSpPoll(primo){
+  if(!LOBSP.on)return;
+  try{gldConnect();}catch(_g){}
+  // la chat: iscritti al canale della lobby sulla socket dell'hub, e di nuovo
+  // se la socket e' cambiata (riconnessione)
+  if(typeof GLD!=='undefined'&&GLD.wsOk&&GLD.ws&&(LOBSP.subWs!==GLD.ws||TRN.chatCh!==LOBSP.canale)){
+    LOBSP.subWs=GLD.ws;try{TRN.chatSubbed=0;trnChatSub();trnChatPaint();}catch(_s){}
+  }
+  var lid=LOBSP.lid;
+  fetch(BACKEND+'/lobby/watch',{method:'POST',headers:dlBjHdr(),
+        body:JSON.stringify({user_id:S.userId,lid:lid})})
+    .then(function(r){return r.json();})
+    .then(function(p){
+      if(!LOBSP.on||LOBSP.lid!==lid)return;
+      if(!p||!p.ok){
+        if(primo){toast('⚠️ '+((p&&p.error)||'lobby non trovata'),'warn',2600);lobSpEsci();}
+        return;
+      }
+      LOBSP.last=p;LOBSP.game=String(p.game||'');
+      if(p.via==='rt'&&p.fase==='gioco'&&!LOBSP.vietato&&GLD.wsOk)gldSend({t:'watch_peek',lid:lid});
+      lobSpDipingi();
+    }).catch(function(){});
+}
+// risposta del server real-time: la stanza c'e'? allora si va al tavolo
+function lobSpPeek(m){
+  if(!LOBSP.on||String((m&&m.lid)||'')!==LOBSP.lid||LOBSP.instradato)return;
+  if(m.vietato){LOBSP.vietato=true;lobSpDipingi();return;}
+  if(!m.rid)return;
+  var g=String(m.game||LOBSP.game),c=trnGC(g);
+  if(!c||!c.watch){LOBSP.vietato=true;lobSpDipingi();return;}
+  LOBSP.instradato=true;
+  lobSpChiudi(true);
+  grHaptic('pick');
+  // la vista dei giochi che non sono il Colosseo ha la SUA socket, che e' gia'
+  // fra gli spettatori della stanza: l'hub resterebbe iscritto allo stesso
+  // canale e ogni messaggio arriverebbe due volte
+  if(c.rtd||c.tank||c.turf){try{GLD.closedByUs=true;if(GLD.ws)GLD.ws.close();}catch(_w){}}
+  if(c.rtd){window.RTD_GAME=g;window.RTD_WATCH=m.rid;go('arc');}
+  else if(c.tank){window.TKD_WATCH=m.rid;go('tank');}
+  else if(c.turf){window.TWR_WATCH=m.rid;go('turf');}
+  else{window.GLD_WATCH=m.rid;go('glad');}
+}
+function lobSpMMSS(s){s=Math.max(0,parseInt(s,10)||0);var m=Math.floor(s/60),r=s%60;return m+':'+(r<10?'0':'')+r;}
+function lobSpDipingi(){
+  var box=document.getElementById('lobsp-st');
+  var p=LOBSP.last;
+  if(!box||!p)return;
+  var gi=lobSpGioco(p.game);
+  var tt=document.getElementById('lobsp-tt');
+  if(tt)tt.textContent='👁 '+gi.icon+' '+gi.title;
+  var nomi=(p.nomi||[]).map(function(n){return trnEsc(String(n));}).join(', ');
+  var soldi=p.gratis?'🆓 GRATIS':('💰 '+(p.stake_eur!=null?('€ '+Number(p.stake_eur).toFixed(2)):'')+' a testa');
+  var testa='<div style="display:flex;justify-content:space-between;font-size:12px;opacity:.85;margin-bottom:8px;">'
+    +'<span>🎟 '+(p.seduti||0)+'/'+(p.posti||'?')+(nomi?(' · '+nomi):'')+'</span><span>'+soldi+'</span></div>';
+  var corpo='';
+  function riga(t,sub){return '<div style="text-align:center;font-family:\'Russo One\',sans-serif;font-size:14px;margin:6px 0 2px;">'+t+'</div>'
+    +(sub?'<div class="tw-note" style="text-align:center;margin:0 0 4px;">'+sub+'</div>':'');}
+  if(p.via==='no'||LOBSP.vietato){
+    corpo=riga('🙈 Questa partita non si può guardare','La chat resta aperta: puoi commentare con chi aspetta qui.');
+  }else if(p.fase==='attesa'){
+    corpo=riga('⏳ La partita non è ancora cominciata','Resta qui: appena parte, ti porto al tavolo. Si chiude fra '+lobSpMMSS(p.scade_fra));
+  }else if(p.fase==='chiusa'){
+    corpo=riga('🚪 Lobby chiusa','Non si è giocato: '+trnEsc(String(p.stato||'')));
+  }else if(p.via==='duel'&&p.spec){
+    var q=p.spec,pl=q.players||[],tu=q.turno||{},sc=q.scena||{};
+    var nm=function(i){var x=pl[i]||{};return trnEsc(String(x.nome||('Sfidante '+(i?'B':'A'))));};
+    var st=(q.stato==='attesa')?'In attesa dei due giocatori…'
+      :(q.stato==='finita'?'Match finito':(tu.simultaneo?'Scelgono insieme'
+        :(tu.slot!=null?('Tocca a '+nm(tu.slot)+(tu.secs!=null?' · '+tu.secs+'s':'')):'In corso')));
+    corpo='<div style="display:flex;gap:10px;align-items:center;justify-content:center;font-family:\'Russo One\',sans-serif;font-size:13px;margin:4px 0 8px;">'
+      +'<span'+(tu.slot===0?' style="color:#ffd76b;"':'')+'>'+nm(0)+'</span><span style="opacity:.5;">vs</span>'
+      +'<span'+(tu.slot===1?' style="color:#ffd76b;"':'')+'>'+nm(1)+'</span></div>'
+      +'<div class="tw-note" style="text-align:center;margin:0 0 6px;">'+st+'</div>'
+      +trnSpecScena(q.g,sc,pl)
+      +'<div class="tw-note" style="text-align:center;opacity:.55;margin-top:6px;">differita di '+(((q.differita||{}).ritardo_s)||0)+'s — si vede quello che è già successo</div>';
+  }else if(p.fase==='finita'){
+    corpo=riga('🏁 Partita finita','Il risultato è nella cartolina del gruppo.');
+  }else if(p.via==='duel'){
+    corpo=riga('▶️ Partita in corso','Arriva la prima mossa…');
+  }else{
+    corpo=riga('▶️ Partita in corso','I giocatori stanno entrando al tavolo: ti porto lì appena ci sono.');
+  }
+  box.innerHTML=testa+corpo;
+}
 // le sei scene, corte: si disegna cio' che il server ha deciso di mandare
 function trnSpecScena(g,s,pl){
   function barra(t,a,b){return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;">'
@@ -60484,6 +60668,14 @@ function trnChatCh(){
   // gli avversari di quella partita, non con tutto il tabellone. Il mid arriva
   // dallo start del server (out["mid"] per le room di torneo).
   try{
+    // ── LOBBY APERTA (02/10/2026) ─────────────────────────────────────────
+    // la sala d'attesa dello spettatore, e chi GIOCA una lobby che si guarda
+    // (il server manda `lob_lid` nello start): tutti sul canale 'r:'+lid.
+    if(typeof LOBSP!=='undefined'&&LOBSP.on&&LOBSP.canale)return LOBSP.canale;
+    if(typeof GLD!=='undefined'&&GLD.lobLid&&!GLD.spec&&GLD.ui==='match')return 'r:'+String(GLD.lobLid);
+    if(typeof RTD!=='undefined'&&RTD.lobLid&&!RTD.spec&&RTD.ui==='match')return 'r:'+String(RTD.lobLid);
+    if(typeof TKD!=='undefined'&&TKD.lobLid&&!TKD.spec&&TKD.ui==='match')return 'r:'+String(TKD.lobLid);
+    if(typeof TWR!=='undefined'&&TWR.lobLid&&!TWR.spec&&TWR.ui==='match')return 'r:'+String(TWR.lobLid);
     if(typeof GLD!=='undefined'&&GLD.tour&&!GLD.spec&&GLD.ui==='match'&&GLD.mid)
       return 'r:'+String(GLD.mid);
     if(typeof RTD!=='undefined'&&RTD.tour&&!RTD.spec&&RTD.ui==='match'&&RTD.mid)
@@ -61505,7 +61697,7 @@ function rtdOnMsg(m){
     if(RTD.game==='lastcall'&&(e==='last call a soldi non ancora aperto'||e==='solo su invito'||e==='tavolo non aperto')&&RTD.ui!=='match'){RTD.ui='';rtdShowLobby();return;}   // 🍸 gemella
     if(RTD.game==='bj1v1'&&(e==='blackjack 1v1 a soldi non ancora aperto'||e==='solo su invito'||e==='tavolo non aperto')&&RTD.ui!=='match'){RTD.ui='';rtdShowLobby();return;}   // 🂡 gemella
     if(RTD.game==='pk1v1'&&(e==='poker 1v1 a soldi non ancora aperto'||e==='solo su invito'||e==='tavolo non aperto')&&RTD.ui!=='match'){RTD.ui='';rtdShowLobby();return;}   // ♠️ gemella
-    if(e==='room piena'||e==='match non trovato'){if(RTD.spec){rtdSpecExit();}else if(CUR==='arc'){RTD.ui='';go('torneo');}return;}   // TORNEO: watch fallito → hub
+    if(e==='room piena'||e==='match non trovato'||e==='la partita non è ancora cominciata'||e==='questa partita non si può guardare'){if(RTD.spec||LOBSP.lid){rtdSpecExit();}else if(CUR==='arc'){RTD.ui='';go('torneo');}return;}   // TORNEO: watch fallito → hub
     if(e==='gia impegnato'){RTD.ui='';rtdShowLobby();return;}   // si resta dove si puo' agire
     if(e==='ticket scaduto'){
       RTD.ui='';
@@ -61516,7 +61708,9 @@ function rtdOnMsg(m){
   }
   if(t==='start'){
     if(!(m.game in RTD_G))return;
-    if(m.tour&&!RTD.tour)return;   // TORNEO: raduno abbandonato — mai render/audio su schermata nascosta
+    if(m.tour&&!RTD.tour)return;
+    RTD.lobLid=String(m.lob_lid||'');   // LOBBY CHE SI GUARDA (02/10): il canale del tifo
+    if(RTD.lobLid)setTimeout(function(){try{trnChatSwap();}catch(_l){}},0);   // TORNEO: raduno abbandonato — mai render/audio su schermata nascosta
     RTD.retries=0;                 // 28/07: ogni match riparte col budget pieno di riconnessioni
     RTD.tour=!!m.tour;             // TORNEO: autoritativo dal server (ripulisce anche flag stantii)
     RTD.practice=!!m.practice;
@@ -61594,6 +61788,8 @@ function rtdOnMsg(m){
   if(t==='s'&&(m.g in RTD_G)){rtdOnSnap(m);return;}
   if(t==='over'&&(m.game in RTD_G)){
     if(RTD.spec&&m.game==='scalata'&&typeof DPRT!=='undefined'&&DPRT.aperto)dprtGiu(m);   // 🗼 DP MEAT 15/09
+    if(RTD.spec&&m.game==='lastcall'&&typeof LCRT!=='undefined'&&LCRT.spec&&LCRT.aperto){lcrtSpecOver(m);return;}   // 🍸 (02/10) prima il finale nell iframe
+    if(RTD.spec&&m.game==='lupus'&&typeof LUPRT!=='undefined'&&LUPRT.aperto&&LUPRT.spec){luprtSpecOver(m);return;}   // 🐺 l'epilogo prima, poi il banner
     if(RTD.spec){rtdSpecOver(m);return;}   // TORNEO: banner spettatore, mai payout UI
     if(m.tour&&!RTD.tour)return;           // TORNEO: match abbandonato — esito ignorato
     RTD.over=m;
@@ -64914,7 +65110,8 @@ function bxrtSblocca(){
   try{ if(BXRT_HO_BLOCCATO && typeof bx2Sblocca==='function') bx2Sblocca(); }catch(e){}
   BXRT_HO_BLOCCATO=false;
 }
-function rtdShowBoxeRT(){
+function rtdShowBoxeRT(spec){
+  spec=!!spec;
   RTD.ui='match';rtdOvClose();
   // la chat della propria lobby, com'e' in rtdShowMatch: senza, in torneo il
   // giocatore resta iscritto al canale sbagliato e non vede la sua chat
@@ -64961,7 +65158,8 @@ function rtdShowBoxeRT(){
   // non e' una cosa che si fa con un tasto: c'e' il presidio dei due minuti e
   // c'e' un avversario che aspetta.
   var vecchio=document.getElementById('bxrt-esci');if(vecchio&&vecchio.parentNode)vecchio.parentNode.removeChild(vecchio);
-  if(!RTD.tour){
+  bxrtSpecMonta(spec);   // 🥊 SPETTATORE (02/10): chat sotto il ring, o niente
+  if(!RTD.tour||spec){
     var b=document.createElement('button');
     b.id='bxrt-esci';b.textContent='‹ ESCI';
     // ⚠️ IN BASSO A SINISTRA **NO**: li' c'e' lo stick del movimento.
@@ -64976,15 +65174,16 @@ function rtdShowBoxeRT(){
       +'border:1px solid rgba(255,255,255,.22);background:rgba(8,10,16,.82);'
       +'color:#e7ecf3;font-size:15px;font-weight:800;letter-spacing:.06em;';
     b.onclick=function(){rtdBack();};
+    if(spec){b.style.top='8px';b.style.left='auto';b.style.right='10px';b.style.minHeight='44px';}   // 🥊 spettatore: in alto a destra
     BXRT.wrap.appendChild(b);
   }
   bxrtOzTasto();   // ORIZZONTALE
-  BXRT.pronto=false;BXRT.coda=[];BXRT.aperto=true;BXRT.esito=null;
+  BXRT.pronto=false;BXRT.coda=[];BXRT.aperto=true;BXRT.esito=null;BXRT.spec=spec;
   // il src si rimette OGNI VOLTA: un incontro nuovo vuole un terminale pulito, e
   // riusare la pagina di prima vorrebbe dire ereditare la partita di prima — che
   // e' esattamente il difetto trovato il 15/08 sul ponte del PC (un secondo
   // 'apri' ignorato: due pugili fermi e nessun errore da nessuna parte).
-  BXRT.fr.setAttribute('src', BXRT_URL + '&t=' + Date.now());
+  BXRT.fr.setAttribute('src', BXRT_URL + (spec?'&spett=1':'') + '&t=' + Date.now());
   BXRT.wrap.style.display='block';
   bxrtBlocca();
   try{ if(window.Telegram && Telegram.WebApp && Telegram.WebApp.expand) Telegram.WebApp.expand(); }catch(e){}
@@ -65030,9 +65229,53 @@ function bxrtOzTasto(){
 (window.OZ_RIMISURA=window.OZ_RIMISURA||{}).boxe=function(){bxrtOzBordi();};
 (window.OZ_DOPO=window.OZ_DOPO||{}).boxe=function(){bxrtOzBordi();};
 (window.OZ_RAIL=window.OZ_RAIL||{}).boxe={indietro:false};   // si esce con ESCI (in torneo non si esce)
+// ═══ BOXE · LO SPETTATORE (02/10/2026) ═══════════════════════════════════
+// Il ring e' lo stesso terminale dei giocatori con `&spett=1`: niente pad,
+// camera a meta' fra i due, nessun filo in salita (ne' comandi ne' ping ne'
+// chiavi). I fotogrammi arrivano dal server gia' fatti — il filo del posto
+// `a`, che e' la stessa vista dell'arbitro — e passano da `bxrtGiu` come
+// quelli dei giocatori. Sotto il ring la chat della lobby ('r:'+lid, che
+// `trnChatCh` ricava da RTD.mid) col contatore 👁 che `rtdOnSnap` aggiorna.
+// La fascia della chat: a 390 px di larghezza il ring si disegna in ~540 px
+// d'altezza (la scala la decide la LARGHEZZA), quel che avanza va alla chat.
+function bxrtSpecCh(){var h=window.innerHeight||844;return Math.max(196,Math.min(340,h-560));}
+function bxrtSpecMonta(on){
+  if(!BXRT.wrap||!BXRT.fr)return;
+  var p=document.getElementById('bxrt-spec');
+  if(!on){
+    if(p&&p.parentNode)p.parentNode.removeChild(p);
+    BXRT.fr.style.height='100%';
+    return;
+  }
+  var CH=bxrtSpecCh();
+  if(!p){
+    p=document.createElement('div');p.id='bxrt-spec';
+    p.style.cssText='position:absolute;left:0;right:0;bottom:0;height:'+CH+'px;z-index:3;'
+      +'background:#0b0d14;border-top:1px solid rgba(255,200,60,.35);padding:6px 10px calc(6px + env(safe-area-inset-bottom));'
+      +'box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;';
+    BXRT.wrap.appendChild(p);
+  }
+  p.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-family:\'Russo One\',sans-serif;font-size:11px;letter-spacing:1px;color:#ffd76b;margin-bottom:4px;">'
+    +'<span id="bxrt-spec-vs" style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">🥊 BOXE</span>'
+    +'<span id="arc-spec-n" style="flex:0 0 auto;">SPETTATORE 👁 '+(RTD.viewers||1)+'</span></div>'
+    +'<div class="gld-spec-chat" id="arc-spec-chat" style="flex:1;min-height:0;overflow:hidden;">'+trnChatHTML()+'</div>';
+  p.style.height=CH+'px';
+  BXRT.fr.style.height='calc(100% - '+CH+'px)';
+  try{
+    if(typeof trnInjectCSS==='function')trnInjectCSS();
+    var _tk=document.getElementById('trn-ticker');if(_tk&&_tk.parentNode)_tk.parentNode.removeChild(_tk);
+    TRN.chatSubbed=0;trnChatSub();trnChatPaint();
+  }catch(_cs){}
+}
+function bxrtSpecNomi(n){
+  var el=document.getElementById('bxrt-spec-vs');if(!el||!n||n.length<2)return;
+  el.innerHTML='🥊 <span style="color:#ff8f7a;">'+trnEsc(String(n[0]))+'</span> <span style="opacity:.6;">vs</span> '
+    +'<span style="color:#8fc2ff;">'+trnEsc(String(n[1]))+'</span>';
+}
 function rtdChiudiBoxeRT(){
   if(!BXRT.aperto && !(BXRT.wrap && BXRT.wrap.style.display==='block'))return;
   BXRT.aperto=false;BXRT.pronto=false;BXRT.coda=[];
+  if(BXRT.spec){BXRT.spec=false;try{bxrtSpecMonta(false);}catch(_bs){}}   // 🥊 spettatore
   bxrtSblocca();
   if(BXRT.wrap)BXRT.wrap.style.display='none';
   // about:blank e non basta nascondere: dentro c'e' un ciclo di disegno a 60 Hz
@@ -65055,6 +65298,7 @@ function bxrtGiu(m){
   // COME si e' deciso invece di lasciare il giocatore a indovinarlo — richiesta
   // esplicita del proprietario sulla MONETA.
   if(m.j&&m.j.t==='esito'&&m.j.esito){BXRT.esito=m.j.esito;bxrtVerdRefresh();}
+  if(BXRT.spec&&m.j&&m.j.t==='aperta'&&m.j.nomi)bxrtSpecNomi(m.j.nomi);   // 🥊 spettatore
   if(!BXRT.pronto){ if(BXRT.coda.length<400)BXRT.coda.push(m); return; }
   try{ BXRT.fr.contentWindow.postMessage({bx:'giu',b:m.b,j:m.j}, BXRT_ORIGIN); }catch(e){}
 }
@@ -65116,6 +65360,7 @@ window.addEventListener('message', function(ev){
     return;
   }
   if(d.bx==='su'){
+    if(BXRT.spec||RTD.spec)return;   // 🥊 chi guarda non muove niente
     // b = il comando binario in base64 (8 byte -> 12 caratteri).
     // j = i due verbi di servizio del terminale (chiave, ping).
     if(d.b!==undefined)rtdSend({t:'bx',b:d.b});
@@ -65174,7 +65419,9 @@ var LUPRT={wrap:null,fr:null,pronto:false,coda:[],aperto:false,nascosto:false,fi
 // vengono piu tagliate, il voto che dice la verita, i quattro poteri che
 // non si potevano giocare, la notte che parla, la casa della vittima
 // all alba e L INTRO della partita gratis.
-var LUPRT_VER="20260911b";
+// 02/10/2026: "20261002s" — LO SPETTATORE: la pagina 3D sa guardare una
+// lobby (start con spec:true, seggio -1, chat = tifo della lobby).
+var LUPRT_VER="20261002s";
 function luprtUrl(){return "lupus3d.html?guscio=1&v="+LUPRT_VER+"&lang="+((window.GB_LANG==="en")?"en":"it");}
 var LUPRT_URL=luprtUrl();
 // stessa origine (Pages): la pagina 3D sta accanto a index.html
@@ -65290,7 +65537,16 @@ function luprtPrecarica(){
   if(RTD.game!=="lupus")return;
   luprtMonta();
 }
-function rtdShowLupusRT(m){          // m = lo `start` del server, o null al rientro da initArc
+function rtdShowLupusRT(m,spec){     // m = lo `start` del server, o null al rientro da initArc
+  // 🐺 SPETTATORE (02/10/2026): `spec` true = m e' il `watch_ok` di una
+  // lobby: diventa uno start SENZA seggio (`you` vuoto, spec:true). Il
+  // villaggio si legge su 'r:'+lup_mid (sola lettura), il tifo si scrive e si
+  // legge su 'r:'+lid. RTD.lupMid resta vuoto: chi guarda non e' del borgo.
+  if(spec===true&&m){
+    LUPRT.spec=true;LUPRT.specLid=String(m.lid||m.mid||'');LUPRT.specMid=String(m.lup_mid||m.rid||'');
+    RTD.lupMid='';
+    m={t:"start",game:"lupus",map:m.map,you:"",names:m.names||{},profiles:m.profiles||{},spec:true,tour:true};
+  }else if(m){LUPRT.spec=false;LUPRT.specLid='';LUPRT.specMid='';}
   RTD.ui="match";rtdOvClose();
   if(typeof BXRT!=="undefined"&&BXRT.aperto)rtdChiudiBoxeRT();
   if(typeof LCRT!=="undefined"&&LCRT.aperto&&typeof rtdChiudiLastcallRT==="function")rtdChiudiLastcallRT(true);   // 🍸 un tavolo alla volta
@@ -65335,10 +65591,11 @@ function rtdShowLupusRT(m){          // m = lo `start` del server, o null al rie
   // chiamata, nfeed 0 dopo 45 s di fotogrammi). `riprendi` va prima
   // dello start, come al rientro; per la figlia e idempotente.
   if(eraNascosto||eraChiuso)luprtGiu({t:"riprendi"});
-  if(!m)rtdSend({t:"rientra"});
+  if(!m&&!LUPRT.spec)rtdSend({t:"rientra"});   // 🐺 chi guarda non rientra: non ha un posto
   if(m){
     luprtGiu(m);   // lo start e' il PRIMO messaggio che l iframe vede
-    if(RTD.lupMid)rtdSend({t:"chat_sub",tid:"r:"+RTD.lupMid});
+    if(LUPRT.spec){if(LUPRT.specLid)rtdSend({t:"chat_sub",tid:"r:"+LUPRT.specLid});}
+    else if(RTD.lupMid)rtdSend({t:"chat_sub",tid:"r:"+RTD.lupMid});
   }
 }
 // forza=true: si spegne davvero anche dentro il match (un altro gioco che
@@ -65360,6 +65617,7 @@ function rtdChiudiLupusRT(forza){
   if(LUPRT.aperto&&RTD.wsOk)rtdSend({t:"chat_unsub"});
   LUPRT.aperto=false;LUPRT.nascosto=false;LUPRT.pronto=false;LUPRT.coda=[];LUPRT.codaPiena=false;
   LUPRT.firma="";LUPRT.start=null;LUPRT.epilogoFinito=false;
+  LUPRT.spec=false;LUPRT.specLid="";LUPRT.specMid="";LUPRT.specOverFn=null;   // 🐺
   // about:blank e non basta nascondere: dentro c'e' Three.js a 60 Hz
   if(LUPRT.fr.getAttribute("src")!=="about:blank")LUPRT.fr.setAttribute("src","about:blank");
 }
@@ -65399,6 +65657,14 @@ function luprtRicevi(m){
     // alla figlia senza che il ponte li conosca. La VEGLIA dei morti NON si
     // filtra qui: la filtra il server (chat_ascoltatori), che manda la riga
     // solo a chi puo leggerla; il ponte guarda solo il `tid` del villaggio.
+    // 🐺 SPETTATORE (02/10/2026): il villaggio (sola lettura) passa tale e
+    // e quale; il TIFO della lobby passa marcato `canale:"tifo"` (la figlia lo
+    // scrive in oro). Nient'altro: un altro canale fa la strada di sempre.
+    if(LUPRT.spec){
+      if(LUPRT.specMid&&m.tid==="r:"+LUPRT.specMid){luprtGiu(m);return true;}
+      if(LUPRT.specLid&&m.tid==="r:"+LUPRT.specLid){luprtGiu(luprtTifo(m));return true;}
+      return false;
+    }
     if(RTD.lupMid&&m.tid==="r:"+RTD.lupMid){luprtGiu(m);return true;}
     return false;   // un altro canale: la strada di sempre (trnOnChat)
   }
@@ -65433,6 +65699,13 @@ window.addEventListener("message",function(ev){
   }
   if(d.lup==="su"){
     var o=d.m;if(!o||!LUPRT_SU[o.t]||!LUPRT.aperto)return;
+    // 🐺 SPETTATORE: dalla figlia passano solo la chat (nel TIFO, mai nel
+    // villaggio) e l iscrizione al tifo. Niente act, niente voce.
+    if(LUPRT.spec){
+      if(o.t==="chat"&&LUPRT.specLid){rtdSend({t:"chat",x:String(o.x||"").slice(0,300),tid:"r:"+LUPRT.specLid});return;}
+      if(o.t==="chat_sub"&&LUPRT.specLid){rtdSend({t:"chat_sub",tid:"r:"+LUPRT.specLid});return;}
+      return;
+    }
     var mid="r:"+String(RTD.lupMid||"");
     if(o.t==="act"){
       rtdSend({t:"act",a:String(o.a||"").slice(0,24),ax:luprtInt(o.ax,-1),ay:luprtInt(o.ay,-1),power:luprtInt(o.power,-1)});
@@ -65454,6 +65727,12 @@ window.addEventListener("message",function(ev){
     return;
   }
   if(d.lup==="epilogo_fine"){
+    if(LUPRT.spec){   // 🐺 chi guarda: il suo banner, mai la schermata dei soldi
+      LUPRT.epilogoFinito=true;
+      if(RTD.overTmr){clearTimeout(RTD.overTmr);RTD.overTmr=null;}
+      if(typeof LUPRT.specOverFn==="function")LUPRT.specOverFn();
+      return;
+    }
     LUPRT.epilogoFinito=true;
     if(RTD.over&&RTD.over.game==="lupus"&&RTD.ui==="match"&&RTD.overTmr){
       clearTimeout(RTD.overTmr);RTD.overTmr=null;rtdShowOver(RTD.over);
@@ -65470,6 +65749,40 @@ window.addEventListener("message",function(ev){
 // ── la schermata finale ─────────────────────────────────────────────────────
 // centesimi → «1,00», come `ecoVal` dentro l iframe (rischio 19: la stessa
 // cifra nei due posti, al centesimo)
+// ── 🐺 LUPUS · LO SPETTATORE (02/10/2026) ──────────────────────────────
+// Il tifo della lobby verso la figlia: una COPIA della riga (o del backlog) con
+// `canale:"tifo"`, senza i campi delle battute dei bot.
+function luprtTifo(m){
+  var o={},k,i,a,r,q;
+  for(k in m)if(m.hasOwnProperty(k))o[k]=m[k];
+  if(o.t==="chat_log"&&o.msgs instanceof Array){
+    a=[];
+    for(i=0;i<o.msgs.length;i++){q=o.msgs[i]||{};r={};for(k in q)if(q.hasOwnProperty(k))r[k]=q[k];r.canale="tifo";delete r.bot;delete r.tipo;a.push(r);}
+    o.msgs=a;
+  }else{o.canale="tifo";delete o.bot;delete o.tipo;}
+  return o;
+}
+// la fine vista da chi guarda: l'over va alla figlia (ruoli sull'ultima scheda,
+// nessuna cifra: il server le manda a zero), si lascia giocare l'epilogo e poi
+// — a `epilogo_fine`, o dopo 20 s — il banner con la fazione che ha vinto.
+function luprtSpecOver(m){
+  RTD.over=m;RTD.specRid=null;
+  luprtGiu(m);
+  var fatto=false;
+  function banner(){if(fatto)return;fatto=true;LUPRT.specOverFn=null;if(RTD.over===m)rtdSpecOverLupus(m);}
+  LUPRT.specOverFn=banner;
+  if(LUPRT.epilogoFinito||!LUPRT.pronto){banner();return;}
+  if(RTD.overTmr)clearTimeout(RTD.overTmr);
+  RTD.overTmr=setTimeout(function(){RTD.overTmr=null;banner();},20000);
+}
+function rtdSpecOverLupus(m){
+  RTD.ui='over';
+  try{TWS.play('win',0.7);}catch(_w){}
+  rtdOv('<div style="font-size:46px;">🐺</div>'
+    +'<div class="tw-win-t">'+lupVinceTesto(m.vince)+'</div>'
+    +'<div class="tw-ov-sub">Partita finita · la guardavi da spettatore</div>'
+    +'<div class="tw-ov-btns"><button class="action-btn gold" onclick="rtdSpecExit()">'+lobSpBtn()+'</button></div>',true);
+}
 function lupEuro(v){var c=Math.round(Number(v||0)*100);return (c/100).toFixed(2).replace(".",",");}
 function lupVinceTesto(v){
   if(v==="lupi")return "VINCE IL BRANCO";
@@ -66691,10 +67004,10 @@ function rtdShowOverPk(m){
   rtdShowLobby(true);
   if(typeof loadBalance==="function")loadBalance();
 }
-var LCRT={wrap:null,fr:null,pronto:false,coda:[],aperto:false,nascosto:false,firma:"",start:null,fineScena:false,loads:0,codaPiena:false,tgEv:false};
+var LCRT={wrap:null,fr:null,pronto:false,coda:[],aperto:false,nascosto:false,firma:"",start:null,fineScena:false,loads:0,codaPiena:false,tgEv:false,spec:false};
 // ⚠️ `v=` NUOVO A OGNI md5 NUOVO DI lastcall.html (la riga la stampa
 //    _lc_monta.py): index.html e lastcall.html vanno su Pages INSIEME.
-var LCRT_VER="20260918c04d";
+var LCRT_VER="20261002fdc0";
 function lcrtUrl(){return "lastcall.html?guscio=1&v="+LCRT_VER+"&lang="+((window.GB_LANG==="en")?"en":"it");}
 var LCRT_URL=lcrtUrl();
 var LCRT_ORIGIN=location.origin;
@@ -66732,7 +67045,55 @@ function lcrtAltezza(){
     var h=tg2?Number(tg2.viewportStableHeight||tg2.viewportHeight||0):0;
     if(h>0){LCRT.wrap.style.height=Math.round(h)+"px";LCRT.wrap.style.bottom="auto";}
     else{LCRT.wrap.style.height="100%";LCRT.wrap.style.bottom="0px";}
+    lcrtSpecMisura();
   }catch(e){}
+}
+// ── 🍸 LO SPETTATORE (02/10/2026) ───────────────────────────────────────────
+// Chi guarda una lobby aperta vede il tavolo DENTRO lo stesso iframe dei
+// giocatori, con `spec:true` nello start: il posto in basso e' il seggio 0 a
+// carte coperte, nessun tasto tranne ESCI, nessuna mossa verso il server (qui
+// e dentro l iframe). Sotto l iframe, nel guscio, la chat della lobby
+// ('r:'+lid, trnChatCh la calcola da RTD.mid = lid del watch_ok).
+// La nebbia NON e' qui: la decide il server (vista del seggio -1).
+function lcrtSpecMisura(){
+  try{
+    var pc=document.getElementById("lcrt-spchat");
+    if(!LCRT.fr)return;
+    if(!pc){LCRT.fr.style.height="100%";return;}
+    LCRT.fr.style.height="calc(100% - "+(pc.offsetHeight||0)+"px)";
+  }catch(e){}
+}
+function lcrtSpecChat(on){
+  try{
+    if(!LCRT.wrap||!LCRT.fr)return;
+    var pc=document.getElementById("lcrt-spchat");
+    if(!on){if(pc&&pc.parentNode)pc.parentNode.removeChild(pc);LCRT.fr.style.height="100%";return;}
+    if(typeof trnInjectCSS==="function")trnInjectCSS();
+    if(!document.getElementById("lcrt-spchat-css")){
+      var st=document.createElement("style");st.id="lcrt-spchat-css";
+      st.textContent="#lcrt-spchat .section-ttl{margin:0 0 4px;font-size:11px;}#lcrt-spchat .trn-ch-log{height:78px;}"
+        +"#lcrt-spchat .trn-ch-note{display:none;}@media (max-height:640px){#lcrt-spchat .trn-ch-log{height:50px;}}";
+      document.head.appendChild(st);
+    }
+    if(!pc){
+      pc=document.createElement("div");pc.id="lcrt-spchat";
+      pc.style.cssText="position:absolute;left:0;right:0;bottom:0;z-index:2;background:#0b0806;border-top:1px solid rgba(243,210,138,.35);padding:6px 10px calc(6px + env(safe-area-inset-bottom));box-sizing:border-box;touch-action:auto;";
+      pc.innerHTML=trnChatHTML();
+      LCRT.wrap.appendChild(pc);
+    }
+    lcrtSpecMisura();
+    var tk=document.getElementById("trn-ticker");if(tk&&tk.parentNode)tk.parentNode.removeChild(tk);
+    TRN.chatSubbed=0;trnChatSub();trnChatPaint();
+  }catch(e){}
+}
+// l over dello spettatore: prima il finale nell iframe (fine_scena, tetto 12 s),
+// poi il banner di chi guarda (rtdSpecOver), mai l esito coi soldi
+function lcrtSpecOver(m){
+  RTD.over=m;RTD.specRid=null;
+  lcrtGiu(m);
+  if(LCRT.fineScena||LCRT.nascosto){rtdSpecOver(m);return;}
+  if(RTD.overTmr)clearTimeout(RTD.overTmr);
+  RTD.overTmr=setTimeout(function(){RTD.overTmr=null;if(RTD.over===m&&RTD.ui==='match')rtdSpecOver(m);},12000);
 }
 // i bordi di sistema: dentro l iframe env(safe-area-inset-*) vale 0, i numeri
 // li sa solo il genitore (stessa misura di luprtBordi)
@@ -66790,7 +67151,33 @@ function lcrtPrecarica(){
   if(RTD.game!=="lastcall")return;
   lcrtMonta();
 }
-function rtdShowLastcallRT(m){          // m = lo `start` del server, o null al rientro in arc
+// ── 🍸 IL TIFO PER CHI SIEDE (02/10/2026 sera) ─────────────────────────────
+// La chat del canale della partita (r:<lid> in lobby, r:<mid> in torneo) va
+// DENTRO l iframe come {t:"chat", righe:[{n,x,g}]}: le ultime due righe, che
+// lastcall.html mostra in una striscia di sola lettura accanto al diario
+// (nessun tocco, si spegne da sola). Il ticker d angolo della pagina sta SOTTO
+// l iframe e non si vedrebbe. Lo spettatore no: ha la chat intera sotto.
+// L aggancio a trnTickerPaint (chiamata a ogni messaggio e a ogni cambio di
+// canale) si fa a runtime, la prima volta che il tavolo si apre.
+var LCRT_TIFO="",LCRT_TIFO_AGG=false;
+function lcrtTifo(){
+  try{
+    if(!LCRT.aperto||LCRT.spec||RTD.spec||RTD.ui!=="match"||RTD.game!=="lastcall")return;
+    var ch=String(trnChatCh()||"");if(ch.indexOf("r:")!==0)return;
+    var T=TRN.chat||[],L=T.slice(-2);
+    var k=ch+"|"+T.length+"|"+(L.length?String(L[L.length-1].x||""):"");
+    if(k===LCRT_TIFO)return;LCRT_TIFO=k;
+    if(!L.length)return;
+    lcrtGiu({t:"chat",righe:L.map(function(c){return {n:String(c.n||"?").slice(0,24),x:String(c.x||"").slice(0,140),g:c.g?1:0};})});
+  }catch(e){}
+}
+function lcrtTifoAggancia(){
+  if(LCRT_TIFO_AGG||typeof trnTickerPaint!=="function")return;
+  LCRT_TIFO_AGG=true;
+  var v=trnTickerPaint;
+  trnTickerPaint=function(){var r=v.apply(this,arguments);lcrtTifo();return r;};
+}
+function rtdShowLastcallRT(m,spec){     // m = lo `start` del server, o null al rientro in arc; spec=true: m e' il watch_ok (02/10)
   RTD.ui="match";rtdOvClose();
   if(typeof BXRT!=="undefined"&&BXRT.aperto)rtdChiudiBoxeRT();
   if(typeof LUPRT!=="undefined"&&LUPRT.aperto&&typeof rtdChiudiLupusRT==="function")rtdChiudiLupusRT(true);
@@ -66812,6 +67199,9 @@ function rtdShowLastcallRT(m){          // m = lo `start` del server, o null al 
     if(LCRT.aperto&&LCRT.firma!==firma){LCRT.coda=[];LCRT.fineScena=false;}
     if(!LCRT.aperto)LCRT.fineScena=false;
     LCRT.firma=firma;LCRT.start=m;
+    LCRT.spec=!!spec;
+    if(!spec)lcrtSpecChat(false);
+    LCRT_TIFO="";lcrtTifoAggancia();
   }
   LCRT.aperto=true;LCRT.nascosto=false;
   LCRT.wrap.style.display="block";
@@ -66825,6 +67215,14 @@ function rtdShowLastcallRT(m){          // m = lo `start` del server, o null al 
   // `riprendi`, che va PRIMA dello start (lezione di Lupus, G 04/09)
   if(eraNascosto||eraChiuso)lcrtGiu({t:"riprendi"});
   if(!m)rtdSend({t:"rientra"});
+  if(m&&spec){
+    // lo start dello spettatore: il watch_ok (map, names, profiles: gia' con
+    // gli slot opachi) con t:start, spec:true e nessun `you`
+    var mm={},k;for(k in m)mm[k]=m[k];
+    mm.t="start";mm.spec=true;mm.you=null;
+    lcrtGiu(mm);lcrtSpecChat(true);
+    return;
+  }
   if(m)lcrtGiu(m);   // lo start e' il primo messaggio di partita che l iframe vede
 }
 // forza=true: si spegne davvero (about:blank). Senza forza, in match si
@@ -66843,6 +67241,7 @@ function rtdChiudiLastcallRT(forza){
   }
   LCRT.aperto=false;LCRT.nascosto=false;LCRT.pronto=false;LCRT.coda=[];LCRT.codaPiena=false;
   LCRT.firma="";LCRT.start=null;LCRT.fineScena=false;
+  LCRT.spec=false;lcrtSpecChat(false);
   if(LCRT.fr.getAttribute("src")!=="about:blank")LCRT.fr.setAttribute("src","about:blank");
 }
 // ── la ricerca di un tavolo GRATIS (collaudo e2e g3, E2E-G3-1) ──────────────
@@ -66915,12 +67314,12 @@ window.addEventListener("message",function(ev){
     if(!LCRT.aperto){lcrtPosta({t:"pausa"});return;}   // precarico: scena ferma
     var c=LCRT.coda;LCRT.coda=[];
     for(var i=0;i<c.length;i++)lcrtPosta(c[i]);
-    if(LCRT.codaPiena){LCRT.codaPiena=false;rtdSend({t:"rientra"});}
+    if(LCRT.codaPiena){LCRT.codaPiena=false;if(!LCRT.spec)rtdSend({t:"rientra"});}
     return;
   }
   if(d.lc==="su"){
     var o=d.m;
-    if(!o||typeof o!=="object"||o.t!=="act"||!LCRT.aperto)return;
+    if(!o||typeof o!=="object"||o.t!=="act"||!LCRT.aperto||LCRT.spec||RTD.spec)return;
     var a=(typeof o.a==="string")?o.a:"";
     if(!Object.prototype.hasOwnProperty.call(LCRT_MOSSE,a))return;
     var ax=lcrtAx(o.ax);
@@ -66930,12 +67329,17 @@ window.addEventListener("message",function(ev){
   }
   if(d.lc==="fine_scena"){
     LCRT.fineScena=true;
+    if(LCRT.spec&&RTD.spec&&RTD.over&&RTD.over.game==="lastcall"&&RTD.ui==="match"){
+      if(RTD.overTmr){clearTimeout(RTD.overTmr);RTD.overTmr=null;}
+      rtdSpecOver(RTD.over);return;
+    }
     if(RTD.over&&RTD.over.game==="lastcall"&&RTD.ui==="match"&&RTD.overTmr){
       clearTimeout(RTD.overTmr);RTD.overTmr=null;rtdShowOver(RTD.over);
     }
     return;
   }
   if(d.lc==="esci"){
+    if(LCRT.spec||RTD.spec){rtdSpecExit();return;}   // 🍸 (02/10) chi guarda torna da dove e' venuto
     // a partita finita (over gia' arrivato, schermata in attesa) ESCI mostra
     // subito l esito invece di chiedere «perdi la puntata»
     if(RTD.over&&RTD.over.game==="lastcall"&&RTD.ui==="match"){
@@ -67545,11 +67949,15 @@ function rtdWatchOk(m){
   var ttl=document.getElementById('arc-title');
   if(ttl){ttl.textContent=rtdMeta().title;ttl.style.color=rtdMeta().color;}
   if(m.game==='scalata'&&m.map&&m.map.v==='meat'&&typeof rtdShowDeadpeakRT==='function'){rtdShowDeadpeakRT(m,true);return;}   // 🗼 DP MEAT 15/09
+  if(m.game==='lastcall'&&typeof rtdShowLastcallRT==='function'){rtdShowLastcallRT(m,true);return;}   // 🍸 (02/10) lo spettatore nell'iframe: mano coperta, niente tasti
   if(m.game==='bj1v1'&&typeof rtdShowBjRT==='function'){rtdShowBjRT(m,true);return;}   // 🂡 lo spettatore nell'iframe, senza tasti
   if(m.game==='pk1v1'&&typeof rtdShowPkRT==='function'){rtdShowPkRT(m,true);return;}   // ♠️ lo spettatore nell'iframe, senza tasti
+  if(m.game==='lupus'&&typeof rtdShowLupusRT==='function'){rtdShowLupusRT(m,true);return;}   // 🐺 lo spettatore nel borgo 3D (02/10/2026)
+  if(m.game==='boxe'&&m.map&&m.map.hz!=null&&typeof rtdShowBoxeRT==='function'){rtdShowBoxeRT(true);return;}   // 🥊 lo spettatore nel ring, senza comandi
   rtdShowSpecMatch();
 }
 function rtdShowSpecMatch(){
+  if(RTD.game==='lupus'&&typeof LUPRT!=='undefined'&&LUPRT.spec&&LUPRT.aperto){rtdShowLupusRT(null,true);return;}   // 🐺 il borgo, non la tela
   RTD.ui='match';rtdOvClose();
   RTD._bg={};RTD._suBg=null;RTD._spr={};
   RTD._gfKey=null;RTD._gfRaw=null;RTD._gholeN=null;RTD._gball={};RTD._gring=null;   // GOLF desync: reset anche in vista spettatore
@@ -67588,11 +67996,12 @@ function rtdShowSpecMatch(){
 }
 function rtdSpecExit(){
   if(typeof DPRT!=='undefined'&&DPRT.aperto)rtdChiudiDeadpeakRT(true);   // 🗼 DP MEAT 15/09
+  if(typeof BXRT!=='undefined'&&BXRT.aperto&&BXRT.spec)rtdChiudiBoxeRT();   // 🥊 spettatore
   if(RTD.wsOk&&(RTD.spec||RTD.specRid)){rtdSend({t:'unwatch'});RTD._specLeft=Date.now();}   // il server risponde {t:'left'}: ack, non refund
   RTD.spec=false;RTD.specRid=null;RTD.pendingWatch=null;RTD.tour=false;
   RTD.ui='';RTD.map=null;RTD.lastRaw=null;RTD.pgSeat=null;RTD.snaps=[];RTD.over=null;
   rtdStopRaf();rtdOvClose();wsNetBanner('arc',0);
-  go('torneo');
+  go(lobSpDove());
 }
 function rtdSpecOver(m){
   RTD.over=m;RTD.ui='over';RTD.specRid=null;rtdStopRaf();
@@ -67601,8 +68010,8 @@ function rtdSpecOver(m){
   var team=!!(m.winners&&m.winners.length>1);
   rtdOv('<div style="font-size:46px;" class="twr-trophy">🏆</div>'
     +'<div class="tw-win-t">'+(wn?(trnEsc(String(wn)).toUpperCase()+' TRIONFA'):'MATCH CONCLUSO')+'</div>'
-    +'<div class="tw-ov-sub">'+(team?'La squadra vincente avanza al prossimo round del torneo':'Il vincitore avanza al prossimo round del torneo')+'</div>'
-    +'<div class="tw-ov-btns"><button class="action-btn gold" onclick="rtdSpecExit()">🏆 TORNA AL TORNEO</button></div>',true);
+    +'<div class="tw-ov-sub">'+(LOBSP.lid?'Partita finita':(team?'La squadra vincente avanza al prossimo round del torneo':'Il vincitore avanza al prossimo round del torneo'))+'</div>'
+    +'<div class="tw-ov-btns"><button class="action-btn gold" onclick="rtdSpecExit()">'+lobSpBtn()+'</button></div>',true);
 }
 function rtdOv(html,sticky){
   var o=document.getElementById('arc-overlay'),mm=document.getElementById('arc-modal');
@@ -110092,6 +110501,12 @@ function init(){
     var lmt=/^lobby[_-]([A-Za-z0-9_-]{1,64})$/.exec(tsp||'')
           ||/[?&]screen=lobby[_-]([A-Za-z0-9_-]{1,64})(?:&|$)/.exec(location.search);
     if(lmt){LOB.want=lmt[1];LOB.wantN=0;LOB.from='duel';setTimeout(function(){lobWantTry();},400);}
+    // 👁 SPETTATORE DI UNA LOBBY (02/10/2026): `startapp=guarda_<lid>`, il
+    // secondo tasto dell'annuncio nel gruppo. Regexp ANCORATA alla fine per
+    // la stessa ragione di quella qui sopra (l'underscore sta dentro il lid).
+    var gmt=/^guarda[_-]([A-Za-z0-9_-]{1,64})$/.exec(tsp||'')
+          ||/[?&]screen=guarda[_-]([A-Za-z0-9_-]{1,64})(?:&|$)/.exec(location.search);
+    if(gmt){setTimeout(function(){lobSpOpen(gmt[1]);},500);}
     else if(/[?&]screen=lobby(?:&|$)/.test(location.search)||tsp==='lobby')setTimeout(function(){lobOpenCreate('uno','duel');},400);
     // FUNNEL 26/09: `startapp=[sp<N>_|g_]gioca_<gioco>` (la lobby di quel
     // gioco) e `prova_<gioco>` (l'allenamento contro i bot), oppure

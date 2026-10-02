@@ -76,6 +76,18 @@
   body.largo #diario{max-height:none;line-height:1.5;padding:.55em .8em;border-radius:10px;
     background:#0008;border:1px solid #d8b25a2e;display:block}
   body.largo #diario:empty{display:none}
+  /* (02/10/2026) IL TIFO: la chat della lobby (o del torneo) per chi siede.
+     Sola lettura, nessun tocco, nella colonna libera a destra del diario
+     (che sul telefono e' largo 64vw); sul PC piu' stretta, sotto la testata. */
+  #tifo{position:absolute;right:10px;top:calc(var(--fs) * 3);max-width:calc(36vw - 22px);pointer-events:none;z-index:4;
+    display:flex;flex-direction:column;align-items:flex-end;gap:3px;font-size:calc(var(--fs) * .82);line-height:1.3;
+    opacity:0;transition:opacity .4s}
+  #tifo.on{opacity:.92}
+  #tifo div{background:#000a;border:1px solid #d8b25a33;border-radius:9px;padding:.15em .6em;max-width:100%;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#eadfc6;text-shadow:0 1px 2px #000;box-sizing:border-box}
+  #tifo b{color:#f3d28a}
+  body.largo #tifo{max-width:min(22vw,300px)}
+  body.velato #tifo{opacity:0}
 
   /* ── i comandi ──────────────────────────────────────────────────────── */
   #comandi{position:absolute;left:0;right:0;bottom:0;padding:10px 12px
@@ -337,6 +349,7 @@
 </div>
 
 <div id="diario"></div>
+<div id="tifo"></div>
 
 <div id="comandi"></div>
 
@@ -6982,7 +6995,7 @@ if (typeof window !== 'undefined') window.lcRegia = lcRegia;
    ══════════════════════════════════════════════════════════════════════════ */
 var LCN = (function () {
   var N = {
-    attivo: false, mioSg: 0, n: 0, nomi: [], firma: "", start: null,
+    attivo: false, spec: false, mioSg: 0, n: 0, nomi: [], firma: "", start: null,
     ultimo: null, ultimoArrivo: 0, presentato: null, inArrivo: [], maxS: 0,
     inviato: null, posaInviata: null, impilate: null, vediMano: null,
     diario: [], over: null, annullata: false, fineNarrata: false, turniVisti: 0,
@@ -7015,6 +7028,11 @@ var LCN = (function () {
     for (i = 0; i < seggi.length; i++) if (String(seggi[i].uid) === String(m.you)) sg = seggi[i].sg;
     N.attivo = true;
     N.start = m;
+    /* (02/10) lo start dello spettatore lo costruisce il genitore dal watch_ok:
+       `spec`, `you` nullo. Il posto in basso e' il seggio 0, a carte coperte. */
+    N.spec = !!m.spec;
+    if (N.spec) sg = 0;
+    IOV = N.spec ? -9 : IO;
     N.mioSg = sg;
     N.n = mp.n || seggi.length || 2;
     N.nomi = (mp.nomi || []).slice();
@@ -7023,10 +7041,10 @@ var LCN = (function () {
     N.inviato = null; N.posaInviata = null; N.impilate = null; N.vediMano = null;
     N.diario = []; N.over = null; N.annullata = false; N.fineNarrata = false; N.turniVisti = 0;
     var altri = [];
-    for (i = 0; i < N.nomi.length; i++) if (i !== sg && N.nomi[i]) altri.push(String(N.nomi[i]));
+    for (i = 0; i < N.nomi.length; i++) if ((N.spec || i !== sg) && N.nomi[i]) altri.push(String(N.nomi[i]));
     if (typeof lcTNomi === "function") lcTNomi(altri);
     nomi = [];
-    for (i = 0; i < N.n; i++) nomi.push(i === 0 ? "TU" : String(N.nomi[N.rs(i)] || ""));
+    for (i = 0; i < N.n; i++) nomi.push(i === 0 && !N.spec ? "TU" : String(N.nomi[N.rs(i)] || ""));
   };
   N.ripresa = function (m) {
     N.start = m;
@@ -7054,7 +7072,7 @@ var LCN = (function () {
     for (i = 0; i < n; i++) {
       var o = perPosto[i] || { vivo: false, carte: 0, segnate: [] }, mano, k;
       var segn = (o.segnate || []).slice();
-      if (i === 0) {
+      if (i === 0 && !N.spec) {
         if (you.mano) mano = you.mano.slice();
         else { mano = []; for (k = 0; k < (you.mano_n || 0); k++) mano.push(null); }
       } else {
@@ -7062,10 +7080,10 @@ var LCN = (function () {
         while (mano.length < (o.carte || 0)) mano.push(null);
       }
       g.giocatori.push({
-        id: i, nome: i === 0 ? "TU" : String(o.nome || N.nomi[N.rs(i)] || ""),
-        vivo: i === 0 ? (you.vivo !== undefined ? !!you.vivo : !!o.vivo) : !!o.vivo,
+        id: i, nome: i === 0 && !N.spec ? "TU" : String(o.nome || N.nomi[N.rs(i)] || ""),
+        vivo: i === 0 && !N.spec ? (you.vivo !== undefined ? !!you.vivo : !!o.vivo) : !!o.vivo,
         mano: mano, conto: N.rl(o.conto == null ? null : o.conto),
-        cieco: i === 0 ? !!you.cieco : !!o.cieco, segnate: segn
+        cieco: i === 0 && !N.spec ? !!you.cieco : !!o.cieco, segnate: segn
       });
     }
     return g;
@@ -7081,7 +7099,7 @@ var LCN = (function () {
     return Math.max(0, (N.ultimo.time || 0) - (N.presentato.time || 0) - pausa);
   };
   N.riceviS = function (fr) {
-    if (!N.attivo || !fr || typeof fr !== "object") return;
+    if (!N.attivo || !fr || typeof fr !== "object" || fr.vuoto) return;
     var adesso = ora(), feed = fr.feed || [], nuovi = [], i;
     N.stat.fotogrammi++;
     for (i = 0; i < feed.length; i++) {
@@ -7153,7 +7171,7 @@ var LCN = (function () {
     if (veloce()) return;
     /* ⛔ 15/09 · mentre il giocatore guarda le tre di SBIRCIA (momento fermo)
        il racconto «resta indietro» per forza: non e' un ritardo da recuperare */
-    var base = (G && G.giocatori[IO] && !G.giocatori[IO].vivo) ? 2.2 : 1, v = R.velocita;
+    var base = (!N.spec && G && G.giocatori[IO] && !G.giocatori[IO].vivo) ? 2.2 : 1, v = R.velocita;
     if (R.attivo && R.attivo.tenuto) { R.velocita = base; return; }
     if (rit > 2.5) v = 3; else if (rit > 1) v = (v >= 3 && rit > 2) ? 3 : 2; else if (rit < 0.5) v = 1;
     R.velocita = Math.max(v, base);
@@ -7181,6 +7199,7 @@ var LCN = (function () {
      subito, e la sua scena parte adesso */
   N.scatto = function (rit) {
     var u = N.ultimo, you = u.you || {};
+    if (N.spec) return;               /* (02/10) lo spettatore non ha turni */
     if (rit <= 1.5 || !N.inArrivo.length) return;
     /* ⛔ 15/09 · lo scatto non strappa le tre di SBIRCIA a chi le sta
        guardando: le chiude il suo tocco, o il tetto di 12 s */
@@ -7228,8 +7247,8 @@ var LCN = (function () {
       catch (e) { errore("evento " + lista[i].k, e); }
     }
   }
-  function nomeDi(p) { return p === IO ? "TU" : (G && G.giocatori[p] ? G.giocatori[p].nome : "?"); }
-  function aDi(p) { return p === IO ? "TE" : nomeDi(p); }
+  function nomeDi(p) { return p === IOV ? "TU" : (G && G.giocatori[p] ? G.giocatori[p].nome : "?"); }
+  function aDi(p) { return p === IOV ? "TE" : nomeDi(p); }
   function nomeCarta(id) { var c = lcCarta(id); return c ? c.it : String(id); }
   function scrivi(riga) {
     N.diario.push(lcT(riga));
@@ -7252,10 +7271,10 @@ var LCN = (function () {
         var da = N.rl(ev.da), a = N.rl(ev.a);
         if (da !== a || N.turniVisti === 0) R.turno(da, a, ev.dovuti || 0);
         N.turniVisti++;
-        scrivi(a === IO ? "Tocca a TE" : "Tocca a " + nomeDi(a));
+        scrivi(a === IOV ? "Tocca a TE" : "Tocca a " + nomeDi(a));
         break;
       case "giocata":
-        if (chi === IO) { posaGiocata = N.posaInviata; N.posaInviata = null; }
+        if (chi === IOV) { posaGiocata = N.posaInviata; N.posaInviata = null; }
         bers = ev.bers == null ? null : N.rl(ev.bers);
         R.giocata(chi, ev.carta, bers);
         scrivi(nomeDi(chi) + " gioca " + nomeCarta(ev.carta) + (bers != null && bers !== chi ? " su " + aDi(bers) : ""));
@@ -7292,14 +7311,14 @@ var LCN = (function () {
       case "impilate":
         N.impilate = (ev.tre || []).slice();
         /* 15/09 · IMPILA IN DUE di un altro: TU sei il vicino e vedi l'ordine */
-        if (chi !== IO && ev.tre && ev.tre.length) R.impilateViste(chi, ev.tre);
+        if (chi !== IOV && ev.tre && ev.tre.length) R.impilateViste(chi, ev.tre);
         break;
       case "riordinata":
         break;
       case "pesca":
         var dest = N.rl(ev.dest), opt = { fondo: !!ev.fondo };
         if (dest == null) dest = chi;
-        if (ev.carta != null && dest === IO) {
+        if (ev.carta != null && dest === IOV) {
           if (ev.freddo) { R.bomba(IO, "buttafuori"); R.freddo(IO); }
           else R.pesca(chi, IO, ev.carta, opt);
         } else R.pesca(chi, dest, null, opt);
@@ -7320,10 +7339,10 @@ var LCN = (function () {
         scrivi("La bancarotta torna nel mazzo, scoperta");
         break;
       case "sottobanco":
-        if (chi === IO && ev.carta) R.mostraSottobanco(ev.carta);
+        if (chi === IOV && ev.carta) R.mostraSottobanco(ev.carta);
         break;
       case "sottobanco_torna":
-        R.sottobancoTorna(chi, chi === IO ? (ev.carta || null) : null, chi === IO && !!ev.carta);
+        R.sottobancoTorna(chi, chi === IOV ? (ev.carta || null) : null, chi === IOV && !!ev.carta);
         break;
       case "ruba":
         /* 15/09 · il buttafuori rubato: chi l'ha preso e a chi (per l'uscita che segue) */
@@ -7334,10 +7353,10 @@ var LCN = (function () {
       case "sceglie":
         /* 15/09 · con due gettoni si sceglie una carta COPERTA (forza 2) */
         if (ev.forza === 2) {
-          if (chi !== IO) striscia(N.rl(ev.di) === IO ? nomeDi(chi) + " sceglie una delle tue carte" : nomeDi(chi) + " sceglie una carta coperta di " + aDi(N.rl(ev.di)), 3000);
+          if (chi !== IOV) striscia(N.rl(ev.di) === IOV ? nomeDi(chi) + " sceglie una delle tue carte" : nomeDi(chi) + " sceglie una carta coperta di " + aDi(N.rl(ev.di)), 3000);
           scrivi(nomeDi(chi) + " sceglie una carta coperta di " + aDi(N.rl(ev.di)));
         } else {
-          if (chi !== IO) striscia(nomeDi(chi) + " guarda la mano di " + aDi(N.rl(ev.di)), 3000);
+          if (chi !== IOV) striscia(nomeDi(chi) + " guarda la mano di " + aDi(N.rl(ev.di)), 3000);
           scrivi(nomeDi(chi) + " guarda la mano di " + aDi(N.rl(ev.di)));
         }
         break;
@@ -7347,8 +7366,8 @@ var LCN = (function () {
       case "fuori":
         var rubato = ev.perche === "buttafuori_rubato", daChi = (rubato && N.furtoBomba && N.furtoBomba.chi === chi) ? N.furtoBomba.di : null;
         fuori(chi, ev.perche || null, daChi);
-        if (rubato) scrivi(chi === IO ? "Sei fuori: il buttafuori che hai rubato" : nomeDi(chi) + " è fuori: ha rubato un buttafuori");
-        else scrivi(chi === IO ? "Sei fuori" : nomeDi(chi) + " è fuori");
+        if (rubato) scrivi(chi === IOV ? "Sei fuori: il buttafuori che hai rubato" : nomeDi(chi) + " è fuori: ha rubato un buttafuori");
+        else scrivi(chi === IOV ? "Sei fuori" : nomeDi(chi) + " è fuori");
         break;
       case "riequilibrio":
         R.riequilibrio(N.rl(ev.chi));
@@ -7365,7 +7384,7 @@ var LCN = (function () {
         scrivi("CHIUSURA DEL LOCALE: il mazzo è pieno di buttafuori");
         break;
       case "auto":
-        if (chi === IO) messaggio("tempo scaduto: il banco ha scelto per te");
+        if (chi === IOV) messaggio("tempo scaduto: il banco ha scelto per te");
         scrivi(nomeDi(chi) + ": tempo scaduto");
         break;
       case "abbandono":
@@ -7428,7 +7447,7 @@ var LCN = (function () {
     return !!(N.inviato && N.ultimo && N.inviato.mn === N.ultimo.mn && ora() - N.inviato.t < N.RIACCENDI_MS);
   };
   N.manda = function (a, ax, ay) {
-    if (!N.attivo || !N.ultimo) return false;
+    if (!N.attivo || !N.ultimo || N.spec) return false;
     if (N.tastiSpenti()) return false;
     var m = { t: "act", a: a, ax: ax == null ? null : ax, ay: ay == null ? null : ay, power: N.ultimo.mn };
     N.inviato = { mn: N.ultimo.mn, t: ora(), a: a };
@@ -7438,12 +7457,12 @@ var LCN = (function () {
   };
   N.mioTurno = function () {
     var u = N.ultimo;
-    return !!(N.attivo && u && u.fase === "gioco" && u.you && u.you.puo_pescare && !u.you.attesa &&
+    return !!(N.attivo && !N.spec && u && u.fase === "gioco" && u.you && u.you.puo_pescare && !u.you.attesa &&
               !N.inArrivo.length && N.presentato === u && !N.tastiSpenti());
   };
   N.attesaMia = function () {
     var u = N.ultimo;
-    return (N.attivo && u && u.you && u.you.attesa && u.fase === "gioco") ? u.you.attesa : null;
+    return (N.attivo && !N.spec && u && u.you && u.you.attesa && u.fase === "gioco") ? u.you.attesa : null;
   };
   N.chiaveAttesa = function (att) {
     return att.tipo + "|" + (att.k != null ? att.k : "") + "|" + (N.ultimo ? N.ultimo.mn : 0);
@@ -7506,7 +7525,7 @@ var LCG = (function () {
     try { window.parent.postMessage(o, location.origin); } catch (e) { S.errori.push("postMessage: " + (e && e.message)); return false; }
     return true;
   }
-  S.su = function (m) { S.stat.su++; return manda({ lc: "su", m: m }); };
+  S.su = function (m) { if (LCN.spec) return false; S.stat.su++; return manda({ lc: "su", m: m }); };
   S.esci = function () { return manda({ lc: "esci" }); };
   S.fineScena = function () {
     if (S.fineScenaMandata) return;
@@ -7544,6 +7563,28 @@ var LCG = (function () {
     if (!v && typeof avviaGiro === "function") avviaGiro();
   }
 
+  /* ── (02/10) il tifo: {t:"chat", righe:[{n, x, g}]}, le ultime due righe.
+     Solo testo (textContent), solo a chi siede: lo spettatore ha la chat
+     intera sotto il tavolo. ── */
+  var tifoTmr = 0;
+  function suTifo(m) {
+    var el = document.getElementById("tifo"), r = (m && m.righe) || [], i;
+    if (!el || LCN.spec) return;
+    el.innerHTML = "";
+    for (i = Math.max(0, r.length - 2); i < r.length; i++) {
+      if (!r[i] || typeof r[i] !== "object") continue;
+      var d = document.createElement("div"), b = document.createElement("b");
+      b.textContent = (r[i].g ? "✈️ " : "") + String(r[i].n || "?").slice(0, 24) + " ";
+      d.appendChild(b);
+      d.appendChild(document.createTextNode(String(r[i].x || "").slice(0, 140)));
+      el.appendChild(d);
+    }
+    if (tifoTmr) clearTimeout(tifoTmr);
+    if (!el.childNodes.length) { el.classList.remove("on"); return; }
+    el.classList.add("on");
+    tifoTmr = setTimeout(function () { el.classList.remove("on"); }, 12000);
+  }
+
   /* ── lo start: partita nuova o la stessa ripresa (stessa firma) ── */
   function suStart(m) {
     var firma = String((m.map && m.map.firma) || "");
@@ -7572,6 +7613,7 @@ var LCG = (function () {
           if (typeof m.code === "string" && m.code.indexOf("lc_") === 0) LCN.riceviErr(m);
           else S.stat.scartati++;
           return;
+        case "chat": suTifo(m); return;
         case "pausa": suPausa(true); return;
         case "riprendi": suPausa(false); return;
         default: S.stat.scartati++;
@@ -7956,6 +7998,11 @@ function postoDi(i, n) {
    ══════════════════════════════════════════════════════════════════════════ */
 var G = null;                  /* il fantasma, di LCN */
 var IO = 0;                    /* il posto di chi guarda: sempre lo zero (LCN ruota i seggi) */
+/* (02/10/2026) SPETTATORE: IO resta il posto in basso (il disegno), IOV e' chi
+   «sono io» per i testi e la regia. Da spettatore nessuno: -9, che nessun
+   seggio vale (il riequilibrio pubblico porta -1, `null` le carte senza
+   bersaglio: non devono diventare «TU»). */
+var IOV = 0;
 var attesa = null;             /* il pannello aperto (il suo titolo), o null */
 var selezione = [];            /* gli indici dei gettoni scelti in mano */
 var manoQuad = [];             /* i quadrilateri della mano, per il tocco */
@@ -8146,7 +8193,7 @@ var R = lcRegia({
   alt: function () { return ALT; },
   dpr: function () { return DPR; },
   ora: ora,
-  io: IO,
+  get io() { return IOV; },     /* (02/10) spettatore: -9, nessun posto e' «mio» */
   tr: lcT,
   posto: ancoraPosto,
   mazzo: function () { return ancoraPila('mazzo'); },
@@ -9795,7 +9842,8 @@ function disegnaMano() {
        filo piu' piccola (a 1280x720 lo spazio arriva a 274) */
     var W = spr(s2.w); if (hov && s2.h >= 220) W = Math.max(W, 204);
     var H = Math.round(W * LC_RAPPORTO), pm = posaMano(sa);
-    var img = me.cieco ? lcDorso(W, H) : lcFaccia(id, W, H);
+    var coperta = me.cieco || id == null;   /* (02/10) spettatore: la mano del posto in basso e' coperta */
+    var img = coperta ? lcDorso(W, H) : lcFaccia(id, W, H);
     var q = lcPosaTavolo(ctx, C, img, pm.x, pm.y, pm.z, pm.w,
                          { becca: BECCA_MANO, piega: pm.piega, n: 9, ombra: false });
     /* ⭐ il bersaglio del tocco e' il posto di RIPOSO della carta (`q`), non
@@ -9806,8 +9854,8 @@ function disegnaMano() {
     manoQuad.push({ i: i, id: id, q: qb, d: q.slice() });
     var segnMia = !!marcata[i] && !me.cieco;
     if (segnMia) { ctx.save(); ctx.strokeStyle = '#c9a8ff'; ctx.lineWidth = 3; ctx.shadowColor = '#9b6bff'; ctx.shadowBlur = 12; tracciaQuad(q); ctx.stroke(); ctx.restore(); }
-    var costa = !hov && i < n - 1 && !me.cieco && costaCarta(q, id, lm.passo, H, segnMia);
-    if (!costa && !me.cieco) nomeLeggibile(q, id, (hov || i === n - 1) ? 1 : lm.passo, H);
+    var costa = !hov && i < n - 1 && !coperta && costaCarta(q, id, lm.passo, H, segnMia);
+    if (!costa && !coperta) nomeLeggibile(q, id, (hov || i === n - 1) ? 1 : lm.passo, H);
     if (segnMia) { targhettaSegnata(q, (hov || i === n - 1) ? 1 : lm.passo, costa); if (window.__marche) window.__marche.push(i); }
     if (hov && !scelto) {
       ctx.save(); ctx.strokeStyle = 'rgba(243,210,138,0.9)'; ctx.lineWidth = 2.5; ctx.shadowColor = '#d8b25a'; ctx.shadowBlur = 12;
@@ -9955,6 +10003,16 @@ cv.addEventListener('pointerup', function (ev) {
   if (ev.pointerType && ev.pointerType !== 'mouse') sopra = -1;
   if (!t || !G || G.fine || attesa || finestraPend) return;
   var p = puntoTela(ev);
+  /* (02/10) SPETTATORE: della mano in basso si apre solo una carta SEGNATA
+     (scoperta per tutti); il mazzo non si tocca */
+  if (LCN.spec) {
+    if (t.carta && t.carta.id) apriSchedaAltrui(IO, t.carta.id);
+    else if (!t.carta && t.segnata && Math.abs(p.x - t.x) + Math.abs(p.y - t.y) <= 26) {
+      var sS = segnataSotto(p.x, p.y);
+      if (sS) apriSchedaAltrui(sS.chi, sS.id);
+    }
+    return;
+  }
   /* ⭐ SFOGLIARE LA MANO: sul telefono si appoggia il dito sulla mano e lo si
      fa scorrere; la carta sotto il dito si alza e dice il suo nome in grande.
      Si alza il dito: si apre QUELLA carta. Cosi' otto carte strette in 430 px
@@ -10363,7 +10421,9 @@ function impaginaDom() {
   var di = document.getElementById("diario"), fi = document.getElementById("finestra");
   document.body.classList.toggle("largo", L.largo);
   var via = function (el) { el.style.left = el.style.top = el.style.width = el.style.right = el.style.bottom = el.style.transform = el.style.textAlign = el.style.padding = ""; };
+  var tf = document.getElementById("tifo");
   via(com); via(ai); via(di); via(fi); fi.classList.remove("largo");
+  if (tf) { via(tf); tf.style.alignItems = ""; tf.style.maxWidth = ""; }
   var rc = G && G.fine && R.rettClassifica ? R.rettClassifica() : null;
   if (rc) {
     com.style.right = "auto"; com.style.bottom = "auto"; com.style.transform = "none"; com.style.width = "max-content"; com.style.padding = "0";
@@ -10397,6 +10457,13 @@ function impaginaDom() {
   var dx0 = L.xScarti + L.Wbb * 0.62 + 24, dl = Math.min(400, LARG - dx0 - 16);
   DIARIO_POSTO = null;
   if (dl >= 200) { di.style.left = dx0 + "px"; di.style.top = Math.max(L.sopra + 8, L.pileTop) + "px"; di.style.width = dl + "px"; DIARIO_POSTO = { left: dx0, width: dl, top: Math.max(L.sopra + 8, L.pileTop) }; }
+  /* (02/10) il tifo sotto il diario, allineato a sinistra con lui (alto come
+     tre righe di diario anche quando ne ha meno: non salta su e giu') */
+  if (tf && DIARIO_POSTO) {
+    tf.style.right = "auto"; tf.style.left = dx0 + "px"; tf.style.width = dl + "px"; tf.style.maxWidth = dl + "px";
+    tf.style.alignItems = "flex-start";
+    tf.style.top = Math.round(DIARIO_POSTO.top + Math.max(di.offsetHeight || 0, L.fs * 5.8) + 8) + "px";
+  }
   var pc = palcoPonte(), wpc = pc.h / LC_RAPPORTO, lato = LARG - (pc.x + wpc / 2);
   var fw = Math.max(limita(ALT * 0.12, 96, 150), L.fs * 8.5) + 12, fh = limita(ALT * 0.12, 96, 150) + L.fs * 3.2 + 8;
   var yf = Math.min(pc.y + pc.h * 0.18, layoutMano(G ? G.giocatori[IO].mano.length : 5).top - 8 - fh / 2);
@@ -10426,8 +10493,8 @@ function testataTurno() {
   var pt = document.getElementById("pTurno");
   if (!G) return;
   var t = G.fine ? -1 : turnoDaMostrare();
-  var testo = lcT(G.fine ? "finita" : (t === IO ? "TOCCA A TE" : "tocca a " + (G.giocatori[t] ? G.giocatori[t].nome : "")));
-  if (pt.textContent !== testo) { pt.textContent = testo; pt.className = "pill" + (t === IO ? " caldo" : ""); }
+  var testo = lcT(G.fine ? "finita" : (t === IOV ? "TOCCA A TE" : "tocca a " + (G.giocatori[t] ? G.giocatori[t].nome : "")));
+  if (pt.textContent !== testo) { pt.textContent = testo; pt.className = "pill" + (t === IOV ? " caldo" : ""); }
 }
 
 /* il diario: le ultime tre righe che la regia ha raccontato (LCN.diario) */
@@ -10464,6 +10531,7 @@ function aggiorna() {
     tasto("ESCI", esci).classList.add("grande", "finale");
     return;
   }
+  if (LCN.spec) { tasto("ESCI", esci); return; }   /* (02/10) chi guarda non muove niente */
   if (!G.giocatori[IO].vivo) {
     tasto("guarda come finisce", function () {}, true);
     tasto("ESCI", esci);
@@ -10488,6 +10556,7 @@ function suggerisci() {
   if (msg !== document.body.classList.contains("messaggio")) document.body.classList.toggle("messaggio", msg);
   if (msg) { var dm = document.createElement("b"); dm.textContent = messaggioTesto; h = dm.outerHTML; }
   else if (!G || G.fine) h = "";
+  else if (LCN.spec) h = rigaSpettatore();
   else if (R.occupata() && G.turno !== IO) h = "";
   else if (!G.giocatori[IO].vivo) h = lcT("Sei fuori. Guarda come finisce, o esci.");
   else if (G.giocatori[IO].cieco) h = lcT("<b>Sei al buio</b>: le tue carte sono coperte. Puoi solo pescare.");
@@ -10500,6 +10569,15 @@ function suggerisci() {
     h = dn.innerHTML;
   }
   if (elAiutino.innerHTML !== h) elAiutino.innerHTML = h;
+}
+/* (02/10/2026) SPETTATORE: chi sono le carte coperte in basso, e di chi e' il turno */
+function rigaSpettatore() {
+  var en = (LC_LANG === "en"), g0 = G.giocatori[IO], d = document.createElement("span"), b = document.createElement("b");
+  b.textContent = g0 ? g0.nome : "";
+  d.textContent = en ? "👁 SPECTATOR · in front of you, the face-down cards of " : "👁 SPETTATORE · davanti a te le carte coperte di ";
+  var h = d.innerHTML + b.outerHTML, gt = G.giocatori[G.turno];
+  if (gt && gt.vivo && !G.fine) { d.textContent = (en ? " · now playing: " : " · tocca a ") + gt.nome; h += d.innerHTML; }
+  return h;
 }
 function selezioneCarte() {
   var p = G.giocatori[IO], c = [], i;

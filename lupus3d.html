@@ -183,6 +183,16 @@ body{background:#08060f;font-family:var(--body);color:var(--lavanda);
 #righe .veglia b{color:#8fd3e8}
 #chat.veglia #righe b{color:#8fd3e8}
 #chat.veglia #scrivi input{border-color:#3f6f80;color:#cfeaf3}
+/* SPETTATORE (02/10/2026): il tifo di chi guarda, in oro e corsivo; chi
+   guarda non ha microfono e non ha conti da aprire */
+#righe .tifo{font-style:italic;color:#f3dfa6}
+#righe .tifo b{color:#ffd76b}
+#brusio div.tifo{background:#2a2410e6;font-style:italic;color:#f3dfa6}
+#brusio div.tifo b{color:#ffd76b}
+#chat.spett .canale b{color:#ffd76b}
+html.lup-spett #bVoce{display:none !important}
+html.lup-spett #soldi{pointer-events:none}
+html.lup-spett #soldi .tocca{display:none}
 #righe .sistema{font-family:var(--mono);font-size:10.5px;letter-spacing:1px;
   color:var(--metallo2);color:#8f8a9e;text-align:center;padding:6px 0}
 /* QUELLO CHE RIGUARDA TE (10/09): il dito e i voti addosso a te non sono
@@ -48164,6 +48174,9 @@ function grChatUmano(testo) {
     if (!t) { return false; }
     if (t.length > 180) { t = t.substring(0, 180); }
     if (!grS.M) { return false; }
+    /* SPETTATORE (02/10/2026): scrive SOLO nel tifo (il genitore lo manda
+       su r:<lid>; il server non lo lascia entrare nel villaggio) */
+    if (grS.spett) { return (grS.remoto && grS.M.reteChat) ? grS.M.reteChat(t) : false; }
     var canale = grS.M.canaleChat(grS.sg);
     if (canale === "branco") {
         grUI().toast(grT.brancoNotte, 2600);
@@ -48589,6 +48602,9 @@ LUPR.avvia = function (opz) {
     grS.epilogoGiocato = false; grS.epilogoLista = null; grS.overDati = null;
     grS.n = opz.n || 8;
     grS.sg = (opz.seggioUmano === undefined) ? 0 : opz.seggioUmano;
+    /* SPETTATORE (02/10/2026): chi guarda una lobby non siede (seggio -1):
+       niente plancia, niente casa tua, niente busta; la chat e il tifo */
+    grS.spett = !!opz.spettatore;
     grS.aSoldi = (opz.aSoldi === undefined) ? true : !!opz.aSoldi;
     grS.B = opz.B || 100;
     grS.ritmo = opz.ritmo || "palestra";
@@ -48782,6 +48798,14 @@ LUPR.chatRemota = function (m) {
             : String(r.x === undefined ? "" : r.x);
         testo = testo.substring(0, 300);
         tipo = (r.tipo === "sistema") ? "sistema" : (veglia ? "veglia" : null);
+        /* SPETTATORE (02/10/2026): il tifo della lobby (lo marca il genitore,
+           solo per chi guarda): testo nudo, mai una frase di bot */
+        if (r.canale === "tifo") {
+            tipo = "tifo";
+            testo = String(r.x === undefined ? "" : r.x).substring(0, 300);
+            grChatRiga(grChiRemoto(r) + " 👁", testo, tipo);
+            continue;
+        }
         grChatRiga(grChiRemoto(r), testo, tipo);
     }
 };
@@ -48833,7 +48857,7 @@ LUPR.faseDiAzione = function (act) {
 };
 
 LUPR.azione = function (act, ax, ay, power) {
-    if (!grS.M) { return false; }
+    if (!grS.M || grS.spett) { return false; }   /* lo spettatore non muove niente */
     var ok = grS.M.azione(grS.sg, act,
         (ax === undefined ? -1 : ax),
         (ay === undefined ? -1 : ay),
@@ -49684,7 +49708,14 @@ function grPlanciaDa(v) {
     var vivi = v.vivi || [], i;
     var f = v.fase;
 
-    if (v.over || f === "epilogo") {
+    if (grS.spett) {
+        /* SPETTATORE (02/10/2026): mai una mossa, una riga che dice cosa si guarda */
+        modo = "nessuna";
+        opz.titolo = "SPETTATORE";
+        opz.suggerimento = (f === "notte" || f === "alba")
+            ? "Il borgo dorme: le scelte della notte si vedono all alba, come per tutti."
+            : "Guardi il borgo: vedi quello che vedono tutti. I ruoli si scoprono alla fine.";
+    } else if (v.over || f === "epilogo") {
         modo = "nessuna";
     } else if (f === "asta") {
         modo = "asta";
@@ -50230,7 +50261,7 @@ function grEvFase(e) {
            RESTA del rito e si lasciano 13 s a mazzo e carta. */
         var restaRito = (vRito.fase_s || GR_INTRO_S) - (vRito.fase_t || 0);
         var sRito = Math.max(6, restaRito - 13.0);
-        if (!grS.aSoldi && typeof grIntro === "function") {
+        if (!grS.aSoldi && !grS.spett && typeof grIntro === "function") {
             grS.ctrl.intro = grIntro(Math.min(GR_INTRO_S, sRito));
             LUPR.sipario("intro", sRito + 1.5, function () {
                 if (grS.ctrl.intro) { grS.ctrl.intro.smonta(); grS.ctrl.intro = null; }
@@ -50624,7 +50655,7 @@ LUPR.scAsta = function () {
         grS.copione = LUPA.copione(vA ? (vA.fase_s || 0) : 0,
             vA ? vA.n : grS.n, vA ? vA.lupi_k : 0);
     }
-    if (typeof LUPA !== "undefined" && LUPA && LUPA.limiti) {
+    if (!grS.spett && typeof LUPA !== "undefined" && LUPA && LUPA.limiti) {
         var L = LUPA.limiti(grS.B);
         grUI().astaPannello({
             B: grS.B, min: L.min, max: L.max, tagli: L.tagli,
@@ -51532,8 +51563,9 @@ function grEsito(vince, e) {
             : ((e && typeof e.piatto_cent === "number") ? e.piatto_cent : ((e && e.piatto) ? e.piatto : 0)),
         rake: (od && typeof od.rake_cent === "number") ? od.rake_cent : ((e && e.rake) ? e.rake : 0),
         tuoPremio: premi[grS.sg] || 0,
-        /* D-22: su un tavolo gratis non si stampa una cifra */
-        gratis: !grS.aSoldi,
+        /* D-22: su un tavolo gratis non si stampa una cifra (e nemmeno a
+           chi guarda: il server gliele manda a zero) */
+        gratis: !grS.aSoldi || !!grS.spett,
         /* IL SEME (08/09). Il server lo manda a fine partita apposta perche
            la partita sia ricontrollabile, e non lo mostrava nessuna
            schermata. Solo da overDati: mai da uno snapshot, perche il
@@ -54014,7 +54046,18 @@ var LUP_EN = {
     "LA VEGLIA - parli coi morti": "THE WAKE - you talk with the dead",
     "LA SEDUTA - parli coi morti": "THE SEANCE - you talk with the dead",
     "parla coi morti…": "talk with the dead…",
-    "qualcuno": "somebody"
+    "qualcuno": "somebody",
+    /* SPETTATORE (02/10/2026) */
+    "SPETTATORE": "SPECTATOR",
+    "Il borgo dorme: le scelte della notte si vedono all alba, come per tutti.": "The village sleeps: the night choices show at dawn, as for everybody.",
+    "Guardi il borgo: vedi quello che vedono tutti. I ruoli si scoprono alla fine.": "You are watching the village: you see what everybody sees. The roles are revealed at the end.",
+    "sei uno <b>SPETTATORE</b>": "you are a <b>SPECTATOR</b>",
+    "Vedi quello che vede tutto il borgo. I ruoli si scoprono alla fine.": "You see what the whole village sees. The roles are revealed at the end.",
+    "il tifo resta fra chi guarda: i giocatori non lo leggono": "the cheering stays among spectators: the players cannot read it",
+    "spettatore": "spectator",
+    "il <b>tifo</b> · i giocatori non vi leggono": "the <b>cheering</b> · the players cannot read you",
+    "tifa con chi guarda…": "cheer with the other spectators…",
+    "esci": "exit"
 };
 
 /* le frasi composte: prefissi e forme con un numero o un nome dentro */
@@ -54385,6 +54428,66 @@ var LUPG = (function () {
         if (typeof window !== "undefined" && typeof window.voce === "function") { window.voce(lupL(t), ms || 2600); }
     }
 
+    /* ---- SPETTATORE (02/10/2026) ----
+       Lo start di chi guarda una lobby porta spec:true e nessun seggio. La
+       regia fa il resto (grS.spett); qui il guscio: niente microfono (il
+       CSS nasconde il tasto), il pannello dei conti dice chi sei, la chat
+       e il TIFO della lobby (i giocatori non lo leggono, lo decide il
+       server) ed e sempre aperta, un tasto per uscire nella plancia. */
+    function spettSoldi() {
+        var box = $("#soldi"), el;
+        if (!box) { return; }
+        box.className = "";
+        el = $("#sRuolo"); if (el) { el.innerHTML = lupL("sei uno <b>SPETTATORE</b>"); }
+        el = $("#sGola"); if (el) { el.innerHTML = lupL("Vedi quello che vede tutto il borgo. I ruoli si scoprono alla fine."); }
+        el = $("#sSotto"); if (el) { el.textContent = lupL("il tifo resta fra chi guarda: i giocatori non lo leggono"); }
+        el = $("#hDx"); if (el) { el.textContent = "👁 " + lupL("spettatore"); }
+    }
+    function spettChat() {
+        var box = $("#chat"), inp = $("#cIn"), cc = $("#cCanale"), via = $("#cVia");
+        if (box) { box.className = "spett" + ((typeof CHAT !== "undefined" && CHAT && CHAT.aperta) ? " su" : ""); }
+        if (cc) { cc.innerHTML = lupL("il <b>tifo</b> · i giocatori non vi leggono"); }
+        if (inp) { inp.disabled = false; inp.placeholder = lupL("tifa con chi guarda…"); }
+        if (via) { via.style.opacity = "1"; }
+        return true;
+    }
+    function montaSpett() {
+        var d = (typeof document !== "undefined") ? document.documentElement : null, b, pl, oS, oC;
+        if (d && d.classList) { d.classList.add("lup-spett"); }
+        if (typeof window === "undefined") { return; }
+        if (typeof window.aggiornaSoldi === "function" && !window.aggiornaSoldi.__spett) {
+            oS = window.aggiornaSoldi;
+            window.aggiornaSoldi = function () {
+                var r;
+                try { r = oS.apply(this, arguments); } catch (e1) { r = undefined; }
+                spettSoldi();
+                return r;
+            };
+            window.aggiornaSoldi.__spett = true;
+        }
+        if (typeof window.chatStato === "function" && !window.chatStato.__spett) {
+            oC = window.chatStato;
+            window.chatStato = function () {
+                try { oC.apply(this, arguments); } catch (e2) { /* niente */ }
+                return spettChat();
+            };
+            window.chatStato.__spett = true;
+        }
+        pl = $("#plancia");
+        if (pl && !$("#bEsci")) {
+            b = document.createElement("button");
+            b.className = "tondo";
+            b.id = "bEsci";
+            b.innerHTML = "<span class=\"ico\">🚪</span><span class=\"eti\"></span>";
+            b.querySelector(".eti").textContent = lupL("esci");
+            b.onclick = function () { G.esci(); };
+            pl.appendChild(b);
+        }
+        spettSoldi();
+        spettChat();
+    }
+    G.spett = false;
+
     var CHAT_NO = {
         chat_morto: "I morti non parlano.", chat_notte: "Di notte il villaggio dorme.",
         chat_arringa: "Parlano solo i due alla sbarra.", chat_rito: "Non adesso."
@@ -54416,7 +54519,9 @@ var LUPG = (function () {
         G.start = m;
         G.seedScenico = seed;
         G.epilogoFineMandato = false;
-        G.sg = (sg >= 0) ? sg : 0;
+        /* SPETTATORE (02/10/2026): lo start di chi guarda: spec:true, nessun seggio */
+        G.spett = !!m.spec;
+        G.sg = G.spett ? -1 : ((sg >= 0) ? sg : 0);
         LUP_SG = G.sg;
         nf = nomiFoto(m, G.sg);
         G.nomi = nf.nomi; G.foto = nf.foto;
@@ -54427,8 +54532,9 @@ var LUPG = (function () {
             LUPR.avvia({
                 remoto: true,
                 n: (mp.n | 0) || 8, seggioUmano: G.sg, aSoldi: !!mp.a_soldi, B: B, k: k,
+                spettatore: G.spett,
                 ritmo: (mp.ritmo === "fedele") ? "fedele" : "palestra",
-                seedScenico: seed, speciali: mp.speciali, voce: !!mp.voce,
+                seedScenico: seed, speciali: mp.speciali, voce: !!mp.voce && !G.spett,
                 nomi: G.nomi, foto: G.foto,
                 mioNome: (m.names && m.names[m.you]) ? String(m.names[m.you]) : "",
                 lang: LUP_LANG,
@@ -54474,9 +54580,10 @@ var LUPG = (function () {
         if (!G.M) { errore("LUPR.M assente dopo avvia"); return; }
         G.M.reteMessaggio(m);
         ribattezzaTutti(G.nomi, G.foto, G.sg);
+        if (G.spett) { try { montaSpett(); } catch (eS) { errore("spettatore: " + eS.message); } }
         if (typeof LUPV !== "undefined" && LUPV) {
             try {
-                if (LUPV.monta) { LUPV.monta({ manda: function (o) { G.M.reteVoce(o); }, sg: G.sg, tavolo: !!mp.voce }); }
+                if (LUPV.monta) { LUPV.monta({ manda: function (o) { G.M.reteVoce(o); }, sg: G.sg, tavolo: !!mp.voce && !G.spett }); }
                 LUPV.manda = function (o) { G.M.reteVoce(o); };
                 if (LUPV.reset) { LUPV.reset(); }
             } catch (e3) { errore("LUPV.monta: " + e3.message); }
