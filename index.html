@@ -110501,13 +110501,17 @@ function init(){
     var lmt=/^lobby[_-]([A-Za-z0-9_-]{1,64})$/.exec(tsp||'')
           ||/[?&]screen=lobby[_-]([A-Za-z0-9_-]{1,64})(?:&|$)/.exec(location.search);
     if(lmt){LOB.want=lmt[1];LOB.wantN=0;LOB.from='duel';setTimeout(function(){lobWantTry();},400);}
+    else if(/[?&]screen=lobby(?:&|$)/.test(location.search)||tsp==='lobby')setTimeout(function(){lobOpenCreate('uno','duel');},400);
     // 👁 SPETTATORE DI UNA LOBBY (02/10/2026): `startapp=guarda_<lid>`, il
     // secondo tasto dell'annuncio nel gruppo. Regexp ANCORATA alla fine per
-    // la stessa ragione di quella qui sopra (l'underscore sta dentro il lid).
-    var gmt=/^guarda[_-]([A-Za-z0-9_-]{1,64})$/.exec(tsp||'')
-          ||/[?&]screen=guarda[_-]([A-Za-z0-9_-]{1,64})(?:&|$)/.exec(location.search);
-    if(gmt){setTimeout(function(){lobSpOpen(gmt[1]);},500);}
-    else if(/[?&]screen=lobby(?:&|$)/.test(location.search)||tsp==='lobby')setTimeout(function(){lobOpenCreate('uno','duel');},400);
+    // la stessa ragione di quella della lobby (l'underscore sta dentro il lid).
+    // ⚠️ IL LID SI COPIA SUBITO IN UNA VARIABILE SUA (02/10 sera): prima si
+    //    leggeva `gmt[1]` dentro il timeout, e qui sotto c'e' un ALTRO
+    //    `var gmt` (i link gioca/prova) che lo rimetteva a null prima che il
+    //    timeout partisse: la mini app si apriva sulla home e basta.
+    var lobSpDl=(/^guarda[_-]([A-Za-z0-9_-]{1,64})$/.exec(tsp||'')
+          ||/[?&]screen=guarda[_-]([A-Za-z0-9_-]{1,64})(?:&|$)/.exec(location.search)||[])[1]||'';
+    if(lobSpDl){setTimeout(function(){lobSpOpen(lobSpDl);},500);}
     // FUNNEL 26/09: `startapp=[sp<N>_|g_]gioca_<gioco>` (la lobby di quel
     // gioco) e `prova_<gioco>` (l'allenamento contro i bot), oppure
     // `?screen=gioca_<gioco>` / `prova_<gioco>` (i tasti web_app del bot).
