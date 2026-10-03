@@ -15309,7 +15309,7 @@ html.oz-l #bxrt-rot{display:none!important;}
     </div>
 
     <button class="action-btn" onclick="openBot()">📩 PRELEVA IN BITCOIN</button>
-    <button class="action-btn ton-btn ton-w" style="margin-top:8px;" onclick="tonUiGo()">💎 PRELEVA IN TON</button>
+    <button class="action-btn ton-btn ton-w" style="margin-top:8px;" onclick="tonUiGo('preleva')">💎 PRELEVA IN TON</button>
     <div style="font-size:11.5px;color:var(--txt3);text-align:center;margin-top:10px;line-height:1.5;">
       Minimo 10 €. Il pagamento parte da solo.
     </div>
@@ -17469,6 +17469,11 @@ html.oz-l #bxrt-rot{display:none!important;}
     "Il vincitore avanza al prossimo round del torneo":"The winner advances to the next round of the tournament",
     "La squadra vincente avanza al prossimo round del torneo":"The winning team advances to the next round of the tournament",
     "🏆 TORNA AL TORNEO":"🏆 BACK TO THE TOURNAMENT",
+    "PRELEVA IN TON":"WITHDRAW IN TON",
+    "DISPONIBILE":"AVAILABLE",
+    "MINIMO":"MINIMUM",
+    "📤 PRELEVA SUL MIO WALLET":"📤 WITHDRAW TO MY WALLET",
+    "Collegare non sposta soldi e non tocca il tuo saldo.":"Connecting moves no money and does not touch your balance.",
     "🏠 TORNA ALLA HOME":"🏠 BACK TO HOME",
     "👁 SPETTATORE":"👁 SPECTATOR",
     "Carico la lobby…":"Loading the lobby…",
@@ -113377,7 +113382,49 @@ function tonUiAscolta(ui){
   });
 }
 
-function tonUiGo(){ go('ton'); tonUiLoad(); }
+/* ⛔ (04/10/2026) «PRELEVA IN TON» PORTAVA A «CARICA CON TON».
+   Segnalato da una giocatrice: tocca PRELEVA IN TON e si ritrova in una
+   schermata intitolata CARICA CON TON, col prelievo IN FONDO (sotto il
+   deposito) e, se il wallet non e' collegato, una riga in inglese. Legge
+   «carica» e pensa di essere nel posto sbagliato.
+   Adesso la stessa schermata ha DUE modi: chi arriva da Preleva vede il
+   titolo PRELEVA IN TON, il prelievo IN CIMA, e il deposito nascosto; senza
+   wallet, il prelievo stesso spiega cosa fare e ha il tasto per collegarlo. */
+var TONUI_MODO = 'carica';
+function tonUiGo(modo){
+  TONUI_MODO = (modo === 'preleva') ? 'preleva' : 'carica';
+  go('ton');
+  tonUiModo();
+  tonUiLoad();
+}
+function tonUiModo(){
+  var pre = (TONUI_MODO === 'preleva');
+  var t = document.querySelector('#ton .game-title');
+  if(t){
+    var n = t.lastChild;
+    if(n && n.nodeType === 3) n.nodeValue = pre ? 'PRELEVA IN TON' : 'CARICA CON TON';
+  }
+  var wd = document.getElementById('tonui-wd');
+  var wc = document.getElementById('tonui-wcard');
+  if(wd && wc && wc.parentNode){
+    if(pre){ wc.parentNode.insertBefore(wd, wc); wd.style.display = ''; }
+    else {
+      var pend = document.getElementById('tonui-pend');
+      if(pend && pend.parentNode === wc.parentNode) wc.parentNode.insertBefore(wd, pend);
+    }
+  }
+  var db = document.getElementById('tonui-depbody');
+  var dcard = db && db.closest ? db.closest('.info-card') : null;
+  if(dcard) dcard.style.display = pre ? 'none' : '';
+  var intro = document.querySelector('#ton .bal-card');
+  if(intro) intro.style.display = pre ? 'none' : '';
+  /* il riquadro del wallet resta (serve a collegarlo), ma nel modo prelievo
+     se il wallet non c'e' il tasto sta gia' dentro il prelievo: due tasti
+     uguali uno sopra l'altro confondono */
+  if(wc) wc.style.display = (pre && !(TONUI.st && TONUI.st.connected)) ? 'none' : '';
+  var wdb = document.getElementById('tonui-wdbody');
+  if(pre && wdb && !TONUI.st) wdb.innerHTML = '<div class="ton-p">Carico…</div>';
+}
 
 function tonUiLoad(){
   var b = document.getElementById('tonui-bal');
@@ -113386,6 +113433,7 @@ function tonUiLoad(){
     if(!res.ok){ tonUiNonPronto(); return; }
     TONUI.st = res.data || {};
     tonUiDisegna();
+    try{ tonUiModo(); }catch(e){}
   }).catch(function(){ tonUiNonPronto(); });
 }
 
@@ -113502,17 +113550,21 @@ function tonUiDisegna(){
         + '</div>';
     } else if(!s.connected){
       wb.innerHTML = '<div class="ton-p">'
-        + 'Connect your wallet first: that is where the TON will be sent.'
-        + '</div>';
+        + 'Per prelevare in TON collega prima il <b>wallet dove vuoi ricevere i TON</b>: '
+        + 'il prelievo arriva solo li\u2019, cosi\u2019 non c\u2019e\u2019 un indirizzo da scrivere e da sbagliare.'
+        + '</div>'
+        + '<div class="ton-note">Collegare non sposta soldi e non tocca il tuo saldo.</div>'
+        + '<button class="action-btn gold ton-w ton-cta" onclick="tonUiCollega()">'
+        + '\ud83d\udc8e COLLEGA IL WALLET</button>';
     } else if(s.pending){
       wb.innerHTML = '<div class="ton-p">'
         + 'One withdrawal at a time.</div>';
     } else {
       var avviso = (parseFloat(s.auto_limit||0) <= 0)
         ? '<div class="ton-note">'
-          + 'Every TON withdrawal is approved by an operator before it leaves. '
-          + 'That is normal while there are no TON deposits to draw an '
-          + 'allowance from \u2014 it is not a problem with your account.</div>'
+          + 'Questo prelievo lo approva un operatore prima che parta: succede '
+          + 'quando sul conto non ci sono depositi in TON da cui far partire il '
+          + 'pagamento automatico. Non e\u2019 un problema del tuo conto.</div>'
         : '';
       wb.innerHTML =
         '<div class="ton-amt">'
@@ -113522,16 +113574,16 @@ function tonUiDisegna(){
         + '</div>'
         /* R3: la carta espone i suoi due numeri invece di una riga di prosa.
            Sono gli stessi che /ton/state manda gia': nessuna chiamata in piu'. */
-        + '<div class="ton-row"><span class="ton-row__k">AVAILABLE</span>'
+        + '<div class="ton-row"><span class="ton-row__k">DISPONIBILE</span>'
         + '<span class="ton-row__v">' + ((s.saldo_eur!=null)
             ? ('\u20ac' + (+s.saldo_eur).toFixed(2))
             : (tonUiFmt(s.balance) + ' TON')) + '</span></div>'
-        + '<div class="ton-row"><span class="ton-row__k">MINIMUM</span>'
+        + '<div class="ton-row"><span class="ton-row__k">MINIMO</span>'
         + '<span class="ton-row__v">' + ((s.min_cent!=null)
             ? ('\u20ac' + (s.min_cent/100).toFixed(2))
             : (tonUiFmt(s.min_withdraw) + ' TON')) + '</span></div>'
         + '<button class="action-btn gold ton-w ton-cta" '
-        + 'id="tonui-wdbtn" onclick="tonUiPreleva()">\ud83d\udce4 WITHDRAW TO MY WALLET</button>'
+        + 'id="tonui-wdbtn" onclick="tonUiPreleva()">\ud83d\udce4 PRELEVA SUL MIO WALLET</button>'
         + avviso;
     }
   }
@@ -113931,7 +113983,7 @@ function tonUiPreleva(){
       };
       var msg = TON_ERR[d.error_code] || d.error || 'Withdrawal refused';
       if(typeof toast==='function') toast(msg,'err');
-      if(btn){ btn.disabled=false; btn.textContent='\ud83d\udce4 WITHDRAW TO MY WALLET'; }
+      if(btn){ btn.disabled=false; btn.textContent='\ud83d\udce4 PRELEVA SUL MIO WALLET'; }
       return;
     }
     if(typeof toast==='function')
@@ -113942,13 +113994,13 @@ function tonUiPreleva(){
       toast(d.queue_paused
         ? 'Requested. The TON queue is paused while we clear an earlier payment: yours leaves as soon as it restarts, and you can cancel until then.'
         : (d.needs_approval
-          ? 'Requested. An operator will approve it shortly.'
-          : 'Requested. It leaves within a minute.'), 'ok');
+          ? 'Richiesto. Parte appena un operatore lo approva.'
+          : 'Richiesto. Parte entro un minuto.'), 'ok');
     return tonUiLoad();
   }).catch(function(){
     TONUI.busy = false;
     if(typeof toast==='function') toast('Network unavailable','err');
-    if(btn){ btn.disabled=false; btn.textContent='\ud83d\udce4 WITHDRAW TO MY WALLET'; }
+    if(btn){ btn.disabled=false; btn.textContent='\ud83d\udce4 PRELEVA SUL MIO WALLET'; }
   });
 }
 </script>
