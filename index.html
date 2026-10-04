@@ -15170,6 +15170,17 @@ html.oz-l #bxrt-rot{display:none!important;}
 #wallet .wn-a{color:#8ccaff;font-size:13px;font-weight:700;text-decoration:none;min-height:44px;display:inline-flex;align-items:center;}
 /* il pannello della conversione (ChangeNOW) arriva dal vecchio #deposit com'era */
 #wallet #swap-panel{margin-top:0;}
+/* (04/10) USDT su TON: il commutatore TON | USDT dentro la sezione TON */
+#wallet .wn-val{display:flex;gap:8px;}
+#wallet .wn-val__b{flex:1 1 0;min-height:56px;border-radius:14px;border:1px solid rgba(255,255,255,.12);background:#141826;
+  color:#c6cbe0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:6px 8px;}
+#wallet .wn-val__b b{font-size:16px;color:#eef0f6;font-weight:700;}
+#wallet .wn-val__b span{font-size:11px;color:#9aa3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+#wallet .wn-val__b.on{border-color:#4db2ff;background:rgba(77,178,255,.12);}
+#wallet .wn-val__b.on span{color:#8ccaff;}
+#wallet .wn-val__b[data-v="USDT"].on{border-color:#26a17b;background:rgba(38,161,123,.14);}
+#wallet .wn-val__b[data-v="USDT"].on span{color:#5fd3a9;}
+#wallet .wn-usdt-nota{color:#c6cbe0;}
 @media (max-width:360px){
   #wallet .wn-hero__num{font-size:36px;}
   #wallet .wn-seg__b{font-size:12px;}
@@ -15232,11 +15243,16 @@ html.oz-l #bxrt-rot{display:none!important;}
 
       <!-- TON -->
       <div class="wn-pan on" id="wn-pan-ton">
+        <!-- (04/10) USDT su TON: acceso SOLO da /ton/state → usdt.deposit_enabled -->
+        <div class="wn-val" id="wn-val" role="tablist" style="display:none;">
+          <button class="wn-val__b" data-v="TON" role="tab" onclick="wnValuta('TON')"><b>TON</b><span>la moneta della rete</span></button>
+          <button class="wn-val__b" data-v="USDT" role="tab" onclick="wnValuta('USDT')"><b>USDT</b><span>il più usato nel Wallet</span></button>
+        </div>
         <div id="wn-ton-testa" style="display:flex;flex-direction:column;gap:14px;"></div>
         <div id="wn-ton-form" style="display:none;flex-direction:column;gap:14px;">
           <div class="wn-k">Quanto vuoi caricare</div>
           <div class="wn-chips" id="wn-dep-chips"></div>
-          <label class="wn-inp"><input id="tonui-depamt" type="text" inputmode="decimal" autocomplete="off" placeholder="Altro importo" oninput="wnDepAgg()"><span>TON</span></label>
+          <label class="wn-inp"><input id="tonui-depamt" type="text" inputmode="decimal" autocomplete="off" placeholder="Altro importo" oninput="wnDepAgg()"><span id="wn-dep-unit">TON</span></label>
           <div class="wn-card wn-sum">
             <div class="wn-row"><span class="wn-mut">Mandi</span><span class="wn-b" id="wn-dep-mandi">—</span></div>
             <div class="wn-row"><span class="wn-mut">Commissione deposito</span><span id="wn-dep-fee">—</span></div>
@@ -15257,7 +15273,8 @@ html.oz-l #bxrt-rot{display:none!important;}
             <div class="wn-k wn-k--memo">Memo obbligatorio</div>
             <div class="wn-well wn-well--memo wn-mono" id="wn-dep-memo"></div>
             <button class="wn-btn2" onclick="tonUiCopiaDep('memo')">Copia memo</button>
-            <div class="wn-row"><span class="wn-mut">Minimo</span><span id="wn-dep-min">—</span></div>
+            <div class="wn-nota wn-usdt-nota" id="wn-altro-usdt" style="display:none;">TON e USDT (rete TON) vanno allo stesso indirizzo, con lo stesso memo.</div>
+            <div class="wn-row" id="wn-dep-min-r"><span class="wn-mut">Minimo</span><span id="wn-dep-min">—</span></div>
             <div class="wn-nota">Dal Crypto Wallet di Telegram o da qualsiasi wallet: indirizzo + memo. Senza memo non si perde niente, si assegna a mano.</div>
           </div>
         </div>
@@ -15384,7 +15401,7 @@ html.oz-l #bxrt-rot{display:none!important;}
           <label class="wn-inp"><span>€</span><input id="tonui-amt" type="text" inputmode="decimal" autocomplete="off" placeholder="Importo" oninput="wnWdAgg()"></label>
           <div class="wn-card wn-sum">
             <div class="wn-row"><span class="wn-mut">Prelevi</span><span class="wn-b" id="wn-wd-eur">—</span></div>
-            <div class="wn-row"><span class="wn-mut">Ricevi circa</span><span class="wn-b">TON al cambio del momento</span></div>
+            <div class="wn-row"><span class="wn-mut">Ricevi circa</span><span class="wn-b" id="wn-wd-ricevi">TON al cambio del momento</span></div>
             <div class="wn-row"><span class="wn-mut">Tempo</span><span id="wn-wd-tempo">—</span></div>
           </div>
           <div class="wn-err" id="wn-wd-err" style="display:none;"></div>
@@ -17570,6 +17587,37 @@ html.oz-l #bxrt-rot{display:none!important;}
     "Il vincitore avanza al prossimo round del torneo":"The winner advances to the next round of the tournament",
     "La squadra vincente avanza al prossimo round del torneo":"The winning team advances to the next round of the tournament",
     "🏆 TORNA AL TORNEO":"🏆 BACK TO THE TOURNAMENT",
+    /* ── USDT SU TON (04/10/2026) ── */
+    "il più usato nel Wallet":"most used in Wallet",
+    "la moneta della rete":"the network's coin",
+    "Per caricare e prelevare in TON e USDT":"To top up and withdraw in TON and USDT",
+    "Prelievo USDT":"USDT withdrawal",
+    "Deposito USDT":"USDT deposit",
+    "I depositi in USDT non sono disponibili adesso. Per ora puoi caricare in TON, con la carta o con Bitcoin.":"USDT deposits are not available right now. For now you can top up in TON, by card or with Bitcoin.",
+    "I depositi in TON non sono ancora aperti. Per ora puoi caricare in USDT, con la carta o con Bitcoin.":"TON deposits are not open yet. For now you can top up in USDT, by card or with Bitcoin.",
+    "TON e USDT (rete TON) vanno allo stesso indirizzo, con lo stesso memo.":"TON and USDT (TON network) go to the same address, with the same memo.",
+    "Nel wallet collegato non ci sono USDT. Puoi mandarli da un altro wallet con indirizzo e memo.":"There is no USDT in the connected wallet. You can send it from another wallet with address and memo.",
+    "Nel wallet non ci sono abbastanza USDT.":"There is not enough USDT in your wallet.",
+    "Per mandare USDT serve anche un po’ di TON nel wallet, per la commissione di rete.":"To send USDT you also need a little TON in your wallet for the network fee.",
+    "Scrivi quanti USDT vuoi caricare.":"Enter how much USDT you want to add.",
+    "I depositi in USDT non sono ancora aperti.":"USDT deposits are not open yet.",
+    "I prelievi in USDT non sono disponibili adesso.":"USDT withdrawals are not available right now.",
+    "Nel wallet collegato non troviamo USDT.":"We cannot find USDT in the connected wallet.",
+    "Si preleva nella moneta con cui hai caricato.":"You withdraw in the currency you topped up with.",
+    "Wallet di Telegram (USDT)":"Wallet in Telegram (USDT)",
+    "Puoi prelevare in ognuna delle monete con cui hai caricato.":"You can withdraw in any of the currencies you topped up with.",
+    "Hai caricato in USDT: il prelievo esce in USDT.":"You topped up in USDT: the withdrawal goes out in USDT.",
+    "I prelievi in USDT non sono disponibili adesso. Il tuo saldo resta dov’è.":"USDT withdrawals are not available right now. Your balance stays where it is.",
+    "Per prelevare in USDT collega prima il wallet dove vuoi ricevere gli USDT: il prelievo arriva solo lì, così non c’è un indirizzo da scrivere e da sbagliare.":"To withdraw in USDT, first connect the wallet where you want to receive it: the withdrawal only goes there, so there is no address to type and get wrong.",
+    "USDT al cambio del momento":"USDT at the current rate",
+    "Hai già un prelievo USDT in corso.":"You already have a USDT withdrawal in progress.",
+    "Hai già un prelievo in corso.":"You already have a withdrawal in progress.",
+    "I prelievi USDT sono in pausa: prima va chiarito un pagamento. Non si perde niente.":"USDT withdrawals are paused: a payment needs to be cleared first. Nothing is lost.",
+    "La cassa USDT non basta adesso: riprova più tardi o preleva un importo più piccolo.":"The USDT reserve is not enough right now: try again later or withdraw a smaller amount.",
+    "La richiesta non è partita. Riprova.":"The request did not go through. Try again.",
+    "Gli USDT sono nel tuo wallet.":"The USDT is in your wallet.",
+    "La cassa USDT si sta ricaricando: il tuo prelievo parte appena c’è copertura. Non si perde niente. Puoi seguirlo nel wallet, sotto «In corso».":"The USDT reserve is being topped up: your withdrawal leaves as soon as it is covered. Nothing is lost. You can follow it in the wallet, under «In progress».",
+    "La coda dei prelievi USDT è ferma mentre chiariamo un pagamento precedente: il tuo parte appena riparte. Non si perde niente.":"The USDT withdrawal queue is paused while we clear an earlier payment: yours leaves as soon as it restarts. Nothing is lost.",
     /* ── WALLET NUOVO (04/10/2026) ── */
     "Wallet":"Wallet",
     "Prelievi automatici":"Automatic withdrawals",
@@ -19013,6 +19061,7 @@ html.oz-l #bxrt-rot{display:none!important;}
     [/^Il prelievo minimo è (€\s?[\d.,]+)$/, 'The minimum withdrawal is $1'],
     [/^(\d+) min fa$/, '$1 min ago'],
     [/^(\d+) h fa$/, '$1 h ago'],
+    [/^Il minimo è ([\d.,]+) USDT$/, 'The minimum is $1 USDT'],
     [/GIOCA/g, 'PLAY']
   ];
 
@@ -114085,21 +114134,42 @@ function tonUiDepositaDalWallet(){
   var btnL = btn ? (btn.querySelector('.wn-lab') || btn) : null;
   if(btn){ btn.disabled = true; btnL.textContent = 'Preparo\u2026'; }
   tonUiDici('');
+  /* (04/10) USDT su TON: la moneta la sceglie il commutatore del wallet.
+     Il jetton transfer lo costruisce il SERVER (dal jetton wallet USDT del
+     giocatore verso la casa, memo nel forward payload): qui si passa al
+     wallet cosi' com'e', come per il TON. Senza `valuta` = TON di sempre. */
+  var _usdt = (typeof wnValCorr === 'function' && wnValCorr() === 'USDT');
+  var _prep = null;
   swapApi('/ton/deposit/prepare', {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ amount: v })
+    body: JSON.stringify(_usdt ? { amount: v, valuta: 'USDT' } : { amount: v })
   }).then(function(res){
     var d = res.data || {};
     if(!res.ok || !d.ok) throw new Error(d.error || 'could not prepare the transfer');
     if(btn) btnL.textContent = 'Conferma nel wallet\u2026';
+    var _msgs;
+    if(_usdt){
+      if(!d.messages || !d.messages.length) throw new Error('could not prepare the transfer');
+      _msgs = [];
+      for(var _k = 0; _k < d.messages.length; _k++){
+        var _m = d.messages[_k] || {};
+        var _o = { address: _m.address, amount: String(_m.amount_nano) };
+        if(_m.payload) _o.payload = _m.payload;
+        if(_m.state_init) _o.stateInit = _m.state_init;
+        _msgs.push(_o);
+      }
+      _prep = d;
+    } else {
+      _msgs = [{ address: d.address, amount: d.amount_nano, payload: d.payload }];
+    }
     return ui.sendTransaction({
       validUntil: Math.floor(Date.now()/1000) + (d.valid_seconds || 300),
-      messages: [{ address: d.address, amount: d.amount_nano, payload: d.payload }]
+      messages: _msgs
     });
   }).then(function(){
-    tonUiDiario('deposito-firmato', '');
+    tonUiDiario('deposito-firmato', _usdt ? 'USDT' : '');
     /* (04/10) la schermata di conferma a passi (wallet nuovo) */
-    if(typeof wnDepFirmato==='function'){ try{ wnDepFirmato(v); }catch(_w){} }
+    if(typeof wnDepFirmato==='function'){ try{ wnDepFirmato(v, _usdt ? 'USDT' : 'TON', _prep); }catch(_w){} }
     else if(typeof toast==='function')
       toast('Inviato. Lo accreditiamo in un paio di minuti.','ok');
     if(i) i.value = '';
@@ -114272,6 +114342,9 @@ function tonUiScollega(){
 
 function tonUiPreleva(){
   if(TONUI.busy) return;
+  /* (04/10) USDT su TON: wnPreleva mette WN.wdVal = 'USDT' prima di
+     chiamare. Il corpo e' quello del contratto: {cent, valuta:'USDT'}. */
+  var _usdt = !!(window.WN && WN.wdVal === 'USDT');
   var i = document.getElementById('tonui-amt');
   var v = i ? String(i.value||'').trim() : '';
   if(!v){ if(typeof toast==='function') toast('Scrivi quanto vuoi prelevare.','err'); return; }
@@ -114288,6 +114361,16 @@ function tonUiPreleva(){
   if(TONUI.st && TONUI.st.saldo_cent!=null && isFinite(_wf) && _wf>0 &&
      !/^(all|max|tutto)$/i.test(String(v).trim())){
     _wb.cent = Math.round(_wf*100);
+  }
+  if(_usdt){
+    /* mai un prelievo USDT che parta come TON: senza centesimi validi si ferma */
+    if(!(isFinite(_wf) && _wf > 0)){
+      TONUI.busy = false;
+      if(btn){ btn.disabled=false; btnL.textContent=btnT; }
+      if(typeof wnWdErr==='function') wnWdErr('Scrivi quanto vuoi prelevare.');
+      return;
+    }
+    _wb = { cent: Math.round(_wf*100), valuta: 'USDT' };
   }
   swapApi('/ton/withdraw', {
     method:'POST', headers:{'Content-Type':'application/json'},
@@ -114313,6 +114396,11 @@ function tonUiPreleva(){
         sconosciuto: 'Conto non trovato.',
         inesistente: 'Questa richiesta non esiste pi\u00f9.'
       };
+      if(_usdt){
+        TON_ERR.gia_uno  = 'Hai gi\u00e0 un prelievo USDT in corso.';
+        TON_ERR.sospesi  = 'I prelievi USDT sono in pausa: prima va chiarito un pagamento. Non si perde niente.';
+        TON_ERR.capienza = 'La cassa USDT non basta adesso: riprova pi\u00f9 tardi o preleva un importo pi\u00f9 piccolo.';
+      }
       var msg = TON_ERR[d.error_code]
         || (d.error && typeof wnErrIt==='function' ? wnErrIt(d.error) : d.error)
         || 'Prelievo rifiutato';
@@ -114323,7 +114411,7 @@ function tonUiPreleva(){
     }
     /* (04/10) la schermata di conferma a passi (wallet nuovo) */
     if(typeof wnWdOk==='function'){
-      try{ wnWdOk(d); }catch(_w){}
+      try{ wnWdOk(d, _usdt ? 'USDT' : 'TON'); }catch(_w){}
       if(btn){ btn.disabled=false; btnL.textContent=btnT; }
       return tonUiLoad();
     }
@@ -114361,9 +114449,84 @@ function tonUiPreleva(){
    in inglese per chiave esatta, quindi i NUMERI stanno in nodi a parte.
    ══════════════════════════════════════════════════════════════════════════ */
 var WN = { v:'home', next:null, met:'ton', dst:null, altro:false, swap:false,
-           ok:null, timer:null, depTocco:false };
+           ok:null, timer:null, depTocco:false, val:null, valTocco:false };
 var WN_DEP_KEY = 'wn_dep_attesa';
 var WN_WB = { addr:'', ts:0, nano:null, carico:false };
+
+/* ── USDT SU TON (04/10/2026) ───────────────────────────────────────────
+   Il server dice tutto in `/ton/state` → `usdt` (enabled, deposit_enabled,
+   withdraw_enabled, prezzo_eur, pending, history, deposit). Se `usdt` manca o
+   `enabled` e' falso, di USDT non si vede NIENTE: la pagina puo' andare
+   online prima del server. I soldi passano dalle stesse due funzioni:
+   tonUiDepositaDalWallet (prepare con valuta:'USDT' → i `messages` del
+   server cosi' come sono) e tonUiPreleva ({cent, valuta:'USDT'}).
+   Il saldo USDT del wallet collegato (tonapi, jetton del master USDT) serve
+   SOLO a proporre gli importi: se non si legge, niente importi rapidi. */
+var WN_USDT_MASTER = 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs';
+var WN_UB = { addr:'', ts:0, val:null, carico:false };
+function wnU(){
+  var st = TONUI.st;
+  var u = st && st.usdt;
+  return (u && typeof u === 'object' && u.enabled) ? u : null;
+}
+function wnUsdtDep(){ var u = wnU(); return !!(u && u.deposit_enabled); }
+function wnUsdtWd(){ var u = wnU(); return !!(u && u.withdraw_enabled); }
+/* gli USDT con al massimo 2 decimali, senza zeri in coda */
+function wnUsdt(n){ return wnTon(n); }
+function wnSaldoUsdt(addr){
+  if(!addr) return;
+  var ora = Date.now();
+  if(WN_UB.addr === addr && (WN_UB.carico || ora - WN_UB.ts < 30000)) return;
+  WN_UB.addr = addr; WN_UB.ts = ora; WN_UB.carico = true;
+  fetch('https://tonapi.io/v2/accounts/' + encodeURIComponent(addr) + '/jettons/' + WN_USDT_MASTER)
+    .then(function(r){
+      /* 404 = il wallet non ha mai avuto USDT: zero, non un guasto */
+      if(r.status === 404) return { balance:'0', jetton:{ decimals:6 } };
+      if(!r.ok) throw new Error('tonapi ' + r.status);
+      return r.json();
+    })
+    .then(function(j){
+      if(!j || j.balance == null) throw new Error('vuoto');
+      var dec = (j.jetton && j.jetton.decimals != null) ? +j.jetton.decimals : 6;
+      var v = (+j.balance) / Math.pow(10, dec);
+      WN_UB.val = isFinite(v) ? v : null;
+    })
+    ['catch'](function(){ WN_UB.val = null; })
+    .then(function(){ WN_UB.carico = false; WN_UB.ts = Date.now(); if(window.CUR === 'wallet') wnRender(); });
+}
+function wnWalletUsdt(){
+  var st = TONUI.st || {};
+  if(!st.address || WN_UB.addr !== st.address || WN_UB.val == null) return null;
+  return WN_UB.val;
+}
+/* la moneta del deposito dentro la sezione TON: USDT o TON */
+function wnValCorr(){
+  if(!wnUsdtDep()) return 'TON';
+  if(WN.val === 'USDT' || WN.val === 'TON') return WN.val;
+  /* prima scelta: USDT se nel wallet collegato ci sono USDT, se no TON */
+  var wu = wnWalletUsdt();
+  return (wu != null && wu > 0) ? 'USDT' : 'TON';
+}
+function wnValuta(v){
+  if(WN.val !== v){
+    WN.val = v; WN.valTocco = true; WN.depTocco = false;
+    var i = wnEl('tonui-depamt'); if(i) i.value = '';
+    var e = wnEl('tonui-err'); if(e) e.style.display = 'none';
+  }
+  wnRender();
+}
+/* l'euro stimato per n USDT (prezzo_eur del server), null se non lo sa */
+function wnUsdtFee(){
+  var u = wnU() || {}, st = TONUI.st || {};
+  if(u.deposit_fee_pct != null) return +u.deposit_fee_pct;
+  return (st.deposit_fee_pct != null) ? +st.deposit_fee_pct : 5;
+}
+/* l'unita' di un deposito salvato: «10 TON» o «50 USDT» */
+function wnDepUn(d){ return (d && d.val === 'USDT') ? 'USDT' : 'TON'; }
+function wnUsdtEur(n){
+  var u = wnU(); var p = u && u.prezzo_eur;
+  return (p != null && isFinite(+p) && +p > 0) ? n * (+p) : null;
+}
 
 function wnEn(){ return window.GB_LANG === 'en'; }
 function wnEsc(s){
@@ -114409,6 +114572,8 @@ function wnErrIt(m){
   if(!t) return t;
   if((r = /^minimum deposit is ([\d.]+) TON$/i.exec(t))) return 'Il minimo è ' + wnTon(r[1]) + ' TON';
   if((r = /^minimum withdrawal is ([\d.]+) EUR$/i.exec(t))) return 'Il prelievo minimo è ' + wnEur(+r[1]);
+  if((r = /^minimum deposit is ([\d.]+) USDT$/i.exec(t))) return 'Il minimo è ' + wnUsdt(r[1]) + ' USDT';
+  if(/only withdraw in the currency you deposited/i.test(t)) return 'Si preleva nella moneta con cui hai caricato.';
   var T = {
     'insufficient balance':'Non ci sono abbastanza euro disponibili per questo importo.',
     'invalid amount':'Importo non valido.',
@@ -114427,7 +114592,11 @@ function wnErrIt(m){
     'could not send':'Invio non riuscito. Riprova.',
     'Wallet connection is unavailable right now.':'Il collegamento del wallet non è disponibile adesso.',
     'Enter how much you want to deposit.':'Scrivi quanti TON vuoi caricare.',
-    'non autenticato':'Apri il wallet dal bot in Telegram.'
+    'non autenticato':'Apri il wallet dal bot in Telegram.',
+    'USDT deposits are not open yet':'I depositi in USDT non sono ancora aperti.',
+    'USDT withdrawals are temporarily unavailable':'I prelievi in USDT non sono disponibili adesso.',
+    'not enough USDT in your wallet':'Nel wallet non ci sono abbastanza USDT.',
+    'could not find your USDT wallet':'Nel wallet collegato non troviamo USDT.'
   };
   if(T.hasOwnProperty(t)) return T[t];
   if(/^the TON price is not fresh/i.test(t)) return 'Il prezzo del TON non è aggiornato in questo momento: riprova tra un minuto.';
@@ -114577,14 +114746,21 @@ function wnDepLeggi(){
     return d;
   }catch(e){ return null; }
 }
-function wnDepFirmato(v){
+function wnDepFirmato(v, valuta, prep){
   var st = TONUI.st || {};
   var ton = wnLeggi(v);
-  var fee = (st.deposit_fee_pct != null) ? +st.deposit_fee_pct : 5;
+  var usdt = (valuta === 'USDT');
+  var fee = usdt ? wnUsdtFee() : ((st.deposit_fee_pct != null) ? +st.deposit_fee_pct : 5);
   var d = { ton: ton, net: ton * (1 - fee/100), ts: Date.now(),
             saldo0: (st.saldo_cent != null) ? +st.saldo_cent : null };
+  if(usdt){
+    /* i numeri del server, se li ha dati; se no la stima della pagina */
+    d.val = 'USDT';
+    if(prep && prep.netti_usdt != null && isFinite(+prep.netti_usdt)) d.net = +prep.netti_usdt;
+    d.eur = (prep && prep.eur_stimati != null && isFinite(+prep.eur_stimati)) ? +prep.eur_stimati : wnUsdtEur(d.net);
+  }
   try{ localStorage.setItem(WN_DEP_KEY, JSON.stringify(d)); }catch(e){}
-  WN.ok = { tipo:'dep', ton: d.ton, net: d.net, ts: d.ts, accr:false };
+  WN.ok = { tipo:'dep', ton: d.ton, net: d.net, ts: d.ts, accr:false, val: d.val || 'TON', eur: d.eur };
   var i = wnEl('tonui-depamt'); if(i) i.value = '';
   wnVai('ok');
 }
@@ -114607,7 +114783,7 @@ function wnBattito(){
   var serve = 0;
   if(window.CUR === 'wallet'){
     if(WN.v === 'ok') serve = 6000;
-    else if(WN.v === 'home' && (wnDepLeggi() || (TONUI.st && TONUI.st.pending))) serve = 15000;
+    else if(WN.v === 'home' && (wnDepLeggi() || (TONUI.st && TONUI.st.pending) || (wnU() && wnU().pending))) serve = 15000;
   }
   if(!serve){ if(WN.timer){ clearTimeout(WN.timer); WN.timer = null; } return; }
   if(WN.timer) return;
@@ -114622,7 +114798,10 @@ function wnBattito(){
 /* tonUiLoad / tonUiNonPronto chiamano qui (vedi le due righe aggiunte la') */
 function wnTonAgg(){
   var st = TONUI.st;
-  if(st && st.connected && st.address) wnSaldoWallet(st.address);
+  if(st && st.connected && st.address){
+    wnSaldoWallet(st.address);
+    if(wnU()) wnSaldoUsdt(st.address);
+  }
   wnDepControlla();
   if(WN.ok && WN.ok.tipo === 'wd') wnWdSegui();
   if(window.CUR === 'wallet') wnRender();
@@ -114666,12 +114845,13 @@ function wnHome(){
       h = '<div class="wn-card wn-tg"><div class="wn-ic">' + WN_IC.ton + '</div>'
         + '<div class="wn-tg__tx"><div class="wn-tg__t">' + wnEsc(wnNomeWallet()) + '</div>'
         + '<div class="wn-tg__s wn-mono"><span>' + wnEsc(wnCorto(st.address)) + '</span>'
-        + (wt != null ? '<span> · ' + wnTon(wt) + ' TON</span>' : '') + '</div></div>'
+        + (wt != null ? '<span> · ' + wnTon(wt) + ' TON</span>' : '')
+        + ((wnU() && wnWalletUsdt() != null) ? '<span> · ' + wnUsdt(wnWalletUsdt()) + ' USDT</span>' : '') + '</div></div>'
         + '<div class="wn-pill">Collegato</div></div>';
     } else if((st.deposit || {}).enabled || st.withdraw_enabled){
       h = '<div class="wn-card wn-tg"><div class="wn-ic">' + WN_IC.ton + '</div>'
         + '<div class="wn-tg__tx"><div class="wn-tg__t">Wallet di Telegram</div>'
-        + '<div class="wn-tg__s">Per caricare e prelevare in TON</div></div>'
+        + '<div class="wn-tg__s">' + (wnU() ? 'Per caricare e prelevare in TON e USDT' : 'Per caricare e prelevare in TON') + '</div></div>'
         + '<button class="wn-pill wn-pill--btn" onclick="wnApri(\'carica\',\'ton\')">Collega</button></div>';
     }
   }
@@ -114679,31 +114859,46 @@ function wnHome(){
 
   /* in corso: SOLO stati veri */
   var co = wnEl('wn-corso'), x = '';
-  if(st && st.pending){
-    var p = st.pending, f = wnFaseWd(p);
-    x += '<div class="wn-card wn-corso">'
-      + '<div class="wn-row"><span class="wn-k wn-k--blu">In corso</span>'
-      + '<span class="wn-nota">' + wnEsc(WN_STATI_WD[p.stato] || p.stato || '') + '</span></div>'
-      + '<div class="wn-row"><span><span>Prelievo</span> <span>' + wnTon(p.ton) + ' TON</span></span>'
-      + '<span class="wn-mono wn-nota">' + wnEsc(wnCorto(p.dest)) + '</span></div>'
-      + wnBarra(f, 3)
-      + '<div class="wn-nota">Richiesto · In uscita · Arrivato nel wallet</div>'
-      + (p.hash ? '<a class="wn-a" target="_blank" rel="noopener" href="https://tonviewer.com/transaction/'
-          + encodeURIComponent(p.hash) + '">Controlla su tonviewer</a>' : '')
-      + '</div>';
-  }
+  if(st && st.pending) x += wnCorsoWd(st.pending, 'TON');
+  if(wnU() && wnU().pending) x += wnCorsoWd(wnU().pending, 'USDT');
   var d = wnDepLeggi();
   if(d){
     x += '<div class="wn-card wn-corso">'
       + '<div class="wn-row"><span class="wn-k wn-k--blu">In corso</span>'
       + '<span class="wn-nota">' + wnTempoFa(d.ts) + '</span></div>'
-      + '<div class="wn-row"><span><span>Deposito</span> <span>' + wnTon(d.ton) + ' TON</span></span>'
-      + '<span class="wn-b">≈ ' + wnTon(d.net) + ' TON</span></div>'
+      + '<div class="wn-row"><span><span>Deposito</span> <span>' + wnTon(d.ton) + ' ' + wnDepUn(d) + '</span></span>'
+      + '<span class="wn-b">≈ ' + wnDepNetto(d) + '</span></div>'
       + wnBarra(1, 2)
       + '<div class="wn-nota">Firmato · Accreditato sul conto</div></div>';
   }
   if(co) co.innerHTML = x;
   wnMovimenti();
+}
+
+/* un prelievo in corso (TON o USDT): SOLO lo stato vero del server */
+function wnWdQuanto(p, un){
+  var n = (un === 'USDT') ? (p.usdt != null ? p.usdt : p.amount) : (p.ton != null ? p.ton : p.amount);
+  if(n != null && isFinite(+n) && +n > 0) return wnTon(+n) + ' ' + un;
+  if(p.cent != null) return wnEur((+p.cent)/100);
+  return un;
+}
+function wnCorsoWd(p, un){
+  var f = wnFaseWd(p);
+  return '<div class="wn-card wn-corso" data-val="' + un + '">'
+    + '<div class="wn-row"><span class="wn-k wn-k--blu">In corso</span>'
+    + '<span class="wn-nota">' + wnEsc(WN_STATI_WD[p.stato] || p.stato || '') + '</span></div>'
+    + '<div class="wn-row"><span><span>Prelievo</span> <span>' + wnEsc(wnWdQuanto(p, un)) + '</span></span>'
+    + '<span class="wn-mono wn-nota">' + wnEsc(wnCorto(p.dest)) + '</span></div>'
+    + wnBarra(f, 3)
+    + '<div class="wn-nota">Richiesto · In uscita · Arrivato nel wallet</div>'
+    + (p.hash ? '<a class="wn-a" target="_blank" rel="noopener" href="https://tonviewer.com/transaction/'
+        + encodeURIComponent(p.hash) + '">Controlla su tonviewer</a>' : '')
+    + '</div>';
+}
+/* quanto arriva di un deposito firmato: TON netti, o euro stimati per USDT */
+function wnDepNetto(d){
+  if(d && d.val === 'USDT') return (d.eur != null) ? wnEur(d.eur) : (wnUsdt(d.net) + ' USDT');
+  return wnTon(d.net) + ' TON';
 }
 
 /* ── MOVIMENTI, PER GIORNO ──────────────────────────────────────────────
@@ -114765,9 +114960,19 @@ function wnMovimenti(){
                  testo: eurR != null ? wnEur(eurR) : (wnTon(r.amount || r.ton) + ' TON'),
                  segno:'−', tipo:'wd' });
   }
+  /* (04/10) i prelievi USDT pagati, dallo storico USDT del server */
+  var hu = (wnU() && wnU().history) || [];
+  for(var ju = 0; ju < hu.length; ju++){
+    var ru = hu[ju] || {};
+    var tsu = parseInt(ru.ts || ru.timestamp || 0, 10);
+    var nu = (ru.usdt != null) ? ru.usdt : ru.amount;
+    var eurU = (ru.eur != null) ? +ru.eur : ((ru.cent != null) ? (+ru.cent)/100 : null);
+    righe.push({ ts:tsu, titolo:'Prelievo USDT', sotto:'Pagato', extra: (nu != null ? wnUsdt(nu) + ' USDT' : ''),
+                 testo: eurU != null ? wnEur(eurU) : (wnUsdt(nu) + ' USDT'), segno:'−', tipo:'wd' });
+  }
   var d = wnDepLeggi();
-  if(d) righe.push({ ts: Math.floor(d.ts/1000), titolo:'Deposito TON', sotto:'In arrivo',
-                     extra: wnTon(d.ton) + ' TON', testo: '≈ ' + wnTon(d.net) + ' TON', segno:'+', tipo:'dep', blu:true });
+  if(d) righe.push({ ts: Math.floor(d.ts/1000), titolo: (d.val === 'USDT' ? 'Deposito USDT' : 'Deposito TON'), sotto:'In arrivo',
+                     extra: wnTon(d.ton) + ' ' + wnDepUn(d), testo: '≈ ' + wnDepNetto(d), segno:'+', tipo:'dep', blu:true });
   righe.sort(function(a, b){ return (b.ts||0) - (a.ts||0); });
   if(!righe.length){
     box.innerHTML = '<div class="wn-card wn-vuoto">'
@@ -114828,22 +115033,41 @@ function wnCarica(){
 
   var st = TONUI.st, testa = wnEl('wn-ton-testa'), h = '';
   var form = false, altro = false;
+  /* (04/10) il commutatore TON | USDT: SOLO se il server ha i depositi USDT
+     accesi. Spento → la sezione e' quella di prima, identica. */
+  var su = wnUsdtDep() && !TONUI.down;
+  var val = su ? wnValCorr() : 'TON';
+  var usdt = (val === 'USDT');
+  wnMostra('wn-val', su, 'flex');
+  var vb = document.querySelectorAll('#wn-val .wn-val__b');
+  for(var j = 0; j < vb.length; j++){
+    var von = su && vb[j].getAttribute('data-v') === val;
+    vb[j].className = 'wn-val__b' + (von ? ' on' : '');
+    vb[j].setAttribute('aria-selected', von ? 'true' : 'false');
+  }
+  wnTesto('wn-dep-unit', usdt ? 'USDT' : 'TON');
   if(TONUI.down){
     h = '<div class="wn-card wn-info"><div>Il TON non è disponibile adesso. Il tuo saldo è al sicuro: qui non cambia niente.</div></div>';
   } else if(!st){
     h = '<div class="wn-card wn-info"><div>Carico…</div></div>';
   } else {
     var dep = st.deposit || {};
-    if(!dep.enabled){
-      h = '<div class="wn-card wn-info"><div>I depositi in TON non sono ancora aperti. Per ora puoi caricare con la carta o con Bitcoin.</div></div>';
+    var u = wnU() || {}, udep = u.deposit || {};
+    var aperto = usdt ? !!(udep.address || dep.address) : !!dep.enabled;
+    if(!aperto){
+      h = '<div class="wn-card wn-info"><div>' + (usdt
+        ? 'I depositi in USDT non sono disponibili adesso. Per ora puoi caricare in TON, con la carta o con Bitcoin.'
+        : (su ? 'I depositi in TON non sono ancora aperti. Per ora puoi caricare in USDT, con la carta o con Bitcoin.'
+              : 'I depositi in TON non sono ancora aperti. Per ora puoi caricare con la carta o con Bitcoin.')) + '</div></div>';
     } else if(st.connected && typeof TON_CONNECT_UI !== 'undefined'){
-      var wt = wnWalletTon();
+      var wv = usdt ? wnWalletUsdt() : wnWalletTon();
+      var car = usdt ? WN_UB.carico : WN_WB.carico;
       h = '<div class="wn-card wn-tg wn-blu"><div class="wn-ic" style="width:40px;height:40px;">' + WN_IC.ton + '</div>'
         + '<div class="wn-tg__tx"><div class="wn-nota">'
         + (wnNomeWallet() === 'Wallet di Telegram' ? 'Dal tuo Wallet di Telegram' : 'Dal tuo wallet collegato') + '</div>'
         + '<div class="wn-b" style="font-size:16px;">'
-        + (wt != null ? '<span>' + wnTon(wt) + ' TON</span> <span>disponibili</span>'
-            : (WN_WB.carico ? '<span>Leggo il saldo…</span>' : '<span class="wn-mono" style="font-size:13px;">' + wnEsc(wnCorto(st.address)) + '</span>'))
+        + (wv != null ? '<span>' + wnTon(wv) + ' ' + (usdt ? 'USDT' : 'TON') + '</span> <span>disponibili</span>'
+            : (car ? '<span>Leggo il saldo…</span>' : '<span class="wn-mono" style="font-size:13px;">' + wnEsc(wnCorto(st.address)) + '</span>'))
         + '</div></div></div>'
         + '<button class="wn-link" onclick="tonUiCollega()">Collega un altro wallet</button>';
       form = true; altro = true;
@@ -114854,19 +115078,38 @@ function wnCarica(){
       h = wnCollegaHtml('');
       altro = true;
     }
-    wnTesto('wn-dep-addr', dep.address || '');
-    wnTesto('wn-dep-memo', dep.memo || '');
-    wnTesto('wn-dep-min', (st.min_withdraw ? wnTon(st.min_withdraw) + ' TON' : '—'));
+    wnTesto('wn-dep-addr', (usdt ? (udep.address || dep.address) : dep.address) || '');
+    wnTesto('wn-dep-memo', (usdt ? (udep.memo || dep.memo) : dep.memo) || '');
+    if(usdt){
+      var um = wnUsdtMin();
+      wnTesto('wn-dep-min', um > 0 ? (wnUsdt(um) + ' USDT') : '—');
+      wnMostra('wn-dep-min-r', um > 0, 'flex');
+    } else {
+      wnTesto('wn-dep-min', (st.min_withdraw ? wnTon(st.min_withdraw) + ' TON' : '—'));
+      wnMostra('wn-dep-min-r', true, 'flex');
+    }
   }
   if(testa && testa.getAttribute('data-h') !== h){ testa.innerHTML = h; testa.setAttribute('data-h', h); }
   wnMostra('wn-ton-form', form, 'flex');
   wnMostra('wn-altro-box', altro, 'flex');
   wnMostra('wn-altro', altro && WN.altro);
+  /* indirizzo e memo valgono per tutt'e due: lo si dice */
+  wnMostra('wn-altro-usdt', su);
   wnTesto('wn-altro-lab', WN.altro ? 'Nascondi indirizzo e memo' : 'Mandi da un altro wallet? Indirizzo e memo');
   if(form) wnDepChips();
 }
+/* il minimo del deposito USDT, se il server lo dice (se no decide lui) */
+function wnUsdtMin(){
+  var u = wnU() || {};
+  var v = (u.min_deposit != null) ? +u.min_deposit : 0;
+  return (isFinite(v) && v > 0) ? v : 0;
+}
 function wnDepLimiti(){
   var st = TONUI.st || {};
+  if(wnValCorr() === 'USDT'){
+    var wu = wnWalletUsdt();
+    return { min: wnUsdtMin(), max: (wu != null) ? Math.max(0, Math.floor(wu * 100 + 1e-6) / 100) : null, usdt:true };
+  }
   var wt = wnWalletTon();
   var max = (wt != null) ? Math.max(0, Math.floor((wt - 0.05) * 100) / 100) : null;
   return { min: +(st.min_withdraw || 0), max: max };
@@ -114875,10 +115118,15 @@ function wnDepChips(){
   var L = wnDepLimiti(), box = wnEl('wn-dep-chips'), inp = wnEl('tonui-depamt');
   if(!box) return;
   var vals = [];
-  [5, 10, 25, 50].forEach(function(v){
-    if(v >= L.min && (L.max == null || v <= L.max)) vals.push({ v:v, lab:String(v) });
-  });
-  if(L.max != null && L.max >= L.min && L.max > 0) vals.push({ v:L.max, lab:'MAX' });
+  /* USDT: importi SOLO dal saldo letto del wallet; se non si legge, niente
+     importi (si scrive a mano) */
+  if(!(L.usdt && L.max == null)){
+    (L.usdt ? [10, 25, 50, 100] : [5, 10, 25, 50]).forEach(function(v){
+      if(v >= L.min && (L.max == null || v <= L.max)) vals.push({ v:v, lab:String(v) });
+    });
+    if(L.max != null && L.max >= L.min && L.max > 0 && !(L.usdt && vals.length && vals[vals.length-1].v === L.max))
+      vals.push({ v:L.max, lab:'MAX' });
+  }
   /* il primo ingresso propone 10 (o il primo importo possibile) */
   if(inp && !inp.value && !WN.depTocco && vals.length){
     var pre = null;
@@ -114891,27 +115139,46 @@ function wnDepChips(){
     var on = Math.abs(cur - vals[k].v) < 1e-9;
     h += '<button class="wn-chip' + (on ? ' on' : '') + '" onclick="wnDepImporto(' + vals[k].v + ')">' + vals[k].lab + '</button>';
   }
-  if(!h && L.max != null) h = '<div class="wn-nota">Nel wallet non ci sono abbastanza TON per il deposito minimo.</div>';
+  if(!h && L.max != null) h = '<div class="wn-nota">' + (L.usdt
+    ? 'Nel wallet collegato non ci sono USDT. Puoi mandarli da un altro wallet con indirizzo e memo.'
+    : 'Nel wallet non ci sono abbastanza TON per il deposito minimo.') + '</div>';
   if(box.getAttribute('data-h') !== h){ box.innerHTML = h; box.setAttribute('data-h', h); }
+  box.style.display = h ? '' : 'none';
   wnDepRiepilogo();
 }
+/* toccato un importo, la moneta non cambia piu' da sola (il saldo USDT del
+   wallet puo' arrivare dopo e spostare la prima scelta sotto il dito) */
+function wnValFerma(){ if(wnUsdtDep() && WN.val !== 'USDT' && WN.val !== 'TON') WN.val = wnValCorr(); }
 function wnDepImporto(v){
   var i = wnEl('tonui-depamt');
-  WN.depTocco = true;
+  WN.depTocco = true; wnValFerma();
   if(i) i.value = wnEn() ? String(v) : String(v).replace('.', ',');
   wnDepChips();
 }
-function wnDepAgg(){ WN.depTocco = true; wnDepChips(); }
+function wnDepAgg(){ WN.depTocco = true; wnValFerma(); wnDepChips(); }
 function wnDepRiepilogo(){
   var st = TONUI.st || {}, i = wnEl('tonui-depamt');
   var v = i ? wnLeggi(i.value) : NaN;
-  var fee = (st.deposit_fee_pct != null) ? +st.deposit_fee_pct : 5;
-  wnTesto('wn-dep-mandi', (v > 0) ? (wnTon(v) + ' TON') : '—');
-  wnTesto('wn-dep-fee', wnNum(fee, (fee % 1) ? 1 : 0) + '%');
-  wnTesto('wn-dep-arriva', (v > 0) ? ('≈ ' + wnTon(v * (1 - fee/100)) + ' TON') : '—');
   var L = wnDepLimiti(), a = '';
-  if(v > 0 && v < L.min) a = 'Il minimo è ' + wnTon(L.min) + ' TON';
-  else if(v > 0 && L.max != null && v > L.max) a = 'Nel wallet non bastano: tieni 0,05 TON per la commissione di rete.';
+  if(L.usdt){
+    var fu = wnUsdtFee(), net = v * (1 - fu/100), eur = wnUsdtEur(net);
+    wnTesto('wn-dep-mandi', (v > 0) ? (wnUsdt(v) + ' USDT') : '—');
+    wnTesto('wn-dep-fee', wnNum(fu, (fu % 1) ? 1 : 0) + '%');
+    wnTesto('wn-dep-arriva', (v > 0) ? ('≈ ' + (eur != null ? wnEur(eur) : (wnUsdt(net) + ' USDT'))) : '—');
+    if(v > 0 && v < L.min) a = 'Il minimo è ' + wnUsdt(L.min) + ' USDT';
+    else if(v > 0 && L.max != null && v > L.max) a = 'Nel wallet non ci sono abbastanza USDT.';
+    else {
+      var wt = wnWalletTon();
+      if(v > 0 && wt != null && wt < 0.1) a = 'Per mandare USDT serve anche un po’ di TON nel wallet, per la commissione di rete.';
+    }
+  } else {
+    var fee = (st.deposit_fee_pct != null) ? +st.deposit_fee_pct : 5;
+    wnTesto('wn-dep-mandi', (v > 0) ? (wnTon(v) + ' TON') : '—');
+    wnTesto('wn-dep-fee', wnNum(fee, (fee % 1) ? 1 : 0) + '%');
+    wnTesto('wn-dep-arriva', (v > 0) ? ('≈ ' + wnTon(v * (1 - fee/100)) + ' TON') : '—');
+    if(v > 0 && v < L.min) a = 'Il minimo è ' + wnTon(L.min) + ' TON';
+    else if(v > 0 && L.max != null && v > L.max) a = 'Nel wallet non bastano: tieni 0,05 TON per la commissione di rete.';
+  }
   var e = wnEl('wn-dep-avv');
   if(e){ e.textContent = a; e.style.display = a ? '' : 'none'; }
 }
@@ -114919,8 +115186,10 @@ function wnDeposita(){
   var i = wnEl('tonui-depamt');
   var v = i ? wnLeggi(i.value) : NaN;
   var L = wnDepLimiti();
-  if(!(v > 0)){ tonUiDici('Scrivi quanti TON vuoi caricare.'); return; }
+  if(!(v > 0)){ tonUiDici(L.usdt ? 'Scrivi quanti USDT vuoi caricare.' : 'Scrivi quanti TON vuoi caricare.'); return; }
   if(v < L.min){ wnDepRiepilogo(); return; }
+  /* USDT: oltre il saldo del wallet la transazione fallirebbe nel wallet */
+  if(L.usdt && L.max != null && v > L.max){ wnDepRiepilogo(); return; }
   if(i) i.value = String(v);           /* il server vuole il punto */
   tonUiDepositaDalWallet();
 }
@@ -114929,8 +115198,16 @@ function wnDeposita(){
 function wnMonete(){
   var m = S.moneteUscita;
   var l = (m && m.length) ? m.slice() : ['TON', 'BTC'];
-  /* come nel disegno: il TON (un tocco) prima del Bitcoin (chat del bot) */
-  l.sort(function(a, b){ return (a === 'TON' ? 0 : 1) - (b === 'TON' ? 0 : 1); });
+  /* (04/10) USDT: se il server lo mette in monete_uscita (hai caricato in
+     USDT) c'e' sempre, e il pannello dice se e' chiuso; con la lista vuota
+     (mai caricato) c'e' solo se i prelievi USDT sono accesi. Con USDT spento
+     e altre monete permesse, non si vede. */
+  var iu = l.indexOf('USDT');
+  if(iu < 0 && !(m && m.length) && wnUsdtWd()) l.push('USDT');
+  else if(iu >= 0 && !wnU() && l.length > 1) l.splice(iu, 1);
+  /* come nel disegno: il TON (un tocco) prima, poi USDT, poi il Bitcoin (chat del bot) */
+  var ord = { TON:0, USDT:1, BTC:2 };
+  l.sort(function(a, b){ return (ord[a] != null ? ord[a] : 3) - (ord[b] != null ? ord[b] : 3); });
   return l;
 }
 function wnDest(d){ WN.dst = d; var e = wnEl('wn-wd-err'); if(e) e.style.display = 'none'; wnRender(); }
@@ -114940,6 +115217,12 @@ function wnWdBase(){
   if(st.saldo_eur != null) b = Math.min(b, +st.saldo_eur);
   return Math.max(0, Math.floor(b * 100 + 1e-6) / 100);
 }
+function wnWdUsdt(){ return WN.dst === 'USDT'; }
+function wnWdMin(){
+  var st = TONUI.st || null, u = wnU();
+  if(wnWdUsdt() && u && u.min_cent != null) return (+u.min_cent)/100;
+  return (st && st.min_cent != null) ? (+st.min_cent)/100 : 10;
+}
 function wnPrelevaV(){
   var mon = wnMonete();
   if(!WN.dst || mon.indexOf(WN.dst) < 0) WN.dst = (mon.indexOf('TON') >= 0) ? 'TON' : mon[0];
@@ -114948,50 +115231,64 @@ function wnPrelevaV(){
   var h = '';
   for(var i = 0; i < mon.length; i++){
     var k = mon[i], on = (k === WN.dst);
-    var nome = (k === 'TON') ? 'Wallet di Telegram (TON)' : (k === 'BTC' ? 'Bitcoin' : k);
-    var sotto = (k === 'TON')
+    var tw = (k === 'TON' || k === 'USDT');
+    var nome = (k === 'TON') ? 'Wallet di Telegram (TON)' : (k === 'USDT' ? 'Wallet di Telegram (USDT)' : (k === 'BTC' ? 'Bitcoin' : k));
+    var sotto = tw
       ? ((st && st.connected) ? wnCorto(st.address) : 'Wallet da collegare')
       : (k === 'BTC' ? 'Indirizzo e importo nella chat del bot' : '');
-    h += '<button class="wn-d' + (on ? ' on' : '') + '" role="radio" aria-checked="' + (on ? 'true' : 'false') + '" onclick="wnDest(\'' + k + '\')">'
+    h += '<button class="wn-d' + (on ? ' on' : '') + '" role="radio" aria-checked="' + (on ? 'true' : 'false') + '" data-k="' + wnEsc(k) + '" onclick="wnDest(\'' + k + '\')">'
       + '<div class="wn-d__o"><i></i></div><div class="wn-d__tx"><div class="wn-d__t">' + wnEsc(nome) + '</div>'
-      + '<div class="wn-d__s' + ((k === 'TON' && st && st.connected) ? ' wn-mono' : '') + '">' + wnEsc(sotto) + '</div></div></button>';
+      + '<div class="wn-d__s' + ((tw && st && st.connected) ? ' wn-mono' : '') + '">' + wnEsc(sotto) + '</div></div></button>';
   }
   var dd = wnEl('wn-dest');
   if(dd && dd.getAttribute('data-h') !== h){ dd.innerHTML = h; dd.setAttribute('data-h', h); }
 
   var m = S.moneteUscita, nota = '';
   if(m && m.length === 0) nota = 'Non hai ancora caricato: il primo prelievo segue la moneta con cui carichi.';
-  else if(m && m.length > 1) nota = 'Hai caricato in Bitcoin e TON: puoi prelevare in tutt’e due.';
+  else if(m && m.length === 2 && m.indexOf('BTC') >= 0 && m.indexOf('TON') >= 0) nota = 'Hai caricato in Bitcoin e TON: puoi prelevare in tutt’e due.';
+  else if(m && m.length > 1) nota = 'Puoi prelevare in ognuna delle monete con cui hai caricato.';
   else if(m && m[0] === 'TON') nota = 'Hai caricato in TON: il prelievo esce in TON.';
   else if(m && m[0] === 'BTC') nota = 'Hai caricato in Bitcoin: il prelievo esce in Bitcoin.';
+  else if(m && m[0] === 'USDT') nota = 'Hai caricato in USDT: il prelievo esce in USDT.';
   var ne = wnEl('wn-monete'); if(ne){ ne.textContent = nota; ne.style.display = nota ? '' : 'none'; }
 
-  var minE = (st && st.min_cent != null) ? (+st.min_cent)/100 : 10;
-  wnTesto('wn-min', wnEur(minE).replace(/[.,]00$/, ''));
+  wnTesto('wn-min', wnEur(wnWdMin()).replace(/[.,]00$/, ''));
 
-  var isTon = (WN.dst === 'TON');
+  var usdt = wnWdUsdt();
+  var isTon = (WN.dst === 'TON') || usdt;
   wnMostra('wn-wd-ton', isTon, 'flex');
   wnMostra('wn-wd-btc', !isTon, 'flex');
   if(!isTon) return;
 
-  var x = '', form = false;
+  var x = '', form = false, u = wnU();
   if(TONUI.down) x = '<div class="wn-card wn-info"><div>Il TON non è disponibile adesso. Il tuo saldo è al sicuro: qui non cambia niente.</div></div>';
   else if(!st) x = '<div class="wn-card wn-info"><div>Carico…</div></div>';
-  else if(!st.withdraw_enabled) x = '<div class="wn-card wn-info"><div>I prelievi in TON non sono ancora aperti. Il tuo saldo resta dov’è.</div></div>';
-  else if(!st.connected) x = wnCollegaHtml('Per prelevare in TON collega prima il wallet dove vuoi ricevere i TON: il prelievo arriva solo lì, così non c’è un indirizzo da scrivere e da sbagliare.');
-  else if(st.pending) x = '<div class="wn-card wn-info"><div>Un prelievo alla volta: ne hai già uno in corso. Lo segui nel wallet, sotto «In corso».</div></div>'
+  else if(usdt && !wnUsdtWd()) x = '<div class="wn-card wn-info"><div>I prelievi in USDT non sono disponibili adesso. Il tuo saldo resta dov’è.</div></div>';
+  else if(!usdt && !st.withdraw_enabled) x = '<div class="wn-card wn-info"><div>I prelievi in TON non sono ancora aperti. Il tuo saldo resta dov’è.</div></div>';
+  else if(!st.connected) x = wnCollegaHtml(usdt
+      ? 'Per prelevare in USDT collega prima il wallet dove vuoi ricevere gli USDT: il prelievo arriva solo lì, così non c’è un indirizzo da scrivere e da sbagliare.'
+      : 'Per prelevare in TON collega prima il wallet dove vuoi ricevere i TON: il prelievo arriva solo lì, così non c’è un indirizzo da scrivere e da sbagliare.');
+  else if(usdt ? (u && u.pending) : st.pending) x = '<div class="wn-card wn-info"><div>Un prelievo alla volta: ne hai già uno in corso. Lo segui nel wallet, sotto «In corso».</div></div>'
       + '<button class="wn-btn2" onclick="wnVai(\'home\')">Vedi «In corso»</button>';
   else form = true;
   var se = wnEl('wn-wd-stato');
   if(se && se.getAttribute('data-h') !== x){ se.innerHTML = x; se.setAttribute('data-h', x); }
   wnMostra('wn-wd-form', form, 'flex');
   if(!form) return;
-  var tempo;
-  if(st.auto_illimitato) tempo = 'Entro un minuto, in automatico';
-  else if(parseFloat(st.auto_limit || 0) <= 0) tempo = 'Dopo l’approvazione di un operatore';
-  else tempo = 'In automatico fino al tuo tetto, oltre lo approva un operatore';
-  wnTesto('wn-wd-tempo', tempo);
   wnWdAgg(true);
+}
+/* il tempo del prelievo: il server dice il tetto automatico */
+function wnWdTempo(v){
+  var st = TONUI.st || {}, u = wnU() || {};
+  if(wnWdUsdt()){
+    var lim = (u.auto_limit_cent != null) ? +u.auto_limit_cent : 0;
+    if(!(lim > 0)) return 'Dopo l’approvazione di un operatore';
+    if(v > 0) return (Math.round(v * 100) <= lim) ? 'Entro un minuto, in automatico' : 'Dopo l’approvazione di un operatore';
+    return 'In automatico fino al tuo tetto, oltre lo approva un operatore';
+  }
+  if(st.auto_illimitato) return 'Entro un minuto, in automatico';
+  if(parseFloat(st.auto_limit || 0) <= 0) return 'Dopo l’approvazione di un operatore';
+  return 'In automatico fino al tuo tetto, oltre lo approva un operatore';
 }
 function wnQuota(q){
   var i = wnEl('tonui-amt'); if(!i) return;
@@ -115005,7 +115302,15 @@ function wnWdAgg(daQuota){
   var i = wnEl('tonui-amt');
   var v = i ? wnLeggi(i.value) : NaN;
   wnTesto('wn-wd-eur', (v > 0) ? wnEur(v) : '—');
-  wnTesto('wn-wd-btn-n', (v > 0) ? (' ' + wnEur(v)) : '');
+  wnTesto('wn-wd-btn-n', (v > 0) ? (' ' + wnEur(v)) : '');
+  wnTesto('wn-wd-tempo', wnWdTempo(v));
+  /* ricevi circa: USDT al prezzo del server, se lo sa */
+  var ric = 'TON al cambio del momento';
+  if(wnWdUsdt()){
+    var u = wnU() || {}, p = +u.prezzo_eur;
+    ric = (v > 0 && isFinite(p) && p > 0) ? ('≈ ' + wnUsdt(v / p) + ' USDT') : 'USDT al cambio del momento';
+  }
+  wnTesto('wn-wd-ricevi', ric);
   var cs = document.querySelectorAll('#wn-wd-chips .wn-chip');
   for(var k = 0; k < cs.length; k++)
     cs[k].className = 'wn-chip' + ((WN.quota != null && +cs[k].getAttribute('data-q') === WN.quota) ? ' on' : '');
@@ -115016,37 +115321,45 @@ function wnWdErr(t){
   if(t && typeof toast === 'function') toast(t, 'err');
 }
 function wnPreleva(){
-  var st = TONUI.st || {}, i = wnEl('tonui-amt');
+  var i = wnEl('tonui-amt');
   var v = i ? wnLeggi(i.value) : NaN;
-  var minE = (st.min_cent != null) ? (+st.min_cent)/100 : 10;
+  var minE = wnWdMin();
   if(!(v > 0)){ wnWdErr('Scrivi quanto vuoi prelevare.'); return; }
   if(v + 1e-9 < minE){ wnWdErr('Il prelievo minimo è ' + wnEur(minE)); return; }
   if(v > wnWdBase() + 1e-9){ wnWdErr('Non ci sono abbastanza euro disponibili per questo importo.'); return; }
   wnWdErr('');
-  /* tonUiPreleva legge #tonui-amt: col punto, che e' cio' che il server parsa */
+  /* tonUiPreleva legge #tonui-amt: col punto, che e' cio' che il server parsa.
+     WN.wdVal le dice la moneta (letta SUBITO, prima della chiamata). */
   if(i) i.value = v.toFixed(2);
-  tonUiPreleva();
+  WN.wdVal = wnWdUsdt() ? 'USDT' : 'TON';
+  try{ tonUiPreleva(); } finally { WN.wdVal = null; }
   if(i) i.value = wnNum(v, 2);
 }
-function wnWdOk(d){
-  WN.ok = { tipo:'wd', ton: +d.amount || 0, eur: (d.eur != null) ? +d.eur : null, rid: d.rid || '',
-            needs: !!d.needs_approval, ferma: !!d.queue_paused, ts: Date.now(), fase:1, visto:false, finito:false };
+function wnWdOk(d, valuta){
+  var usdt = (valuta === 'USDT');
+  var q = usdt ? ((d.usdt != null) ? +d.usdt : (+d.amount || 0)) : (+d.amount || 0);
+  WN.ok = { tipo:'wd', val: usdt ? 'USDT' : 'TON', ton: q || 0, eur: (d.eur != null) ? +d.eur : ((d.cent != null) ? (+d.cent)/100 : null),
+            rid: d.rid || '', needs: !!d.needs_approval, ferma: !!d.queue_paused, capienza: !!d.capienza,
+            ts: Date.now(), fase:1, visto:false, finito:false };
   var i = wnEl('tonui-amt'); if(i) i.value = '';
   wnVai('ok');
 }
 /* il prelievo dopo la richiesta: i passi si accendono con /ton/state */
 function wnWdSegui(){
   var o = WN.ok, st = TONUI.st; if(!o || !st) return;
-  var p = st.pending;
+  var usdt = (o.val === 'USDT'), u = wnU() || {};
+  var p = usdt ? u.pending : st.pending;
   if(p && (!o.rid || !p.rid || p.rid === o.rid)){
     o.visto = true; o.fase = Math.max(o.fase, wnFaseWd(p)); o.stato = p.stato; o.hash = p.hash || o.hash;
+    if(usdt && !o.ton && p.usdt != null) o.ton = +p.usdt;
     if(p.confermato) o.finito = true;
   } else if(o.visto && !p){
     /* sparito dai «in corso»: e' nello storico se e' stato pagato */
-    var hs = st.history || [];
+    var hs = (usdt ? u.history : st.history) || [];
     for(var k = 0; k < hs.length; k++){
       var r = hs[k] || {};
-      if((o.rid && r.rid === o.rid) || (Math.abs((+r.amount || +r.ton || 0) - o.ton) < 1e-6 &&
+      var rq = usdt ? (+r.usdt || +r.amount || 0) : (+r.amount || +r.ton || 0);
+      if((o.rid && r.rid === o.rid) || (o.ton > 0 && Math.abs(rq - o.ton) < 1e-6 &&
          parseInt(r.ts || 0, 10) * 1000 >= o.ts - 120000)){ o.finito = true; o.fase = 3; break; }
     }
   }
@@ -115062,25 +115375,30 @@ function wnPassi(lista){
 function wnOk(){
   var o = WN.ok; if(!o) return;
   var t, x, passi, sum = '', nota = '', fatto;
+  var un = (o.val === 'USDT') ? 'USDT' : 'TON';
   if(o.tipo === 'dep'){
     fatto = !!o.accr;
     t = fatto ? 'Deposito accreditato' : 'Deposito inviato';
     x = fatto ? 'Gli euro sono sul tuo conto. Buon divertimento.'
               : 'Hai confermato nel wallet. Ti accreditiamo gli euro appena la rete lo conferma, di solito in un paio di minuti.';
     passi = [['Confermato nel wallet', true], ['Visto sulla rete TON', fatto], ['Euro sul conto', fatto]];
-    sum = '<div class="wn-row"><span class="wn-mut">Mandi</span><span class="wn-b">' + wnTon(o.ton) + ' TON</span></div>'
-        + '<div class="wn-row"><span class="wn-mut">Arriva sul conto</span><span class="wn-b">≈ ' + wnTon(o.net) + ' TON</span></div>';
+    sum = '<div class="wn-row"><span class="wn-mut">Mandi</span><span class="wn-b">' + wnTon(o.ton) + ' ' + un + '</span></div>'
+        + '<div class="wn-row"><span class="wn-mut">Arriva sul conto</span><span class="wn-b">≈ '
+        + wnEsc(wnDepNetto({ val:o.val, net:o.net, eur:o.eur })) + '</span></div>';
     if(!fatto) nota = 'Puoi chiudere questa pagina: il saldo si aggiorna da solo.';
   } else {
     fatto = !!o.finito;
     t = fatto ? 'Prelievo arrivato' : 'Prelievo richiesto';
-    if(fatto) x = 'I TON sono nel tuo wallet.';
-    else if(o.ferma) x = 'La coda dei prelievi TON è ferma mentre chiariamo un pagamento precedente: il tuo parte appena riparte, e fino ad allora puoi annullarlo.';
+    if(fatto) x = (un === 'USDT') ? 'Gli USDT sono nel tuo wallet.' : 'I TON sono nel tuo wallet.';
+    else if(o.capienza) x = 'La cassa USDT si sta ricaricando: il tuo prelievo parte appena c’è copertura. Non si perde niente. Puoi seguirlo nel wallet, sotto «In corso».';
+    else if(o.ferma) x = (un === 'USDT')
+      ? 'La coda dei prelievi USDT è ferma mentre chiariamo un pagamento precedente: il tuo parte appena riparte. Non si perde niente.'
+      : 'La coda dei prelievi TON è ferma mentre chiariamo un pagamento precedente: il tuo parte appena riparte, e fino ad allora puoi annullarlo.';
     else if(o.needs) x = 'Parte appena un operatore lo approva. Puoi seguirlo nel wallet, sotto «In corso».';
     else x = 'Parte in automatico entro un minuto verso il tuo wallet. Puoi seguirlo nel wallet, sotto «In corso».';
     passi = [['Richiesta registrata', true], ['Pagamento in uscita', o.fase >= 2 || fatto], ['Arrivato nel wallet', fatto]];
     sum = (o.eur != null ? '<div class="wn-row"><span class="wn-mut">Prelevi</span><span class="wn-b">' + wnEur(o.eur) + '</span></div>' : '')
-        + '<div class="wn-row"><span class="wn-mut">Ricevi</span><span class="wn-b">' + wnTon(o.ton) + ' TON</span></div>';
+        + (o.ton > 0 ? '<div class="wn-row"><span class="wn-mut">Ricevi</span><span class="wn-b">' + wnTon(o.ton) + ' ' + un + '</span></div>' : '');
     if(o.stato && WN_STATI_WD[o.stato] && !fatto) nota = WN_STATI_WD[o.stato];
   }
   wnTesto('wn-ok-t', t);
