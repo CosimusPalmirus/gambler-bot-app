@@ -1222,7 +1222,8 @@ window.TV=window.TV||{};TV.MANIFESTO={"versione":"20260925","pezzi":{"R":{"n":20
 
 
 /* ── 30_dama.js ── */
-/* 30_dama.js — la DAMA ITALIANA in 3D.
+/* 30_dama.js — la DAMA ITALIANA in 3D (e dal 05/10/2026 la DAMA RUSSA,
+ * `TV.giochi.damaru`: stessa scena, `russa` acceso, legge anche `mvp` e `presi`).
  *
  * Legge SOLO lo snapshot di classic_rt.Dama: bd (64 cifre: 0 vuoto, 1/2 pedina/
  * dama del seat 0, 3/4 del seat 1), mv [[da,a]] (solo a chi tocca), chain, seat,
@@ -1277,7 +1278,15 @@ TV.giochi = TV.giochi || {};
     return g;
   }
 
-  TV.giochi.dama = function (S, o) {
+  // DAMA RUSSA (05/10/2026): la stessa scena, con le regole russe. Cambia
+  // poco e solo per lei: la presa non e' piu' a meta' strada (la dama VOLA e
+  // mangia a distanza: il pezzo preso lo dice `mvp` dello snapshot), e i pezzi
+  // gia' presi nella mossa (`presi`, colpo turco) restano segnati fino a fine
+  // mossa perche' fanno ancora da ostacolo.
+  TV.giochi.damaru = function (S, o) { return TV.giochi.dama(S, o, true); };
+  TV.giochi.dama = function (S, o, russa) {
+    russa = !!russa;
+    var GK = russa ? 'damaru' : 'dama';
     var G = {}, io = String(o.io || ''), spett = !!o.spettatore, en = o.lingua === 'en';
     var L = function (it, e) { return en ? e : it; };
     var mondo = TV.mondo(S, { largo: 10, profondo: 13, panno: 'verde' });
@@ -1330,7 +1339,36 @@ TV.giochi = TV.giochi || {};
           path.push({ a: li, preso: mi }); giro(li, r2, path); path.pop();
         }
       }
-      giro(da, presi.slice(), []);
+      // RUSSA: la dama mangia a qualunque distanza e atterra ovunque dopo il
+      // pezzo; la pedina come sempre. La strada si cerca camminando la diagonale.
+      function giroR(p, rest, path) {
+        if (best) return;
+        if (!rest.length) { if (p === a) best = path.slice(); return; }
+        var P = rc(p);
+        for (var d = 0; d < 4; d++) {
+          var dr = d < 2 ? -1 : 1, dc = d % 2 ? 1 : -1;
+          for (var k = 1; k < 8; k++) {
+            var r = P[0] + dr * k, c = P[1] + dc * k;
+            if (r < 0 || r > 7 || c < 0 || c > 7) break;
+            var i = r * 8 + c, j = rest.indexOf(i);
+            if (j >= 0) {
+              for (var L = k + 1; L < 8; L++) {
+                var lr = P[0] + dr * L, lc = P[1] + dc * L;
+                if (lr < 0 || lr > 7 || lc < 0 || lc > 7) break;
+                var li = lr * 8 + lc;
+                if (li !== da && +bdPrima.charAt(li) !== 0) break;
+                var r2 = rest.slice(); r2.splice(j, 1);
+                path.push({ a: li, preso: i }); giroR(li, r2, path); path.pop();
+                if (best) return;
+              }
+              break;
+            }
+            if (i !== da && +bdPrima.charAt(i) !== 0) break;
+          }
+        }
+      }
+      if (russa) giroR(da, presi.slice(), []);
+      else giro(da, presi.slice(), []);
       return best;
     }
 
@@ -1440,7 +1478,7 @@ TV.giochi = TV.giochi || {};
 
     // ── snapshot ────────────────────────────────────────────────────────
     G.snap = function (raw) {
-      if (!raw || raw.g && raw.g !== 'dama' || typeof raw.bd !== 'string' || raw.bd.length !== 64) return;
+      if (!raw || raw.g && raw.g !== GK || typeof raw.bd !== 'string' || raw.bd.length !== 64) return;
       var seat = raw.seat === 1 ? 1 : 0;
       if (spett) seat = 0;
       if (st.raw && seat !== st.seat) { st.seat = seat; st.bd = null; }
@@ -1505,10 +1543,17 @@ TV.giochi = TV.giochi || {};
       tempo += dt;
       var raw = st.raw, mine = mioTurno(), mv = (raw && mine) ? (raw.mv || []) : [];
       var fonti = {}, dest = {}, presaObbl = false, catene = raw && raw.chain != null;
-      mv.forEach(function (m) {
+      // il pezzo che la mossa k mangia: la russa lo dice (`mvp`), la italiana e' a meta' strada
+      var mvp = (russa && raw && raw.mvp && raw.mvp.length === mv.length) ? raw.mvp : null;
+      function presoDi(m, k) {
+        if (mvp) return mvp[k];
+        if (russa) return -1;
+        return Math.abs(Math.floor(m[1] / 8) - Math.floor(m[0] / 8)) === 2 ? ((Math.floor(m[0] / 8) + Math.floor(m[1] / 8)) / 2) * 8 + ((m[0] % 8) + (m[1] % 8)) / 2 : -1;
+      }
+      mv.forEach(function (m, k) {
         fonti[m[0]] = 1;
-        if (Math.abs(Math.floor(m[1] / 8) - Math.floor(m[0] / 8)) === 2) presaObbl = true;
-        if (st.sel != null && m[0] === st.sel) dest[m[1]] = m;
+        if (presoDi(m, k) >= 0) presaObbl = true;
+        if (st.sel != null && m[0] === st.sel) dest[m[1]] = presoDi(m, k);
       });
       var pul = S.pulsa ? 0.5 + 0.5 * Math.sin(tempo * 5.2) : 0.75, moto = false;
       // pedine
@@ -1556,18 +1601,23 @@ TV.giochi = TV.giochi || {};
           else segni.metti(q.x, 0.01, q.z, 1.0, 0xa3e635, 0.22);
         });
         Object.keys(dest).forEach(function (d) {
-          d = +d; var q = pos(d), m = dest[d];
+          d = +d; var q = pos(d), mid = dest[d];
           dischi.metti(q.x, 0.008, q.z, 0.95, 0xa3e635, 0.55 + 0.35 * pul);
           segni.metti(q.x, 0.012, q.z, 0.9, 0xd9ff8a, 0.7);
-          if (Math.abs(Math.floor(m[1] / 8) - Math.floor(m[0] / 8)) === 2) {
-            var mid = ((Math.floor(m[0] / 8) + Math.floor(m[1] / 8)) / 2) * 8 + ((m[0] % 8) + (m[1] % 8)) / 2, qm = pos(mid);
+          if (mid >= 0) {
+            var qm = pos(mid);
             segni.metti(qm.x, 0.014, qm.z, 1.2, 0xff3a3a, 0.7 + 0.3 * pul);
           }
         });
         if (presaObbl && st.sel == null) {
           // tutte le pedine che si possono mangiare, in rosso: la presa e' obbligatoria
-          mv.forEach(function (m) { var mid = ((Math.floor(m[0] / 8) + Math.floor(m[1] / 8)) / 2) * 8 + ((m[0] % 8) + (m[1] % 8)) / 2, qm = pos(mid); segni.metti(qm.x, 0.014, qm.z, 1.12, 0xff3a3a, 0.35 + 0.45 * pul); });
+          mv.forEach(function (m, k) { var mid = presoDi(m, k); if (mid < 0) return; var qm = pos(mid); segni.metti(qm.x, 0.014, qm.z, 1.12, 0xff3a3a, 0.35 + 0.45 * pul); });
         }
+      }
+      if (russa && raw && raw.presi && raw.presi.length && !raw.over) {
+        // gia' mangiati in questa mossa: escono a fine mossa e fino ad allora
+        // non si scavalcano. La fiche e' volata via, la casa resta segnata.
+        raw.presi.forEach(function (pz) { var qp = pos(+pz[0]); dischi.metti(qp.x, 0.007, qp.z, 0.9, 0xff3a3a, 0.5); segni.metti(qp.x, 0.013, qp.z, 0.95, 0xff6a6a, 0.6 + 0.3 * pul); });
       }
       segni.fine(); dischi.fine();
       sc.passo(dt);
@@ -2566,7 +2616,7 @@ TV.giochi = TV.giochi || {};
  *
  * CONTRATTO
  *   TAV3D.pronto / TAV3D.errore
- *   TAV3D.avvia(o)     o = {gioco:'dama'|'backg'|'scacchi', io, lingua, lite, spettatore,
+ *   TAV3D.avvia(o)     o = {gioco:'dama'|'damaru'|'backg'|'scacchi', io, lingua, lite, spettatore,
  *                           suona(nome,vol), vibra(tipo), avvisa(tipo,dato), margineSu, margineGiu}
  *                      -> true / false. Il PRIMO FOTOGRAMMA e' disegnato prima di tornare.
  *   TAV3D.snap(x)      lo stato del server cosi' come arriva (snapshot RT o vista /duel/ch_state)
@@ -2578,7 +2628,7 @@ TV.giochi = TV.giochi || {};
 (function () {
   'use strict';
   var S = null, G = null, avvisa = null, raf = 0, tUlt = 0, ultimoFps = 0, gioco = '';
-  var P = window.TAV3D = { versione: '20260926', pronto: false, errore: null, perche: { sporco: 0, tex: 0, anim: 0, moto: 0 } };
+  var P = window.TAV3D = { versione: '20261005', pronto: false, errore: null, perche: { sporco: 0, tex: 0, anim: 0, moto: 0 } };
   function cadi(msg) {
     if (!P.errore) P.errore = String(msg || 'errore');
     if (raf) { cancelAnimationFrame(raf); raf = 0; }
