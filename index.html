@@ -17661,6 +17661,13 @@ html.oz-l #bxrt-rot{display:none!important;}
     "Il tuo wallet TON":"Your TON wallet",
     "Per caricare e prelevare in TON":"To top up and withdraw in TON",
     "In corso":"In progress",
+    "Annulla prelievo":"Cancel withdrawal",
+    "Tocca di nuovo per annullare":"Tap again to cancel",
+    "Annullamento in corso: i soldi tornano sul conto entro un minuto.":"Cancelling: the money is back on your balance within a minute.",
+    "Annullamento richiesto: i soldi tornano sul conto entro un minuto.":"Cancellation requested: the money is back on your balance within a minute.",
+    "Troppo tardi: il prelievo sta già partendo.":"Too late: the withdrawal is already leaving.",
+    "Non si è potuto annullare. Riprova.":"Could not cancel. Please try again.",
+    "Rete non disponibile. Riprova.":"Network unavailable. Please try again.",
     "Prelievo":"Withdrawal",
     "Deposito":"Deposit",
     "Richiesto · In uscita · Arrivato nel wallet":"Requested · Leaving · In your wallet",
@@ -115067,7 +115074,54 @@ function wnCorsoWd(p, un){
     + '<div class="wn-nota">Richiesto · In uscita · Arrivato nel wallet</div>'
     + (p.hash ? '<a class="wn-a" target="_blank" rel="noopener" href="https://tonviewer.com/transaction/'
         + encodeURIComponent(p.hash) + '">Controlla su tonviewer</a>' : '')
+    + wnAnnHtml(p)
     + '</div>';
+}
+/* ── ANNULLA UN PRELIEVO (08/10/2026) ─────────────────────────────────────
+   Il server dice se si puo' (`annullabile`: prima che il pagamento sia
+   prenotato). La pagina manda solo la RICHIESTA: il rimborso lo fa il bot al
+   giro dopo (max 45 s), sotto lo stesso lucchetto dei pagamenti, e poi il
+   prelievo sparisce da «In corso». Due tocchi: il primo arma per 5 secondi. */
+var WN_ANN = {};
+function wnAnnHtml(p){
+  if(!p || !p.rid) return '';
+  if(p.annulla_chiesto || WN_ANN[p.rid] === 'chiesto')
+    return '<div class="wn-nota">Annullamento in corso: i soldi tornano sul conto entro un minuto.</div>';
+  if(!p.annullabile) return '';
+  var armato = (typeof WN_ANN[p.rid] === 'number' && WN_ANN[p.rid] > Date.now());
+  return '<button class="wn-btn2" onclick="wnWdAnnulla(\'' + wnEsc(p.rid) + '\')">'
+    + (armato ? 'Tocca di nuovo per annullare' : 'Annulla prelievo') + '</button>';
+}
+function wnWdAnnulla(rid){
+  var t = WN_ANN[rid];
+  if(!(typeof t === 'number' && t > Date.now())){
+    WN_ANN[rid] = Date.now() + 5000;
+    wnHome();
+    setTimeout(function(){ if(typeof WN_ANN[rid] === 'number'){ delete WN_ANN[rid]; wnHome(); } }, 5200);
+    return;
+  }
+  WN_ANN[rid] = 'chiesto';
+  wnHome();
+  swapApi('/ton/withdraw/cancel', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ rid: rid })
+  }).then(function(res){
+    var d = res.data || {};
+    if(!res.ok || !d.ok){
+      delete WN_ANN[rid];
+      toast(d.error_code === 'tardi' ? 'Troppo tardi: il prelievo sta già partendo.'
+                                     : 'Non si è potuto annullare. Riprova.', 'error');
+    } else {
+      toast('Annullamento richiesto: i soldi tornano sul conto entro un minuto.');
+      /* il bot esegue al giro dopo: si rilegge lo stato per un paio di minuti */
+      var n = 0, iv = setInterval(function(){
+        n++; if(typeof tonUiLoad === 'function') tonUiLoad();
+        if(n >= 8) clearInterval(iv);
+      }, 15000);
+    }
+    if(typeof tonUiLoad === 'function') tonUiLoad();
+    wnHome();
+  })['catch'](function(){ delete WN_ANN[rid]; wnHome(); toast('Rete non disponibile. Riprova.', 'error'); });
 }
 /* quanto arriva di un deposito firmato: TON netti, o euro stimati per USDT */
 function wnDepNetto(d){
