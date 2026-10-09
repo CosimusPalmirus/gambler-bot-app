@@ -7697,8 +7697,45 @@ function caricaArte(fatto) {
    Qui si rifa' la stessa funzione con `transform` (dentro save/restore si
    somma a tutto quello che c'e' gia'). In `_lc_carte.js` e' una parola sola.
    ══════════════════════════════════════════════════════════════════════════ */
+/* ⛔ 09/10 · IL LAG DEL TELEFONO («lagga, devo premere più volte»).
+   Misurato (_lc_lag_misura.mjs, 390x844 DPR 2, CPU x4): 1.400 drawImage a
+   fotogramma, 8,7 fotogrammi al secondo, pagina occupata 14 s su 15, e ogni
+   tocco in coda dietro il disegno. Ogni carta, anche un dorso da 30 px degli
+   avversari, era 64 celle, e ogni cella rimpiccioliva l'immagine INTERA.
+   ⭐ Due cure, nessuna cambia cosa si vede:
+   · le celle seguono la STORTURA: per un quad quasi parallelogramma l'affine
+     e' esatto, e l'errore di una cella cala col quadrato di n; si sceglie il
+     n piu' piccolo che sta sotto il mezzo pixel, mai piu' di quello chiesto;
+   · le carte piccole si disegnano da una copia rimpicciolita una volta sola
+     (a meta', a un quarto...) invece di ridurre la grande a ogni fotogramma. */
+var LC_MIP = typeof WeakMap === 'function' ? new WeakMap() : null;
+function lcMip(img, lato) {
+  if (!LC_MIP || !img.width || !img.height) return img;
+  var dpr = Math.min(2, window.devicePixelRatio || 1);
+  if (img.width < lato * dpr * 2.2) return img;
+  var liv = LC_MIP.get(img);
+  if (!liv) { liv = [img]; LC_MIP.set(img, liv); }
+  var k = 0;
+  while (liv[k].width >= lato * dpr * 2.2) {
+    if (!liv[k + 1]) {
+      var p = liv[k], c = document.createElement('canvas');
+      c.width = Math.max(1, p.width >> 1); c.height = Math.max(1, p.height >> 1);
+      var g = c.getContext('2d');
+      g.imageSmoothingQuality = 'high';
+      g.drawImage(p, 0, 0, c.width, c.height);
+      liv[k + 1] = c;
+    }
+    k++;
+  }
+  return liv[k];
+}
 lcQuad = function (ctx, img, q, n) {
   n = n || 8;
+  /* la stortura: quanto il quad si allontana da un parallelogramma (px) */
+  var tw = Math.abs(q[0] + q[4] - q[2] - q[6]) + Math.abs(q[1] + q[5] - q[3] - q[7]);
+  n = Math.max(1, Math.min(n, Math.ceil(Math.sqrt(tw / 1.4))));
+  var lato = Math.max(Math.abs(q[2] - q[0]) + Math.abs(q[3] - q[1]), Math.abs(q[6] - q[0]) + Math.abs(q[7] - q[1]));
+  img = lcMip(img, lato);
   var sw = img.width, sh = img.height, i, j;
   var p00 = [0, 0], p10 = [0, 0], p01 = [0, 0], p11 = [0, 0];
   var u0, u1, v0, v1, sx, sy, cw, ch, e, sa, sb2;
