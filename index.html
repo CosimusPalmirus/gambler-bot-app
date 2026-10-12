@@ -2934,6 +2934,7 @@ body.gb-nav-on .bnav{display:flex;}
 }
 
 .pl-bets-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px;}
+.pl-bets-grid .pl-bet-btn:first-child:nth-last-child(10){grid-column:1/-1;}
 .pl-bet-btn{
   padding:10px 4px;border-radius:8px;border:none;cursor:pointer;
   background:linear-gradient(145deg,#3b3b50,#1a1a2e);color:#fff;
@@ -14111,6 +14112,7 @@ html.oz-l #bxrt-rot{display:none!important;}
 
     <div class="pk-controls">
       <div class="pk-bet-row" id="pk-bet-row">
+        <button class="pk-bet" onclick="pkStart(0.5)">€0.50</button>
         <button class="pk-bet" onclick="pkStart(1)">€1</button>
         <button class="pk-bet" onclick="pkStart(2)">€2</button>
         <button class="pk-bet" onclick="pkStart(5)">€5</button>
@@ -14980,6 +14982,7 @@ html.oz-l #bxrt-rot{display:none!important;}
     </div>
 
     <div class="pl-bets-grid" id="pl-bets-grid">
+      <button class="pl-bet-btn" onclick="plDrop(0.5)">€0.50</button>
       <button class="pl-bet-btn" onclick="plDrop(1)">€1</button>
       <button class="pl-bet-btn" onclick="plDrop(2)">€2</button>
       <button class="pl-bet-btn" onclick="plDrop(5)">€5</button>
@@ -15028,6 +15031,7 @@ html.oz-l #bxrt-rot{display:none!important;}
     </div>
     
     <div class="pl-bets-grid">
+      <button class="pl-bet-btn" onclick="whSpin(0.5)">€0.50</button>
       <button class="pl-bet-btn" onclick="whSpin(1)">€1</button>
       <button class="pl-bet-btn" onclick="whSpin(2)">€2</button>
       <button class="pl-bet-btn" onclick="whSpin(5)">€5</button>
@@ -33932,7 +33936,10 @@ function refresh(){
   capVeglia();
 }
 
-var BETS=[1,2,5,10,25,50,100,250,500];
+/* (12/10/2026) LA PUNTATA MINIMA E' 0,50: entra in testa a ogni fila di
+   cifre. `betLbl` scrive «€0.50» (un «€0.5» non e' una cifra). */
+var BETS=[0.5,1,2,5,10,25,50,100,250,500];
+function betLbl(b){b=Number(b)||0;return '€'+((Math.abs(b-Math.round(b))<0.005)?Math.round(b):b.toFixed(2));}
 var currentBet={bj:5,slots:2,roulette:5,dice:5,scratch:2,crash:2,grun:5,botrr:2,vault:2};
 
 function buildBets(containerId,key){
@@ -33942,7 +33949,7 @@ function buildBets(containerId,key){
   BETS.forEach(function(b){
     var btn=document.createElement('button');
     btn.className='bet-btn'+(currentBet[key]===b?' sel':'');
-    btn.textContent='€'+b;
+    btn.textContent=betLbl(b);
     btn.onclick=function(){
       currentBet[key]=b;
       c.querySelectorAll('.bet-btn').forEach(function(x){x.classList.remove('sel');});
@@ -34057,7 +34064,7 @@ function bjRenderHands(hideDealer){
     if(h.done&&h.bust)cls+=' bust';
     else if(h.done&&h.won)cls+=' win';
     else if(BJ.active&&i===BJ.activeHand)cls+=' active';
-    return '<div class="'+cls+'"><div class="bj-hand-lbl"><span>HAND '+(i+1)+(h.doubled?' (×2)':'')+'</span><span style="color:var(--gold)">€'+h.bet+'</span></div><div class="cards" style="margin:6px 0;">'+h.cards.map(function(c){return renderCard(c);}).join('')+'</div><div style="text-align:center;font-family:Orbitron;font-weight:700;color:'+(h.bust?'var(--rd)':(h.won?'var(--gn)':'var(--gold)'))+'">'+handVal(h.cards)+(h.bust?' BUST':(h.won?' WIN':''))+'</div></div>';
+    return '<div class="'+cls+'"><div class="bj-hand-lbl"><span>HAND '+(i+1)+(h.doubled?' (×2)':'')+'</span><span style="color:var(--gold)">'+betLbl(h.bet)+'</span></div><div class="cards" style="margin:6px 0;">'+h.cards.map(function(c){return renderCard(c);}).join('')+'</div><div style="text-align:center;font-family:Orbitron;font-weight:700;color:'+(h.bust?'var(--rd)':(h.won?'var(--gn)':'var(--gold)'))+'">'+handVal(h.cards)+(h.bust?' BUST':(h.won?' WIN':''))+'</div></div>';
   }).join('');
 }
 function setBJActions(state){
@@ -39715,7 +39722,7 @@ function rlRenderBets(){
   }else{
     c.innerHTML=RL.bets.map(function(b,i){
       tot+=b.amount;
-      return '<div class="rl-bet-pill">'+b.label+' €'+b.amount+'<span class="x" onclick="rlRemoveBet('+i+')">✕</span></div>';
+      return '<div class="rl-bet-pill">'+b.label+' '+betLbl(b.amount)+'<span class="x" onclick="rlRemoveBet('+i+')">✕</span></div>';
     }).join('');
   }
   var totEl=document.getElementById('rl-total');
@@ -40204,9 +40211,9 @@ function dcRoll(){
       toast('🎉 +€'+winEur.toFixed(2)+' ('+sum+')','ok');
     } else {
       totalEl.classList.add('lose');
-      statusEl.textContent='😞 Lost €'+bet+' ('+sum+')';
+      statusEl.textContent='😞 Lost '+betLbl(bet)+' ('+sum+')';
       setTimeout(function(){ gSound('lose'); },200);
-      toast('😞 -€'+bet+' ('+sum+')','err');
+      toast('😞 -'+betLbl(bet)+' ('+sum+')','err');
     }
     btn.disabled=false;
   }
@@ -40339,7 +40346,7 @@ function scReveal(idx){
       document.getElementById('sc-status').textContent='💣 BOOM! You lost!';
       document.getElementById('sc-cashout').style.display='none';
       document.getElementById('sc-new').style.display='';
-      toast('💣 BOOM! Lost €'+SCR.bet,'err');
+      toast('💣 BOOM! Lost '+betLbl(SCR.bet),'err');
       return;
     }
     setTimeout(function(){ gSound('match'); }, 140);
@@ -40483,7 +40490,7 @@ function crDoCrash(crashAt, btc, losses){
   if(CR.hasBet){
     if(btc!==undefined)S.btc=btc; if(losses!==undefined)S.losses=losses; refresh();
     setTimeout(function(){ gSound('lose'); }, 500);
-    toast('💥 Crashed! −€'+CR.bet,'err');
+    toast('💥 Crashed! −'+betLbl(CR.bet),'err');
   }
   var btn=document.getElementById('cr-btn');
   if(btn){btn.textContent='💥 Crashed — Next round...';btn.disabled=true;btn.style.background='rgba(239,68,68,.2)';}
@@ -40519,7 +40526,7 @@ function crAnimate(){
     if(CR.hasBet){
       loseBet(CR.bet,'crash');
       setTimeout(function(){ gSound('lose'); }, 500);
-      toast('💥 Crashed! −€'+CR.bet,'err');
+      toast('💥 Crashed! −'+betLbl(CR.bet),'err');
     }
     var btn=document.getElementById('cr-btn');
     if(btn){btn.textContent='💥 Crashed — Next round...';btn.disabled=true;btn.style.background='rgba(239,68,68,.2)';}
@@ -48062,7 +48069,7 @@ function dlLoadIncoming(){
       box.className='pvp-incoming';
       var html='<div style="font-size:11px;font-weight:800;letter-spacing:1px;color:#39ff14;">⚔️ INCOMING CHALLENGES</div>';
       d.challenges.forEach(function(c){
-        html+='<div class="pvp-inc-row"><div class="pvp-inc-info"><b>'+dlEsc(c.from_name)+'</b> · '+dlModeName(c.mode)+' · €'+c.bet_eur+'</div>'+
+        html+='<div class="pvp-inc-row"><div class="pvp-inc-info"><b>'+dlEsc(c.from_name)+'</b> · '+dlModeName(c.mode)+' · '+betLbl(c.bet_eur)+'</div>'+
           '<button class="pvp-inc-btn pvp-inc-acc" onclick="dlAccept(\''+c.challenge_id+'\',\''+c.mode+'\','+(c.bet_eur||0)+')">ACCEPT</button>'+
           '<button class="pvp-inc-btn pvp-inc-dec" onclick="dlDecline(\''+c.challenge_id+'\')">✕</button></div>';
       });
@@ -48113,12 +48120,12 @@ function dlLoadRecent(){
 function dlRematch(i){
   var o=_dlRecent[i]; if(!o){ return; }
   if(!S.userId){ toast('Open in Telegram to play','err'); return; }
-  var bets=[1,2,5,10,25,50,100];
+  var bets=[0.5,1,2,5,10,25,50,100];
   var html='<div class="pvp-m-title" style="color:#ffd700;">REMATCH '+dlEsc(o.name||'Player')+'</div>'+
     '<div class="pvp-m-desc" style="text-align:center;">Send them a fresh challenge — they get a Telegram notification to accept.</div>'+
     '<div class="pvp-chal-row" style="margin:8px 0;"><select id="pvp-rm-mode" class="pvp-select">'+dlMenuOpts()+'</select></div>'+
     '<div style="text-align:center;font-size:11px;color:var(--txt3);margin:4px 0;">Pick your stake</div><div class="pvp-bets">';
-  bets.forEach(function(b,bi){ html+='<div class="pvp-bet" style="animation-delay:'+(bi*0.04)+'s" onclick="dlSendRematch(\''+String(o.uid).replace(/[^0-9]/g,'')+'\','+b+')">€'+b+'</div>'; });
+  bets.forEach(function(b,bi){ html+='<div class="pvp-bet" style="animation-delay:'+(bi*0.04)+'s" onclick="dlSendRematch(\''+String(o.uid).replace(/[^0-9]/g,'')+'\','+b+')">'+betLbl(b)+'</div>'; });
   html+='</div><button class="pvp-m-btn" onclick="dlCloseOverlay()">CANCEL</button>';
   dlModalHTML(html);
 }
@@ -49173,7 +49180,7 @@ function twrLootIcona(i){
   return {code:code, ic:(TWR_LOOT_IC[code]||(TWR_IT[code]&&TWR_IT[code][0])||'📦'),
           cat:(TWR_LOOT_CAT[code]||0)};
 }
-var TWR_TIERS=[['1','€1'],['2','€2'],['5','€5'],['10','€10'],['20','€20'],['50','€50']];
+var TWR_TIERS=[['0.5','€0.50'],['1','€1'],['2','€2'],['5','€5'],['10','€10'],['20','€20'],['50','€50']];
 var TWR_CARCOL=['#b3273b','#2b6cb0','#3c7a3e','#8b5cf6','#b3762b'];
 
 function twrUrl(){
@@ -114372,7 +114379,7 @@ function tonUiDisegna(){
            minimo scritto, e chi depositava 0,5 TON (0,59 EUR) non poteva
            piu' riprenderli. */
         + '<div class="ton-row"><span class="ton-row__k">MINIMUM</span>'
-        + '<span class="ton-row__v">' + tonUiFmt(s.min_withdraw) + ' TON</span></div>'
+        + '<span class="ton-row__v">' + tonUiFmt(s.min_deposit || s.min_withdraw) + ' TON</span></div>'
         + '<div class="ton-lbl ton-lbl--sp">ADDRESS</div>'
         + '<div class="ton-well ton-well--addr">' + tonUiEsc(dep.address) + '</div>'
         + '<button class="action-btn ton-w" '
@@ -115474,7 +115481,7 @@ function wnCarica(){
       wnTesto('wn-dep-min', um > 0 ? (wnUsdt(um) + ' USDT') : '—');
       wnMostra('wn-dep-min-r', um > 0, 'flex');
     } else {
-      wnTesto('wn-dep-min', (st.min_withdraw ? wnTon(st.min_withdraw) + ' TON' : '—'));
+      wnTesto('wn-dep-min', ((st.min_deposit || st.min_withdraw) ? wnTon(st.min_deposit || st.min_withdraw) + ' TON' : '—'));
       wnMostra('wn-dep-min-r', true, 'flex');
     }
   }
@@ -115501,7 +115508,7 @@ function wnDepLimiti(){
   }
   var wt = wnWalletTon();
   var max = (wt != null) ? Math.max(0, Math.floor((wt - 0.05) * 100) / 100) : null;
-  return { min: +(st.min_withdraw || 0), max: max };
+  return { min: +(st.min_deposit || st.min_withdraw || 0), max: max };
 }
 function wnDepChips(){
   var L = wnDepLimiti(), box = wnEl('wn-dep-chips'), inp = wnEl('tonui-depamt');
