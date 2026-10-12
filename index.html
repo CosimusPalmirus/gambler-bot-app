@@ -46726,6 +46726,8 @@ var LOB_ERR_IT={
   'challenge not found':'Lobby non trovata — forse è scaduta o è già partita',
   'insufficient balance':'Saldo insufficiente',
   'already in a lobby':'Sei già in un\'altra partita',
+  'posta ancora in gioco':'Hai ancora una posta in gioco a un tavolo che non è finito: aspetta che finisca, oppure gioca gratis o allenati',   // CURE 11/10
+  'liquidazione in corso':'Stiamo chiudendo i conti della tua ultima partita: riprova fra qualche secondo',
   'il creatore non si è ancora seduto':'Il padrone di casa non si è ancora seduto',
   // ⚠️ BINARIO A, 24/08/2026: la sfida nata da una lobby non si accetta
   // finché il creatore non è nella mini app. Prima partiva lo stesso e la
@@ -46758,6 +46760,7 @@ var LOB_WS_ERRS={'lobby non valida':1,'lobby chiusa':1,'lobby piena':1,
                  'il creatore non è ancora nella mini app':1,
                  'il creatore non si è ancora seduto':1,'posta non valida':1,
                  'bad game':1,'insufficient balance':1,'already in a lobby':1};
+LOB_WS_ERRS['posta ancora in gioco']=1;LOB_WS_ERRS['liquidazione in corso']=1;   // CURE 11/10: una posta sola per giocatore
 function lobWsCatch(e){
   if(!LOB.lid||!LOB.joinAt||(Date.now()-LOB.joinAt>45000))return 0;
   if(!LOB_WS_ERRS[String(e||'')])return 0;
@@ -50046,6 +50049,8 @@ function twrOnMsg(m){
     if(typeof lobWsCatch==='function'&&lobWsCatch(e)){TWR.ui='';return;}   // LOBBY APERTA: si torna alla cartolina
     var it={'insufficient balance':'Saldo insufficiente — deposita per entrare',
             'already in a lobby':'Sei già in una lobby','bad tier':'Taglia non valida',
+            'posta ancora in gioco':'Hai ancora una posta in gioco a un tavolo che non è finito: aspetta che finisca, oppure gioca gratis o allenati',   // CURE 11/10
+            'liquidazione in corso':'Stiamo chiudendo i conti della tua ultima partita: riprova fra qualche secondo',
             'auth failed':'Autenticazione fallita — riapri da Telegram','not in a lobby':'Non sei in lobby'};
     toast(it[e]||e,'err',2400);
     return;
@@ -54903,6 +54908,8 @@ function tkOnMsg(m){
     var it={'insufficient balance':'Saldo insufficiente','already in a lobby':'Sei già in una lobby',
             'auth failed':'Autenticazione fallita — riapri da Telegram','not in a lobby':'Non sei in lobby',
             'gia impegnato':'Hai già una partita in corso o un match di torneo che ti aspetta',
+            'posta ancora in gioco':'Hai ancora una posta in gioco a un tavolo che non è finito: aspetta che finisca, oppure gioca gratis o allenati',   // CURE 11/10
+            'liquidazione in corso':'Stiamo chiudendo i conti della tua ultima partita: riprova fra qualche secondo',
             'ticket scaduto':(TKD.tour?'Match del torneo scaduto o già partito':'Match scaduto — le puntate sono state rimborsate')};
     toast(it[e]||e,'err',2600);
     if(e==='gia impegnato'){TKD.ui='';TKD.practice=false;tkShowLobby();return;}
@@ -56295,6 +56302,8 @@ function gldOnMsg(m){
     var e=m.msg||'errore';
     var it={'insufficient balance':'Saldo insufficiente','already in a lobby':'Sei già in una lobby',
             'auth failed':'Autenticazione fallita — riapri da Telegram','not in a lobby':'Non sei in lobby',
+            'posta ancora in gioco':'Hai ancora una posta in gioco a un tavolo che non è finito: aspetta che finisca, oppure gioca gratis o allenati',   // CURE 11/10
+            'liquidazione in corso':'Stiamo chiudendo i conti della tua ultima partita: riprova fra qualche secondo',
             'ticket scaduto':(GLD.tour?'Match del torneo scaduto o già partito':'Match scaduto — le puntate sono state rimborsate'),
             'room piena':'Room piena — troppi spettatori','match non trovato':'Match non trovato — forse è già finito'};
     toast(it[e]||e,'err',2600);
@@ -59234,7 +59243,7 @@ function trnGC(g){
   // modalita' spettatore, nebbia del server); dal tabellone dei tornei no.
   // 02/10 sera: anche i TORNEI (decisione del proprietario), stessa nebbia
   if(g==='lastcall')return {icon:'🍸',watch:true,rtd:true};
-  if(g==='kaiju')return {icon:'🦖',watch:true,rtd:true};   // 🦖 KAIJU BATTLE (11/10): dalla sala d'attesa di una lobby si GUARDA e si ENTRA
+  if(g==='kaiju')return {icon:'🦖',watch:true,rtd:true};   // 🦖 KAIJU BATTLE (11/10): dalla lobby E DAL TABELLONE DEI TORNEI (secondo giro) si GUARDA e si ENTRA
   // 🂡 BLACKJACK 1v1 (25/09): stanza del server RT; SI GUARDA (lo spettatore
   // vede solo le carte scoperte e nessun uid: banco_server.py g).
   if(g==='bj1v1')return {icon:'🃏',watch:true,rtd:true};   // 🃏 e non 🂡: su molti Android 🂡 e' un quadratino vuoto
@@ -118511,7 +118520,7 @@ var KJRT={wrap:null,fr:null,pronto:false,coda:[],aperto:false,nascosto:false,fir
 // ⚠️ `v=` NUOVO A OGNI md5 NUOVO DI kaiju.html: lo scrive il patcher
 //    (tmp_b4/applica_index.py) leggendo albero/KJRT_VER.txt. index.html,
 //    kaiju.html e la cartella kaiju/ vanno su Pages INSIEME.
-var KJRT_VER="2026101129f4";
+var KJRT_VER="20261012c7c6";
 function kjrtUrl(){return "kaiju.html?guscio=1&v="+KJRT_VER+"&lang="+((window.GB_LANG==="en")?"en":"it");}
 var KJRT_URL=kjrtUrl();
 var KJRT_ORIGIN=location.origin;
@@ -118715,6 +118724,34 @@ function kjrtLobbyBtn(){
         +'<button class="action-btn" style="'+st+'" onclick="kjrtSchermo(&quot;guida&quot;)">📖 COME SI GIOCA</button>';
 }
 
+// ── 🦖 IL TIFO PER CHI SIEDE (secondo giro, TORNEI) ─────────────────────────
+// Gemella di lcrtTifo / lcrtTifoAggancia di LAST CALL. La chat del canale della
+// partita (r:<mid> in torneo, r:<lid> in una lobby che si guarda) va DENTRO
+// l iframe come {t:"chat", righe:[{n,x,g}]}: le ultime due righe, che
+// kaiju.html mostra in una striscia di sola lettura (nessun tocco, si spegne
+// da sola). Il ticker d angolo della pagina sta SOTTO l iframe e non si
+// vedrebbe; chi gioca non scrive (nell iframe non c e' nessuna casella).
+// Lo spettatore no: ha la chat intera. Il server manda la chat di r:<mid> a chi
+// siede in quella stanza anche senza chat_sub (_chat_targets), trnOnChat la
+// archivia per canale e chiama trnTickerPaint: l aggancio sta li', a runtime.
+var KJRT_TIFO="",KJRT_TIFO_AGG=false;
+function kjrtTifo(){
+  try{
+    if(!KJRT.aperto||KJRT.spec||RTD.spec||RTD.ui!=="match"||RTD.game!=="kaiju")return;
+    var ch=String(trnChatCh()||"");if(ch.indexOf("r:")!==0)return;
+    var T=TRN.chat||[],L=T.slice(-2);
+    var k=ch+"|"+T.length+"|"+(L.length?String(L[L.length-1].x||""):"");
+    if(k===KJRT_TIFO)return;KJRT_TIFO=k;
+    if(!L.length)return;
+    kjrtGiu({t:"chat",righe:L.map(function(c){return {n:String(c.n||"?").slice(0,24),x:String(c.x||"").slice(0,140),g:c.g?1:0};})});
+  }catch(e){}
+}
+function kjrtTifoAggancia(){
+  if(KJRT_TIFO_AGG||typeof trnTickerPaint!=="function")return;
+  KJRT_TIFO_AGG=true;
+  var v=trnTickerPaint;
+  trnTickerPaint=function(){var r=v.apply(this,arguments);kjrtTifo();return r;};
+}
 // ── la partita ──────────────────────────────────────────────────────────────
 function rtdShowKaijuRT(m,spec){     // m = lo `start` del server, o null al rientro in arc; spec=true: m e' il watch_ok
   RTD.ui="match";rtdOvClose();
@@ -118743,6 +118780,7 @@ function rtdShowKaijuRT(m,spec){     // m = lo `start` del server, o null al rie
     KJRT.firma=firma;KJRT.start=m;
     KJRT.spec=!!spec;
     KJRT.ko=false;KJRT.uscitoKo=false;
+    KJRT_TIFO="";kjrtTifoAggancia();   // il tifo (secondo giro): stesso punto di LAST CALL
   }
   KJRT.aperto=true;KJRT.nascosto=false;
   kjrtASchermo();

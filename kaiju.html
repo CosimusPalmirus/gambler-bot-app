@@ -465,6 +465,13 @@ html[lang="en"] .targa.assente::after{content:"AWAY"}
 #avviso{position:absolute;left:calc(var(--u)*2);bottom:calc(var(--u)*2);max-width:42%;z-index:250;pointer-events:none;background:var(--ink);color:var(--carta);font-size:calc(var(--u)*2.9);line-height:1.2;padding:calc(var(--u)*1.2) calc(var(--u)*2);border-radius:calc(var(--u)*2.2);transform:translateY(160%);opacity:0;transition:transform .25s cubic-bezier(.2,1.2,.4,1),opacity .2s}
 #avviso.su{transform:none;opacity:1}
 #avviso b{font-family:'Bungee';font-weight:400;color:var(--giallo)}
+/* TORNEI (secondo giro) il TIFO di chi guarda, per chi siede: due righe al massimo, sola lettura, stesso angolo
+   dell'avviso ma piu' su (non si coprono), si spegne da solo. Mai sopra i tasti: sta dentro l'arena. */
+#tifo{position:absolute;left:calc(var(--u)*2);bottom:calc(var(--u)*13);max-width:46%;z-index:249;pointer-events:none;display:flex;flex-direction:column;align-items:flex-start;gap:calc(var(--u)*.5);font-size:calc(var(--u)*2.5);line-height:1.25;opacity:0;transition:opacity .4s}
+#tifo.su{opacity:.94}
+#tifo div{background:rgba(22,18,31,.78);color:var(--carta);border-radius:calc(var(--u)*1.6);padding:calc(var(--u)*.5) calc(var(--u)*1.5);max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box}
+#tifo b{color:var(--giallo);font-weight:700}
+#app.finita #tifo{opacity:0}
 /* [6] rete lenta: finche' la posa di un mostro non e' arrivata si vede la sua sagoma (mai un piedistallo vuoto) */
 #posti .kjm.attesa::before{content:"";position:absolute;left:20%;right:20%;bottom:2%;height:64%;border-radius:46% 46% 34% 34%;background:var(--col,#888);opacity:.5;border:calc(var(--u)*.6) solid var(--ink);animation:chiama 1s ease-in-out infinite}
 /* [8] schermi bassi (PC): la riga piccola dei due tasti grandi usciva dal tasto («costa 2 energia» tagliato) */
@@ -2342,7 +2349,7 @@ function tasti(a, b, chiama) {
   $('#tasti').classList.toggle('fermo', !a && !b);
   const mio = S && S.turno === IO && !S.g[IO].bot;
   const ko = !SPET && !!V && !!V.g[IO] && !V.g[IO].vivo;
-  $('#aspetto').innerHTML = !S || S.fase === 'fine' ? '' : SPET ? '👁 SPETTATORE<br>stai guardando la partita' : ko ? '<b>SEI KO</b> · puoi restare a guardare' : S.fase === 'attesa' ? 'I mostri stanno arrivando…'
+  $('#aspetto').innerHTML = !S || S.fase === 'fine' ? '' : SPET ? '👁 SPETTATORE<br>stai guardando la partita' : ko ? (fuoriIo() ? '<span><b>SEI FUORI DAL MATCH</b><br>assente per due minuti</span>' : '<b>SEI KO</b> · puoi restare a guardare') : S.fase === 'attesa' ? 'I mostri stanno arrivando…'
     : (mio ? (S.fase === 'tira' || S.fase === 'risolvi' ? 'I dadi stanno facendo il loro effetto…' : (S.fase === 'cedi' && S.chiCede >= 0 && S.chiCede !== IO && S.g[S.chiCede] ? '<b>' + esc(S.g[S.chiCede].nome) + '</b> decide se restare in città…' : 'Un momento…')) : 'Non tocca a te: guarda cosa fanno gli altri.<br>Tocca un mostro per vedere i suoi poteri.');
 }
 function dadiVuoti() {
@@ -2699,6 +2706,7 @@ function suStart(m) {
   app.classList.toggle('spet', SPET); app.classList.toggle('esci', RETE && SPET); app.classList.remove('finita');
   app.classList.add('tavolo');                                          // CURA 1: la guida in partita lascia libero l'angolo di ESCI
   const av = $('#avviso'); if (av) av.classList.remove('su');
+  const tf = $('#tifo'); if (tf) { tf.classList.remove('su'); tf.innerHTML = ''; }
   if (SPET) modoTasti = 'spet';
   schermo('gioco');
   montaArena();
@@ -2904,6 +2912,15 @@ async function rifai(v) {
     case 'abbandono':
       if (v.chi >= 0 && PG[v.chi]) { fumetto(v.chi, 'ME NE VADO!', 1200); Suono.esce(); await pausa(700); }
       break;
+    case 'presidio':                                   // TORNEI (D16): assente da due minuti, fuori dal match
+      // CURE TORNEI 12/10 (63_CURE_TORNEI C2, C5): `esci` = ha premuto ESCI (KO d'ufficio, non lo gioca un bot);
+      // a ME, buttato fuori per assenza, lo si dice in seconda persona e resta scritto (`fuoriIo` in `#aspetto`).
+      if (v.chi >= 0 && ANAG && ANAG.g[v.chi]) {
+        if (v.chi === IO && !SPET && !v.esci) { fuoriDi = FIRMA || '?'; avviso('<b>SEI FUORI DAL MATCH</b><br>assente per due minuti', 9000); }
+        else avviso('<b>' + esc(ANAG.g[v.chi].nome) + '</b> ' + (v.esci ? 'ha lasciato il match' : 'è sparito: fuori dal match'), 4200);
+      }
+      await recita(v.ev);
+      break;
     default:
       if (v.k === 'inizia' && !document.querySelector('#mercato .mc[data-k]')) aggMercato(-2);
       await recita(v.ev);
@@ -2996,6 +3013,14 @@ function riceviErr(m) {
   if (ANAG && !SPET && PG[IO] && V.g[IO].vivo) fumetto(IO, PERCHE[m.perche] || 'Mossa rifiutata', 1300);
   accendiTasti(true);
 }
+// CURE TORNEI 12/10 (C5): sono stato buttato fuori dal presidio dei due minuti? Lo dice lo snapshot di torneo
+// (`fuori`: i seggi usciti per ASSENZA, anche al rientro quando la voce `presidio` e' gia' lontana) o la voce appena recitata.
+let fuoriDi = '';
+function fuoriIo() {
+  if (SPET || IO < 0) return false;
+  if (fuoriDi && fuoriDi === (FIRMA || '?')) return true;
+  return !!ULT && Array.isArray(ULT.fuori) && ULT.fuori.indexOf(IO) >= 0;
+}
 function riceviEsce(m) {
   if (!ANAG || !m || m.nome == null) return;
   const nm = String(m.nome).trim().toUpperCase();
@@ -3003,6 +3028,29 @@ function riceviEsce(m) {
   if (i < 0) return;                                                    // il nome e' di un mostro gia' a terra: niente
   // CURA 5: era un fumetto sul mostro, il piu' lungo del gioco: dal seggio di sinistra e da quello in cima usciva dallo schermo
   avviso('<b>' + esc(ANAG.g[i].nome) + '</b> ha lasciato il tavolo · gioca un bot', 3600);
+}
+// TORNEI (secondo giro) — IL TIFO, gemello di `suTifo` di lastcall.html: le ultime due righe della chat del match
+// (r:<mid> in torneo, r:<lid> in una lobby che si guarda). Solo testo (textContent), nessun tocco, si spegne da solo.
+// Lo spettatore no: ha la chat intera sotto il tavolo. Il contenuto e' di chi scrive: l'inglese non lo traduce (#tifo in NOMI).
+let tifoTmr = 0;
+function suTifo(m) {
+  if (SPET || !ANAG) return;
+  let el = $('#tifo');
+  if (!el) { el = document.createElement('div'); el.id = 'tifo'; arena.appendChild(el); }
+  const r = (m && Array.isArray(m.righe)) ? m.righe : [];
+  el.innerHTML = '';
+  for (let i = Math.max(0, r.length - 2); i < r.length; i++) {
+    if (!r[i] || typeof r[i] !== 'object') continue;
+    const d = document.createElement('div'), b = document.createElement('b');
+    b.textContent = (r[i].g ? '✈️ ' : '') + String(r[i].n == null ? '?' : r[i].n).slice(0, 24) + ' ';
+    d.appendChild(b);
+    d.appendChild(document.createTextNode(String(r[i].x == null ? '' : r[i].x).slice(0, 140)));
+    el.appendChild(d);
+  }
+  clearTimeout(tifoTmr);
+  if (!el.childNodes.length) { el.classList.remove('su'); return; }
+  el.classList.add('su');
+  tifoTmr = setTimeout(() => { el.classList.remove('su'); }, 12000);
 }
 let avvisoTok = 0;
 function avviso(html, ms) {
@@ -3090,7 +3138,10 @@ async function finale() {
     for (let k = 0; k < 46; k++) h += '<i class="coriandolo" style="left:' + (Math.random() * 100) + '%;background:' + col[k % 6] + ';animation-duration:' + (2.2 + Math.random() * 2.6) + 's;animation-delay:-' + (Math.random() * 4) + 's"></i>';
   }
   const come = S.motivo === 'stelle' ? 'È arrivato a <b>' + S.g[w].stelle + ' stelle</b>'
-    : S.motivo === 'abbandono' ? (mio ? '<b>L\'avversario ha abbandonato</b>' : SPET ? '<b>Vittoria per abbandono</b>' : '<b>Hai abbandonato la partita</b>') : 'È <b>l\'ultimo mostro in piedi</b>';
+    : S.motivo === 'abbandono' ? (mio ? '<b>L\'avversario ha abbandonato</b>' : SPET ? '<b>Vittoria per abbandono</b>' : '<b>Hai abbandonato la partita</b>')
+    // TORNEI (secondo giro, D14): a tempo scaduto in torneo vince chi ha piu' stelle (poi vita, poi chi gioca dopo)
+    : S.motivo === 'tetto' ? 'Tempo scaduto: passa con <b>' + (S.g[w].stelle === 1 ? '1 stella' : S.g[w].stelle + ' stelle') + '</b>'
+    : 'È <b>l\'ultimo mostro in piedi</b>';
   h += '<h1>' + (mio ? (EN ? 'YOU<br>WIN!' : 'HAI<br>VINTO!') : (EN ? 'WINNER<br>' : 'VINCE<br>') + esc(S.g[w].nome)) + '</h1>' +
     '<div id="fineMostro" class="re">' + KJM.svg(S.g[w].mostro) + '</div>' +
     '<p>' + come + ' · ' + S.nTurni + ' turni</p><p id="fineEuro"></p>' +
@@ -3194,6 +3245,7 @@ function smista(m) {
       case 'over': riceviOver(m); break;
       case 'err': if (typeof m.code === 'string' && m.code.indexOf('kj_') === 0) riceviErr(m); break;
       case 'esce': if (m.game === 'kaiju') riceviEsce(m); break;
+      case 'chat': suTifo(m); break;
       case 'pausa': suPausa(true); break;
       case 'riprendi': suPausa(false); break;
       case 'schermo': suSchermo(m); break;
@@ -3391,6 +3443,8 @@ window.KJ_GIU = m => KJG.ricevi(m);                                    // per i 
     'Partita annullata: la posta è stata restituita': 'Game cancelled: your stake was refunded', 'Partita annullata': 'Game cancelled',
     // rete
     'TEMPO SCADUTO': 'TIME UP', 'TEMPO SCADUTO: dadi chiusi': 'TIME UP: dice locked', 'ME NE VADO!': 'I\'M LEAVING!',
+    'Tempo scaduto: passa con': 'Time\'s up: advances with', '1 stella': '1 star', 'è sparito: fuori dal match': 'vanished: out of the match',   // TORNEI (secondo giro)
+    'ha lasciato il match': 'left the match', 'SEI FUORI DAL MATCH': 'YOU ARE OUT OF THE MATCH', 'assente per due minuti': 'away for two minutes',   // CURE TORNEI 12/10
     'La partita è finita': 'The game is over', 'Non adesso': 'Not now', 'Mossa non valida': 'Invalid move', 'Troppo tardi: guarda il tavolo': 'Too late: look at the table',
     'Non è il tuo turno': 'Not your turn', 'Hai finito i lanci': 'No rolls left', 'Tieni tutti i dadi: conferma': 'You keep all the dice: confirm',
     'Tira prima i dadi': 'Roll the dice first', 'Non tocca a te decidere': 'It is not your call', 'Quel posto è vuoto': 'That slot is empty',
@@ -3469,7 +3523,7 @@ window.KJ_GIU = m => KJG.ricevi(m);                                    // per i 
     for (var i = 0; i < R.length; i++) { var m = R[i][0].exec(k); if (m) return R[i][1](m); }
     return null;
   }
-  var NOMI = '.tg-nome,.st-nome,.jk-chi,.cr-p,#homeNome,#edGriglia,.kjm,script,style';
+  var NOMI = '.tg-nome,.st-nome,.jk-chi,.cr-p,#homeNome,#edGriglia,.kjm,#tifo,script,style';   // #tifo: la chat e' di chi scrive, non si traduce
   function nomiAlTavolo() {
     try { var v = window.KJ_VISTA && window.KJ_VISTA(); return v && v.S ? v.S.g.map(function (g) { return g.nome; }) : []; } catch (e) { return []; }
   }
