@@ -41689,6 +41689,101 @@ function qTabPunti(){
     });
   }catch(e){}
 }
+/* ═══ QUEST 12/10 · I COSMETICI DI GAMBLER CITY E DEL DERBY IN 3D ═══════════════════════════════
+   Le carte dei cosmetici mostravano ancora il disegno 2D di una volta; il modello vero (quello della
+   partita) si vedeva solo dentro l'editor. Qui un «fotografo»: UN solo iframe nascosto sulla stessa
+   pagina 3D della partita (gcr3d.html / derby3d.html, gia' in cache), che apre la vetrina, mette un
+   set alla volta e ne copia il fotogramma sulla tela della carta. Poi si butta: niente 3D che gira
+   mentre si scorre la lista. Le foto restano in memoria per la sessione (COS3.foto).
+   Se il 3D non c'e' (niente WebGL2, spento, lento, errore) resta il disegno 2D gia' sulla tela.
+   ════════════════════════════════════════════════════════════════════════════════════════════ */
+var COS3={fr:null,g:null,giro:0,tim:null,foto:{}};
+function cos3Butta(){
+  COS3.giro++;
+  if(COS3.tim){clearTimeout(COS3.tim);COS3.tim=null;}
+  try{if(COS3.g&&COS3.g.vetrina)COS3.g.vetrina.ferma();}catch(e){}
+  try{if(COS3.fr&&COS3.fr.parentNode)COS3.fr.parentNode.removeChild(COS3.fr);}catch(e){}
+  COS3.fr=null;COS3.g=null;
+}
+function cos3Look(mode,patch){
+  if(mode==='turf')return gcrNorm(patch||{});
+  var l=blgNormLook(_cosPatched('calcio',patch)),o={},k;
+  for(k in l)o[k]=l[k];
+  o.fc=(typeof dbFaccia==='function')?dbFaccia():0;o.tm=0;o.capitano=((l.nm|0)===10);
+  o.colPelle=BLG_SKINC[((l.sk|0)%BLG_SKINC.length+BLG_SKINC.length)%BLG_SKINC.length];
+  o.colCapelli=BLG_HAIRC[((l.hc|0)%8+8)%8];o.colScarpini=BLG_BOOTC[((l.bt|0)%8+8)%8];o.colRifiniture=BLG_TRIMC[((l.tr|0)%4+4)%4];
+  return o;
+}
+function cos3Chiave(mode,patch){try{return mode+'|'+JSON.stringify(cos3Look(mode,patch));}catch(e){return null;}}
+// la foto gia' fatta in questa sessione: si rimette subito, senza riaccendere il 3D
+function cos3Metti(cv,mode,patch){
+  var k=cos3Chiave(mode,patch),f=k&&COS3.foto[k];
+  if(!f||!cv)return false;
+  try{var x=cv.getContext('2d');x.clearRect(0,0,cv.width,cv.height);x.drawImage(f,0,0,cv.width,cv.height);return true;}catch(e){return false;}
+}
+function cos3Puo(mode){
+  try{
+    if(mode==='turf'){
+      if(typeof twr3dBase!=='function'||!twr3dBase())return false;
+      if(typeof TWR!=='undefined'&&TWR&&(TWR.ui==='match'||TWR.ui==='search'||TWR.ui==='spec'))return false;
+      return true;
+    }
+    if(mode==='calcio')return typeof blg3dBase==='function'&&!!blg3dBase();
+  }catch(e){}
+  return false;
+}
+function cos3Foto(mode,lista){
+  cos3Butta();
+  if(!lista||!lista.length||!cos3Puo(mode))return;
+  var giro=COS3.giro,t0=Date.now(),MAX=25000,i=0;
+  var fr=document.createElement('iframe');
+  fr.setAttribute('aria-hidden','true');fr.setAttribute('tabindex','-1');fr.setAttribute('scrolling','no');
+  fr.style.cssText='position:fixed;left:0;bottom:0;width:264px;height:240px;border:0;opacity:.01;pointer-events:none;z-index:-1;';
+  try{fr.src=(mode==='turf')?gcrVetSrc():blg3dSrc();}catch(e){return;}
+  document.body.appendChild(fr);COS3.fr=fr;
+  var vivo=function(){return COS3.giro===giro&&COS3.fr===fr&&CUR==='challenges'&&_CH_TAB==='cosmetics'&&_COS_MODE===mode;};
+  var scatta=function(){
+    if(!vivo()||i>=lista.length)return cos3Butta();
+    var it=lista[i],v=COS3.g.vetrina,w=fr.contentWindow,giri=0,n0;
+    try{v.look(cos3Look(mode,it.patch));n0=v.fotogrammi;}catch(e){return cos3Butta();}
+    var aspetta=function(){
+      if(!vivo())return cos3Butta();
+      if(v.errore||++giri>300)return cos3Butta();
+      if(v.fotogrammi<n0+3){w.requestAnimationFrame(aspetta);return;}
+      // siamo DOPO il disegno della vetrina, nello stesso fotogramma: la tela del 3D e' ancora piena
+      try{
+        var src=null,cs=fr.contentDocument.getElementsByTagName('canvas'),k;
+        for(k=0;k<cs.length;k++)if(!src||cs[k].width*cs[k].height>src.width*src.height)src=cs[k];
+        var cv=document.getElementById(it.cid);
+        if(src&&src.width>1){
+          var f=document.createElement('canvas');f.width=176;f.height=160;
+          f.getContext('2d').drawImage(src,src.width*.1,src.height*.13,src.width*.8,src.height*.8,0,0,f.width,f.height);   // un po' piu' vicino: la vetrina inquadra largo
+          var ch=cos3Chiave(mode,it.patch);if(ch)COS3.foto[ch]=f;
+          if(cv)cos3Metti(cv,mode,it.patch);
+        }
+      }catch(e){return cos3Butta();}
+      i++;scatta();
+    };
+    w.requestAnimationFrame(aspetta);
+  };
+  var prova=function(){
+    COS3.tim=null;
+    if(!vivo())return cos3Butta();
+    var g=null;try{g=fr.contentWindow&&(mode==='turf'?fr.contentWindow.GCR3D:fr.contentWindow.BLG3D);}catch(e){g=null;}
+    if(g&&g.errore)return cos3Butta();
+    if(g&&g.pronto){
+      if(!g.vetrina)return cos3Butta();
+      var ok=false,o={look:cos3Look(mode,lista[0].patch),sfondo:'#0b0d14'};
+      if(mode==='turf')o.arma='PISTOL';
+      try{ok=g.vetrina.avvia(o);}catch(e){ok=false;}
+      if(!ok)return cos3Butta();
+      COS3.g=g;scatta();return;
+    }
+    if(Date.now()-t0>MAX)return cos3Butta();
+    COS3.tim=setTimeout(prova,100);
+  };
+  COS3.tim=setTimeout(prova,100);
+}
 var QN={lista:null,tv:null,carica:0,tentato:0};
 var TVL_DEF={dd:0,db:0,gp:0},TVL_MAX={dd:2,db:2,gp:2};   // = cosmetics_common.TAVOLO_IDX_MAX
 var TVL_SKIN=[   // = quest_nuove.SKIN_TAVOLO (nomi e descrizioni li rimanda anche il server)
@@ -42102,7 +42197,7 @@ function _cosDrawPreview(cv,mode,patch){
   var look=_cosPatched(mode,patch),W=cv.width,H=cv.height;
   try{
     if(mode==='turf'){
-      gcrAnteprima(cv,gcrNorm(patch||{}),false);   // COSMETICI GCR 19/09: il mafioso col SOLO set (2D + auto/insegna/finitura/KO)
+      window._gcrSenzaEmo=1;try{gcrAnteprima(cv,gcrNorm(patch||{}),false);}finally{window._gcrSenzaEmo=0;}   // COSMETICI GCR 19/09: il mafioso col SOLO set (2D + auto/insegna/finitura/KO)
     }else if(mode==='glad'){
       gldDrawFighter(ctx,W/2,H*0.50,H*0.30,-1.5708,GLD_ST.IDLE,1,1,100,look,false,performance.now(),'',false,null);
     }else if(mode==='calcio'){
@@ -42160,7 +42255,7 @@ function renderCosmeticsCards(){
     }
     var cid='coscv_'+mode+'_'+cd.id;
     html+='<div class="q-card q-riga '+rc+(pronta?' q-pronta':'')+'">'
-      +'<canvas class="q-cv" id="'+cid+'" width="88" height="80"></canvas>'
+      +'<canvas class="q-cv" id="'+cid+'" width="176" height="160"></canvas>'
       +'<div style="flex:1;min-width:0;">'
         +'<div class="q-diff">'+qnRarNome(cd.rarity)+'</div>'
         +'<div class="q-name" style="font-size:13px;">'+cos2NomeSet(cd)+'</div>'
@@ -42172,10 +42267,14 @@ function renderCosmeticsCards(){
     +'</div>';
   });
   host.innerHTML=html;
+  var daFare=[],in3d=(mode==='turf'||mode==='calcio');
   cat.forEach(function(cd){
     var cv=document.getElementById('coscv_'+mode+'_'+cd.id);
-    if(cv)_cosDrawPreview(cv,mode,cd.look_patch);
+    if(!cv)return;
+    _cosDrawPreview(cv,mode,cd.look_patch);   // il 2D va giu' subito: se il 3D non arriva la carta non e' vuota
+    if(in3d&&!cos3Metti(cv,mode,cd.look_patch))daFare.push({cid:cv.id,patch:cd.look_patch});   // QUEST 12/10
   });
+  if(in3d)cos3Foto(mode,daFare);else cos3Butta();
 }
 function cosClaim(mode,id){
   if(!S.userId)return;
@@ -49603,8 +49702,8 @@ function gcrAnteprima(cv,look,sagoma,now){
   if(sagoma){gcr2Sagoma(cv);return;}
   var x=W-6,y=8,r=Math.max(5,H*0.07);
   c.font=Math.round(r*1.8)+'px serif';c.textAlign='right';c.textBaseline='top';
-  if(g.ins){c.fillText(GCR2_INS_EMOJI[g.ins],x,y);y+=r*2.2;}
-  if(g.mo){c.fillText(GCR2_MO_EMOJI[g.mo],x,y);y+=r*2.2;}
+  if(g.ins&&!window._gcrSenzaEmo){c.fillText(GCR2_INS_EMOJI[g.ins],x,y);y+=r*2.2;}
+  if(g.mo&&!window._gcrSenzaEmo){c.fillText(GCR2_MO_EMOJI[g.mo],x,y);y+=r*2.2;}
   if(g.au){c.fillStyle=GCR2_AUTO_HEX[g.au];c.beginPath();if(c.roundRect)c.roundRect(x-r*2.6,y,r*2.6,r*1.3,r*0.4);else c.rect(x-r*2.6,y,r*2.6,r*1.3);c.fill();
     c.fillStyle='#111';c.beginPath();c.arc(x-r*2.1,y+r*1.35,r*0.35,0,6.283);c.arc(x-r*0.5,y+r*1.35,r*0.35,0,6.283);c.fill();y+=r*2.2;}
   if(g.fa){c.fillStyle=GCR2_FA_HEX[g.fa];c.fillRect(x-r*2.4,y+r*0.3,r*2.4,r*0.55);c.fillRect(x-r*2.4,y+r*0.3,r*0.6,r*1.2);}
