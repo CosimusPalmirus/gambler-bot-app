@@ -1,0 +1,989 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>BRISCOLA</title>
+<style>
+@font-face{font-family:'Rubik';font-style:normal;font-weight:500 800;font-display:swap;src:url(briscola/font/rubik.woff2) format('woff2')}
+:root{--br-sat:0px;--br-sab:0px;--br-sal:0px;--br-sar:0px;--oro:#ffc94a;--crema:#f6efdc;--ink:#10231b;--verde:#0f5a41;--rosso:#ff5d5d;--dur:.42s}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:#06140f;overflow:hidden;font-family:'Rubik',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-weight:700;color:var(--crema);-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;touch-action:none;overscroll-behavior:none}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;padding:0}
+#app{position:fixed;top:var(--br-sat);left:var(--br-sal);right:var(--br-sar);bottom:0;overflow:hidden;
+  background:radial-gradient(120% 90% at 50% 45%,#177a57 0%,#0f5a41 38%,#093a2b 72%,#051d16 100%)}
+#app::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
+  background-image:radial-gradient(rgba(255,255,255,.035) 1px,transparent 1.4px);background-size:7px 7px}
+#app::after{content:"";position:absolute;inset:6px;border:2px solid rgba(255,201,74,.18);border-radius:18px;pointer-events:none;z-index:1}
+#tav{position:absolute;inset:0;z-index:0}      /* contesto suo: gli z-index delle carte non scavalcano targhe, guida e cartelli */
+.targa,#tasti,#piatto,#spet,#stato,#chipBr,#nTal,#tifo{z-index:2}
+#fine{z-index:5}
+#cartello{z-index:8}
+#guida{z-index:10}
+
+/* ── le carte: DOM, angoli gia' nel file (niente border-radius, niente box-shadow) ── */
+.carta{position:absolute;left:0;top:0;aspect-ratio:2/3;transform-origin:50% 50%;pointer-events:none;will-change:transform;
+  transition:transform var(--dur) cubic-bezier(.22,.85,.25,1),width var(--dur) cubic-bezier(.22,.85,.25,1),opacity .3s linear;
+  filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
+.carta.ferma{transition:none}
+.carta .gira{position:absolute;inset:0;transition:transform .13s linear}
+.carta img{position:absolute;inset:0;width:100%;height:100%;display:block;-webkit-user-drag:none;pointer-events:none}
+.carta .d{display:none}
+.carta.coperta .d{display:block}
+.carta.coperta .f,.carta.coperta .rip{display:none}
+.carta .rip{position:absolute;inset:0;border-radius:6.2%;background:var(--crema);color:#1b1b1b;display:grid;place-items:center;text-align:center;font-size:22px;line-height:1.1;border:2px solid #b9a36a}
+.carta.viva{pointer-events:auto;cursor:pointer;filter:drop-shadow(0 0 7px rgba(255,201,74,.95)) drop-shadow(0 3px 4px rgba(0,0,0,.55))}
+.carta.scelta{filter:drop-shadow(0 0 10px #fff) drop-shadow(0 4px 5px rgba(0,0,0,.6))}
+.carta.via{opacity:0}
+.mazzetto{position:absolute;left:0;top:0;aspect-ratio:2/3;pointer-events:none;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
+.mazzetto img{position:absolute;left:0;top:0;width:100%;height:100%;display:block}
+.mazzetto img:nth-child(2){transform:translate(-2px,-2px)}
+.mazzetto img:nth-child(3){transform:translate(-4px,-4px)}
+.mazzetto.n0{display:none}
+.mazzetto.n1 img:nth-child(n+2){display:none}
+.mazzetto.n2 img:nth-child(3){display:none}
+#vuotoTal{position:absolute;left:0;top:0;aspect-ratio:2/3;border:2px dashed rgba(255,255,255,.22);border-radius:7%;display:none}
+
+/* ── targhe ── */
+.targa{position:absolute;display:flex;align-items:center;gap:8px;padding:5px 10px 7px;border-radius:12px;background:rgba(4,22,16,.78);border:2px solid rgba(255,255,255,.12);min-width:132px;max-width:calc(100% - 118px);transition:border-color .2s,box-shadow .2s}
+.targa .nome{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;opacity:.92}
+.targa .pt{font-size:24px;font-weight:800;line-height:1;color:var(--oro);min-width:30px;text-align:right;transition:transform .18s}
+.targa .pt.bum{transform:scale(1.45)}
+.targa .su{font-size:11px;opacity:.6;margin-left:-4px}
+.targa .barra{position:absolute;left:8px;right:8px;bottom:2px;height:3px;border-radius:2px;background:rgba(255,255,255,.14);overflow:hidden}
+.targa .barra i{display:block;height:100%;width:0;background:var(--oro);transition:width .5s}
+.targa .orol{position:absolute;left:-2px;right:-2px;top:-2px;height:4px;border-radius:3px 3px 0 0;overflow:hidden;opacity:0}
+.targa .orol i{display:block;height:100%;width:100%;background:#fff}
+.targa.tocca{border-color:var(--oro);box-shadow:0 0 14px rgba(255,201,74,.55)}
+.targa.tocca .orol{opacity:1}
+.targa.fretta .orol i{background:var(--rosso)}
+.targa .sec{font-size:13px;color:var(--rosso);min-width:14px;display:none}
+.targa.fretta .sec{display:block}
+.targa .ass{display:none;font-size:10px;padding:1px 5px;border-radius:6px;background:#7a1f1f;color:#fff}
+.targa.assente{opacity:.6}
+.targa.assente .ass{display:block}
+#targaSu{left:8px;top:6px}
+#targaGiu{left:8px;bottom:calc(6px + var(--br-sab))}
+#tasti{position:absolute;right:8px;bottom:calc(6px + var(--br-sab));display:flex;gap:8px}
+#tasti button{width:40px;height:40px;border-radius:12px;background:rgba(4,22,16,.78);border:2px solid rgba(255,255,255,.14);font-size:19px;line-height:1}
+#tasti button:active{transform:scale(.94)}
+#piatto,#spet{position:absolute;left:8px;top:56px;font-size:11px;padding:3px 8px;border-radius:9px;background:rgba(4,22,16,.78);color:var(--oro);white-space:nowrap;display:none;max-width:118px;overflow:hidden;text-overflow:ellipsis}
+body.largo #piatto,body.largo #spet{top:auto;bottom:calc(60px + var(--br-sab));max-width:none;font-size:13px}
+#stato{position:absolute;left:0;right:0;height:30px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;letter-spacing:.02em;text-align:center;padding:0 10px;text-shadow:0 1px 2px rgba(0,0,0,.6);pointer-events:none;white-space:nowrap;overflow:hidden}
+#stato.mio{color:var(--oro)}
+#stato.err{color:#ffb0b0}
+#chipBr,#nTal{position:absolute;left:0;top:0;font-size:11px;font-weight:800;line-height:1.2;white-space:nowrap;padding:3px 7px;border-radius:9px;background:rgba(4,22,16,.78);pointer-events:none;display:none}
+#chipBr{white-space:normal}
+#chipBr b{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+#nTal{color:var(--oro)}
+#tifo{position:absolute;left:8px;top:56px;max-width:60%;font-size:11px;font-weight:500;line-height:1.25;padding:3px 7px;border-radius:8px;background:rgba(4,22,16,.72);display:none;pointer-events:none;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+
+/* ── la fine ── */
+#fine{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%) scale(.6);opacity:0;pointer-events:none;text-align:center;width:min(92%,460px);padding:18px 14px 16px;border-radius:20px;background:rgba(4,22,16,.92);border:3px solid var(--oro);transition:transform .35s cubic-bezier(.2,1.5,.4,1),opacity .25s}
+#fine.su{transform:translate(-50%,-50%) scale(1);opacity:1;pointer-events:auto}
+#fine .tit{font-size:34px;font-weight:800;line-height:1.05;color:var(--oro);letter-spacing:.02em}
+#fine.perso{border-color:#8a94a8}
+#fine.perso .tit{color:#c9d1e0}
+#fine .conto{margin-top:10px;font-size:26px;font-weight:800}
+#fine .conto small{display:block;font-size:12px;font-weight:700;opacity:.75;margin-bottom:2px}
+#fine .perche{margin-top:8px;font-size:13px;font-weight:500;opacity:.9;line-height:1.3}
+#fine .euro{margin-top:10px;font-size:15px;min-height:18px}
+#fine .euro b{color:var(--oro);font-size:19px}
+#fine button{display:none;margin:12px auto 0;padding:9px 22px;border-radius:12px;background:var(--oro);color:#1b1407;font-weight:800;font-size:15px}
+#fine.esci button{display:block}
+
+/* ── la guida: l'angolo alto-destro 96x44 resta libero (li' c'e' ESCI di index) ── */
+#guida{position:absolute;inset:0;background:rgba(3,16,12,.97);display:none;flex-direction:column;padding:50px 0 calc(10px + var(--br-sab))}
+#guida.su{display:flex}
+#guida h1{position:absolute;left:14px;top:12px;margin:0;font-size:18px;font-weight:800;color:var(--oro);max-width:calc(100% - 124px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#gCorpo{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;padding:0 16px}
+#gCorpo h2{font-size:15px;color:var(--oro);margin:14px 0 5px}
+#gCorpo p{font-size:14px;font-weight:500;line-height:1.42;margin:0 0 6px}
+#gCorpo .val{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 4px}
+#gCorpo .val div{width:62px;text-align:center;font-size:13px}
+#gCorpo .val img{width:62px;aspect-ratio:2/3;display:block;margin-bottom:3px}
+#gChiudi{margin:8px auto 0;padding:11px 34px;border-radius:14px;background:var(--oro);color:#1b1407;font-size:16px;font-weight:800}
+body.largo #gCorpo{max-width:760px;margin:0 auto;width:100%}
+
+#cartello{position:absolute;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;text-align:center;padding:20px;font-size:17px}
+#cartello.su{display:flex}
+#cartello img{width:110px;aspect-ratio:2/3}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="tav"><div id="vuotoTal"></div></div>
+  <div id="targaSu" class="targa"><div class="orol"><i></i></div><span class="nome"></span><span class="ass"></span><span class="sec"></span><span class="pt">0</span><span class="su"></span><div class="barra"><i></i></div></div>
+  <div id="targaGiu" class="targa"><div class="orol"><i></i></div><span class="nome"></span><span class="ass"></span><span class="sec"></span><span class="pt">0</span><span class="su"></span><div class="barra"><i></i></div></div>
+  <div id="piatto"></div>
+  <div id="chipBr"></div>
+  <div id="nTal"></div>
+  <div id="stato"></div>
+  <div id="tifo"></div>
+  <div id="spet"></div>
+  <div id="tasti"><button id="bGuida" aria-label="guida">📖</button><button id="bSuono" aria-label="suono">🔊</button></div>
+  <div id="fine"><div class="tit"></div><div class="conto"></div><div class="perche"></div><div class="euro"></div><button id="bEsci"></button></div>
+  <div id="guida"><h1></h1><div id="gCorpo"></div><button id="gChiudi"></button></div>
+  <div id="cartello"><img src="carte/dorso.webp" alt=""><div id="cTesto"></div></div>
+</div>
+<script>
+'use strict';
+// BRISCOLA — la pagina in iframe. Piano 10_PIANO.md §B.6-B.8.
+// Nessun motore qui dentro: la pagina RACCONTA le voci numerate che arrivano dal server
+// (o da un filo registrato dal banco Python: ?filo=<nome> / ?demo=1).
+const QS = new URLSearchParams(location.search);
+const RETE = QS.get('guscio') === '1';
+const NOME_FILO = QS.get('filo') || (QS.get('demo') === '1' ? '@demo' : '');
+const EN = (QS.get('lang') || '').toLowerCase() === 'en';
+const VEL = Math.max(.25, Math.min(16, +QS.get('vel') || 1));
+const $ = q => document.querySelector(q);
+const app = $('#app'), tav = $('#tav');
+if (EN) document.documentElement.lang = 'en';
+
+// ---------- lingua: testi italiani nel codice, dizionario a chiave italiana
+const DIZ = {
+  'Apri BRISCOLA da Gambler Bot': 'Open BRISCOLA from Gambler Bot',
+  'IN ATTESA DEI GIOCATORI…': 'WAITING FOR PLAYERS…',
+  '👁 SPETTATORE': '👁 SPECTATOR',
+  'Tocca a te: gioca una carta': 'Your turn: play a card',
+  'Tocca a {n}': '{n} to play',
+  'Si danno le carte…': 'Dealing the cards…',
+  'La briscola è {c}': 'The trump is {c}',
+  'Prendi tu: +{p} punti': 'You take it: +{p} points',
+  'Prendi tu': 'You take it',
+  '{n} prende: +{p} punti': '{n} takes it: +{p} points',
+  '{n} prende': '{n} takes it',
+  'Peschi la briscola: il tallone è finito': 'You draw the trump card: the deck is finished',
+  '{n} pesca la briscola: il tallone è finito': '{n} draws the trump card: the deck is finished',
+  '{n} è fuori dalla partita': '{n} is out of the game',
+  '{n} ha lasciato il tavolo': '{n} left the table',
+  'Un giocatore ha lasciato il tavolo': 'A player left the table',
+  'HAI VINTO!': 'YOU WIN!',
+  'HAI PERSO': 'YOU LOSE',
+  'PATTA': 'DRAW',
+  'TAVOLO ANNULLATO': 'TABLE CANCELLED',
+  'VINCE {n}': '{n} WINS',
+  'PUNTI': 'POINTS',
+  '{a} a {b}': '{a} to {b}',
+  '60 pari: le poste tornano ai giocatori': '60 all: stakes go back to the players',
+  '60 pari: nessun vincitore': '60 all: no winner',
+  '60 pari: vince chi ha fatto l’ultima presa': '60 all: whoever took the last trick wins',
+  'L’avversario ha lasciato il tavolo': 'Your opponent left the table',
+  'Partita chiusa: un giocatore ha lasciato il tavolo': 'Game over: a player left the table',
+  'Tempo scaduto: vince chi ha più punti': 'Time is up: the higher score wins',
+  'Tempo scaduto a punti pari': 'Time is up with level scores',
+  'Partita di allenamento: niente soldi in palio': 'Practice game: no money at stake',
+  'Partita gratis: niente soldi in palio': 'Free game: no money at stake',
+  'HAI VINTO {e}': 'YOU WON {e}',
+  'PIATTO {e}': 'POT {e}',
+  'La posta è stata restituita': 'Your stake was refunded',
+  'Il premio arriva sul saldo fra poco': 'Your prize will reach your balance shortly',
+  'ESCI': 'EXIT',
+  'CHIUDI': 'CLOSE',
+  '📖 COME SI GIOCA': '📖 HOW TO PLAY',
+  'ASSENTE': 'AWAY',
+  'TU': 'YOU',
+  'BRISCOLA: {c}': 'TRUMP: {c}',
+  '{k} nel tallone': '{k} in the deck',
+  'ASSO': 'ACE', 'FANTE': 'JACK', 'CAVALLO': 'KNIGHT', 'RE': 'KING',
+  'DENARI': 'COINS', 'SPADE': 'SWORDS', 'COPPE': 'CUPS', 'BASTONI': 'CLUBS',
+  '{v} DI {s}': '{v} OF {s}',
+  // i rifiuti del server (`perche`)
+  'non è il tuo turno': 'it is not your turn',
+  'carta non valida': 'that card is not valid',
+  'mossa vecchia': 'that move came too late',
+  'non adesso': 'not now',
+  'partita finita': 'the game is over',
+  'mossa sconosciuta': 'unknown move',
+  'sei fuori dalla partita': 'you are out of the game',
+  // la guida
+  'LO SCOPO': 'THE GOAL',
+  'Si gioca uno contro uno con le 40 carte napoletane. In palio ci sono {t} punti: vince chi ne fa {v}. La partita si chiude appena uno ci arriva.':
+    'One against one with the 40 Neapolitan cards. There are {t} points to win: the first to {v} wins, and the game ends right there.',
+  'I PUNTI': 'THE POINTS',
+  'Tutte le altre carte valgono zero.': 'Every other card is worth nothing.',
+  'CHI PRENDE': 'WHO TAKES THE TRICK',
+  'Non c’è obbligo di seme: giochi la carta che vuoi. Se sul tavolo c’è una briscola, prende la briscola più forte. Senza briscole prende la carta più forte del seme della PRIMA carta giocata.':
+    'You never have to follow suit: play any card. If a trump is on the table, the strongest trump takes it. With no trumps, the strongest card in the suit of the FIRST card played takes it.',
+  'Forza delle carte: Asso, 3, Re, Cavallo, Fante, 7, 6, 5, 4, 2.': 'Card strength: Ace, 3, King, Knight, Jack, 7, 6, 5, 4, 2.',
+  'IL GIRO': 'THE ROUND',
+  'Hai {m} carte in mano. Chi prende pesca per primo e apre la mano dopo. All’ultima pescata chi ha perso la presa prende la briscola scoperta.':
+    'You hold {m} cards. Whoever takes the trick draws first and leads the next one. On the last draw, the loser of the trick takes the face-up trump.',
+  'Hai {s} secondi per giocare: se scadono, la carta la gioca il banco al posto tuo.': 'You have {s} seconds to play: if they run out, the house plays a card for you.',
+  'PARI E PIATTO': 'TIES AND THE POT',
+  '60 pari è patta: le poste tornano ai giocatori. In torneo a 60 pari vince chi ha fatto l’ultima presa.':
+    '60 all is a draw: stakes go back to the players. In a tournament, at 60 all whoever took the last trick wins.',
+  'Il piatto va tutto al vincitore, meno il {r}% del banco.': 'The whole pot goes to the winner, minus the {r}% house fee.',
+  '{p} punti': '{p} points'
+};
+const USATE = {}, MANCANTI = {};
+function T(s, p) {
+  USATE[s] = 1;
+  let o = s;
+  if (EN) { if (DIZ[s] !== undefined) o = DIZ[s]; else MANCANTI[s] = 1; }
+  if (p) for (const k in p) o = o.split('{' + k + '}').join(String(p[k]));
+  return o;
+}
+const VALORI = ['ASSO', '2', '3', '4', '5', '6', '7', 'FANTE', 'CAVALLO', 'RE'];
+const SEMI = ['DENARI', 'SPADE', 'COPPE', 'BASTONI'];
+const TINTE = ['#f2c230', '#5a8dee', '#ef5350', '#58c06a'];
+const CORTI = ['A', '2', '3', '4', '5', '6', '7', 'F', 'C', 'R'];
+const tv = k => (/^[0-9]$/.test(VALORI[k]) ? VALORI[k] : T(VALORI[k]));
+const nomeCarta = c => T('{v} DI {s}', { v: tv(c % 10), s: T(SEMI[Math.floor(c / 10)]) });
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+const euro = x => { const v = (Math.round(x * 100) / 100).toFixed(2); return EN ? '€' + v : '€ ' + v.replace('.', ','); };
+const file = c => 'carte/' + (c === 'dorso' ? 'dorso' : (c < 10 ? '0' + c : '' + c)) + '.webp';
+
+// ---------- suoni: tutti sintetizzati, nessun file
+const Suono = (() => {
+  let ctx = null, acceso = true, muto = false;
+  function c() {
+    if (!acceso || muto) return null;
+    if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
+    if (ctx.state === 'suspended') { try { ctx.resume(); } catch (e) {} }
+    return ctx;
+  }
+  function nota(f, d, tipo, v, f2, quando) {
+    const x = c(); if (!x) return;
+    const t = x.currentTime + (quando || 0), o = x.createOscillator(), g = x.createGain();
+    o.type = tipo || 'triangle'; o.frequency.setValueAtTime(f, t);
+    if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + d);
+    g.gain.setValueAtTime(v || .08, t); g.gain.exponentialRampToValueAtTime(.0001, t + d);
+    o.connect(g).connect(x.destination); o.start(t); o.stop(t + d + .02);
+  }
+  function fruscio(d, v, freq, quando) {
+    const x = c(); if (!x) return;
+    const t = x.currentTime + (quando || 0), n = Math.floor(x.sampleRate * d), buf = x.createBuffer(1, n, x.sampleRate), a = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) a[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const s = x.createBufferSource(), fl = x.createBiquadFilter(), g = x.createGain();
+    s.buffer = buf; fl.type = 'bandpass'; fl.frequency.value = freq || 1200; g.gain.value = v || .1;
+    s.connect(fl).connect(g).connect(x.destination); s.start(t);
+  }
+  return {
+    get acceso() { return acceso; }, set acceso(v) { acceso = v; }, set muto(v) { muto = v; },
+    pesca() { fruscio(.09, .14, 2600); },
+    posa() { fruscio(.05, .3, 900); nota(170, .07, 'triangle', .16, 90); },
+    presa(p) { fruscio(.22, .2, 1600); const k = p >= 15 ? 4 : p >= 10 ? 3 : p > 0 ? 2 : 0; for (let i = 0; i < k; i++) nota(660 * Math.pow(1.19, i), .14, 'triangle', .1, 0, .12 + i * .09); },
+    turno() { nota(660, .08, 'triangle', .1); nota(990, .14, 'triangle', .1, 0, .09); },
+    tic() { nota(1200, .04, 'square', .04); },
+    no() { nota(200, .12, 'square', .06, 130); },
+    briscola() { nota(523, .1, 'triangle', .1); nota(784, .22, 'triangle', .1, 0, .1); },
+    vince() { [523, 659, 784, 1047, 784, 1047].forEach((f, k) => nota(f, .22, 'triangle', .11, 0, k * .13)); },
+    perde() { [392, 330, 262, 196].forEach((f, k) => nota(f, .3, 'triangle', .1, 0, k * .2)); },
+    patta() { [440, 440, 523].forEach((f, k) => nota(f, .2, 'triangle', .1, 0, k * .18)); }
+  };
+})();
+
+// ---------- stato della pagina
+let START = null, MAPPA = null, FIRMA = '', IO = -1, SPET = false, GIU = 0, SU = 1, NOMI = ['', ''];
+let ULT = null, ULT_RX = 0, MN = 0, maxS = 0, CODA = [], inScena = false, gen = 0, IN_PAUSA = false;
+let S = null;                 // lo stato pubblico dopo l'ultima voce RACCONTATA
+let MANO = [];                // le mie carte come le ho raccontate (numeri)
+let EL_MIE = {};              // c → elemento, le mie carte in mano
+let EL_SUE = [];              // i dorsi dell'altro (a chi guarda: di tutti e due)
+let EL_GIU_SPET = [];         // spettatore: i dorsi del seggio in basso
+let EL_TAV = [];              // [{sg, c, el}] sul tavolo
+let EL_BRISC = null;          // la briscola scoperta sotto il tallone
+let OVER = null, finaleFatto = false, finalePronto = false, fineMandata = false, vinceVista = null;
+let ACCESI = false, tokMandato = -1, tmTasti = 0;
+let W = 0, H = 0, LARGO = false, G = null, MISURE = 0;
+const BORDI = { sat: 0, sab: 0, sal: 0, sar: 0 };
+const ERRORI = [];
+const STAT = { giu: 0, su: 0, scartati: 0, recitate: 0, doppie: 0, rientri: 0, riallinei: 0, ritMaxMs: 0 };
+const mazzo = document.createElement('div'); mazzo.className = 'mazzetto n0'; mazzo.innerHTML = '<img alt=""><img alt=""><img alt="">';
+const pile = [0, 1].map(() => { const d = document.createElement('div'); d.className = 'mazzetto n0'; d.innerHTML = '<img alt=""><img alt=""><img alt="">'; return d; });
+tav.appendChild(mazzo); pile.forEach(p => tav.appendChild(p));
+[mazzo, pile[0], pile[1]].forEach(d => d.querySelectorAll('img').forEach(i => { i.src = file('dorso'); }));
+
+const F = () => VEL * (CODA.length > 8 ? 3 : CODA.length > 4 ? 1.7 : 1);       // se resto indietro, racconto piu' in fretta
+const aspetta = ms => new Promise(r => setTimeout(r, Math.max(0, ms / F())));
+const posto = sg => (sg === GIU ? 'giu' : 'su');
+const nome = sg => (!SPET && sg === IO ? T('TU') : (NOMI[sg] || ''));
+
+// ---------- misura e impaginazione (telefono in piedi e PC)
+function impagina() {
+  const r = app.getBoundingClientRect();
+  if (r.width < 50 || r.height < 50) return false;          // iframe nascosto (precarico): niente misura
+  W = Math.round(r.width); H = Math.round(r.height - BORDI.sab);
+  LARGO = W >= 900 && W > H * 1.15;
+  document.body.classList.toggle('largo', LARGO);
+  const cl = (v, a, b) => Math.max(a, Math.min(b, Math.round(v)));
+  const g = { };
+  if (!LARGO) {
+    const alto = 56, basso = 52, stato = 40;      // 30 di riga + 10: le carte vive salgono del 7% (INTEGRAZIONE)
+    const wSua = cl(W * .16, 50, 76), hSua = wSua * 1.5;
+    let wMia = Math.min(Math.floor((W - 32) / 3), 170);
+    const fisso = alto + hSua + 8 + stato + basso + 10;
+    wMia = Math.max(96, Math.min(wMia, Math.floor((H - fisso - 168) / 1.5)));
+    const hC = Math.max(120, H - fisso - wMia * 1.5), yC0 = alto + hSua + 8, yCc = yC0 + hC / 2;
+    let wTav = Math.min(Math.round(W * .29), Math.floor(hC / 1.86), 190);
+    let wTal = cl(wTav * .62, 54, 110), wPila = cl(wTav * .4, 34, 64);
+    const sin = 10 + wTal * 1.85 + 8, des = W - wPila - 16;
+    wTav = Math.max(72, Math.min(wTav, Math.floor((des - sin) / 1.72)));
+    const xC = (sin + des) / 2;
+    g.sua = { w: wSua, y: alto + hSua / 2, passo: wSua * .62, cx: Math.max(W / 2, 134 + wSua * 1.2) };      // a sinistra, sotto la targa, c'e' il cartellino del piatto
+    g.mia = { w: wMia, y: yC0 + hC + stato + wMia * .75, passo: wMia + 8, cx: W / 2 };
+    g.tav = { giu: { cx: xC + wTav * .3, cy: yCc + wTav * .12, w: wTav, rot: 4 }, su: { cx: xC - wTav * .3, cy: yCc - wTav * .12, w: wTav, rot: -5 } };
+    g.tal = { cx: 10 + wTal / 2, cy: yCc + 6, w: wTal };
+    g.pila = { su: { cx: W - 8 - wPila / 2, cy: yC0 + 4 + wPila * .75, w: wPila }, giu: { cx: W - 8 - wPila / 2, cy: yC0 + hC - 4 - wPila * .75, w: wPila } };
+    g.statoY = yC0 + hC;
+  } else {
+    const wMia = cl(H * .2, 110, 190), wSua = cl(H * .1, 56, 100), stato = 46;      // 30 di riga + la salita delle carte vive (INTEGRAZIONE)
+    const yMia = H - wMia * .75 - 16, ySua = 12 + wSua * .75;
+    const y0 = 12 + wSua * 1.5 + 10, y1 = H - wMia * 1.5 - 16 - stato - 6, hC = Math.max(120, y1 - y0), yCc = y0 + hC / 2;
+    const wTav = cl(Math.min(hC / 1.78, 190), 96, 190), wTal = cl(wTav * .8, 70, 150), wPila = cl(wTav * .5, 48, 90);
+    g.sua = { w: wSua, y: ySua, passo: wSua * .7, cx: W / 2 };
+    g.mia = { w: wMia, y: yMia, passo: wMia + 12, cx: W / 2 };
+    g.tav = { giu: { cx: W / 2 + wTav * .6, cy: yCc + wTav * .06, w: wTav, rot: 3 }, su: { cx: W / 2 - wTav * .6, cy: yCc - wTav * .06, w: wTav, rot: -4 } };
+    g.tal = { cx: Math.max(30 + wTal / 2, W / 2 - wTav * 1.2 - wTal * 1.9), cy: yCc, w: wTal };
+    g.pila = { su: { cx: Math.min(W - 30 - wPila / 2, W / 2 + wTav * 1.2 + wPila * 1.6), cy: y0 + wPila * .75, w: wPila }, giu: { cx: Math.min(W - 30 - wPila / 2, W / 2 + wTav * 1.2 + wPila * 1.6), cy: y1 - wPila * .75, w: wPila } };
+    g.statoY = y1 + 4;
+  }
+  g.brisc = { cx: g.tal.cx + g.tal.w * .55, cy: g.tal.cy, w: g.tal.w, rot: 90 };
+  G = g; MISURE++;
+  // gli elementi fissi
+  const st = $('#stato'); st.style.top = Math.round(g.statoY) + 'px';
+  fissa(mazzo, g.tal); fissa($('#vuotoTal'), g.tal);
+  fissa(pile[SU], g.pila.su); fissa(pile[GIU], g.pila.giu);
+  const chip = $('#chipBr'), nt = $('#nTal');
+  chip.style.maxWidth = Math.round(g.tal.w * 1.85) + 'px';
+  chip.style.transform = 'translate(' + Math.round(g.tal.cx - g.tal.w / 2) + 'px,' + Math.round(g.tal.cy - g.tal.w * .75 - 7) + 'px) translateY(-100%)';
+  nt.style.transform = 'translate(' + Math.round(g.tal.cx - g.tal.w / 2) + 'px,' + Math.round(g.tal.cy + g.tal.w * .75 + 5) + 'px)';
+  return true;
+}
+function fissa(el, s) { el.style.width = Math.round(s.w) + 'px'; el.style.transform = 'translate(' + Math.round(s.cx - s.w / 2) + 'px,' + Math.round(s.cy - s.w * .75) + 'px)'; }
+function posa(el, s, z, fermo) {
+  if (!el || !s) return;
+  if (el.classList.contains('ferma')) fermo = true;
+  if (fermo) el.classList.add('ferma');
+  el.style.setProperty('--dur', (.42 / F()).toFixed(3) + 's');
+  el.style.width = Math.round(s.w) + 'px';
+  el.style.zIndex = z || 1;
+  el.style.transform = 'translate(' + Math.round(s.cx - s.w / 2) + 'px,' + Math.round(s.cy - s.w * .75 + (s.dy || 0)) + 'px) rotate(' + (s.rot || 0) + 'deg)';
+  if (fermo) { void el.offsetWidth; el.classList.remove('ferma'); }
+}
+const slotMano = (dove, i, n) => { const m = G[dove]; return { cx: m.cx + (i - (n - 1) / 2) * m.passo, cy: m.y, w: m.w, rot: dove === 'sua' ? (i - (n - 1) / 2) * 5 : 0 }; };
+function misura() {
+  if (!impagina()) return;
+  riposa(true);
+}
+// rimette OGNI carta al suo posto (dopo una misura, o a fine scena)
+function riposa(fermo) {
+  if (!G) return;
+  const mie = MANO.filter(c => EL_MIE[c]);
+  mie.forEach((c, i) => {
+    const el = EL_MIE[c], s = slotMano('mia', i, mie.length);
+    if (el.classList.contains('viva')) s.dy = -Math.round(G.mia.w * .07);
+    if (el.classList.contains('scelta')) s.dy = -Math.round(G.mia.w * .22);
+    posa(el, s, 20 + i, fermo);
+  });
+  EL_GIU_SPET.forEach((el, i) => posa(el, slotMano('mia', i, EL_GIU_SPET.length), 20 + i, fermo));
+  EL_SUE.forEach((el, i) => posa(el, slotMano('sua', i, EL_SUE.length), 10 + i, fermo));
+  EL_TAV.forEach((t, i) => posa(t.el, G.tav[posto(t.sg)], 30 + i, fermo));
+  if (EL_BRISC) posa(EL_BRISC, G.brisc, 2, fermo);
+  mazzo.style.zIndex = 3;
+}
+
+// ---------- le carte
+function creaCarta(c, coperta) {
+  const el = document.createElement('div');
+  el.className = 'carta ferma' + (coperta ? ' coperta' : '');
+  el.innerHTML = '<div class="gira"><img class="f" alt=""><img class="d" alt=""></div>';
+  el.querySelector('.d').src = file('dorso');
+  if (c != null) faccia(el, c);
+  tav.appendChild(el);
+  return el;
+}
+function faccia(el, c) {
+  el.dataset.c = c;
+  const f = el.querySelector('.f');
+  f.onerror = () => {                       // ripiego: mai un buco (rettangolo crema col valore scritto)
+    f.onerror = null; f.style.display = 'none';
+    const d = document.createElement('div'); d.className = 'rip';
+    d.innerHTML = '<span><b style="color:' + TINTE[Math.floor(c / 10)] + '">' + CORTI[c % 10] + '</b><br><small>' + esc(T(SEMI[Math.floor(c / 10)])) + '</small></span>';
+    el.querySelector('.gira').appendChild(d);
+  };
+  f.src = file(c);
+}
+function gira(el, coperta, c) {
+  const g = el.querySelector('.gira');
+  if (el.classList.contains('coperta') === !!coperta) { if (!coperta && c != null && el.dataset.c == null) faccia(el, c); return; }
+  g.style.transform = 'scaleX(0)';
+  setTimeout(() => {
+    if (!coperta && c != null) faccia(el, c);
+    el.classList.toggle('coperta', !!coperta);
+    g.style.transform = 'scaleX(1)';
+  }, 130 / F());
+}
+function togli(el, dopo) { if (!el) return; el.classList.remove('viva', 'scelta'); setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, dopo || 0); }
+function svuota() {
+  gen++;
+  Array.from(tav.querySelectorAll('.carta')).forEach(e => e.parentNode.removeChild(e));
+  EL_MIE = {}; EL_SUE = []; EL_GIU_SPET = []; EL_TAV = []; EL_BRISC = null; MANO = [];
+}
+const classeN = n => 'mazzetto n' + (n <= 0 ? 0 : n <= 2 ? 1 : n <= 8 ? 2 : 3);
+function aggTallone(st) {
+  const n = st.tallone, coperte = st.briscola == null ? n : Math.max(0, n - 1);
+  mazzo.className = classeN(coperte);
+  $('#vuotoTal').style.display = (st.briscola != null && n === 0) ? 'block' : 'none';
+  const nt = $('#nTal'), chip = $('#chipBr');
+  if (st.briscola != null) {
+    nt.style.display = n > 0 ? 'block' : 'none'; nt.textContent = T('{k} nel tallone', { k: n });
+    chip.style.display = 'block';
+    chip.innerHTML = '<b style="background:' + TINTE[st.seme] + '"></b>' + esc(T('BRISCOLA: {c}', { c: n > 0 ? nomeCarta(st.briscola) : T(SEMI[st.seme]) }));
+  } else { nt.style.display = 'none'; chip.style.display = 'none'; }
+}
+function aggPunti(st, bum) {
+  [0, 1].forEach(sg => {
+    const tg = $(sg === GIU ? '#targaGiu' : '#targaSu'), pt = tg.querySelector('.pt');
+    const prima = +pt.textContent || 0, ora = st.punti[sg] || 0;
+    pt.textContent = ora;
+    tg.querySelector('.barra i').style.width = Math.min(100, ora / ((MAPPA && MAPPA.reg && MAPPA.reg.punti_vittoria) || 61) * 100) + '%';
+    if (bum && ora !== prima) { pt.classList.add('bum'); setTimeout(() => pt.classList.remove('bum'), 260); }
+    pile[sg].className = classeN(st.prese[sg] * 2);
+  });
+}
+// monta il tavolo di colpo da uno stato (rientro, riallineo): nessuna animazione
+function monta(st, mano) {
+  svuota();
+  S = st;
+  if (!G && !impagina()) return;
+  if (st.briscola != null && st.tallone > 0) EL_BRISC = creaCarta(st.briscola, false);
+  (st.tavolo || []).forEach(x => EL_TAV.push({ sg: x.sg, c: x.c, el: creaCarta(x.c, false) }));
+  if (!SPET && Array.isArray(mano)) { MANO = mano.slice(); MANO.forEach(c => { EL_MIE[c] = creaCarta(c, false); EL_MIE[c].classList.add('mia'); EL_MIE[c].addEventListener('pointerdown', tocco); }); }
+  else for (let i = 0; i < st.nmano[GIU]; i++) EL_GIU_SPET.push(creaCarta(null, true));
+  for (let i = 0; i < st.nmano[SU]; i++) EL_SUE.push(creaCarta(null, true));
+  aggTallone(st); aggPunti(st, false); riposa(true);
+}
+
+// ---------- le scene: una per voce del registro
+function dimmi(testo, classe) { const e = $('#stato'); e.textContent = testo || ''; e.className = classe || ''; }
+async function scena(q) {
+  const v = q.v, g = gen, st = v.st;
+  STAT.recitate++;
+  switch (v.k) {
+    case 'via': aggTallone(st); aggPunti(st, false); break;
+    case 'dai': await scDai(v, q.you, g); break;
+    case 'gioca': await scGioca(v, g); break;
+    case 'presa': await scPresa(v, g); break;
+    case 'pesca': await scPesca(v, q.you, g); break;
+    case 'fuori': dimmi(T('{n} è fuori dalla partita', { n: nome(v.sg) })); await aspetta(800); break;
+    case 'vince': vinceVista = v; S = st; await finale(); break;
+  }
+  if (g === gen) S = st;
+}
+async function scDai(v, you, g) {
+  dimmi(T('Si danno le carte…'));
+  mazzo.className = classeN(40); $('#nTal').style.display = 'none';
+  const mie = (!SPET && you && Array.isArray(you.mano)) ? you.mano.slice() : null;
+  const primo = v.sg;
+  let kMie = 0;
+  for (let giro = 0; giro < 3; giro++) {
+    for (const sg of [primo, 1 - primo]) {
+      if (g !== gen) return;
+      const mio = !SPET && sg === IO;
+      const el = creaCarta(null, true);
+      posa(el, { cx: G.tal.cx, cy: G.tal.cy, w: G.tal.w }, 40, true);
+      Suono.pesca();
+      if (mio && mie && mie[kMie] != null) {
+        const c = mie[kMie++]; MANO.push(c); EL_MIE[c] = el; el.classList.add('mia'); el.addEventListener('pointerdown', tocco);
+        riposa(false); gira(el, false, c);
+      } else if (sg === GIU) { EL_GIU_SPET.push(el); riposa(false); }
+      else { EL_SUE.push(el); riposa(false); }
+      await aspetta(190);
+    }
+  }
+  if (g !== gen) return;
+  // la briscola: si scopre e finisce di traverso sotto il tallone
+  const b = creaCarta(null, true);
+  posa(b, { cx: G.tal.cx, cy: G.tal.cy, w: G.tal.w }, 40, true);
+  const mostra = LARGO ? { cx: G.tal.cx + G.tal.w * 1.4, cy: G.tal.cy, w: Math.round(G.tal.w * 1.25) } : { cx: G.tav.su.cx + G.tav.su.w * .3, cy: (G.tav.su.cy + G.tav.giu.cy) / 2, w: G.tav.su.w };
+  posa(b, mostra, 40, false); gira(b, false, v.briscola);
+  Suono.briscola();
+  dimmi(T('La briscola è {c}', { c: nomeCarta(v.briscola) }));
+  await aspetta(1050);
+  if (g !== gen) return;
+  EL_BRISC = b; posa(b, G.brisc, 2, false);
+  aggTallone(v.st);
+  await aspetta(520);
+}
+async function scGioca(v, g) {
+  const mio = !SPET && v.sg === IO;
+  let el = null;
+  if (mio) {
+    el = EL_MIE[v.c];
+    delete EL_MIE[v.c]; MANO = MANO.filter(c => c !== v.c);
+    if (!el) el = creaCarta(v.c, false);
+    el.classList.remove('viva', 'scelta', 'mia');
+  } else {
+    const lista = v.sg === GIU ? EL_GIU_SPET : EL_SUE;
+    el = lista.length ? lista.splice(Math.floor(lista.length / 2), 1)[0] : creaCarta(null, true);
+    gira(el, false, v.c);
+  }
+  spegniTasti();
+  EL_TAV.push({ sg: v.sg, c: v.c, el: el });
+  riposa(false);
+  setTimeout(() => Suono.posa(), 260 / F());
+  dimmi('');
+  await aspetta(520);
+}
+async function scPresa(v, g) {
+  const mio = !SPET && v.sg === IO;
+  if (v.punti > 0) dimmi(mio ? T('Prendi tu: +{p} punti', { p: v.punti }) : T('{n} prende: +{p} punti', { n: nome(v.sg), p: v.punti }), mio ? 'mio' : '');
+  else dimmi(mio ? T('Prendi tu') : T('{n} prende', { n: nome(v.sg) }), mio ? 'mio' : '');
+  // la carta che prende si alza un attimo: si capisce CHI ha vinto la mano prima che spariscano
+  const vinc = EL_TAV.find(t => t.sg === v.sg);
+  if (vinc) { const s = Object.assign({}, G.tav[posto(v.sg)]); s.w = Math.round(s.w * 1.08); posa(vinc.el, s, 45, false); }
+  await aspetta(700);
+  if (g !== gen) return;
+  Suono.presa(v.punti);
+  const dove = G.pila[posto(v.sg)], via = EL_TAV; EL_TAV = [];
+  via.forEach((t, i) => { posa(t.el, { cx: dove.cx, cy: dove.cy, w: dove.w, rot: i ? 8 : -6 }, 46 + i, false); gira(t.el, true); togli(t.el, 520 / F()); });
+  await aspetta(430);
+  if (g !== gen) return;
+  aggPunti(v.st, true);
+  await aspetta(300);
+}
+async function scPesca(v, you, g) {
+  const mio = !SPET && v.sg === IO;
+  let el, c = null;
+  if (v.ultima) {
+    el = EL_BRISC || creaCarta(v.c, false); EL_BRISC = null; c = v.c;
+    dimmi(mio ? T('Peschi la briscola: il tallone è finito') : T('{n} pesca la briscola: il tallone è finito', { n: nome(v.sg) }));
+  } else {
+    el = creaCarta(null, true);
+    posa(el, { cx: G.tal.cx, cy: G.tal.cy, w: G.tal.w }, 40, true);
+    if (mio && you && Array.isArray(you.pesche)) { const p = you.pesche.find(x => x[0] === v.s); if (p) c = p[1]; }
+  }
+  Suono.pesca();
+  aggTallone(v.st);
+  if (mio) {
+    if (c == null) {                                    // non so quale carta: la prendo dall'ultimo fotogramma
+      const mano = (ULT && ULT.you && ULT.you.mano) || [];
+      const nuove = mano.filter(x => MANO.indexOf(x) < 0);
+      if (nuove.length === 1) c = nuove[0];
+    }
+    if (c != null) { MANO.push(c); EL_MIE[c] = el; el.classList.add('mia'); el.addEventListener('pointerdown', tocco); gira(el, false, c); }
+    else togli(el, 0);                                   // si riallinea a coda vuota
+  } else {
+    if (v.ultima) gira(el, true);
+    (v.sg === GIU ? EL_GIU_SPET : EL_SUE).push(el);
+  }
+  riposa(false);
+  await aspetta(v.ultima ? 430 : 400);
+}
+
+// ---------- il direttore: una voce alla volta, poi l'allineamento col fotogramma
+async function conduci() {
+  if (inScena || IN_PAUSA || !START || !G) return;
+  inScena = true;
+  try {
+    while (CODA.length && !IN_PAUSA) {
+      const q = CODA.shift();
+      if (q.v.s <= MN) { STAT.doppie++; continue; }
+      const rit = performance.now() - q.rx; if (rit > STAT.ritMaxMs) STAT.ritMaxMs = Math.round(rit);
+      const g0 = gen;
+      await scena(q);
+      if (g0 === gen && q.v.s > MN) MN = q.v.s;
+    }
+  } catch (e) { errorePagina('scena: ' + (e && e.message)); }
+  inScena = false;
+  if (!CODA.length && !IN_PAUSA) allineato();
+}
+// la scena ha raggiunto lo stato del server: riallineo (se serve), orologio, tasti
+function allineato() {
+  if (!ULT || !START) return;
+  if (OVER && !finaleFatto) { finaleDaOver(); return; }
+  if (finaleFatto) return;
+  const st = ULT.st;
+  if (ULT.mn === MN && st) {
+    const mano = (!SPET && ULT.you && Array.isArray(ULT.you.mano)) ? ULT.you.mano : null;
+    const stesse = !mano || (mano.length === MANO.length && mano.every(c => MANO.indexOf(c) >= 0 && EL_MIE[c]));
+    const suN = st.nmano[SU], giuN = st.nmano[GIU];
+    if (!stesse || EL_SUE.length !== suN || EL_TAV.length !== (st.tavolo || []).length || (SPET && EL_GIU_SPET.length !== giuN)) { STAT.riallinei++; monta(st, mano); }
+    S = st;
+    aggTallone(st); aggPunti(st, false);
+  }
+  aggTurno();
+}
+function aggTurno() {
+  if (!ULT || !S || finaleFatto) return;
+  const o = ULT.orologio || {}, chi = (ULT.mn === MN) ? S.turno : -1;
+  [0, 1].forEach(sg => {
+    const tg = $(sg === GIU ? '#targaGiu' : '#targaSu');
+    tg.classList.toggle('tocca', sg === chi);
+    tg.classList.toggle('assente', (ULT.offline || []).indexOf(sg) >= 0 || (ULT.fermi || []).indexOf(sg) >= 0);
+  });
+  if (chi < 0) { fermaOrologio(); return; }
+  const mio = !SPET && chi === IO;
+  if (ULT.fase === 'gioco' && performance.now() >= avvisoFino) dimmi(mio ? T('Tocca a te: gioca una carta') : T('Tocca a {n}', { n: nome(chi) }), mio ? 'mio' : '');
+  avviaOrologio(chi, o);
+  const puo = (mio && ULT.you && Array.isArray(ULT.you.puo)) ? ULT.you.puo : [];
+  if (puo.length && ULT.tok !== tokMandato && !NOME_FILO) { accendiTasti(puo); $('#guida').classList.remove('su'); }   // cura G1b (13/10)
+  else if (!puo.length) spegniTasti();
+}
+let orChi = -1, orFine = 0, orTok = -1, tmSec = 0;
+function avviaOrologio(chi, o) {
+  if (!o || o.tipo !== 'turno' || o.chi !== chi) { fermaOrologio(); return; }
+  const ora = performance.now(), resta = Math.max(0, o.resta_s * 1000 / VEL - (ora - ULT_RX)), fine = ora + resta;
+  if (orChi === chi && orTok === ULT.tok && Math.abs(fine - orFine) < 700) return;      // gia' in corsa: non la faccio ripartire a ogni fotogramma
+  fermaOrologio();
+  orChi = chi; orFine = fine; orTok = ULT.tok;
+  const tg = $(chi === GIU ? '#targaGiu' : '#targaSu'), i = tg.querySelector('.orol i'), tot = Math.max(1, o.tot_s * 1000 / VEL);
+  i.style.transition = 'none'; i.style.width = Math.min(100, resta / tot * 100) + '%'; void i.offsetWidth;
+  i.style.transition = 'width ' + (resta / 1000).toFixed(2) + 's linear'; i.style.width = '0%';
+  let ultimoTic = 99;
+  tmSec = setInterval(() => {
+    const s = Math.ceil((orFine - performance.now()) / 1000 * VEL);
+    const fretta = s <= 5 && s >= 0;
+    tg.classList.toggle('fretta', fretta);
+    tg.querySelector('.sec').textContent = fretta ? s : '';
+    if (fretta && s < ultimoTic && s > 0 && !SPET && chi === IO) { ultimoTic = s; Suono.tic(); }
+  }, 250);
+}
+function fermaOrologio() {
+  clearInterval(tmSec); tmSec = 0; orChi = -1; orTok = -1;
+  ['#targaGiu', '#targaSu'].forEach(q => { const tg = $(q); tg.classList.remove('fretta'); tg.querySelector('.sec').textContent = ''; const i = tg.querySelector('.orol i'); i.style.transition = 'none'; i.style.width = '100%'; });
+}
+
+// ---------- i tasti: le mie carte. Dopo un `su` restano spente finche' cambia `tok`, o 1,5 s, o arriva br_act_no
+function accendiTasti(puo) {
+  if (SPET || finaleFatto) return;
+  const prima = ACCESI;
+  ACCESI = true;
+  MANO.forEach(c => { const el = EL_MIE[c]; if (el) { el.classList.toggle('viva', puo.indexOf(c) >= 0); el.classList.remove('scelta'); } });
+  riposa(false);
+  if (!prima) Suono.turno();
+}
+function spegniTasti() {
+  ACCESI = false; clearTimeout(tmTasti);
+  MANO.forEach(c => { const el = EL_MIE[c]; if (el) el.classList.remove('viva'); });
+}
+function tocco(ev) {
+  const el = ev.currentTarget, c = +el.dataset.c;
+  if (!ACCESI || SPET || !ULT || !el.classList.contains('viva')) return;
+  ev.preventDefault();
+  tokMandato = ULT.tok;
+  spegniTasti();
+  el.classList.add('scelta'); riposa(false);
+  FONTE.su({ t: 'act', a: 'gioca', ax: c, power: ULT.tok });
+  tmTasti = setTimeout(() => {                         // nessuna risposta in 1,5 s: i tasti tornano
+    if (ULT && ULT.tok === tokMandato && !finaleFatto) { tokMandato = -1; el.classList.remove('scelta'); aggTurno(); }
+  }, 1500);
+}
+
+// ---------- la fine
+function fineScena() {
+  if (fineMandata) return;
+  fineMandata = true;
+  if (RETE) GUSCIO.manda({ br: 'fine_scena' });
+  setTimeout(() => { $('#fine').classList.add('esci'); }, 4000);       // se index non chiude, c'e' il tasto
+}
+function rigaEuro() {
+  const el = $('#fine .euro'); if (!el) return;
+  if (!OVER) { el.textContent = ''; return; }
+  const vinto = !SPET && S && S.vincitore === IO, mia = +OVER.your_cut_eur || 0, premio = +OVER.prize_eur || 0;
+  let h = '';
+  if (OVER.annullata) h = OVER.rimborsata ? esc(T('La posta è stata restituita')) : '';
+  else if (OVER.practice) h = esc(T('Partita di allenamento: niente soldi in palio'));
+  else if (OVER.gratis) h = esc(T('Partita gratis: niente soldi in palio'));
+  else if (vinto && (mia > 0 || premio > 0)) h = esc(T('HAI VINTO {e}', { e: '\u0001' })).replace('\u0001', '<b>' + euro(mia > 0 ? mia : premio) + '</b>');
+  else if (!vinto && !SPET && +OVER.pot_eur > 0) h = esc(T('PIATTO {e}', { e: '\u0001' })).replace('\u0001', '<b>' + euro(+OVER.pot_eur) + '</b>');
+  if (OVER.premio_in_sospeso) h += (h ? '<br>' : '') + esc(T('Il premio arriva sul saldo fra poco'));
+  el.innerHTML = h;
+}
+function sgombera() {
+  Array.from(tav.querySelectorAll('.carta')).forEach(e => { e.classList.remove('viva', 'scelta'); e.classList.add('via'); togli(e, 350); });
+  EL_MIE = {}; EL_SUE = []; EL_GIU_SPET = []; EL_TAV = []; EL_BRISC = null; MANO = [];
+  mazzo.className = 'mazzetto n0'; $('#vuotoTal').style.display = 'none'; $('#nTal').style.display = 'none'; $('#chipBr').style.display = 'none';
+}
+async function finale() {
+  if (finaleFatto) return;
+  finaleFatto = true;
+  spegniTasti(); fermaOrologio(); dimmi('');
+  ['#targaGiu', '#targaSu'].forEach(q => $(q).classList.remove('tocca'));
+  const st = S || {}, w = st.vincitore, motivo = st.motivo || (OVER && OVER.motivo) || '';
+  aggPunti(st, false);
+  await aspetta(350);
+  sgombera();
+  await aspetta(300);
+  const box = $('#fine'), a = st.punti ? st.punti[GIU] : 0, b = st.punti ? st.punti[SU] : 0;
+  let tit, perche = '', perso = false;
+  if (motivo === 'patta' || (w == null && OVER && OVER.motivo === 'patta')) {
+    tit = T('PATTA');
+    perche = (a === 60 && b === 60) ? ((MAPPA && MAPPA.a_soldi) ? T('60 pari: le poste tornano ai giocatori') : T('60 pari: nessun vincitore')) : T('Tempo scaduto a punti pari');
+    Suono.patta();
+  } else if (w == null) { tit = T('TAVOLO ANNULLATO'); perso = true; }
+  else {
+    if (SPET) tit = T('VINCE {n}', { n: NOMI[w] });
+    else if (w === IO) tit = T('HAI VINTO!');
+    else { tit = T('HAI PERSO'); perso = true; }
+    if (motivo === 'abbandono') perche = (!SPET && w === IO) ? T('L’avversario ha lasciato il tavolo') : T('Partita chiusa: un giocatore ha lasciato il tavolo');
+    else if (motivo === 'tetto') perche = T('Tempo scaduto: vince chi ha più punti');
+    else if (motivo === 'spareggio') perche = T('60 pari: vince chi ha fatto l’ultima presa');
+    if (perso) Suono.perde(); else Suono.vince();
+  }
+  box.classList.toggle('perso', perso);
+  box.querySelector('.tit').textContent = tit;
+  box.querySelector('.conto').innerHTML = '<small>' + esc(T('PUNTI')) + '</small>' + esc(T('{a} a {b}', { a: a, b: b }));
+  box.querySelector('.perche').textContent = perche;
+  rigaEuro();
+  box.classList.add('su');
+  await aspetta(2600);
+  finalePronto = true;
+  if (OVER) fineScena(); else setTimeout(fineScena, 5000);        // l'over arriva subito dopo: lo aspetto un poco
+}
+// l'over e' arrivato e la coda e' vuota: se la voce `vince` non c'e' stata, il finale si costruisce dall'over
+function finaleDaOver() {
+  if (finaleFatto) { rigaEuro(); return; }
+  if (OVER.annullata && OVER.motivo !== 'patta') {
+    gen++; spegniTasti(); fermaOrologio(); finaleFatto = true; finalePronto = true; dimmi(''); sgombera();
+    const box = $('#fine'); box.classList.add('perso', 'su');
+    box.querySelector('.tit').textContent = T('TAVOLO ANNULLATO'); box.querySelector('.conto').textContent = ''; box.querySelector('.perche').textContent = '';
+    rigaEuro(); fineScena(); return;
+  }
+  const st = JSON.parse(JSON.stringify(S || (ULT && ULT.st) || { punti: [0, 0], prese: [0, 0] }));
+  if (OVER.br === 1) {
+    if (Array.isArray(OVER.punti)) st.punti = OVER.punti.slice();
+    st.vincitore = (OVER.vincitore == null ? null : OVER.vincitore); st.motivo = OVER.motivo || '';
+  } else if (st.vincitore == null && OVER.winner != null && MAPPA) {
+    const i = MAPPA.seggi.findIndex(x => x.uid === OVER.winner); if (i >= 0) { st.vincitore = i; st.motivo = st.motivo || 'abbandono'; }
+  }
+  S = st;
+  finale();
+}
+function riceviOver(m) {
+  OVER = m;
+  if (!START) { fineScena(); return; }
+  if (finaleFatto) { rigaEuro(); if (finalePronto) fineScena(); return; }
+  if (m.annullata && m.motivo !== 'patta') { CODA = []; finaleDaOver(); return; }
+  if (!inScena && !CODA.length) finaleDaOver();
+  // altrimenti la coda sta ancora raccontando: `allineato` chiude col finale
+}
+
+// ---------- i messaggi
+function suStart(m) {
+  const mp = m.map || {};
+  const stessa = START && FIRMA && mp.firma === FIRMA;
+  START = m; MAPPA = mp; FIRMA = mp.firma || '';
+  SPET = !!m.spec || m.you == null;
+  const seggi = mp.seggi || [];
+  IO = SPET ? -1 : seggi.findIndex(x => x.uid === m.you);
+  if (IO < 0) { SPET = true; }
+  GIU = SPET ? 0 : IO; SU = 1 - GIU;
+  NOMI = [0, 1].map(i => String((seggi[i] && seggi[i].nome) || (mp.nomi && mp.nomi[i]) || ('Seggio ' + (i + 1))).slice(0, 24));
+  scartello();
+  $('#targaGiu .nome').textContent = SPET ? NOMI[GIU] : T('TU');
+  $('#targaSu .nome').textContent = NOMI[SU];
+  const v61 = (mp.reg && mp.reg.punti_vittoria) || 61;
+  ['#targaGiu', '#targaSu'].forEach(q => { $(q + ' .su').textContent = '/' + v61; $(q + ' .ass').textContent = T('ASSENTE'); });
+  const p = $('#piatto');
+  if (+m.pot_eur > 0 && !m.practice && !SPET) { p.style.display = 'block'; p.textContent = T('PIATTO {e}', { e: euro(+m.pot_eur) }); } else p.style.display = 'none';
+  $('#spet').style.display = SPET ? 'block' : 'none'; $('#spet').textContent = T('👁 SPETTATORE');
+  $('#tasti').style.display = 'flex';
+  if (stessa) { misura(); return; }                     // ripresa dello stesso tavolo: lo stato arriva col fotogramma di rientro
+  OVER = null; finaleFatto = false; finalePronto = false; fineMandata = false; vinceVista = null; ULT = null; MN = 0; maxS = 0; CODA = []; tokMandato = -1;
+  $('#fine').className = '';
+  svuota(); S = null; dimmi('');
+  impagina();
+  aggPunti({ punti: [0, 0], prese: [0, 0] }, false); aggTallone({ tallone: 40, briscola: null });
+  mazzo.className = classeN(40);
+  precaricaCarte();
+}
+function riceviS(m) {
+  if (!START) return;
+  ULT = m; ULT_RX = performance.now();
+  const feed = Array.isArray(m.feed) ? m.feed : [];
+  // fotogramma di RIENTRO (a meta' partita, o cursore rimasto indietro): il tavolo si monta di colpo
+  if (m.nfeed != null && feed.length && feed[0].s > maxS + 1) {
+    STAT.rientri++;
+    CODA = []; MN = maxS = m.mn;
+    if (!G) impagina();
+    monta(m.st, m.you && m.you.mano);
+    if (m.fase === 'fine' && m.st) { S = m.st; }
+  } else {
+    for (const v of feed) {
+      if (!v || typeof v.s !== 'number') continue;
+      if (v.s <= maxS) { STAT.doppie++; continue; }
+      maxS = v.s; CODA.push({ v: v, you: m.you, rx: ULT_RX });
+    }
+  }
+  if (m.tok !== tokMandato && tokMandato >= 0 && m.tok > tokMandato) tokMandato = -1;
+  if (inScena) return;
+  if (CODA.length) conduci(); else allineato();
+}
+function riceviErr(m) {
+  if (finaleFatto) return;
+  Suono.no();
+  tokMandato = -1; clearTimeout(tmTasti);
+  MANO.forEach(c => { const el = EL_MIE[c]; if (el) el.classList.remove('scelta'); });
+  if (!inScena && !CODA.length) aggTurno();
+  riposa(false);
+  avviso(T(String(m.perche || 'non adesso')), 1800);
+}
+let tmAvviso = 0, avvisoFino = 0;
+function avviso(testo, ms) { dimmi(testo, 'err'); avvisoFino = performance.now() + (ms || 2500); clearTimeout(tmAvviso); tmAvviso = setTimeout(() => { avvisoFino = 0; if ($('#stato').className === 'err') { dimmi(''); if (!inScena && !CODA.length) aggTurno(); } }, ms || 2500); }
+function riceviEsce(m) {
+  if (!START || finaleFatto) return;
+  const n = m && m.nome != null ? String(m.nome).slice(0, 24) : '';
+  avviso(n ? T('{n} ha lasciato il tavolo', { n: n }) : T('Un giocatore ha lasciato il tavolo'), 3200);
+}
+let tmTifo = 0;
+function suTifo(m) {
+  if (SPET || !START) return;
+  const r = (m && Array.isArray(m.righe)) ? m.righe : [], u = r[r.length - 1], el = $('#tifo');
+  if (!u || typeof u !== 'object') { el.style.display = 'none'; return; }
+  el.textContent = String(u.n == null ? '' : u.n).slice(0, 16) + ': ' + String(u.x == null ? '' : u.x).slice(0, 80);
+  el.style.display = LARGO ? 'block' : 'none';          // sul telefono li' sotto c'e' la mano dell'altro: niente testo sulle carte
+  clearTimeout(tmTifo); tmTifo = setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+function suPausa(si) {
+  IN_PAUSA = !!si; Suono.muto = IN_PAUSA;
+  if (!IN_PAUSA) { misura(); if (CODA.length) conduci(); else if (!inScena) allineato(); }
+}
+function suBordi(m) {
+  const d = document.documentElement, lati = ['top', 'bottom', 'left', 'right'], sigle = ['sat', 'sab', 'sal', 'sar'];
+  for (let i = 0; i < 4; i++) {
+    let k = m[lati[i]];
+    if (typeof k !== 'number' || !isFinite(k) || k < 0) k = 0;
+    if (k > 200) k = 200;
+    BORDI[sigle[i]] = Math.round(k);
+    d.style.setProperty('--br-' + sigle[i], Math.round(k) + 'px');
+  }
+  misura();
+}
+function errorePagina(msg) {
+  ERRORI.push(String(msg));
+  if (RETE) GUSCIO.manda({ br: 'err', msg: String(msg).slice(0, 300) });
+  else if (window.console) console.error('BRISCOLA: ' + msg);
+}
+function smista(m) {
+  try {
+    switch (m.t) {
+      case 'start': if (m.game == null || m.game === 'briscola') suStart(m); break;
+      case 's': if (m.g === 'briscola') riceviS(m); break;
+      case 'over': riceviOver(m); break;
+      case 'err': if (typeof m.code === 'string' && m.code.indexOf('br_') === 0) riceviErr(m); break;
+      case 'esce': if (m.game == null || m.game === 'briscola') riceviEsce(m); break;
+      case 'chat': suTifo(m); break;
+      case 'pausa': suPausa(true); break;
+      case 'riprendi': suPausa(false); break;
+    }
+  } catch (e) { errorePagina('smista ' + m.t + ': ' + (e && e.message)); }
+}
+
+// ---------- IL GUSCIO (chiave postMessage `br`)
+const GUSCIO = (() => {
+  const Gs = { pronto: false, coda: [] };
+  const CODA_MAX = 2000;
+  Gs.manda = o => {
+    if (!RETE || !window.parent || window.parent === window) return false;
+    try { window.parent.postMessage(o, location.origin); } catch (e) { ERRORI.push('postMessage: ' + (e && e.message)); return false; }
+    return true;
+  };
+  Gs.su = m => { if (SPET) return false; STAT.su++; return Gs.manda({ br: 'su', m: m }); };
+  Gs.ricevi = m => {
+    if (!m || typeof m !== 'object' || typeof m.t !== 'string') { STAT.scartati++; return; }
+    STAT.giu++;
+    if (m.t === 'bordi') { suBordi(m); return; }        // i bordi passano SEMPRE, anche prima del pronto
+    if (!Gs.pronto) { if (Gs.coda.length < CODA_MAX) Gs.coda.push(m); else STAT.scartati++; return; }
+    smista(m);
+  };
+  Gs.fattoPronto = () => {
+    if (Gs.pronto) return;
+    Gs.pronto = true;
+    const c = Gs.coda; Gs.coda = [];
+    c.forEach(smista);
+    Gs.manda({ br: 'pronto' });
+  };
+  if (RETE) {
+    addEventListener('message', ev => {
+      if (ev.source !== window.parent || ev.origin !== location.origin) return;
+      const d = ev.data;
+      if (!d || typeof d !== 'object' || d.br !== 'giu' || !d.m) return;
+      Gs.ricevi(d.m);
+    });
+    addEventListener('error', ev => { errorePagina('pagina: ' + (ev && ev.message ? ev.message : 'errore')); });
+    addEventListener('unhandledrejection', ev => { errorePagina('promessa: ' + (ev && ev.reason && ev.reason.message ? ev.reason.message : 'errore')); });
+  }
+  return Gs;
+})();
+const FONTE = { su: m => (RETE ? GUSCIO.su(m) : false) };
+
+// ---------- IL FILO: recita una partita registrata dal banco Python (stessi pacchetti del server)
+const FILO = (() => {
+  const Fl = { righe: null, i: 0, tm: 0, finito: false };
+  Fl.parti = righe => { Fl.righe = righe; Fl.i = 0; Fl.finito = false; Fl.prossimo(); };
+  Fl.prossimo = () => {
+    if (!Fl.righe || Fl.i >= Fl.righe.length) {
+      Fl.finito = true;
+      if (QS.get('giro') === '1' && Fl.righe) setTimeout(() => { START = null; FIRMA = ''; Fl.parti(Fl.righe); }, 6000 / VEL);
+      return;
+    }
+    const r = Fl.righe[Fl.i];
+    Fl.tm = setTimeout(() => {
+      if (IN_PAUSA) { Fl.tm = setTimeout(Fl.prossimo, 200); return; }
+      Fl.i++;
+      GUSCIO.pronto = true; smista(r.m);
+      Fl.prossimo();
+    }, Math.max(0, (+r.dt || 0) * 1000 / VEL));
+  };
+  return Fl;
+})();
+
+// ---------- la guida (numeri letti da map.reg, mai scritti a mano)
+function apriGuida() {
+  const reg = (MAPPA && MAPPA.reg) || {}, val = reg.valori || { asso: 11, tre: 10, re: 4, cavallo: 3, fante: 2 };
+  const bs = (S && S.seme != null) ? S.seme : 2;
+  const carte = [[bs * 10, val.asso], [bs * 10 + 2, val.tre], [bs * 10 + 9, val.re], [bs * 10 + 8, val.cavallo], [bs * 10 + 7, val.fante]];
+  const rake = MAPPA && typeof MAPPA.rake === 'number' ? Math.round(MAPPA.rake * 100) : 5;
+  let h = '';
+  h += '<h2>' + esc(T('LO SCOPO')) + '</h2><p>' + esc(T('Si gioca uno contro uno con le 40 carte napoletane. In palio ci sono {t} punti: vince chi ne fa {v}. La partita si chiude appena uno ci arriva.', { t: reg.punti_totali || 120, v: reg.punti_vittoria || 61 })) + '</p>';
+  h += '<h2>' + esc(T('I PUNTI')) + '</h2><div class="val">' + carte.map(x => '<div><img src="' + file(x[0]) + '" alt="">' + esc(T('{p} punti', { p: x[1] })) + '</div>').join('') + '</div><p>' + esc(T('Tutte le altre carte valgono zero.')) + '</p>';
+  h += '<h2>' + esc(T('CHI PRENDE')) + '</h2><p>' + esc(T('Non c’è obbligo di seme: giochi la carta che vuoi. Se sul tavolo c’è una briscola, prende la briscola più forte. Senza briscole prende la carta più forte del seme della PRIMA carta giocata.')) + '</p><p>' + esc(T('Forza delle carte: Asso, 3, Re, Cavallo, Fante, 7, 6, 5, 4, 2.')) + '</p>';
+  h += '<h2>' + esc(T('IL GIRO')) + '</h2><p>' + esc(T('Hai {m} carte in mano. Chi prende pesca per primo e apre la mano dopo. All’ultima pescata chi ha perso la presa prende la briscola scoperta.', { m: reg.carte_mano || 3 })) + '</p><p>' + esc(T('Hai {s} secondi per giocare: se scadono, la carta la gioca il banco al posto tuo.', { s: Math.round(reg.turno_s || 15) })) + '</p>';
+  h += '<h2>' + esc(T('PARI E PIATTO')) + '</h2><p>' + esc(T('60 pari è patta: le poste tornano ai giocatori. In torneo a 60 pari vince chi ha fatto l’ultima presa.')) + '</p><p>' + esc(T('Il piatto va tutto al vincitore, meno il {r}% del banco.', { r: rake })) + '</p>';
+  $('#gCorpo').innerHTML = h; $('#gCorpo').scrollTop = 0;
+  $('#guida h1').textContent = T('📖 COME SI GIOCA');
+  $('#gChiudi').textContent = T('CHIUDI');
+  $('#guida').classList.add('su');
+}
+$('#bGuida').addEventListener('click', apriGuida);
+$('#gChiudi').addEventListener('click', () => $('#guida').classList.remove('su'));
+$('#bSuono').addEventListener('click', () => { Suono.acceso = !Suono.acceso; $('#bSuono').textContent = Suono.acceso ? '🔊' : '🔇'; try { localStorage.setItem('br_suono', Suono.acceso ? '1' : '0'); } catch (e) {} });
+$('#bEsci').addEventListener('click', () => { GUSCIO.manda({ br: 'esci' }); });
+try { if (localStorage.getItem('br_suono') === '0') { Suono.acceso = false; $('#bSuono').textContent = '🔇'; } } catch (e) {}
+
+let precaricate = false;
+function precaricaCarte() {
+  if (precaricate) return; precaricate = true;
+  for (let c = 0; c < 40; c++) { const i = new Image(); i.src = file(c); }
+}
+function cartello(testo) { $('#cTesto').textContent = testo; $('#cartello').classList.add('su'); $('#tasti').style.display = 'none'; ['#targaGiu', '#targaSu'].forEach(q => { $(q).style.display = 'none'; }); }
+function scartello() { $('#cartello').classList.remove('su'); ['#targaGiu', '#targaSu'].forEach(q => { $(q).style.display = ''; }); }
+
+// ---------- ganci per i banchi
+window.BR_GIU = m => { GUSCIO.pronto = true; GUSCIO.ricevi(m); };
+window.BR_STATO = () => S;
+window.BR_VISTA = () => ({ S: S, IO: IO, SPET: SPET, MN: MN, maxS: maxS, coda: CODA.length, inScena: inScena, accesi: ACCESI, mano: MANO.slice(), sue: EL_SUE.length, tavolo: EL_TAV.map(t => ({ sg: t.sg, c: t.c })), over: OVER, finale: finaleFatto, fineMandata: fineMandata, largo: LARGO, W: W, H: H, G: G, misure: MISURE, stat: Object.assign({}, STAT), errori: ERRORI.slice(), filoFinito: FILO.finito, lang: EN ? 'en' : 'it' });
+window.BR_CENSO = () => ({ chiavi: Object.keys(DIZ).length, usate: Object.keys(USATE).length, mancanti: Object.keys(MANCANTI) });
+
+// ---------- AVVIO
+(function avvio() {
+  $('#bEsci').textContent = T('ESCI');
+  addEventListener('resize', () => misura());
+  try { if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => misura()); } catch (e) {}
+  impagina();
+  if (RETE) {
+    cartello(T('IN ATTESA DEI GIOCATORI…'));
+    // pronto quando il dorso e' arrivato (la prima cosa a schermo sono dorsi), o dopo 4 s
+    const i = new Image(); i.onload = i.onerror = () => GUSCIO.fattoPronto(); i.src = file('dorso');
+    setTimeout(GUSCIO.fattoPronto, 4000);
+  } else if (NOME_FILO) {
+    const url = NOME_FILO === '@demo' ? 'briscola_demo.json' : 'fili_briscola/' + NOME_FILO.replace(/[^A-Za-z0-9_\-]/g, '') + '.json';
+    fetch(url).then(r => r.json()).then(righe => FILO.parti(righe)).catch(e => cartello('filo: ' + (e && e.message)));
+  } else cartello(T('Apri BRISCOLA da Gambler Bot'));
+})();
+</script>
+</body>
+</html>

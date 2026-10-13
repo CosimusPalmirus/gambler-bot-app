@@ -1,0 +1,1311 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>BISCA</title>
+<style>
+/* TAPPO — la pagina in iframe (12/10/2026). Un file solo, niente da fuori origine.
+   Le carte sono DOM (<img> da carte/NN.webp), mai una tela; nessun rAF a tavolo fermo. */
+@font-face{font-family:'Bungee';font-style:normal;font-weight:400;font-display:swap;src:url(tappo/font/bungee.woff2) format('woff2')}
+@font-face{font-family:'Rubik';font-style:normal;font-weight:500 800;font-display:swap;src:url(tappo/font/rubik.woff2) format('woff2')}
+:root{--tp-sat:0px;--tp-sab:0px;--tp-sal:0px;--tp-sar:0px;--cw:104px;--mw:17px;--dw:60px;--hw:46px;--qw:60px}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#0b1512;overflow:hidden}
+body{font-family:'Rubik',system-ui,-apple-system,'Segoe UI',sans-serif;font-weight:600;color:#f6efdc;
+  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+#app{position:fixed;left:0;top:0;right:0;bottom:0;padding:var(--tp-sat) var(--tp-sar) var(--tp-sab) var(--tp-sal);overflow:hidden;
+  background:radial-gradient(120% 85% at 50% 36%,#22664b 0%,#164534 44%,#0c271f 78%,#081a15 100%)}
+#app::after{content:'';position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none;
+  background:repeating-linear-gradient(115deg,rgba(255,255,255,.018) 0 2px,rgba(0,0,0,.02) 2px 4px)}
+#tav{position:relative;width:100%;height:100%}
+#tav>*{position:absolute}
+
+/* la barra in alto: SOLO a sinistra (l'angolo alto-destro 96x44 e' di ESCI) */
+#barra{left:8px;top:6px;height:36px;display:flex;align-items:center;gap:8px;max-width:calc(100% - 112px)}
+#bGuida{appearance:none;border:0;width:36px;height:36px;border-radius:11px;background:rgba(8,20,16,.7);color:#ffe9a8;
+  font-size:18px;line-height:36px;padding:0;box-shadow:inset 0 0 0 1.5px rgba(255,220,130,.45);cursor:pointer}
+#titolo{font-family:'Bungee','Rubik',sans-serif;font-size:17px;letter-spacing:.04em;color:#ffd866;text-shadow:0 2px 0 rgba(0,0,0,.45);line-height:1}
+#sotto{font-size:11px;color:#bfe0cf;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+#barraTesti{min-width:0}
+
+/* le targhe degli altri */
+.tg{position:absolute;width:var(--pw);height:var(--ph);margin:calc(var(--ph)/-2) 0 0 calc(var(--pw)/-2);border-radius:13px;
+  background:rgba(7,19,15,.78);box-shadow:inset 0 0 0 2px var(--col),0 4px 10px rgba(0,0,0,.35);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:3px 4px;
+  transition:opacity .3s,filter .3s,transform .18s}
+.tgNome{max-width:100%;font-size:11px;line-height:13px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.02em}
+.tgNome i{font-style:normal;color:#ffb4a8;font-size:9px}
+.mini{position:relative;height:calc(var(--mw)*1.5);width:calc(var(--mw) + var(--mw)*1.8)}
+.mini img{position:absolute;top:0;width:var(--mw);height:calc(var(--mw)*1.5);filter:drop-shadow(0 1px 1px rgba(0,0,0,.5));transition:opacity .2s}
+.mini img:nth-child(1){left:0}.mini img:nth-child(2){left:calc(var(--mw)*.6)}
+.mini img:nth-child(3){left:calc(var(--mw)*1.2)}.mini img:nth-child(4){left:calc(var(--mw)*1.8)}
+.tg.vuota .mini img{opacity:0}
+.vite{display:flex;gap:2px;align-items:center;height:12px;font-size:11px;line-height:12px;color:#ffd0c8}
+.cuore{width:11px;height:11px;display:block;transition:transform .25s,opacity .25s}
+.cuore.perso{opacity:.22;filter:grayscale(1)}
+.cuore.scoppia{animation:tpScoppia .7s ease-out}
+.tgSegno{position:absolute;right:-7px;top:-8px;min-width:24px;height:24px;border-radius:12px;padding:0 6px;
+  font-size:12px;line-height:24px;text-align:center;color:#10231b;background:#ffe27a;box-shadow:0 2px 5px rgba(0,0,0,.45);
+  transform:scale(0);transition:transform .14s cubic-bezier(.3,1.6,.5,1)}
+.tgSegno.su{transform:scale(1)}
+.tgSegno.ok{background:#63e09a}
+.tgSegno.ultimo{background:#ff5a47;color:#fff;font-size:10px;top:-18px;height:20px;line-height:20px;border-radius:10px}   /* INTEGRAZIONE: anche il tempo dell’ultimo sta sopra la targa */
+.tgSegno.tempo{font-size:10px;background:#f3ead2;top:-18px;height:20px;line-height:20px;border-radius:10px}   /* INTEGRAZIONE 12/10: il tempo sta SOPRA la targa, non sul nome (a 7 al telefono lo copriva) */
+.tg.fuori{opacity:.4;filter:grayscale(1)}
+.tg.assente{opacity:.62}
+.tg.perde{animation:tpTrema .5s 2}
+.tg.attivo{transform:scale(1.06)}
+
+/* il centro: il mazzo e la pila delle mani */
+#mazzo{width:var(--dw);height:calc(var(--dw)*1.5);margin:calc(var(--dw)*-.75) 0 0 calc(var(--dw)/-2);transition:opacity .25s,transform .12s}
+#mazzo img{position:absolute;left:0;top:0;width:100%;height:100%;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
+#mazzo img:nth-child(1){transform:translate(-4px,4px) rotate(-5deg)}
+#mazzo img:nth-child(2){transform:translate(3px,2px) rotate(4deg)}
+#mazzo.colpo{animation:tpColpo .22s}
+#mazzo.via,#pila.via{opacity:0}
+#pila{width:0;height:0;transition:opacity .25s}
+.manina{position:absolute;left:0;top:0;width:var(--hw);height:var(--hw);margin:calc(var(--hw)/-2) 0 0 calc(var(--hw)/-2);
+  filter:drop-shadow(0 3px 3px rgba(0,0,0,.55));animation:tpSchiaffo .16s cubic-bezier(.2,.9,.3,1.2) both}
+.manina svg{display:block;width:100%;height:100%}
+#rivela{width:0;height:0;display:flex;align-items:center;justify-content:center;gap:6px;opacity:0;transition:opacity .25s;pointer-events:none}
+#rivela.su{opacity:1}
+#rivela .rv{flex:none;display:flex;flex-direction:column;align-items:center;gap:3px}
+#rivela .rv b{font-size:10px;line-height:12px;color:#fff;max-width:calc(var(--qw) + 8px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#rivela .rv.vince .carta{filter:drop-shadow(0 0 7px #ffe27a) drop-shadow(0 2px 2px rgba(0,0,0,.5))}
+#rivela .carta{width:var(--qw);height:calc(var(--qw)*1.5)}
+#rivela.venta{gap:0}
+#rivela.venta .rv+.rv{margin-left:calc(var(--qs) - var(--qw))}
+#targhe{transition:opacity .25s}
+#targhe.giu{opacity:.12}
+
+/* le carte: gli angoli sono gia' nel file (niente border-radius, niente box-shadow) */
+.carta{position:relative;flex:none;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
+.carta img{display:block;width:100%;height:100%;pointer-events:none}
+.carta.rotta{background:#f4ecd8;border-radius:6.2%}
+.carta.rotta img{visibility:hidden}
+.carta.rotta::after{content:attr(data-nome);position:absolute;left:0;top:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;
+  text-align:center;color:#2a2114;font-size:13px;line-height:15px;padding:4px;white-space:pre-line}
+.volo{position:absolute;left:0;top:0;pointer-events:none;filter:drop-shadow(0 3px 4px rgba(0,0,0,.5));will-change:transform}
+
+/* la riga del banditore: il testo NON sta mai sopra le carte */
+#detto{left:8px;right:8px;height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;pointer-events:none}
+#dettoA{font-family:'Bungee','Rubik',sans-serif;font-size:15px;line-height:19px;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.5);max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#dettoB{font-size:12px;line-height:16px;color:#cfe8da;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:16px}
+#detto.oro #dettoA{color:#ffe27a}
+#detto.rosso #dettoA{color:#ff8e7e}
+#detto.verde #dettoA{color:#8ef0b8}
+#detto.botto #dettoA{animation:tpBotto .3s}
+#tempo{left:14%;right:14%;height:5px;border-radius:3px;background:rgba(0,0,0,.35);overflow:hidden;opacity:0;transition:opacity .2s}
+#tempo.su{opacity:1}
+#tempo i{display:block;height:100%;width:0;background:#ffe27a;border-radius:3px}
+#tempo.gara i{background:#ff5a47}
+
+/* io */
+#mio{left:8px;right:8px;height:22px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;color:#fff}
+#mio .vite{height:16px;font-size:14px;line-height:16px}
+#mio .cuore{width:15px;height:15px}
+#mio .pall{width:10px;height:10px;border-radius:5px;background:var(--col)}
+#mio .mioSegno{min-width:22px;height:20px;border-radius:10px;padding:0 7px;font-size:11px;line-height:20px;text-align:center;color:#10231b;background:#ffe27a}
+#mio .mioSegno.ultimo{background:#ff5a47;color:#fff}
+#mio .mioSegno.tempo{background:#f3ead2}
+#mano{height:calc(var(--cw)*1.5)}
+.slot{position:absolute;top:0;width:var(--cw);height:calc(var(--cw)*1.5);transition:transform .14s cubic-bezier(.2,.8,.3,1.2),opacity .15s;cursor:pointer;touch-action:none}
+.slot.scelta{transform:translateY(-16px)}
+.slot.vuoto{opacity:0;pointer-events:none}
+.slot.gira{animation:tpGira .26s ease-in-out}
+#mano.quart .slot .carta{filter:drop-shadow(0 0 8px #ffe27a) drop-shadow(0 0 2px #ffb300)}
+#mano.quart .slot{animation:tpSalto .5s infinite alternate}
+#mano.quart .slot:nth-child(2){animation-delay:.08s}#mano.quart .slot:nth-child(3){animation-delay:.16s}#mano.quart .slot:nth-child(4){animation-delay:.24s}
+
+/* IL TASTO: grande, sempre nello stesso punto, mai sotto ESCI */
+#bMano{appearance:none;border:0;border-radius:18px;font-family:'Bungee','Rubik',sans-serif;font-size:21px;line-height:24px;color:#d5e8dc;
+  background:linear-gradient(#3b5248,#2a3b34);box-shadow:0 5px 0 #17231e,0 10px 18px rgba(0,0,0,.4);cursor:pointer;touch-action:none;
+  display:flex;flex-direction:row;align-items:center;justify-content:center;gap:10px;padding:0 10px;transition:transform .05s}
+#bMano .ico{flex:none;width:34px;height:34px}
+#bMano .ico svg{display:block;width:100%;height:100%}
+#bMano .tx{display:flex;flex-direction:column;align-items:flex-start;min-width:0}
+#bMano small{font-family:'Rubik',sans-serif;font-weight:600;font-size:11px;line-height:13px;opacity:.85;white-space:nowrap}
+#bMano.quart{color:#3b2500;background:linear-gradient(#ffe88a,#f2b21c);box-shadow:0 5px 0 #8a5d00,0 0 22px rgba(255,214,90,.7);animation:tpPulsa .45s infinite alternate}
+#bMano.gara{color:#fff;background:linear-gradient(#ff7d60,#dd2616);box-shadow:0 5px 0 #7a0f06,0 0 26px rgba(255,90,60,.8);animation:tpPulsa .24s infinite alternate}
+#bMano.messa{color:#eafff2;background:linear-gradient(#2a9c63,#1b7347);box-shadow:0 2px 0 #0d3a24;transform:translateY(3px)}
+#bMano.spento{opacity:.36}
+/* CURA G3 (13/10): a riposo (si passano le carte, niente quartetto) il tasto e' piu' basso di 14 px in cima:
+   il dito che sceglie una carta non lo sfiora. Col quartetto e a gara aperta torna pieno. */
+#bMano.riposo{margin-top:var(--bhm,10px);height:var(--bhr,60px)!important}
+/* CURA G6: chi ha finito le vite non ha un tasto «aspetta»: ha l'uscita */
+#bMano.esci{color:#fff;background:linear-gradient(#5b6f8f,#3c4c66);box-shadow:0 5px 0 #1d2636,0 10px 18px rgba(0,0,0,.4)}
+#bMano.esci .ico{display:none}
+#bMano.esci .tx{align-items:center}
+/* CURA G4: il segno della rete lenta, accanto alle mie vite */
+#mio .rete{height:18px;border-radius:9px;padding:0 7px;font-size:10px;line-height:18px;color:#3b2500;background:#ffb84a;white-space:nowrap}
+/* CURA 11: il finale copre davvero quello che ha sotto */
+#bMano.giu{transform:translateY(4px) scale(.985)}
+#bMano.no{animation:tpTrema .3s}
+body.spet #bMano,body.spet #mano,body.spet #mio{display:none}
+
+/* effetti a tutto schermo (sotto i tasti: non rubano i tocchi) */
+#lampo{left:0;top:0;right:0;bottom:0;pointer-events:none;opacity:0;background:radial-gradient(circle at 50% 45%,rgba(255,226,122,.75),rgba(255,120,60,.25) 60%,transparent 80%)}
+#lampo.via{animation:tpLampo .32s ease-out}
+#lampo.rosso{background:radial-gradient(circle at 50% 60%,transparent 35%,rgba(255,40,20,.55) 100%)}
+
+/* il finale: sopra la zona degli altri, mai sopra la mia mano */
+#fine{left:10px;right:10px;border-radius:18px;background:rgb(6,16,13);box-shadow:inset 0 0 0 2px rgba(255,220,130,.5),0 12px 30px rgba(0,0,0,.5);
+  display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:8px;padding:14px}
+#fine.su{display:flex;animation:tpEntra .35s cubic-bezier(.2,.9,.3,1.15)}
+#fTimbro{font-family:'Bungee','Rubik',sans-serif;font-size:30px;line-height:34px;color:#ffe27a;text-shadow:0 3px 0 rgba(0,0,0,.5)}
+#fine.perso #fTimbro{color:#fff}
+#fChi{font-size:15px;color:#fff}
+#fPerche{font-size:13px;color:#bfe0cf}
+#fSoldi{font-size:16px;color:#8ef0b8;min-height:20px}
+
+/* il velo (attesa, cartello) e la guida */
+#velo{left:0;top:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px;
+  background:radial-gradient(120% 85% at 50% 36%,#22664b 0%,#164534 44%,#0c271f 78%,#081a15 100%);z-index:30}
+#velo.via{display:none}
+#vTitolo{font-family:'Bungee','Rubik',sans-serif;font-size:40px;color:#ffd866;text-shadow:0 4px 0 rgba(0,0,0,.45);letter-spacing:.04em}
+#vCarte{display:flex}
+#vCarte img{width:58px;height:87px;margin:0 -9px;filter:drop-shadow(0 3px 4px rgba(0,0,0,.5))}
+#vCarte img:nth-child(1){transform:rotate(-12deg) translateY(6px)}#vCarte img:nth-child(2){transform:rotate(-4deg)}
+#vCarte img:nth-child(3){transform:rotate(4deg)}#vCarte img:nth-child(4){transform:rotate(12deg) translateY(6px)}
+#vTesto{font-size:15px;color:#e6f5ec}
+#guida{left:0;top:0;right:0;bottom:0;z-index:40;display:none;flex-direction:column;background:rgba(6,16,13,.97);padding:10px 14px 14px}
+#guida.su{display:flex}
+#gTesta{height:44px;flex:none;display:flex;align-items:center;padding-right:104px;font-family:'Bungee','Rubik',sans-serif;font-size:17px;color:#ffd866}
+#gCorpo{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y}
+.gv{margin:0 0 12px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.06)}
+.gv b{display:block;font-family:'Bungee','Rubik',sans-serif;font-size:13px;color:#ffe27a;margin-bottom:4px}
+.gv span{font-size:14px;line-height:19px;color:#eef7f1;font-weight:500}
+#gChiudi{flex:none;height:52px;border:0;border-radius:14px;margin-top:8px;font-family:'Bungee','Rubik',sans-serif;font-size:17px;color:#10231b;background:linear-gradient(#ffe88a,#f2b21c);cursor:pointer}
+
+body.largo #titolo{font-size:20px}
+body.largo #dettoA{font-size:20px;line-height:25px}
+body.largo #dettoB{font-size:14px;line-height:18px}
+body.largo .tgNome{font-size:13px;line-height:16px}
+body.largo #bMano{font-size:25px;line-height:28px}
+body.largo #bMano small{font-size:13px;line-height:15px}
+body.largo #bMano .ico{width:44px;height:44px}
+body.largo #fTimbro{font-size:42px;line-height:46px}
+
+@keyframes tpPulsa{from{transform:scale(1)}to{transform:scale(1.035)}}
+@keyframes tpTrema{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+@keyframes tpColpo{0%{transform:scale(1)}40%{transform:scale(.9) translateY(3px)}100%{transform:scale(1)}}
+@keyframes tpSchiaffo{from{opacity:0;transform:var(--tr) scale(2.3)}to{opacity:1;transform:var(--tr) scale(1)}}
+@keyframes tpScoppia{0%{transform:scale(1);opacity:1;filter:none}40%{transform:scale(1.9);opacity:1;filter:none}100%{transform:scale(1);opacity:.22;filter:grayscale(1)}}
+@keyframes tpLampo{from{opacity:1}to{opacity:0}}
+@keyframes tpBotto{from{transform:scale(1.25)}to{transform:scale(1)}}
+@keyframes tpEntra{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:scale(1)}}
+@keyframes tpGira{0%{transform:scaleX(1)}50%{transform:scaleX(0)}100%{transform:scaleX(1)}}
+@keyframes tpSalto{from{transform:translateY(0)}to{transform:translateY(-7px)}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="tav">
+    <div id="lampo"></div>
+    <div id="barra">
+      <button id="bGuida" type="button" aria-label="guida">📖</button>
+      <div id="barraTesti"><div id="titolo">BISCA</div><div id="sotto"></div></div>
+    </div>
+    <div id="targhe" style="left:0;top:0"></div>
+    <div id="mazzo"><img alt="" draggable="false"><img alt="" draggable="false"><img alt="" draggable="false"></div>
+    <div id="pila"></div>
+    <div id="rivela"></div>
+    <div id="detto"><div id="dettoA"></div><div id="dettoB"></div></div>
+    <div id="tempo"><i></i></div>
+    <div id="mio"></div>
+    <div id="mano"></div>
+    <button id="bMano" type="button" class="spento"><span class="ico"></span><span class="tx"><span id="bManoA"></span><small id="bManoB"></small></span></button>
+    <div id="voli" style="left:0;top:0;width:0;height:0;pointer-events:none"></div>
+    <div id="fine"><div id="fTimbro"></div><div id="fChi"></div><div id="fPerche"></div><div id="fSoldi"></div></div>
+    <div id="velo"><div id="vTitolo">BISCA</div><div id="vCarte"></div><div id="vTesto"></div></div>
+    <div id="guida"><div id="gTesta"></div><div id="gCorpo"></div><button id="gChiudi" type="button"></button></div>
+  </div>
+</div>
+<script>
+'use strict';
+/* ============================================================================================
+ * TAPPO — pagina in iframe. Piano `_levelup/carte_1210/10_PIANO.md` §B.6-B.8 e §C.6.
+ *   RETE  (`?guscio=1`)       TPG: postMessage col genitore (index.html). Mai una socket qui.
+ *   FILO  (`?filo=<nome>`)    recita `fili_tappo/<nome>.json` registrato dal banco del motore
+ *   DEMO  (`?demo=1`)         recita `tappo_demo.json`
+ *   niente                    cartello «Apri TAPPO da Gambler Bot»
+ * NESSUN motore qui dentro: la pagina mostra quello che il server dice. Le carte degli altri
+ * non esistono nel client: sono dorsi.
+ * IL TASTO MANO: `pointerdown`, e la PRIMA cosa che fa e' il `su`. Niente davanti.
+ * ========================================================================================== */
+const $ = s => document.querySelector(s);
+const QS = new URLSearchParams(location.search);
+const RETE = QS.get('guscio') === '1';
+const DEMO = !RETE && QS.get('demo') === '1';
+const FILO = RETE ? '' : (DEMO ? 'tappo_demo.json' : (QS.get('filo') ? 'fili_tappo/' + String(QS.get('filo')).replace(/[^A-Za-z0-9_\-]/g, '') + '.json' : ''));
+const EN = (QS.get('lang') || '').toLowerCase().indexOf('en') === 0;
+const VEL = Math.max(.25, Math.min(16, +(QS.get('vel') || 1) || 1));
+const MOSSE = ['passa', 'mano'];                        // == Tappo.MOSSE (il banco le confronta)
+const app = $('#app'), tav = $('#tav'), bMano = $('#bMano');
+if (EN) document.documentElement.lang = 'en';
+
+/* ---------- LA LINGUA: i testi nel codice sono italiani; con ?lang=en passano dal dizionario */
+const DIZ = /*DIZ<*/{
+"GIRO {n}":"ROUND {n}",
+"In gioco: {v}":"In play: {v}",
+"IN ATTESA DEI GIOCATORI…":"WAITING FOR PLAYERS…",
+"Apri BISCA da Gambler Bot":"Open BISCA from Gambler Bot",
+"Carico la partita…":"Loading the game…",
+"Partita non trovata":"Game not found",
+"SI COMINCIA":"HERE WE GO",
+"Quattro carte uguali, poi la mano sul mazzo":"Four of a kind, then hand on the deck",
+"NUOVA SMAZZATA":"NEW DEAL",
+"SCEGLI UNA CARTA":"PICK A CARD",
+"La passi a {nome}":"It goes to {nome}",
+"CARTA SCELTA":"CARD PICKED",
+"Aspetto gli altri…":"Waiting for the others…",
+"HAI QUATTRO {v}!":"YOU HAVE FOUR {v}!",
+"Metti la mano sul mazzo, subito":"Hand on the deck, now",
+"MANO SUL MAZZO!":"HAND ON THE DECK!",
+"{nome} ha messo la mano: mettila anche tu":"{nome} hit the deck: hit it too",
+"MESSA!":"DONE!",
+"Aspetto gli ultimi…":"Waiting for the last ones…",
+"SEI FUORI":"YOU ARE OUT",
+"Guardi la partita fino alla fine":"You watch the game to the end",
+"👁 SPETTATORE":"👁 SPECTATOR",
+"Si passano le carte…":"Cards are being passed…",
+"{nome} È L’ULTIMO":"{nome} IS LAST",
+"SEI L’ULTIMO":"YOU ARE LAST",
+"Perde una vita":"Loses a life",
+"Perdi una vita":"You lose a life",
+"MANO A VUOTO!":"FALSE SLAP!",
+"{nome} non aveva quattro carte uguali: perde una vita":"{nome} did not have four of a kind: loses a life",
+"Non avevi quattro carte uguali: perdi una vita":"You did not have four of a kind: you lose a life",
+"PARI!":"TIE!",
+"Gli ultimi due sono arrivati insieme: nessuno perde":"The last two landed together: nobody loses",
+"TROPPO TARDI":"TOO LATE",
+"{nomi}: mano non messa, una vita in meno":"{nomi}: no hand on the deck, one life less",
+"Non hai messo la mano: perdi una vita":"You did not hit the deck: you lose a life",
+"QUARTETTO DI {v} · {nome}":"FOUR {v} · {nome}",
+"{nome} È FUORI":"{nome} IS OUT",
+"Ha finito le vite":"Out of lives",
+"Hai finito le vite":"You are out of lives",
+"Ha lasciato il tavolo":"Left the table",
+"Assente: fuori dal torneo":"Away: out of the tournament",
+"NESSUN QUARTETTO":"NO FOUR OF A KIND",
+"Si ridanno le carte, nessuno perde":"Cards are dealt again, nobody loses",
+"CARTA ALTA":"HIGH CARD",
+"Tempo scaduto e parità: vince {nome}":"Time is up and it is a tie: {nome} wins",
+"{nome} ha lasciato il tavolo · gioca un bot":"{nome} left the table · a bot plays",
+"{nome} ha lasciato il tavolo":"{nome} left the table",
+"IL BANCO PASSA LE CARTE":"THE HOUSE PASSES THE CARDS",
+"Troppi giri senza quartetto: occhio alla mano":"Too many rounds with no four of a kind: watch the deck",
+"Adesso le carte le passa il banco":"The house is passing the cards now",
+"senza 4 uguali perdi una vita":"without four of a kind you lose a life",
+"senza 4 uguali perdi una vita · barra spaziatrice":"without four of a kind you lose a life · space bar",
+"ESCI DAL TAVOLO":"LEAVE THE TABLE",
+"hai finito le vite · puoi anche restare a guardare":"you are out of lives · you can also stay and watch",
+"📶 rete lenta {ms} ms":"📶 slow network {ms} ms",
+"SUL PC":"ON A COMPUTER",
+"La barra spaziatrice vale come il tasto METTI LA MANO: stessa regola, a vuoto costa una vita.":"The space bar works like the HAND ON DECK button: same rule, a false slap costs a life.",
+"Dopo {g} giri senza un quartetto le carte le passa il banco, finché qualcuno chiude: tu guarda la tua mano e il mazzo.":"After {g} rounds with no four of a kind the house passes the cards until somebody completes a set: watch your hand and the deck.",
+"A questo tavolo c’è un premio: conta l’ordine di ARRIVO al server e la rete non si toglie dal tempo. Con una connessione lenta parti svantaggiato: se accanto alle tue vite vedi 📶, la tua rete è oltre i {a} millesimi. Sotto i {u} millesimi dal segnale non si guadagna niente: più veloce di così non è un riflesso.":"There is a prize at this table: what counts is the order of ARRIVAL at the server and the network is not taken off your time. A slow connection is a handicap: if you see 📶 next to your lives, your network is over {a} milliseconds. Below {u} milliseconds from the signal there is nothing to gain: faster than that is not a reflex.",
+"METTI LA MANO":"HAND ON DECK",
+"solo con 4 carte uguali":"only with four of a kind",
+"ADESSO!":"NOW!",
+"hai il quartetto":"you have four of a kind",
+"sul mazzo":"on the deck",
+"aspetta":"wait",
+"HAI VINTO!":"YOU WON!",
+"HA VINTO {nome}":"{nome} WON",
+"VINCE {nome}":"{nome} WINS",
+"Sei l’ultimo rimasto al tavolo":"You are the last one standing",
+"È l’ultimo rimasto al tavolo":"The last one standing",
+"Tempo scaduto: vince chi ha più vite":"Time is up: most lives wins",
+"Tempo scaduto: ha deciso la carta alta":"Time is up: the high card decided",
+"Gli altri hanno lasciato il tavolo":"The others left the table",
+"TAVOLO ANNULLATO":"TABLE CANCELLED",
+"La posta è stata restituita":"Your stake has been refunded",
+"Partita senza posta":"No stake on this game",
+"Hai vinto € {x}":"You won € {x}",
+"Piatto € {p} · al vincitore € {x}":"Pot € {p} · € {x} to the winner",
+"ASSENTE":"AWAY",
+"FUORI":"OUT",
+"Mossa rifiutata":"Move rejected",
+"Non adesso":"Not now",
+"Troppo tardi: il giro è cambiato":"Too late: the round has changed",
+"Quella carta non è tua":"That card is not yours",
+"La mano l’hai già messa":"Your hand is already on the deck",
+"Sei fuori dalla partita":"You are out of the game",
+"La partita è finita":"The game is over",
+"📖 COME SI GIOCA":"📖 HOW TO PLAY",
+"HO CAPITO":"GOT IT",
+"LE CARTE":"THE CARDS",
+"Si gioca con tanti quartetti (4 carte dello stesso valore) quanti sono i giocatori ancora in gara. Quattro carte a testa: le tue le vedi solo tu.":"The deck has as many sets of four (4 cards of the same value) as there are players still in. Four cards each: only you see yours.",
+"IL GIRO":"THE ROUND",
+"Tutti insieme scegliete una carta da passare al vicino di sinistra. Avete {s} secondi: a chi non sceglie, il banco passa una carta a caso.":"Everybody picks one card at the same time and passes it to the player on the left. You have {s} seconds: if you do not pick, the house passes a random card.",
+"LA MANO":"THE HAND",
+"Appena hai 4 carte uguali premi METTI LA MANO. Da quel momento tutti devono metterla: l’ULTIMO perde una vita.":"As soon as you hold four of a kind press HAND ON DECK. From that moment everybody must do it: the LAST one loses a life.",
+"A VUOTO":"FALSE SLAP",
+"Se metti la mano senza avere 4 carte uguali, e nessuno l’ha ancora messa, la vita la perdi tu. Il tasto non si preme a caso.":"If you hit the deck without four of a kind, and nobody has hit it yet, you lose the life. Do not press the button at random.",
+"I TEMPI":"THE TIMES",
+"Chi non mette la mano entro {s} secondi perde una vita. Se gli ultimi due arrivano a meno di {p} millesimi uno dall’altro è pari: nessuno perde e si ridanno le carte.":"Whoever does not hit the deck within {s} seconds loses a life. If the last two land less than {p} milliseconds apart it is a tie: nobody loses and cards are dealt again.",
+"LA RETE":"THE NETWORK",
+"Il server misura la tua connessione e la toglie dal tuo tempo (fino a {l} millesimi): conta il riflesso, non la rete. Sotto i {u} millesimi non si guadagna niente: più veloce di così non è un riflesso.":"The server measures your connection and takes it off your time (up to {l} milliseconds): reflexes count, not the network. Below {u} milliseconds there is nothing to gain: faster than that is not a reflex.",
+"LE VITE":"THE LIVES",
+"Si parte con {v} vite. A zero sei fuori. L’ultimo che resta al tavolo prende tutto il piatto.":"You start with {v} lives. At zero you are out. The last player at the table takes the whole pot.",
+"Si parte con una vita sola. Chi la perde è fuori. L’ultimo che resta al tavolo prende tutto il piatto.":"You start with one life only. Lose it and you are out. The last player at the table takes the whole pot.",
+"ASSI":"ACES","DUE":"TWOS","TRE":"THREES","QUATTRO":"FOURS","CINQUE":"FIVES","SEI":"SIXES","SETTE":"SEVENS","FANTI":"JACKS","CAVALLI":"KNIGHTS","RE":"KINGS",
+"Asso":"Ace","Fante":"Jack","Cavallo":"Knight","Re":"King","DENARI":"COINS","SPADE":"SWORDS","COPPE":"CUPS","BASTONI":"CLUBS",
+"{v} di {s}":"{v} of {s}"
+}/*>DIZ*/;
+const MANCANTI = new Set();
+function T(s, o) {
+  let r = s;
+  if (EN) { if (Object.prototype.hasOwnProperty.call(DIZ, s)) r = DIZ[s]; else MANCANTI.add(s); }
+  if (o) for (const k in o) r = r.split('{' + k + '}').join(String(o[k]));
+  return r;
+}
+const PLURALI = ['ASSI', 'DUE', 'TRE', 'QUATTRO', 'CINQUE', 'SEI', 'SETTE', 'FANTI', 'CAVALLI', 'RE'];
+const SINGOLI = ['Asso', '2', '3', '4', '5', '6', '7', 'Fante', 'Cavallo', 'Re'];
+const SEMI = ['DENARI', 'SPADE', 'COPPE', 'BASTONI'];
+const LETTERE = ['A', '2', '3', '4', '5', '6', '7', 'F', 'C', 'R'];         // come sono stampate sulle carte
+const nomeValori = v => T(PLURALI[v]);
+function nomeCarta(c) {
+  const v = c % 10, s = SINGOLI[v];
+  return T('{v} di {s}', { v: /^\d$/.test(s) ? s : T(s), s: T(SEMI[(c / 10) | 0]) });
+}
+const fileCarta = c => 'carte/' + (c < 10 ? '0' : '') + c + '.webp';          // percorso relativo, SENZA ?v= (cache della scopa)
+const DORSO = 'carte/dorso.webp';
+const TINTE = ['#f4c542', '#5aa9ff', '#ff6b5e', '#4fd08a', '#b78bff', '#ff9d42', '#47d7e0'];
+const PERCHE = { 'non adesso': 'Non adesso', 'mossa vecchia': 'Troppo tardi: il giro è cambiato', 'carta non tua': 'Quella carta non è tua',
+  'mano già messa': 'La mano l’hai già messa', 'sei fuori': 'Sei fuori dalla partita', 'partita finita': 'La partita è finita',
+  'le carte le passa il banco': 'Adesso le carte le passa il banco' };
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function svgMano(col) {
+  return '<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="' + col + '" stroke="#1a1208" stroke-width="2.6" stroke-linejoin="round">' +
+    '<rect x="3" y="31" width="20" height="10" rx="5" transform="rotate(38 13 36)"/>' +
+    '<rect x="15" y="9" width="9" height="28" rx="4.5"/><rect x="24.5" y="3" width="9" height="32" rx="4.5"/>' +
+    '<rect x="34" y="5" width="9" height="30" rx="4.5"/><rect x="43.5" y="12" width="8" height="25" rx="4"/>' +
+    '<rect x="14" y="27" width="38" height="31" rx="13"/></g></svg>';
+}
+const SVG_CUORE = '<svg class="cuore" viewBox="0 0 24 24" aria-hidden="true"><path fill="#ff5a47" stroke="#5a0f08" stroke-width="1.6" d="M12 21C12 21 3.5 15.4 3.5 9.6 3.5 6.4 5.9 4 8.8 4c1.4 0 2.5.6 3.2 1.6C12.7 4.6 13.8 4 15.2 4c2.9 0 5.3 2.4 5.3 5.6C20.5 15.4 12 21 12 21z"/></svg>';
+
+/* ---------- I SUONI: sintetizzati, nessun file */
+const Suono = (() => {
+  let ctx = null; const S = { acceso: true };
+  function c() {
+    if (!S.acceso) return null;
+    if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
+    if (ctx.state === 'suspended') { try { const p = ctx.resume(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
+    return ctx;
+  }
+  function nota(f, d, tipo, vol, quando, f2) {
+    const a = c(); if (!a) return;
+    try {
+      const o = a.createOscillator(), g = a.createGain(), t = a.currentTime + (quando || 0);
+      o.type = tipo || 'sine'; o.frequency.setValueAtTime(f, t);
+      if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + d);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol || .12, t + .008); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+      o.connect(g); g.connect(a.destination); o.start(t); o.stop(t + d + .02);
+    } catch (e) {}
+  }
+  function fruscio(d, vol, quando, taglio) {
+    const a = c(); if (!a) return;
+    try {
+      const n = Math.max(1, Math.floor(a.sampleRate * d)), b = a.createBuffer(1, n, a.sampleRate), x = b.getChannelData(0);
+      for (let i = 0; i < n; i++) x[i] = (Math.random() * 2 - 1) * (1 - i / n);
+      const s = a.createBufferSource(), g = a.createGain(), f = a.createBiquadFilter(), t = a.currentTime + (quando || 0);
+      f.type = 'lowpass'; f.frequency.value = taglio || 2400; s.buffer = b; g.gain.value = vol || .1;
+      s.connect(f); f.connect(g); g.connect(a.destination); s.start(t);
+    } catch (e) {}
+  }
+  S.sveglia = () => { c(); };
+  S.tasto = () => nota(660, .06, 'triangle', .08);
+  S.carta = q => fruscio(.09, .07, q || 0, 3200);
+  S.schiaffo = () => { fruscio(.11, .22, 0, 1400); nota(150, .14, 'sine', .22, 0, 60); };
+  S.allarme = () => { nota(880, .1, 'square', .09); nota(1175, .14, 'square', .09, .1); };
+  S.perdi = () => { nota(300, .22, 'sawtooth', .1, 0, 110); nota(160, .3, 'sawtooth', .08, .16, 70); };
+  S.salvo = () => { nota(520, .08, 'triangle', .08); nota(780, .12, 'triangle', .08, .08); };
+  S.pari = () => { nota(600, .1, 'triangle', .08); nota(600, .1, 'triangle', .08, .14); };
+  S.fuori = () => nota(220, .5, 'sawtooth', .09, 0, 70);
+  S.vinci = () => [523, 659, 784, 1047].forEach((f, i) => nota(f, .22, 'triangle', .1, i * .12));
+  return S;
+})();
+
+/* ---------- LO STATO DELLA PAGINA */
+let ANAG = null;            // {n, nomi[], bot[], reg, tempi}
+let IO = -1, SPET = false, TOK = 0, FASE = '';
+let ULT = null;             // l'ultimo fotogramma `s` (la verita' di adesso)
+let V = null;               // quello che si VEDE (la recita puo' essere indietro di una scena)
+let maxS = 0, CODA = [], inScena = false, FRETTA = false, IN_PAUSA = false;
+let OVER = null, finaleFatto = false, fineMandata = false, vinceVisto = -1;
+let PUO_MANO = false, PUO_PASSA = false, MESSA_TOK = -1, T_TOCCO = 0, PASSA_TOK = -1, T_PASSA = 0, SCELTA_LOC = null;
+let chiaveTasto = '', chiaveTempo = '', GEO = null, TARGHE = [], SLOT = [], ORDINE = [];
+const SUONATE = new Set(), PAUSE = new Set(), VOLI = new Set();
+const STAT = { giu: 0, su: 0, scartati: 0, codaMax: 0, recitate: 0, salti: 0, tocco: null };
+const SOLA = !!FILO;        // un filo si guarda: i tocchi non mandano niente
+const USCITI = new Set();   // cura G5: i seggi lasciati a un bot (riga `esce` col suo `sg`)
+let FIRMA = '';             // la partita di cui USCITI parla
+const RETE_LENTA_MS = 150;  // cura G4: oltre, a un tavolo senza credito di rete, si mostra il segno
+const ioMorto = () => !SPET && IO >= 0 && !OVER && !!V && V.vite[IO] <= 0 && !!ULT && !!ULT.you && ULT.you.vivo === false && FASE === 'gioco';
+function reteLenta() {      // i ms da mostrare, o 0
+  const y = ULT && ULT.you, r = ANAG && ANAG.reg;
+  if (!y || !r || typeof y.rete_ms !== 'number' || SPET) return 0;
+  const soglia = Math.max(RETE_LENTA_MS, +r.lat_cap_ms || 0);
+  return y.rete_ms > soglia ? Math.round(y.rete_ms / 10) * 10 : 0;
+}
+function chiudiGuida() {   // cura G1: la guida non copre MAI una gara (o il mio quartetto)
+  const g = $('#guida');
+  if (!g.classList.contains('su')) return;
+  g.classList.remove('su');
+}
+
+const nomeVero = sg => (ANAG && ANAG.nomi[sg] != null ? String(ANAG.nomi[sg]) : '?');
+function vicino(sg) {       // a chi passa `sg`: il vivo successivo nei seggi
+  if (!V) return -1;
+  for (let k = 1; k <= ANAG.n; k++) { const j = (sg + k) % ANAG.n; if (V.vite[j] > 0) return j; }
+  return -1;
+}
+
+/* ---------- pause e voli: tutto si puo' chiudere di colpo quando arriva il SEGNALE */
+function pausa(ms) {
+  if (FRETTA || IN_PAUSA || ms <= 0) return Promise.resolve();
+  return new Promise(r => { const o = { r: r, id: 0 }; o.id = setTimeout(() => { PAUSE.delete(o); r(); }, ms / VEL); PAUSE.add(o); });
+}
+function svegliaPause() { PAUSE.forEach(o => { clearTimeout(o.id); o.r(); }); PAUSE.clear(); }
+function finisciVoli() { VOLI.forEach(a => { try { a.finish(); } catch (e) {} }); }
+function vola(src, da, a, dur, ritardo, giro) {
+  if (FRETTA || IN_PAUSA || !da || !a) return Promise.resolve();
+  const el = document.createElement('img');
+  el.className = 'volo'; el.alt = ''; el.draggable = false; el.src = src;
+  const w = da.w, h = w * 1.5, sc = a.w / w;
+  el.style.width = w + 'px'; el.style.height = h + 'px';
+  $('#voli').appendChild(el);
+  let an;
+  try {
+    an = el.animate([
+      { transform: 'translate(' + (da.x - w / 2) + 'px,' + (da.y - h / 2) + 'px) rotate(0deg) scale(1)', opacity: 1 },
+      { transform: 'translate(' + (a.x - w / 2) + 'px,' + (a.y - h / 2) + 'px) rotate(' + (giro || 0) + 'deg) scale(' + sc + ')', opacity: 1 }
+    ], { duration: Math.max(1, dur / VEL), delay: (ritardo || 0) / VEL, easing: 'cubic-bezier(.2,.7,.25,1)', fill: 'both' });
+  } catch (e) { el.remove(); return Promise.resolve(); }
+  VOLI.add(an);
+  return an.finished.catch(() => {}).then(() => { VOLI.delete(an); el.remove(); });
+}
+
+/* ---------- LA GEOMETRIA: tutto in px interi, rifatta a ogni cambio di misura */
+function misura() {
+  const W = tav.clientWidth, H = tav.clientHeight;
+  if (!W || !H) return;
+  const largo = W >= 900 && W > H;
+  document.body.classList.toggle('largo', largo);
+  const st = document.documentElement.style, g = { W: W, H: H, largo: largo };
+  let cw, bh, bw;
+  if (largo) {
+    cw = Math.max(96, Math.min(150, Math.floor(H * .27 / 1.5)));
+    bh = 96; bw = Math.min(280, Math.floor(W * .22));
+  } else {
+    bh = Math.max(62, Math.min(82, Math.round(H * .11)));
+    cw = Math.min(132, Math.floor((W - 24 - 24) / 4));
+    if (cw < 96) cw = 96;                                             // la MIA mano: mai sotto 96 px (si sovrappone, non si stringe)
+    cw = Math.min(cw, Math.max(80, Math.floor(H * .245 / 1.5)));      // ...tranne su uno schermo bassissimo
+    bw = W - 24;
+  }
+  const dpr = window.devicePixelRatio || 1;
+  if (cw * dpr > 420) cw = Math.floor(420 / dpr);                     // mai oltre 420 px veri
+  const ch = Math.round(cw * 1.5);
+  const passo = Math.min(cw + 8, Math.floor(((largo ? Math.min(W - bw - 80, 4 * cw + 24) : W - 24) - cw) / 3));
+  const manoW = cw + 3 * passo;
+  let manoX, manoY, bx, by;
+  if (largo) {
+    manoY = H - 18 - ch; manoX = Math.round((W - manoW) / 2);
+    bx = Math.min(W - bw - 16, manoX + manoW + 36); by = H - 18 - bh - Math.round((ch - bh) / 2);
+  } else {
+    by = H - 10 - bh; bx = 12; manoY = by - 12 - ch; manoX = Math.round((W - manoW) / 2);
+  }
+  const mioY = manoY - 18 - 22, tempoY = mioY - 7, dettoH = largo ? 50 : 44, dettoY = tempoY - 3 - dettoH;
+  const zt = 46, zb = dettoY - 6, Z = zb - zt;
+  const altri = ORDINE.length;
+  const pw = largo ? 132 : Math.max(66, Math.min(96, Math.floor(W * .215))), mw = largo ? 24 : (pw < 74 ? 14 : 17);
+  const ph = Math.round(mw * 1.5) + (largo ? 16 : 13) + 12 + 12;
+  let dw = largo ? 92 : Math.max(50, Math.min(70, Math.floor(Z * .22)));
+  const ang = ({ 0: [], 1: [90], 2: [150, 30], 3: [165, 90, 15], 4: [188, 125, 55, -8], 5: [197, 142, 90, 38, -17],
+    6: [200, 156, 112, 68, 24, -20], 7: [203, 163, 126, 90, 54, 17, -23] })[altri] || [];
+  const minSin = ang.length ? Math.min.apply(null, ang.map(a => Math.sin(a * Math.PI / 180))) : 1;
+  const s = minSin < 0 ? -minSin : 0;
+  let cy = Math.min(zb - dw * .75 - 4, (zb - ph / 2 + s * (zt + ph / 2)) / (1 + s));
+  if (s === 0) cy = Math.min(cy, zt + ph + 10 + dw * .75 + Math.max(0, zb - zt - ph - 10 - dw * 1.5) * .45);   // pochi al tavolo: il mazzo sta in mezzo
+  const ry = Math.max(20, cy - zt - ph / 2);
+  const rx = largo ? Math.min(W / 2 - pw / 2 - 24, 470) : W / 2 - pw / 2 - 6;
+  // il mazzo non deve toccare la targa in cima
+  if (ang.some(a => a > 60 && a < 120) && cy - dw * .75 < zt + ph + 6) dw = Math.max(40, Math.floor((cy - zt - ph - 6) / .75));
+  const cx = Math.round(W / 2);
+  cy = Math.round(cy);
+  g.seggi = {};
+  ORDINE.forEach((sg, i) => {
+    const a = ang[i] * Math.PI / 180;
+    g.seggi[sg] = { x: Math.round(cx + rx * Math.cos(a)), y: Math.round(cy - ry * Math.sin(a)), w: mw };
+  });
+  g.mazzo = { x: cx, y: cy, w: dw };
+  g.slot = [0, 1, 2, 3].map(i => ({ x: manoX + i * passo + cw / 2, y: manoY + ch / 2, w: cw }));
+  g.cw = cw; g.passo = passo; g.pw = pw; g.ph = ph; g.bottone = { x: bx, y: by, w: bw, h: bh }; g.zt = zt; g.zb = zb;
+  if (IO >= 0 && !SPET) g.seggi[IO] = { x: Math.round(W / 2), y: manoY + ch / 2, w: cw };
+  GEO = g;
+  st.setProperty('--cw', cw + 'px'); st.setProperty('--mw', mw + 'px'); st.setProperty('--dw', dw + 'px');
+  st.setProperty('--hw', Math.round(dw * (largo ? .8 : .86)) + 'px');
+  const qw = largo ? 100 : 60, qlargo = altri >= 4 ? W - 2 * (pw + 22) : W - 60;
+  g.qw = qw; st.setProperty('--qw', qw + 'px'); st.setProperty('--qs', Math.max(Math.ceil(qw * .3), Math.min(qw + 6, Math.floor((qlargo - qw) / 3))) + 'px');
+  st.setProperty('--pw', pw + 'px'); st.setProperty('--ph', ph + 'px');
+  const bhr = Math.max(Math.min(bh, 60), bh - 14);                     // cura G3: il tasto a riposo, mai sotto i 60 px
+  st.setProperty('--bhr', bhr + 'px'); st.setProperty('--bhm', (bh - bhr) + 'px');
+  const metti = (el, x, y, w, h) => { el.style.left = x + 'px'; el.style.top = y + 'px'; if (w != null) el.style.width = w + 'px'; if (h != null) el.style.height = h + 'px'; };
+  TARGHE.forEach(t => { if (t && g.seggi[t.sg]) metti(t.el, g.seggi[t.sg].x, g.seggi[t.sg].y); });
+  metti($('#mazzo'), cx, cy); metti($('#pila'), cx, cy);
+  metti($('#rivela'), cx, cy);
+  metti($('#detto'), 8, dettoY, null, dettoH); metti($('#tempo'), Math.round(W * .14), tempoY);
+  $('#tempo').style.right = Math.round(W * .14) + 'px';
+  metti($('#mio'), 8, mioY);
+  metti($('#mano'), manoX, manoY, manoW);
+  SLOT.forEach((s2, i) => { s2.el.style.left = (i * passo) + 'px'; s2.el.style.zIndex = String(i + 1); });
+  metti(bMano, bx, by, bw, bh);
+  metti($('#fine'), 10, zt, null, Math.max(150, zb - zt));
+  $('#fine').style.right = '10px';
+}
+
+/* ---------- IL MONTAGGIO DEL TAVOLO (allo start) */
+function cuori(n, tot) {
+  if (tot > 5) return SVG_CUORE + '<span>' + Math.max(0, n) + '</span>';
+  let h = '';
+  for (let i = 0; i < tot; i++) h += i < n ? SVG_CUORE : SVG_CUORE.replace('class="cuore"', 'class="cuore perso"');
+  return h;
+}
+function monta() {
+  const box = $('#targhe'); box.innerHTML = ''; TARGHE = []; ORDINE = [];
+  // gli altri in senso di passaggio: il primo a sinistra e' quello a cui passo, l'ultimo a destra passa a me
+  if (SPET || IO < 0) for (let k = 0; k < ANAG.n; k++) ORDINE.push(k);
+  else for (let k = 1; k < ANAG.n; k++) ORDINE.push((IO + k) % ANAG.n);
+  ORDINE.forEach(sg => {
+    const el = document.createElement('div');
+    el.className = 'tg vuota'; el.style.setProperty('--col', TINTE[sg % TINTE.length]);
+    el.innerHTML = '<div class="tgNome"></div><div class="mini"><img alt="" draggable="false"><img alt="" draggable="false"><img alt="" draggable="false"><img alt="" draggable="false"></div><div class="vite"></div><div class="tgSegno"></div>';
+    el.querySelectorAll('.mini img').forEach(i => { i.src = DORSO; });
+    box.appendChild(el);
+    TARGHE[sg] = { sg: sg, el: el, nome: el.querySelector('.tgNome'), vite: el.querySelector('.vite'), segno: el.querySelector('.tgSegno'), kv: '', kn: '', ks: '' };
+  });
+  const mano = $('#mano'); mano.innerHTML = ''; SLOT = [];
+  for (let i = 0; i < 4; i++) {
+    const el = document.createElement('div');
+    el.className = 'slot vuoto';
+    el.innerHTML = '<div class="carta" style="width:100%;height:100%"><img alt="" draggable="false"></div>';
+    const img = el.querySelector('img'), carta = el.querySelector('.carta');
+    img.addEventListener('error', () => { carta.classList.add('rotta'); });
+    img.addEventListener('load', () => { carta.classList.remove('rotta'); });
+    el.addEventListener('pointerdown', ev => { toccoCarta(i); if (ev.cancelable) ev.preventDefault(); });
+    mano.appendChild(el);
+    SLOT.push({ el: el, img: img, carta: carta, c: null });
+  }
+  $('#mazzo').querySelectorAll('img').forEach(i => { i.src = DORSO; });
+  bMano.querySelector('.ico').innerHTML = svgMano('#f6efdc');
+  document.body.classList.toggle('spet', SPET || IO < 0);
+  $('#pila').innerHTML = ''; $('#rivela').innerHTML = ''; $('#rivela').className = ''; $('#targhe').classList.remove('giu');
+  $('#fine').classList.remove('su'); $('#mazzo').classList.remove('via'); $('#pila').classList.remove('via');
+}
+
+/* ---------- IL DISEGNO (solo quello che cambia) */
+function disegnaTarghe() {
+  if (!V) return;
+  const off = (ULT && ULT.offline) || [], fermi = (ULT && ULT.fermi) || [];
+  ORDINE.forEach(sg => {
+    const t = TARGHE[sg]; if (!t) return;
+    const fuori = V.vite[sg] <= 0, ass = !fuori && (off.indexOf(sg) >= 0 || fermi.indexOf(sg) >= 0);
+    const bot = !fuori && USCITI.has(sg);                              // cura G5: seggio lasciato, lo gioca un bot
+    const kn = nomeVero(sg) + '|' + (fuori ? 'f' : bot ? 'b' : ass ? 'a' : '');
+    if (kn !== t.kn) { t.kn = kn; t.nome.innerHTML = (bot ? '🤖 ' : '') + esc(nomeVero(sg)) + (fuori ? ' <i>' + esc(T('FUORI')) + '</i>' : (ass && !bot) ? ' <i>' + esc(T('ASSENTE')) + '</i>' : ''); }
+    const kv = V.vite[sg] + '/' + ANAG.reg.vite;
+    if (kv !== t.kv) { t.kv = kv; t.vite.innerHTML = cuori(V.vite[sg], ANAG.reg.vite); }
+    t.el.classList.toggle('fuori', fuori); t.el.classList.toggle('assente', ass);
+    t.el.classList.toggle('vuota', fuori || !V.carte);
+    let ks = '', tx = '', cl = '';
+    const p = V.pila.indexOf(sg);
+    if (V.segni && V.segni[sg]) { tx = V.segni[sg].tx; cl = V.segni[sg].cl; ks = 'x' + tx + cl; }
+    else if (p >= 0) { tx = (p + 1) + '°'; cl = ''; ks = 'p' + p; }
+    else if (!V.gara && V.fase2 === 'passa' && V.scelto[sg] && !fuori) { tx = '✓'; cl = 'ok'; ks = 'ok'; }
+    if (ks !== t.ks) { t.ks = ks; t.segno.textContent = tx; t.segno.className = 'tgSegno' + (ks ? ' su' : '') + (cl ? ' ' + cl : ''); }
+  });
+}
+function disegnaMio() {
+  if (!V || SPET || IO < 0) return;
+  const sg = V.segni && V.segni[IO], p = V.pila.indexOf(IO);
+  const tx = sg ? sg.tx : (p >= 0 ? (p + 1) + '°' : ''), cl = sg ? sg.cl : '';
+  const rl = reteLenta();
+  const k = V.vite[IO] + '/' + ANAG.reg.vite + '|' + nomeVero(IO) + '|' + tx + '|' + cl + '|' + rl;
+  const el = $('#mio');
+  if (el.dataset.k !== k) {
+    el.dataset.k = k;
+    el.innerHTML = '<span class="pall" style="--col:' + TINTE[IO % TINTE.length] + '"></span><span>' + esc(nomeVero(IO)) + '</span><span class="vite">' + cuori(V.vite[IO], ANAG.reg.vite) + '</span>' +
+      (tx ? '<span class="mioSegno ' + cl + '">' + esc(tx) + '</span>' : '') +
+      (rl ? '<span class="rete">' + esc(T('📶 rete lenta {ms} ms', { ms: rl })) + '</span>' : '');
+  }
+}
+function mettiCarta(s, c) {
+  if (s.c === c) return;
+  s.c = c;
+  if (c == null) { s.el.classList.add('vuoto'); return; }
+  s.carta.classList.remove('rotta');
+  s.carta.dataset.nome = LETTERE[c % 10] + '\n' + T(SEMI[(c / 10) | 0]);
+  s.img.alt = nomeCarta(c);
+  s.img.src = fileCarta(c);
+  s.el.classList.remove('vuoto');
+}
+function disegnaMano() {
+  if (!V || SPET || IO < 0) return;
+  const m = V.mano || [];
+  for (let i = 0; i < 4; i++) {
+    mettiCarta(SLOT[i], m[i] != null && V.vite[IO] > 0 ? m[i] : null);
+    SLOT[i].el.classList.toggle('scelta', m[i] != null && V.scelta === m[i] && !V.gara);
+  }
+  const q = m.length === 4 && m.every(c => c % 10 === m[0] % 10) && V.vite[IO] > 0 && (V.fase2 === 'passa' || V.fase2 === 'mani');
+  $('#mano').classList.toggle('quart', q);
+}
+function dimmi(a, b, tipo, botto) {
+  const el = $('#detto');
+  $('#dettoA').textContent = a || ''; $('#dettoB').textContent = b || '';
+  el.className = tipo || '';
+  if (botto) { void el.offsetWidth; el.classList.add('botto'); }
+}
+function dettoFermo() {
+  if (!V || !ULT || OVER) return;
+  const y = ULT.you || {}, st = ULT.st || {};
+  if (SPET || IO < 0) { dimmi(T('👁 SPETTATORE'), st.fase2 === 'passa' ? T('Si passano le carte…') : '', ''); return; }
+  if (V.vite[IO] <= 0) { dimmi(T('SEI FUORI'), T('Guardi la partita fino alla fine'), ''); return; }
+  if (st.fase2 === 'mani') {
+    if (y.messa || MESSA_TOK === TOK) dimmi(T('MESSA!'), T('Aspetto gli ultimi…'), 'verde');
+    else dimmi(T('MANO SUL MAZZO!'), V.pila.length ? T('{nome} ha messo la mano: mettila anche tu', { nome: nomeVero(V.pila[0]) }) : '', 'rosso');
+    return;
+  }
+  if (st.fase2 !== 'passa') return;                                    // dai / esito: il testo e' della scena
+  if (y.quartetto) { dimmi(T('HAI QUATTRO {v}!', { v: nomeValori((y.mano[0] || 0) % 10) }), T('Metti la mano sul mazzo, subito'), 'oro'); return; }
+  if (st.banco) { dimmi(T('IL BANCO PASSA LE CARTE'), T('Troppi giri senza quartetto: occhio alla mano'), 'oro'); return; }   // cura S2
+  if (V.scelta != null) { dimmi(T('CARTA SCELTA'), T('Aspetto gli altri…'), ''); return; }
+  const a = vicino(IO);
+  dimmi(T('SCEGLI UNA CARTA'), a >= 0 ? T('La passi a {nome}', { nome: nomeVero(a) }) : '', '');
+}
+function disegnaSotto() {
+  if (!V) return;
+  const el = $('#sotto');
+  let t = V.giro > 0 ? T('GIRO {n}', { n: V.ngiro || 1 }) : '';
+  if (V.valori && V.valori.length) t += (t ? ' · ' : '') + T('In gioco: {v}', { v: V.valori.map(v => LETTERE[v]).join(' ') });
+  if (el.textContent !== t) el.textContent = t;
+}
+function disegna() { disegnaTarghe(); disegnaMio(); disegnaMano(); disegnaSotto(); }
+
+/* ---------- la pila delle mani sul mazzo */
+function pilaAggiungi(sg) {
+  if (!V || V.pila.indexOf(sg) >= 0) return;
+  V.pila.push(sg);
+  const el = document.createElement('div'), p = GEO && GEO.seggi[sg], m = GEO && GEO.mazzo;
+  let gradi = 0;
+  if (p && m) gradi = Math.atan2(m.x - p.x, p.y - m.y) * 180 / Math.PI;      // le dita puntano dal seggio al mazzo
+  const k = V.pila.length - 1, dx = ((sg * 37) % 11) - 5, dy = ((sg * 53) % 9) - 4 - k * 2;
+  el.className = 'manina'; el.style.setProperty('--tr', 'translate(' + dx + 'px,' + dy + 'px) rotate(' + gradi.toFixed(0) + 'deg)');
+  el.style.transform = 'translate(' + dx + 'px,' + dy + 'px) rotate(' + gradi.toFixed(0) + 'deg)';
+  el.style.zIndex = String(10 + k);
+  el.innerHTML = svgMano(TINTE[sg % TINTE.length]);
+  $('#pila').appendChild(el);
+  const mz = $('#mazzo'); mz.classList.remove('colpo'); void mz.offsetWidth; mz.classList.add('colpo');
+}
+function pilaVuota() { if (V) V.pila = []; $('#pila').innerHTML = ''; }
+function lampo(rosso) {
+  const el = $('#lampo'); el.className = rosso ? 'rosso' : ''; void el.offsetWidth; el.classList.add('via');
+}
+
+/* ---------- I TASTI */
+function aggTasti() {
+  if (!ULT || !ANAG) return;
+  const y = ULT.you || {}, st = ULT.st || {}, puo = y.puo || [], ora = performance.now();
+  // un `su` senza risposta: dopo 1,5 s il tasto torna vivo
+  if (MESSA_TOK === TOK && !y.messa && puo.indexOf('mano') >= 0 && ora - T_TOCCO > 1500) MESSA_TOK = -1;
+  if (MESSA_TOK !== -1 && MESSA_TOK !== TOK) MESSA_TOK = -1;
+  if (PASSA_TOK !== -1 && PASSA_TOK !== TOK) { PASSA_TOK = -1; SCELTA_LOC = null; }
+  const giocabile = !SPET && !SOLA && !OVER && IO >= 0;
+  PUO_MANO = giocabile && puo.indexOf('mano') >= 0 && MESSA_TOK !== TOK;
+  PUO_PASSA = giocabile && puo.indexOf('passa') >= 0 && st.fase2 === 'passa' && !y.quartetto;
+  let cl, a, b;
+  const messa = !!y.messa || (MESSA_TOK === TOK && MESSA_TOK !== -1);
+  // cura G1: a gara aperta, o col MIO quartetto in mano, la guida si toglie di mezzo
+  if (giocabile && puo.indexOf('mano') >= 0 && (st.fase2 === 'mani' || y.quartetto)) chiudiGuida();
+  if (ioMorto() && RETE) { cl = 'esci'; a = T('ESCI DAL TAVOLO'); b = T('hai finito le vite · puoi anche restare a guardare'); PUO_MANO = false; PUO_PASSA = false; }   // cura G6
+  else
+  if (messa && (st.fase2 === 'mani' || st.fase2 === 'passa')) { cl = 'messa'; a = T('MESSA!'); b = T('sul mazzo'); }
+  else if (st.fase2 === 'mani' && puo.indexOf('mano') >= 0) { cl = 'gara'; a = T('METTI LA MANO'); b = T('ADESSO!'); }
+  else if (st.fase2 === 'passa' && y.quartetto) { cl = 'quart'; a = T('METTI LA MANO'); b = T('hai il quartetto'); }
+  else if (st.fase2 === 'passa' && puo.indexOf('mano') >= 0) { cl = 'riposo'; a = T('METTI LA MANO'); b = T(GEO && GEO.largo ? 'senza 4 uguali perdi una vita · barra spaziatrice' : 'senza 4 uguali perdi una vita'); }   // cura G3
+  else { cl = 'spento'; a = T('METTI LA MANO'); b = T('aspetta'); }
+  const k = cl + '|' + a + '|' + b;
+  if (k !== chiaveTasto) {
+    chiaveTasto = k; bMano.className = cl;
+    $('#bManoA').textContent = a; $('#bManoB').textContent = b;
+    bMano.querySelector('.ico').innerHTML = svgMano(cl === 'quart' ? '#3b2500' : cl === 'riposo' || cl === 'spento' ? '#d5e8dc' : '#ffffff');
+  }
+}
+/* ⚠️ §C.6 — fra il tocco e il `su` NIENTE: la prima riga e' l'invio. */
+function toccoMano(ev) {
+  if (!PUO_MANO && ev && ioMorto() && RETE) {                          // cura G6: l'uscita di chi ha finito le vite (solo dal tasto, mai dalla barra)
+    Suono.tasto(); TPG.manda({ tp: 'esci', fuori: 1 });
+    if (ev.cancelable) ev.preventDefault();
+    return;
+  }
+  if (PUO_MANO) {
+    const tok = TOK;
+    FONTE.su({ t: 'act', a: 'mano', ax: null, power: tok });
+    const t1 = performance.now();
+    PUO_MANO = false; MESSA_TOK = tok; T_TOCCO = t1;
+    STAT.tocco = { evento: ev && ev.timeStamp ? ev.timeStamp : t1, su: t1, tok: tok };
+    bMano.classList.add('giu'); setTimeout(() => bMano.classList.remove('giu'), 120);
+    Suono.schiaffo();
+    aggTasti(); dettoFermo();
+  } else {
+    Suono.sveglia();
+    if (!SOLA) { bMano.classList.remove('no'); void bMano.offsetWidth; bMano.classList.add('no'); }
+  }
+  if (ev && ev.cancelable) ev.preventDefault();
+}
+function toccoCarta(i) {
+  Suono.sveglia();
+  if (!PUO_PASSA || !V || inGara()) return;
+  const c = V.mano ? V.mano[i] : null;
+  if (c == null || V.scelta === c) return;
+  const ora = performance.now();
+  if (PASSA_TOK === TOK && ora - T_PASSA < 1500) return;               // un `su` alla volta: 1,5 s, o il giro dopo, o tp_act_no
+  if (!ULT || !ULT.you || (ULT.you.mano || []).indexOf(c) < 0) return; // la scena e' indietro: quella carta non l'ho piu'
+  FONTE.su({ t: 'act', a: 'passa', ax: c, power: TOK });
+  PASSA_TOK = TOK; T_PASSA = ora; SCELTA_LOC = { tok: TOK, c: c };
+  V.scelta = c;
+  Suono.tasto(); disegnaMano(); dettoFermo();
+}
+const carteInTavola = st => !!st && (st.fase2 === 'passa' || st.fase2 === 'mani' || st.fase2 === 'dai');
+const inGara = () => !!(V && V.gara) || !!(ULT && ULT.st && ULT.st.fase2 === 'mani');
+
+/* ---------- L'OROLOGIO: una barra con una transizione CSS, niente rAF */
+function aggTempo() {
+  const el = $('#tempo'), o = ULT && ULT.orologio;
+  if (!o || OVER || (o.tipo !== 'passa' && o.tipo !== 'mani') || SPET && o.tipo === 'mani' || ioMorto()) {
+    if (chiaveTempo) { chiaveTempo = ''; el.classList.remove('su'); }
+    return;
+  }
+  const k = o.tipo + ':' + TOK;
+  if (k === chiaveTempo) return;
+  chiaveTempo = k;
+  const i = el.firstElementChild, tot = Math.max(.1, o.tot_s || 1), resta = Math.max(0, o.resta_s || 0);
+  el.className = 'su' + (o.tipo === 'mani' ? ' gara' : '');
+  i.style.transition = 'none'; i.style.width = Math.min(100, 100 * resta / tot) + '%';
+  void i.offsetWidth;
+  i.style.transition = 'width ' + (Math.min(resta, tot) / VEL).toFixed(2) + 's linear ' + (Math.max(0, resta - tot) / VEL).toFixed(2) + 's';
+  i.style.width = '0%';
+}
+
+/* ---------- DALLA VERITA' A QUELLO CHE SI VEDE */
+function vistaDa(m) {
+  const st = m.st || {}, y = m.you || {};
+  return { vite: (st.vite || []).slice(), vivi: (st.vivi || []).slice(), scelto: (st.scelto || []).slice(), fase2: st.fase2 || '',
+    giro: st.giro || 0, ngiro: st.ngiro || 0, valori: (st.valori || []).slice(), pila: [], gara: st.fase2 === 'mani',
+    mano: (carteInTavola(st) ? (y.mano || []) : []).slice(), scelta: y.scelta == null ? null : y.scelta, carte: carteInTavola(st), segni: null };
+}
+function applicaSt(st) {
+  if (!V || !st) return;
+  V.vite = st.vite.slice(); V.vivi = st.vivi.slice(); V.fase2 = st.fase2; V.giro = st.giro; V.ngiro = st.ngiro; V.valori = st.valori.slice();
+}
+function salta(m) {                                                    // rientro: lo stato di adesso, senza recita
+  STAT.salti++;
+  FRETTA = true; svegliaPause(); finisciVoli(); FRETTA = false;
+  CODA = []; SUONATE.clear();
+  $('#pila').innerHTML = ''; $('#rivela').classList.remove('su'); $('#mazzo').classList.remove('via'); $('#pila').classList.remove('via');
+  V = vistaDa(m);
+  (m.feed || []).forEach(v => { if (v.k === 'mano') SUONATE.add(v.s); });
+  ((m.st && m.st.mani) || []).forEach(sg => pilaAggiungi(sg));
+  precarica(V.valori);
+  disegna(); dettoFermo();
+}
+function allinea() {                                                   // a tavolo fermo: quello che si vede = la verita'
+  if (!ULT || !ANAG || inScena) return;
+  const st = ULT.st || {}, y = ULT.you || {};
+  if (!V) V = vistaDa(ULT);
+  V.vite = (st.vite || []).slice(); V.vivi = (st.vivi || []).slice(); V.scelto = (st.scelto || []).slice();
+  V.fase2 = st.fase2 || ''; V.giro = st.giro || 0; V.ngiro = st.ngiro || 0; V.valori = (st.valori || []).slice();
+  V.carte = carteInTavola(st);
+  V.gara = st.fase2 === 'mani';
+  if (!SPET && IO >= 0) {
+    V.mano = (carteInTavola(st) ? (y.mano || []) : []).slice();          // fra l'esito e la smazzata dopo le carte sono raccolte
+    const loc = SCELTA_LOC && SCELTA_LOC.tok === TOK && performance.now() - T_PASSA < 1500 && V.mano.indexOf(SCELTA_LOC.c) >= 0;
+    V.scelta = loc ? SCELTA_LOC.c : (y.scelta == null ? null : y.scelta);
+  }
+  if (V.gara) (st.mani || []).forEach(sg => pilaAggiungi(sg));
+  else if (st.fase2 === 'passa' && V.pila.length) { pilaVuota(); V.segni = null; }
+  disegna(); dettoFermo();
+}
+
+/* ---------- IL SEGNALE: la `mano` di un altro accende il tasto SUBITO, prima di ogni altra scena */
+function segnaleSubito(v) {
+  if (SUONATE.has(v.s)) return;
+  SUONATE.add(v.s);
+  if (!V) return;
+  if (v.apre) {
+    FRETTA = true; svegliaPause(); finisciVoli();                      // la recita in corso si chiude di colpo
+    V.gara = true; V.fase2 = 'mani'; V.segni = null; V.carte = true;
+    if (!SPET && IO >= 0 && V.vite[IO] > 0) chiudiGuida();             // cura G1: PRIMA di tutto il resto
+    $('#rivela').classList.remove('su'); $('#mazzo').classList.remove('via'); $('#pila').classList.remove('via');
+    if (!IN_PAUSA) { lampo(false); if (v.sg !== IO || SPET) Suono.allarme(); }
+  } else if (!IN_PAUSA && (v.sg !== IO || SPET)) Suono.schiaffo();          // la mia l'ho gia' sentita al tocco
+  pilaAggiungi(v.sg);
+  if (v.apre && !SPET && IO >= 0 && v.sg !== IO && V.vite[IO] > 0)
+    dimmi(T('MANO SUL MAZZO!'), T('{nome} ha messo la mano: mettila anche tu', { nome: nomeVero(v.sg) }), 'rosso', true);
+  disegnaTarghe(); disegnaMano();
+}
+
+/* ---------- LE SCENE: una per voce del registro */
+async function scenaDai(v) {
+  if (!GEO) misura();
+  if (!GEO) { applicaSt(v.st); V.carte = true; V.mano = (ULT && ULT.you && ULT.you.mano || []).slice(); disegna(); return; }
+  applicaSt(v.st);
+  pilaVuota(); V.segni = null; V.gara = false; V.scelta = null; V.scelto = V.scelto.map(() => false);
+  $('#rivela').classList.remove('su'); $('#mazzo').classList.remove('via'); $('#pila').classList.remove('via');
+  precarica(v.valori || []);
+  const vivi = v.vivi || [], io = !SPET && IO >= 0 && vivi.indexOf(IO) >= 0;
+  V.carte = false; V.mano = [];
+  disegna();
+  dimmi(T('NUOVA SMAZZATA'), T('In gioco: {v}', { v: (v.valori || []).map(x => LETTERE[x]).join(' ') }), '');
+  const dur = Math.max(.6, v.dur || 1.6) * 1000, tutte = vivi.length * 4, passo = Math.min(70, (dur * .55) / Math.max(1, tutte));
+  const voli = [];
+  let k = 0;
+  for (let giro = 0; giro < 4; giro++) for (const sg of vivi) {
+    const a = sg === IO && io ? GEO.slot[giro] : GEO.seggi[sg];
+    voli.push(vola(DORSO, GEO.mazzo, a, 300, k * passo, sg === IO && io ? 0 : 20));
+    if (!FRETTA && !IN_PAUSA && k % 2 === 0) Suono.carta(k * passo / 1000 / VEL);
+    k++;
+  }
+  await Promise.all(voli);
+  V.carte = true;
+  if (io) {
+    const mia = (ULT && ULT.you && ULT.you.mano || []).slice();
+    V.mano = mia;
+    for (let i = 0; i < 4; i++) {
+      const s = SLOT[i];
+      if (mia[i] == null) continue;
+      s.c = -1; s.img.src = DORSO; s.el.classList.remove('vuoto', 'scelta');
+    }
+    await pausa(90);
+    for (let i = 0; i < 4; i++) { if (mia[i] != null) giraCarta(SLOT[i], mia[i], i * 60); }
+    await pausa(420);
+  }
+  disegna();
+  await pausa(Math.max(0, dur - tutte * passo - 300 - (io ? 510 : 0)));
+}
+function giraCarta(s, c, ritardo) {
+  const fai = () => {
+    if (FRETTA || IN_PAUSA) { mettiCarta(s, c); return; }
+    s.el.classList.remove('gira'); void s.el.offsetWidth; s.el.classList.add('gira');
+    setTimeout(() => { mettiCarta(s, c); }, 130 / VEL);
+    setTimeout(() => { s.el.classList.remove('gira'); }, 280 / VEL);
+  };
+  if (ritardo && !FRETTA) setTimeout(fai, ritardo / VEL); else fai();
+}
+async function scenaScambio(v) {
+  if (!GEO) misura();
+  if (!GEO) { applicaSt(v.st); V.mano = (ULT && ULT.you && ULT.you.mano || []).slice(); V.scelta = null; disegna(); return; }
+  const vivi = (v.st && v.st.vivi) || [], io = !SPET && IO >= 0 && vivi.indexOf(IO) >= 0;
+  const nuova = io ? (ULT && ULT.you && ULT.you.mano || []).slice() : [];
+  const vecchia = (V.mano || []).slice();
+  let posto = -1;
+  if (io && vecchia.length === 4 && nuova.length === 4) for (let i = 0; i < 4; i++) if (vecchia[i] !== nuova[i]) { posto = i; break; }
+  V.scelta = null; V.scelto = V.scelto.map(() => false); V.segni = null;
+  applicaSt(v.st);
+  disegnaTarghe();
+  if (!FRETTA && !IN_PAUSA) dimmi(T('GIRO {n}', { n: (v.st && v.st.ngiro) || 1 }), T('Si passano le carte…'), '');
+  const k = vivi.length, voli = [];
+  for (let i = 0; i < k; i++) {
+    const da = vivi[i], a = vivi[(i + 1) % k];
+    if (da === IO && io) {
+      if (posto >= 0) {                                               // la MIA carta parte scoperta e arriva al vicino
+        const s = SLOT[posto];
+        voli.push(vola(fileCarta(vecchia[posto]), GEO.slot[posto], GEO.seggi[a], 380, 0, -14));
+        s.el.classList.remove('scelta'); s.el.classList.add('vuoto'); s.c = null;
+      }
+    } else if (a === IO && io) {
+      if (posto >= 0) voli.push(vola(DORSO, GEO.seggi[da], GEO.slot[posto], 380, 260, 0));
+    } else voli.push(vola(DORSO, GEO.seggi[da], GEO.seggi[a], 420, 60 + i * 30, 0));
+  }
+  if (!FRETTA && !IN_PAUSA) { Suono.carta(0); Suono.carta(.26 / VEL); }
+  await Promise.all(voli);
+  V.mano = nuova;
+  if (io && posto >= 0 && !FRETTA && !IN_PAUSA) {
+    const s = SLOT[posto];
+    s.c = -1; s.img.src = DORSO; s.el.classList.remove('vuoto', 'scelta');
+    giraCarta(s, nuova[posto], 0);
+    await pausa(300);
+  }
+  disegna();
+  await pausa(Math.max(0, (v.dur || 1) * 1000 - 950));
+}
+function secondi(ms) { const t = (ms / 1000).toFixed(2) + ' s'; return EN ? t : t.replace('.', ','); }
+async function scenaEsito(v) {
+  applicaSt(v.st);
+  V.gara = false; V.scelta = null;
+  const perde = v.perde || [], ms = v.ms || [], io = !SPET && IO >= 0;
+  (v.ordine || []).forEach(sg => { if (v.motivo !== 'falso') pilaAggiungi(sg); });
+  if (v.motivo === 'falso') { pilaVuota(); pilaAggiungi(perde[0]); }
+  V.segni = {};
+  (v.ordine || []).forEach((sg, i) => {
+    if (v.motivo === 'falso') return;
+    const ultimo = perde.indexOf(sg) >= 0;
+    V.segni[sg] = { tx: i === 0 ? '1°' : '+' + (ms[sg] == null ? '?' : secondi(ms[sg])), cl: ultimo ? 'ultimo' : 'tempo' };
+  });
+  perde.forEach(sg => { V.segni[sg] = V.segni[sg] || { tx: '✕', cl: 'ultimo' }; V.segni[sg].cl = 'ultimo'; });
+  disegna();
+  perde.forEach(sg => {
+    const t = TARGHE[sg];
+    if (t) { t.el.classList.remove('perde'); void t.el.offsetWidth; t.el.classList.add('perde'); const c = t.vite.querySelectorAll('.cuore.perso'); if (c.length) c[0].classList.add('scoppia'); }
+    if (sg === IO && io) { const c = $('#mio').querySelectorAll('.cuore.perso'); if (c.length) c[0].classList.add('scoppia'); }
+  });
+  const ioPerdo = io && perde.indexOf(IO) >= 0;
+  const nomi = perde.map(nomeVero).join(', ');
+  if (v.motivo === 'pari') { dimmi(T('PARI!'), T('Gli ultimi due sono arrivati insieme: nessuno perde'), 'oro', true); if (!FRETTA) Suono.pari(); }
+  else if (v.motivo === 'falso') {
+    dimmi(T('MANO A VUOTO!'), ioPerdo ? T('Non avevi quattro carte uguali: perdi una vita') : T('{nome} non aveva quattro carte uguali: perde una vita', { nome: nomi }), 'rosso', true);
+  } else if (v.motivo === 'assente') {
+    dimmi(T('TROPPO TARDI'), ioPerdo && perde.length === 1 ? T('Non hai messo la mano: perdi una vita') : T('{nomi}: mano non messa, una vita in meno', { nomi: nomi }), 'rosso', true);
+  } else if (ioPerdo) dimmi(T('SEI L’ULTIMO'), T('Perdi una vita'), 'rosso', true);
+  else dimmi(T('{nome} È L’ULTIMO', { nome: nomi }), T('Perde una vita'), io && V.vite[IO] > 0 ? 'verde' : '', true);
+  if (!FRETTA && !IN_PAUSA && v.motivo !== 'pari') { if (ioPerdo) { Suono.perdi(); lampo(true); } else if (io && V.vite[IO] > 0) Suono.salvo(); else Suono.perdi(); }
+  const dur = Math.max(1.2, v.dur || 3.4) * 1000;
+  await pausa(dur * .45);
+  const q = (v.quartetti || [])[0];
+  if (q && !FRETTA && !IN_PAUSA) {                                      // il quartetto si SCOPRE: quattro carte vere al posto del mazzo
+    const rv = $('#rivela');
+    rv.innerHTML = [0, 1, 2, 3].map(s => '<div class="rv"><div class="carta"><img alt="' + esc(nomeCarta(q.v + 10 * s)) + '" draggable="false" src="' + fileCarta(q.v + 10 * s) + '"></div></div>').join('');
+    rv.style.removeProperty('--qw'); rv.className = 'venta su';
+    $('#mazzo').classList.add('via'); $('#pila').classList.add('via');
+    $('#dettoB').textContent = T('QUARTETTO DI {v} · {nome}', { v: nomeValori(q.v), nome: nomeVero(q.sg) });
+    await pausa(dur * .5);
+    rv.classList.remove('su'); $('#mazzo').classList.remove('via'); $('#pila').classList.remove('via');
+  } else await pausa(dur * .5);
+  pilaVuota(); V.segni = null; V.carte = false; V.mano = [];
+  disegna();
+  await pausa(dur * .05);
+}
+async function scenaFuori(v) {
+  applicaSt(v.st);
+  const io = v.sg === IO && !SPET;
+  disegna();
+  dimmi(io ? T('SEI FUORI') : T('{nome} È FUORI', { nome: nomeVero(v.sg) }),
+    v.esci ? T('Ha lasciato il tavolo') : v.assente ? T('Assente: fuori dal torneo') : io ? T('Hai finito le vite') : T('Ha finito le vite'), 'rosso', true);
+  if (!FRETTA && !IN_PAUSA) Suono.fuori();
+  if (v.esci || v.assente) { pilaVuota(); V.gara = false; V.segni = null; V.carte = false; V.mano = []; disegna(); }
+  await pausa(Math.max(.6, v.dur || 1.8) * 1000);
+}
+async function scenaStallo(v) {
+  applicaSt(v.st);
+  V.scelta = null; V.carte = false; V.mano = [];
+  disegna();
+  dimmi(T('NESSUN QUARTETTO'), T('Si ridanno le carte, nessuno perde'), 'oro', true);
+  await pausa(Math.max(.6, v.dur || 2) * 1000);
+}
+async function scenaCartaAlta(v) {
+  applicaSt(v.st);
+  pilaVuota(); V.carte = false; V.mano = []; V.gara = false;
+  disegna();
+  const rv = $('#rivela'), carte = v.carte || [];
+  rv.innerHTML = carte.map(e => '<div class="rv' + (e.sg === v.vince ? ' vince' : '') + '"><div class="carta"><img alt="' + esc(nomeCarta(e.c)) + '" draggable="false" src="' + fileCarta(e.c) + '"></div><b>' + esc(nomeVero(e.sg)) + '</b></div>').join('');
+  if (GEO) rv.style.setProperty('--qw', Math.max(34, Math.min(GEO.qw, Math.floor((GEO.W - 24 - 6 * Math.max(0, carte.length - 1)) / Math.max(1, carte.length)))) + 'px');
+  rv.className = 'su'; $('#targhe').classList.add('giu');
+  $('#mazzo').classList.add('via'); $('#pila').classList.add('via');
+  dimmi(T('CARTA ALTA'), T('Tempo scaduto e parità: vince {nome}', { nome: nomeVero(v.vince) }), 'oro', true);
+  await pausa(Math.max(1, v.dur || 3.5) * 1000);
+}
+async function scena(v) {
+  STAT.recitate++;
+  switch (v.k) {
+    case 'via': dimmi(T('SI COMINCIA'), T('Quattro carte uguali, poi la mano sul mazzo'), 'oro'); applicaSt(v.st); disegna(); break;
+    case 'dai': await scenaDai(v); break;
+    case 'scambio': await scenaScambio(v); break;
+    case 'mano': segnaleSubito(v); break;
+    case 'esito': FRETTA = false; await scenaEsito(v); break;
+    case 'fuori': await scenaFuori(v); break;
+    case 'stallo': await scenaStallo(v); break;
+    case 'carta_alta': await scenaCartaAlta(v); break;
+    case 'vince': vinceVisto = v.sg; applicaSt(v.st); V.gara = false; disegna(); break;
+    default: if (v.st) { applicaSt(v.st); disegna(); }
+  }
+}
+async function conduci() {
+  if (inScena) return;
+  inScena = true;
+  try {
+    while (CODA.length) {
+      const v = CODA.shift();
+      try { await scena(v); } catch (e) { errorePagina('scena ' + v.k + ': ' + (e && e.message)); }
+    }
+  } finally { inScena = false; FRETTA = false; }
+  allinea(); aggTasti(); aggTempo();
+  if (OVER && !finaleFatto) finale();
+}
+
+/* ---------- I MESSAGGI */
+function precarica(valori) {
+  (valori || []).forEach(v => { for (let s = 0; s < 4; s++) { const i = new Image(); i.src = fileCarta(v + 10 * s); } });
+}
+function suStart(m) {
+  const mp = m.map || {};
+  if (!mp.seggi || !mp.reg) { errorePagina('start senza map.seggi/map.reg'); return; }
+  ANAG = { n: mp.n || mp.seggi.length, nomi: (mp.nomi || mp.seggi.map(s => s.nome)).slice(), bot: mp.seggi.map(s => !!s.bot), reg: mp.reg, tempi: mp.tempi || {} };
+  SPET = !!m.spec || m.you == null;
+  IO = -1;
+  if (!SPET) mp.seggi.forEach(s => { if (s.uid === m.you) IO = s.sg; });
+  if (IO < 0) SPET = true;
+  if (String(mp.firma || '') !== FIRMA) { FIRMA = String(mp.firma || ''); USCITI.clear(); }
+  ULT = null; V = null; maxS = 0; CODA = []; OVER = null; finaleFatto = false; fineMandata = false; vinceVisto = -1; TOK = 0; FASE = '';
+  MESSA_TOK = -1; PASSA_TOK = -1; SCELTA_LOC = null; chiaveTasto = ''; chiaveTempo = ''; SUONATE.clear();
+  FRETTA = true; svegliaPause(); finisciVoli(); FRETTA = false;
+  monta(); misura();
+  V = { vite: mp.seggi.map(() => mp.reg.vite), vivi: mp.seggi.map(s => s.sg), scelto: mp.seggi.map(() => false), fase2: 'intro', giro: 0, ngiro: 0,
+    valori: [], pila: [], gara: false, mano: [], scelta: null, carte: false, segni: null };
+  $('#velo').classList.add('via'); $('#guida').classList.remove('su');
+  $('#mio').dataset.k = '';
+  disegna();
+  dimmi(T('SI COMINCIA'), T('Quattro carte uguali, poi la mano sul mazzo'), 'oro');
+  bMano.className = 'spento'; $('#bManoA').textContent = T('METTI LA MANO'); $('#bManoB').textContent = T('aspetta');
+}
+function riceviS(m) {
+  if (!ANAG) return;
+  ULT = m; TOK = m.tok | 0; FASE = m.fase || '';
+  if (m.you && typeof m.you.sg === 'number' && m.you.sg >= 0 && SPET === false && m.you.sg !== IO) { IO = m.you.sg; monta(); misura(); }
+  const feed = m.feed || [];
+  const rientro = (maxS === 0 && (feed.length > 1 || (m.nfeed || 0) > feed.length)) || (feed.length && feed[0].s > maxS + 1);
+  if (rientro) { maxS = feed.length ? feed[feed.length - 1].s : maxS; salta(m); }
+  else for (let i = 0; i < feed.length; i++) {
+    const v = feed[i];
+    if (v.s <= maxS) continue;                                         // doppione
+    maxS = v.s; CODA.push(v);
+    if (CODA.length > STAT.codaMax) STAT.codaMax = CODA.length;
+    if (v.k === 'mano') segnaleSubito(v);
+  }
+  aggTasti();
+  if (CODA.length) conduci(); else if (!inScena) { allinea(); aggTasti(); }
+  aggTempo();
+}
+function riceviErr(m) {
+  if (m.a === 'mano') { if (m.perche !== 'mano già messa') MESSA_TOK = -1; }
+  else { PASSA_TOK = -1; SCELTA_LOC = null; if (V && ULT && ULT.you) V.scelta = ULT.you.scelta == null ? null : ULT.you.scelta; disegnaMano(); }
+  aggTasti();
+  if (!inScena && V && !SPET) dimmi(T(PERCHE[m.perche] || 'Mossa rifiutata'), '', 'rosso');
+}
+function riceviEsce(m) {
+  if (!ANAG || !m || m.nome == null) return;
+  // cure G5 e S5: il segno 🤖 resta sulla targa (la riga dura un attimo); chi era gia' fuori non ha nessun bot
+  if (m.bot !== false && typeof m.sg === 'number' && m.sg >= 0 && m.sg < ANAG.n) { USCITI.add(m.sg); disegnaTarghe(); }
+  if (inScena) return;
+  dimmi('', T(m.bot === false ? '{nome} ha lasciato il tavolo' : '{nome} ha lasciato il tavolo · gioca un bot', { nome: String(m.nome) }), '');
+}
+function euro(x) { const s = (Math.round((+x || 0) * 100) / 100).toFixed(2); return EN ? s : s.replace('.', ','); }
+function riceviOver(m) {
+  OVER = m; FASE = 'fine'; PUO_MANO = false; PUO_PASSA = false;
+  $('#tempo').classList.remove('su'); chiaveTempo = '';
+  bMano.className = 'spento'; chiaveTasto = 'fine';
+  if (!ANAG) { fineScena(); return; }
+  if (m.annullata) {
+    finaleFatto = true;
+    timbro(T('TAVOLO ANNULLATO'), '', m.rimborsata ? T('La posta è stata restituita') : '', '', true);
+    fineScena(); return;
+  }
+  if (!inScena && !CODA.length) finale();
+}
+function timbro(a, chi, perche, soldi, perso) {
+  $('#fTimbro').textContent = a; $('#fChi').textContent = chi || ''; $('#fPerche').textContent = perche || ''; $('#fSoldi').textContent = soldi || '';
+  const f = $('#fine'); f.classList.toggle('perso', !!perso); f.classList.add('su');
+  $('#mazzo').classList.add('via'); $('#pila').classList.add('via'); $('#rivela').classList.remove('su');
+  dimmi('', '', '');
+}
+async function finale() {
+  if (finaleFatto) return;
+  finaleFatto = true;
+  const m = OVER || {};
+  const w = typeof m.vincitore === 'number' ? m.vincitore : vinceVisto;
+  const io = !SPET && IO >= 0, vinco = io && (m.you_won === true || (m.you_won == null && w === IO));
+  let a, perche = '';
+  if (vinco) a = T('HAI VINTO!');
+  else if (w >= 0 && w < ANAG.n) a = SPET ? T('VINCE {nome}', { nome: nomeVero(w) }) : T('HA VINTO {nome}', { nome: nomeVero(w) });
+  else a = T('TAVOLO ANNULLATO');
+  if (m.motivo === 'ultimo') perche = vinco ? T('Sei l’ultimo rimasto al tavolo') : T('È l’ultimo rimasto al tavolo');
+  else if (m.motivo === 'tetto') perche = T('Tempo scaduto: vince chi ha più vite');
+  else if (m.motivo === 'carta_alta') perche = T('Tempo scaduto: ha deciso la carta alta');
+  else if (m.motivo === 'abbandono') perche = T('Gli altri hanno lasciato il tavolo');
+  let soldi = '';
+  if (m.practice || m.gratis || !(+m.pot_eur > 0)) soldi = T('Partita senza posta');
+  else if (vinco && +m.your_cut_eur > 0) soldi = T('Hai vinto € {x}', { x: euro(m.your_cut_eur) });
+  else if (+m.prize_eur > 0) soldi = T('Piatto € {p} · al vincitore € {x}', { p: euro(m.pot_eur), x: euro(m.prize_eur) });
+  timbro(a, '', perche, soldi, !vinco);
+  if (vinco) Suono.vinci(); else if (io) Suono.perdi();
+  await pausa(3800);
+  fineScena();
+}
+function fineScena() {
+  if (fineMandata) return;
+  fineMandata = true;
+  if (RETE) TPG.manda({ tp: 'fine_scena' });
+  else if (FILO && QS.get('loop') === '1') setTimeout(() => TPF.parti(), 2500);
+}
+function suPausa(v) {
+  v = !!v;
+  if (v === IN_PAUSA) { if (!v) misura(); return; }
+  IN_PAUSA = v;
+  if (v) { Suono.acceso = false; svegliaPause(); finisciVoli(); }
+  else { Suono.acceso = true; chiaveTempo = ''; misura(); if (!inScena) allinea(); aggTasti(); aggTempo(); }
+}
+function suBordi(m) {
+  const d = document.documentElement, lati = ['top', 'bottom', 'left', 'right'], sigle = ['sat', 'sab', 'sal', 'sar'];
+  for (let i = 0; i < 4; i++) {
+    let k = m[lati[i]];
+    if (typeof k !== 'number' || !isFinite(k) || k < 0) k = 0;
+    if (k > 200) k = 200;
+    d.style.setProperty('--tp-' + sigle[i], Math.round(k) + 'px');
+  }
+  misura();
+}
+function errorePagina(msg) {
+  TPG.errori.push(String(msg));
+  if (RETE) TPG.manda({ tp: 'err', msg: String(msg).slice(0, 300) });
+  else if (window.console) console.error('TAPPO: ' + msg);
+}
+function smista(m) {
+  try {
+    switch (m.t) {
+      case 'start': if (m.game == null || m.game === 'tappo') suStart(m); break;
+      case 's': if (m.g === 'tappo') riceviS(m); break;
+      case 'over': if (m.game == null || m.game === 'tappo') riceviOver(m); break;
+      case 'err': if (typeof m.code === 'string' && m.code.indexOf('tp_') === 0) riceviErr(m); break;
+      case 'esce': if (m.game === 'tappo') riceviEsce(m); break;
+      case 'chat': break;
+      case 'pausa': suPausa(true); break;
+      case 'riprendi': suPausa(false); break;
+    }
+  } catch (e) { errorePagina('smista ' + m.t + ': ' + (e && e.message)); }
+}
+
+/* ---------- TPG: IL GUSCIO (copia di KJG di kaiju.html, chiave `tp`) */
+const TPG = (() => {
+  const G = { pronto: false, coda: [], errori: [] };
+  const CODA_MAX = 2000;
+  G.manda = o => {
+    if (!RETE || !window.parent || window.parent === window) return false;
+    try { window.parent.postMessage(o, location.origin); } catch (e) { G.errori.push('postMessage: ' + (e && e.message)); return false; }
+    return true;
+  };
+  G.su = m => { if (SPET || MOSSE.indexOf(m.a) < 0) return false; STAT.su++; return G.manda({ tp: 'su', m: m }); };
+  G.ricevi = m => {
+    if (!m || typeof m !== 'object' || typeof m.t !== 'string') { STAT.scartati++; return; }
+    STAT.giu++;
+    if (m.t === 'bordi') { suBordi(m); return; }
+    if (!G.pronto) { if (G.coda.length < CODA_MAX) G.coda.push(m); else STAT.scartati++; return; }
+    smista(m);
+  };
+  G.fattoPronto = () => {
+    if (G.pronto) return;
+    G.pronto = true;
+    const c = G.coda; G.coda = [];
+    c.forEach(smista);
+    G.manda({ tp: 'pronto' });
+  };
+  if (RETE) {
+    addEventListener('message', ev => {
+      if (ev.source !== window.parent || ev.origin !== location.origin) return;
+      const d = ev.data;
+      if (!d || typeof d !== 'object' || d.tp !== 'giu' || !d.m) return;
+      G.ricevi(d.m);
+    });
+    addEventListener('error', ev => { errorePagina('pagina: ' + (ev && ev.message ? ev.message : 'errore')); });
+    addEventListener('unhandledrejection', ev => { errorePagina('promessa: ' + (ev && ev.reason && ev.reason.message ? ev.reason.message : 'errore')); });
+  }
+  return G;
+})();
+
+/* ---------- TPF: IL FILO (una partita registrata dal banco del motore, recitata coi suoi tempi) */
+const TPF = (() => {
+  const F = { filo: null, i: 0, tm: 0, finito: false };
+  F.carica = arr => { F.filo = Array.isArray(arr) ? arr : null; };
+  F.parti = () => {
+    clearTimeout(F.tm); F.i = 0; F.finito = false;
+    if (!F.filo || !F.filo.length) { $('#vTesto').textContent = T('Partita non trovata'); return; }
+    F.passo();
+  };
+  F.passo = () => {
+    if (!F.filo || F.i >= F.filo.length) { F.finito = true; return; }
+    if (IN_PAUSA) { F.tm = setTimeout(F.passo, 200); return; }
+    const p = F.filo[F.i++];
+    TPG.ricevi(p.m);
+    const pross = F.filo[F.i];
+    if (pross) F.tm = setTimeout(F.passo, Math.max(0, (pross.dt || 0) * 1000 / VEL)); else F.finito = true;
+  };
+  return F;
+})();
+const FONTE = { su: m => (RETE ? TPG.su(m) : false) };
+
+/* ---------- LA GUIDA: i numeri vengono da `map.reg`, mai scritti a mano */
+function guida() {
+  const r = (ANAG && ANAG.reg) || {}, n = x => (x == null ? '?' : String(Math.round(x * 10) / 10));
+  const voci = [
+    ['LE CARTE', T('Si gioca con tanti quartetti (4 carte dello stesso valore) quanti sono i giocatori ancora in gara. Quattro carte a testa: le tue le vedi solo tu.')],
+    ['IL GIRO', T('Tutti insieme scegliete una carta da passare al vicino di sinistra. Avete {s} secondi: a chi non sceglie, il banco passa una carta a caso.', { s: n(r.passa_s) }) +
+      (r.banco_giri > 0 ? ' ' + T('Dopo {g} giri senza un quartetto le carte le passa il banco, finché qualcuno chiude: tu guarda la tua mano e il mazzo.', { g: n(r.banco_giri) }) : '')],
+    ['LA MANO', T('Appena hai 4 carte uguali premi METTI LA MANO. Da quel momento tutti devono metterla: l’ULTIMO perde una vita.')],
+    ['A VUOTO', T('Se metti la mano senza avere 4 carte uguali, e nessuno l’ha ancora messa, la vita la perdi tu. Il tasto non si preme a caso.')],
+    ['I TEMPI', T('Chi non mette la mano entro {s} secondi perde una vita. Se gli ultimi due arrivano a meno di {p} millesimi uno dall’altro è pari: nessuno perde e si ridanno le carte.', { s: n(r.mano_max_s), p: n(r.pari_ms) })],
+    ['LA RETE', (+r.lat_cap_ms > 0)
+      ? T('Il server misura la tua connessione e la toglie dal tuo tempo (fino a {l} millesimi): conta il riflesso, non la rete. Sotto i {u} millesimi non si guadagna niente: più veloce di così non è un riflesso.', { l: n(r.lat_cap_ms), u: n(r.umano_min_ms) })
+      : T('A questo tavolo c’è un premio: conta l’ordine di ARRIVO al server e la rete non si toglie dal tempo. Con una connessione lenta parti svantaggiato: se accanto alle tue vite vedi 📶, la tua rete è oltre i {a} millesimi. Sotto i {u} millesimi dal segnale non si guadagna niente: più veloce di così non è un riflesso.', { a: RETE_LENTA_MS, u: n(r.umano_min_ms) })],
+    ['LE VITE', r.vite === 1 ? T('Si parte con una vita sola. Chi la perde è fuori. L’ultimo che resta al tavolo prende tutto il piatto.') : T('Si parte con {v} vite. A zero sei fuori. L’ultimo che resta al tavolo prende tutto il piatto.', { v: n(r.vite) })]
+  ];
+  if (GEO && GEO.largo) voci.splice(4, 0, ['SUL PC', T('La barra spaziatrice vale come il tasto METTI LA MANO: stessa regola, a vuoto costa una vita.')]);   // cura G3
+  $('#gTesta').textContent = T('📖 COME SI GIOCA');
+  $('#gCorpo').innerHTML = voci.map(v => '<div class="gv"><b>' + esc(T(v[0])) + '</b><span>' + esc(v[1]) + '</span></div>').join('');
+  $('#gChiudi').textContent = T('HO CAPITO');
+  $('#guida').classList.add('su');
+}
+
+/* ---------- AVVIO */
+window.TP_GIU = m => TPG.ricevi(m);                                    // per i banchi: un messaggio senza postMessage
+window.TP_STATO = () => ULT;
+window.TP_VISTA = () => ({ IO: IO, SPET: SPET, TOK: TOK, FASE: FASE, V: V, maxS: maxS, coda: CODA.length, inScena: inScena, over: OVER,
+  finale: finaleFatto, fineMandata: fineMandata, puoMano: PUO_MANO, puoPassa: PUO_PASSA, messaTok: MESSA_TOK, geo: GEO, stat: STAT,
+  mosse: MOSSE.slice(), mancanti: Array.from(MANCANTI), chiavi: Object.keys(DIZ).length, errori: TPG.errori.slice(), vel: VEL, lingua: EN ? 'en' : 'it',
+  filo: FILO, filoFinito: TPF.finito });
+window.TP_FILO = arr => { TPF.carica(arr); TPG.fattoPronto(); TPF.parti(); };  // per i banchi: un filo senza fetch
+(function avvio() {
+  $('#vCarte').innerHTML = [9, 19, 29, 39].map(c => '<img alt="" draggable="false" src="' + fileCarta(c) + '">').join('');
+  $('#bManoA').textContent = T('METTI LA MANO'); $('#bManoB').textContent = T('aspetta');
+  bMano.querySelector('.ico').innerHTML = svgMano('#d5e8dc');
+  bMano.addEventListener('pointerdown', toccoMano);
+  addEventListener('keydown', ev => {                                 // sul PC: la barra spaziatrice e' la mano
+    if (ev.repeat || (ev.code !== 'Space' && ev.key !== ' ')) return;
+    if ($('#guida').classList.contains('su') || !ANAG || SPET) return;
+    ev.preventDefault(); toccoMano(null);
+  });
+  addEventListener('pointerdown', () => Suono.sveglia(), { passive: true });
+  $('#bGuida').addEventListener('click', () => { Suono.tasto(); if (!SPET && IO >= 0 && inGara() && V && V.vite[IO] > 0) return; guida(); });   // cura G1
+  $('#gChiudi').addEventListener('click', () => { Suono.tasto(); $('#guida').classList.remove('su'); });
+  addEventListener('resize', misura);
+  try { if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => misura()); } catch (e) {}
+  misura();
+  if (RETE) {
+    $('#vTesto').textContent = T('IN ATTESA DEI GIOCATORI…');
+    // pronto quando il dorso e' arrivato (e' la prima cosa che si vede), o dopo 4 s
+    const i = new Image(); i.onload = i.onerror = () => TPG.fattoPronto(); i.src = DORSO;
+    setTimeout(TPG.fattoPronto, 4000);
+  } else if (FILO) {
+    $('#vTesto').textContent = T('Carico la partita…');
+    TPG.fattoPronto();
+    fetch(FILO).then(r => { if (!r.ok) throw new Error('http ' + r.status); return r.json(); })
+      .then(arr => { TPF.carica(arr); TPF.parti(); })
+      .catch(() => { $('#vTesto').textContent = T('Partita non trovata'); });
+  } else {
+    $('#vTesto').textContent = T('Apri BISCA da Gambler Bot');
+    TPG.fattoPronto();
+  }
+})();
+</script>
+</body>
+</html>
