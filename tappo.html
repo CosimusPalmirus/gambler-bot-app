@@ -58,12 +58,34 @@ body{font-family:'Rubik',system-ui,-apple-system,'Segoe UI',sans-serif;font-weig
 .tg.attivo{transform:scale(1.06)}
 
 /* il centro: il mazzo e la pila delle mani */
-#mazzo{width:var(--dw);height:calc(var(--dw)*1.5);margin:calc(var(--dw)*-.75) 0 0 calc(var(--dw)/-2);transition:opacity .25s,transform .12s}
+#mazzo{width:var(--dw);height:calc(var(--dw)*1.5);margin:calc(var(--dw)*-.75) 0 0 calc(var(--dw)/-2);transition:opacity .25s,transform .12s;cursor:pointer;touch-action:none}
+/* BISCA SENZA TASTO (13/10): il mazzo E' il tasto. ::before allarga il bersaglio per il dito, ::after e' l'anello di stato */
+#mazzo::before{content:'';position:absolute;left:-18px;top:-18px;right:-18px;bottom:-18px;border-radius:20px}
+#mazzo::after{content:'';position:absolute;left:-10px;top:-10px;right:-10px;bottom:-10px;border-radius:15px;border:3px solid transparent;pointer-events:none;z-index:5}
+#mazzo[data-st=riposo]::after{border:2px dashed rgba(255,255,255,.3)}
+#mazzo[data-st=quart]::after{border-color:#ffd65a;box-shadow:0 0 26px rgba(255,214,90,.9),inset 0 0 14px rgba(255,214,90,.5);animation:tpAnello .45s infinite alternate}
+#mazzo[data-st=gara]::after{border-color:#ff5a3c;box-shadow:0 0 30px rgba(255,90,60,.95),inset 0 0 16px rgba(255,90,60,.55);animation:tpAnello .24s infinite alternate}
+#mazzo[data-st=messa]::after{border-color:#2fbf7a;box-shadow:0 0 14px rgba(47,191,122,.6)}
+#mazzo.no{animation:tpTrema .3s}
+body.spet #mazzo{cursor:default}
+#pila,.manina{pointer-events:none}
+#tocca{transform:translateX(-50%);white-space:nowrap;pointer-events:none;display:flex;align-items:center;gap:6px;height:24px;border-radius:12px;padding:0 11px 0 8px;
+  font-family:'Bungee','Rubik',sans-serif;font-size:13px;line-height:24px;transition:opacity .25s}
+#tocca .ico{flex:none;width:17px;height:17px}
+#tocca .ico svg{display:block;width:100%;height:100%}
+#tocca[data-st=riposo]{font-family:'Rubik',sans-serif;font-weight:700;font-size:11px;color:#d5e8dc;background:rgba(0,0,0,.38)}
+#tocca[data-st=quart]{color:#3b2500;background:linear-gradient(#ffe88a,#f2b21c);box-shadow:0 0 16px rgba(255,214,90,.7)}
+#tocca[data-st=gara]{color:#fff;background:linear-gradient(#ff7d60,#dd2616);box-shadow:0 0 18px rgba(255,90,60,.8)}
+#tocca[data-st=messa]{color:#eafff2;background:linear-gradient(#2a9c63,#1b7347)}
+#tocca[data-st=spento],#tocca[data-st=esci],#tocca[data-st=fine],body.spet #tocca,#mazzo.via+#tocca{opacity:0}
+body.largo #tocca{height:28px;border-radius:14px;font-size:15px;line-height:28px}
+body.largo #tocca[data-st=riposo]{font-size:12px}
 #mazzo img{position:absolute;left:0;top:0;width:100%;height:100%;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
 #mazzo img:nth-child(1){transform:translate(-4px,4px) rotate(-5deg)}
 #mazzo img:nth-child(2){transform:translate(3px,2px) rotate(4deg)}
 #mazzo.colpo{animation:tpColpo .22s}
 #mazzo.via,#pila.via{opacity:0}
+#mazzo.via{pointer-events:none}
 #pila{width:0;height:0;transition:opacity .25s}
 .manina{position:absolute;left:0;top:0;width:var(--hw);height:var(--hw);margin:calc(var(--hw)/-2) 0 0 calc(var(--hw)/-2);
   filter:drop-shadow(0 3px 3px rgba(0,0,0,.55));animation:tpSchiaffo .16s cubic-bezier(.2,.9,.3,1.2) both}
@@ -130,6 +152,7 @@ body{font-family:'Rubik',system-ui,-apple-system,'Segoe UI',sans-serif;font-weig
 #bMano.gara{color:#fff;background:linear-gradient(#ff7d60,#dd2616);box-shadow:0 5px 0 #7a0f06,0 0 26px rgba(255,90,60,.8);animation:tpPulsa .24s infinite alternate}
 #bMano.messa{color:#eafff2;background:linear-gradient(#2a9c63,#1b7347);box-shadow:0 2px 0 #0d3a24;transform:translateY(3px)}
 #bMano.spento{opacity:.36}
+#bMano:not(.esci){display:none}   /* BISCA SENZA TASTO (13/10): la mano si mette toccando il mazzo */
 /* CURA G3 (13/10): a riposo (si passano le carte, niente quartetto) il tasto e' piu' basso di 14 px in cima:
    il dito che sceglie una carta non lo sfiora. Col quartetto e a gara aperta torna pieno. */
 #bMano.riposo{margin-top:var(--bhm,10px);height:var(--bhr,60px)!important}
@@ -188,6 +211,7 @@ body.largo #bMano .ico{width:44px;height:44px}
 body.largo #fTimbro{font-size:42px;line-height:46px}
 
 @keyframes tpPulsa{from{transform:scale(1)}to{transform:scale(1.035)}}
+@keyframes tpAnello{from{transform:scale(1)}to{transform:scale(1.08)}}
 @keyframes tpTrema{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
 @keyframes tpColpo{0%{transform:scale(1)}40%{transform:scale(.9) translateY(3px)}100%{transform:scale(1)}}
 @keyframes tpSchiaffo{from{opacity:0;transform:var(--tr) scale(2.3)}to{opacity:1;transform:var(--tr) scale(1)}}
@@ -208,7 +232,8 @@ body.largo #fTimbro{font-size:42px;line-height:46px}
       <div id="barraTesti"><div id="titolo">BISCA</div><div id="sotto"></div></div>
     </div>
     <div id="targhe" style="left:0;top:0"></div>
-    <div id="mazzo"><img alt="" draggable="false"><img alt="" draggable="false"><img alt="" draggable="false"></div>
+    <div id="mazzo" data-st="spento"><img alt="" draggable="false"><img alt="" draggable="false"><img alt="" draggable="false"></div>
+    <div id="tocca" data-st="spento"><span class="ico"></span><b id="toccaA"></b></div>
     <div id="pila"></div>
     <div id="rivela"></div>
     <div id="detto"><div id="dettoA"></div><div id="dettoB"></div></div>
@@ -261,9 +286,9 @@ const DIZ = /*DIZ<*/{
 "CARTA SCELTA":"CARD PICKED",
 "Aspetto gli altri…":"Waiting for the others…",
 "HAI QUATTRO {v}!":"YOU HAVE FOUR {v}!",
-"Metti la mano sul mazzo, subito":"Hand on the deck, now",
+"Tocca il mazzo, subito":"Tap the deck, now",
 "MANO SUL MAZZO!":"HAND ON THE DECK!",
-"{nome} ha messo la mano: mettila anche tu":"{nome} hit the deck: hit it too",
+"{nome} ha messo la mano: tocca il mazzo anche tu":"{nome} hit the deck: tap it too",
 "MESSA!":"DONE!",
 "Aspetto gli ultimi…":"Waiting for the last ones…",
 "SEI FUORI":"YOU ARE OUT",
@@ -303,7 +328,12 @@ const DIZ = /*DIZ<*/{
 "hai finito le vite · puoi anche restare a guardare":"you are out of lives · you can also stay and watch",
 "📶 rete lenta {ms} ms":"📶 slow network {ms} ms",
 "SUL PC":"ON A COMPUTER",
-"La barra spaziatrice vale come il tasto METTI LA MANO: stessa regola, a vuoto costa una vita.":"The space bar works like the HAND ON DECK button: same rule, a false slap costs a life.",
+"La barra spaziatrice vale come un tocco sul mazzo: stessa regola, a vuoto costa una vita.":"The space bar works like a tap on the deck: same rule, a false slap costs a life.",
+"TOCCA IL MAZZO!":"TAP THE DECK!",
+"TOCCA IL MAZZO, ADESSO!":"TAP THE DECK, NOW!",
+"MANO MESSA":"HAND IS ON",
+"4 uguali? tocca il mazzo":"4 of a kind? tap the deck",
+"4 uguali? tocca il mazzo · o barra spaziatrice":"4 of a kind? tap the deck · or space bar",
 "Dopo {g} giri senza un quartetto le carte le passa il banco, finché qualcuno chiude: tu guarda la tua mano e il mazzo.":"After {g} rounds with no four of a kind the house passes the cards until somebody completes a set: watch your hand and the deck.",
 "A questo tavolo c’è un premio: conta l’ordine di ARRIVO al server e la rete non si toglie dal tempo. Con una connessione lenta parti svantaggiato: se accanto alle tue vite vedi 📶, la tua rete è oltre i {a} millesimi. Sotto i {u} millesimi dal segnale non si guadagna niente: più veloce di così non è un riflesso.":"There is a prize at this table: what counts is the order of ARRIVAL at the server and the network is not taken off your time. A slow connection is a handicap: if you see 📶 next to your lives, your network is over {a} milliseconds. Below {u} milliseconds from the signal there is nothing to gain: faster than that is not a reflex.",
 "METTI LA MANO":"HAND ON DECK",
@@ -341,9 +371,9 @@ const DIZ = /*DIZ<*/{
 "IL GIRO":"THE ROUND",
 "Tutti insieme scegliete una carta da passare al vicino di sinistra. Avete {s} secondi: a chi non sceglie, il banco passa una carta a caso.":"Everybody picks one card at the same time and passes it to the player on the left. You have {s} seconds: if you do not pick, the house passes a random card.",
 "LA MANO":"THE HAND",
-"Appena hai 4 carte uguali premi METTI LA MANO. Da quel momento tutti devono metterla: l’ULTIMO perde una vita.":"As soon as you hold four of a kind press HAND ON DECK. From that moment everybody must do it: the LAST one loses a life.",
+"Appena hai 4 carte uguali tocca il MAZZO al centro del tavolo: è la tua mano sul mazzo. Da quel momento tutti devono toccarlo: l’ULTIMO perde una vita.":"As soon as you hold four of a kind tap the DECK in the middle of the table: that is your hand on the deck. From that moment everybody must tap it: the LAST one loses a life.",
 "A VUOTO":"FALSE SLAP",
-"Se metti la mano senza avere 4 carte uguali, e nessuno l’ha ancora messa, la vita la perdi tu. Il tasto non si preme a caso.":"If you hit the deck without four of a kind, and nobody has hit it yet, you lose the life. Do not press the button at random.",
+"Se tocchi il mazzo senza avere 4 carte uguali, e nessuno l’ha ancora toccato, la vita la perdi tu. Il mazzo non si tocca a caso.":"If you tap the deck without four of a kind, and nobody has tapped it yet, you lose the life. Do not tap the deck at random.",
 "I TEMPI":"THE TIMES",
 "Chi non mette la mano entro {s} secondi perde una vita. Se gli ultimi due arrivano a meno di {p} millesimi uno dall’altro è pari: nessuno perde e si ridanno le carte.":"Whoever does not hit the deck within {s} seconds loses a life. If the last two land less than {p} milliseconds apart it is a tie: nobody loses and cards are dealt again.",
 "LA RETE":"THE NETWORK",
@@ -501,7 +531,7 @@ function misura() {
     cw = Math.max(96, Math.min(150, Math.floor(H * .27 / 1.5)));
     bh = 96; bw = Math.min(280, Math.floor(W * .22));
   } else {
-    bh = Math.max(62, Math.min(82, Math.round(H * .11)));
+    bh = 64;                                                          // BISCA SENZA TASTO: resta solo l'uscita di chi ha finito le vite
     cw = Math.min(132, Math.floor((W - 24 - 24) / 4));
     if (cw < 96) cw = 96;                                             // la MIA mano: mai sotto 96 px (si sovrappone, non si stringe)
     cw = Math.min(cw, Math.max(80, Math.floor(H * .245 / 1.5)));      // ...tranne su uno schermo bassissimo
@@ -517,24 +547,25 @@ function misura() {
     manoY = H - 18 - ch; manoX = Math.round((W - manoW) / 2);
     bx = Math.min(W - bw - 16, manoX + manoW + 36); by = H - 18 - bh - Math.round((ch - bh) / 2);
   } else {
-    by = H - 10 - bh; bx = 12; manoY = by - 12 - ch; manoX = Math.round((W - manoW) / 2);
+    by = H - 10 - bh; bx = 12; manoY = H - 14 - ch; manoX = Math.round((W - manoW) / 2);   // le mie carte in fondo: il tasto non c'e' piu'
   }
   const mioY = manoY - 18 - 22, tempoY = mioY - 7, dettoH = largo ? 50 : 44, dettoY = tempoY - 3 - dettoH;
   const zt = 46, zb = dettoY - 6, Z = zb - zt;
   const altri = ORDINE.length;
   const pw = largo ? 132 : Math.max(66, Math.min(96, Math.floor(W * .215))), mw = largo ? 24 : (pw < 74 ? 14 : 17);
   const ph = Math.round(mw * 1.5) + (largo ? 16 : 13) + 12 + 12;
-  let dw = largo ? 92 : Math.max(50, Math.min(70, Math.floor(Z * .22)));
+  const SCR = largo ? 40 : 34;                                         // posto sotto il mazzo per l'anello e la scritta «TOCCA IL MAZZO»
+  let dw = largo ? 112 : Math.max(60, Math.min(92, Math.floor(Z * .25)));   // BISCA SENZA TASTO: il mazzo e' il bersaglio, sta largo
   const ang = ({ 0: [], 1: [90], 2: [150, 30], 3: [165, 90, 15], 4: [188, 125, 55, -8], 5: [197, 142, 90, 38, -17],
     6: [200, 156, 112, 68, 24, -20], 7: [203, 163, 126, 90, 54, 17, -23] })[altri] || [];
   const minSin = ang.length ? Math.min.apply(null, ang.map(a => Math.sin(a * Math.PI / 180))) : 1;
   const s = minSin < 0 ? -minSin : 0;
-  let cy = Math.min(zb - dw * .75 - 4, (zb - ph / 2 + s * (zt + ph / 2)) / (1 + s));
-  if (s === 0) cy = Math.min(cy, zt + ph + 10 + dw * .75 + Math.max(0, zb - zt - ph - 10 - dw * 1.5) * .45);   // pochi al tavolo: il mazzo sta in mezzo
+  let cy = Math.min(zb - dw * .75 - 4 - SCR, (zb - ph / 2 + s * (zt + ph / 2)) / (1 + s));
+  if (s === 0) cy = Math.min(cy, zt + ph + 10 + dw * .75 + Math.max(0, zb - zt - ph - 10 - dw * 1.5 - SCR) * .45);   // pochi al tavolo: il mazzo sta in mezzo
   const ry = Math.max(20, cy - zt - ph / 2);
   const rx = largo ? Math.min(W / 2 - pw / 2 - 24, 470) : W / 2 - pw / 2 - 6;
   // il mazzo non deve toccare la targa in cima
-  if (ang.some(a => a > 60 && a < 120) && cy - dw * .75 < zt + ph + 6) dw = Math.max(40, Math.floor((cy - zt - ph - 6) / .75));
+  if (ang.some(a => a > 60 && a < 120) && cy - dw * .75 < zt + ph + 16) dw = Math.max(52, Math.floor((cy - zt - ph - 16) / .75));
   const cx = Math.round(W / 2);
   cy = Math.round(cy);
   g.seggi = {};
@@ -557,6 +588,7 @@ function misura() {
   const metti = (el, x, y, w, h) => { el.style.left = x + 'px'; el.style.top = y + 'px'; if (w != null) el.style.width = w + 'px'; if (h != null) el.style.height = h + 'px'; };
   TARGHE.forEach(t => { if (t && g.seggi[t.sg]) metti(t.el, g.seggi[t.sg].x, g.seggi[t.sg].y); });
   metti($('#mazzo'), cx, cy); metti($('#pila'), cx, cy);
+  metti($('#tocca'), cx, Math.round(cy + dw * .75 + 14));
   metti($('#rivela'), cx, cy);
   metti($('#detto'), 8, dettoY, null, dettoH); metti($('#tempo'), Math.round(W * .14), tempoY);
   $('#tempo').style.right = Math.round(W * .14) + 'px';
@@ -676,11 +708,11 @@ function dettoFermo() {
   if (V.vite[IO] <= 0) { dimmi(T('SEI FUORI'), T('Guardi la partita fino alla fine'), ''); return; }
   if (st.fase2 === 'mani') {
     if (y.messa || MESSA_TOK === TOK) dimmi(T('MESSA!'), T('Aspetto gli ultimi…'), 'verde');
-    else dimmi(T('MANO SUL MAZZO!'), V.pila.length ? T('{nome} ha messo la mano: mettila anche tu', { nome: nomeVero(V.pila[0]) }) : '', 'rosso');
+    else dimmi(T('MANO SUL MAZZO!'), V.pila.length ? T('{nome} ha messo la mano: tocca il mazzo anche tu', { nome: nomeVero(V.pila[0]) }) : '', 'rosso');
     return;
   }
   if (st.fase2 !== 'passa') return;                                    // dai / esito: il testo e' della scena
-  if (y.quartetto) { dimmi(T('HAI QUATTRO {v}!', { v: nomeValori((y.mano[0] || 0) % 10) }), T('Metti la mano sul mazzo, subito'), 'oro'); return; }
+  if (y.quartetto) { dimmi(T('HAI QUATTRO {v}!', { v: nomeValori((y.mano[0] || 0) % 10) }), T('Tocca il mazzo, subito'), 'oro'); return; }
   if (st.banco) { dimmi(T('IL BANCO PASSA LE CARTE'), T('Troppi giri senza quartetto: occhio alla mano'), 'oro'); return; }   // cura S2
   if (V.scelta != null) { dimmi(T('CARTA SCELTA'), T('Aspetto gli altri…'), ''); return; }
   const a = vicino(IO);
@@ -740,13 +772,18 @@ function aggTasti() {
   const k = cl + '|' + a + '|' + b;
   if (k !== chiaveTasto) {
     chiaveTasto = k; bMano.className = cl;
+    // BISCA SENZA TASTO: lo stesso stato va sul mazzo (anello) e sulla scritta sotto
+    const tc = $('#tocca'), ta = cl === 'gara' ? T('TOCCA IL MAZZO, ADESSO!') : cl === 'quart' ? T('TOCCA IL MAZZO!') : cl === 'messa' ? T('MANO MESSA')
+      : cl === 'riposo' ? T(GEO && GEO.largo ? '4 uguali? tocca il mazzo · o barra spaziatrice' : '4 uguali? tocca il mazzo') : '';
+    $('#mazzo').dataset.st = cl; tc.dataset.st = cl; $('#toccaA').textContent = ta;
+    tc.querySelector('.ico').innerHTML = svgMano(cl === 'quart' ? '#3b2500' : cl === 'riposo' ? '#d5e8dc' : '#ffffff');
     $('#bManoA').textContent = a; $('#bManoB').textContent = b;
     bMano.querySelector('.ico').innerHTML = svgMano(cl === 'quart' ? '#3b2500' : cl === 'riposo' || cl === 'spento' ? '#d5e8dc' : '#ffffff');
   }
 }
 /* ⚠️ §C.6 — fra il tocco e il `su` NIENTE: la prima riga e' l'invio. */
-function toccoMano(ev) {
-  if (!PUO_MANO && ev && ioMorto() && RETE) {                          // cura G6: l'uscita di chi ha finito le vite (solo dal tasto, mai dalla barra)
+function toccoMano(ev, daTasto) {
+  if (!PUO_MANO && daTasto && ev && ioMorto() && RETE) {                          // cura G6: l'uscita di chi ha finito le vite (solo dal tasto, mai dalla barra)
     Suono.tasto(); TPG.manda({ tp: 'esci', fuori: 1 });
     if (ev.cancelable) ev.preventDefault();
     return;
@@ -757,12 +794,12 @@ function toccoMano(ev) {
     const t1 = performance.now();
     PUO_MANO = false; MESSA_TOK = tok; T_TOCCO = t1;
     STAT.tocco = { evento: ev && ev.timeStamp ? ev.timeStamp : t1, su: t1, tok: tok };
-    bMano.classList.add('giu'); setTimeout(() => bMano.classList.remove('giu'), 120);
+    { const mz = $('#mazzo'); mz.classList.remove('colpo'); void mz.offsetWidth; mz.classList.add('colpo'); }
     Suono.schiaffo();
     aggTasti(); dettoFermo();
   } else {
     Suono.sveglia();
-    if (!SOLA) { bMano.classList.remove('no'); void bMano.offsetWidth; bMano.classList.add('no'); }
+    if (!SOLA) { const mz = $('#mazzo'); mz.classList.remove('no'); void mz.offsetWidth; mz.classList.add('no'); }
   }
   if (ev && ev.cancelable) ev.preventDefault();
 }
@@ -854,7 +891,7 @@ function segnaleSubito(v) {
   } else if (!IN_PAUSA && (v.sg !== IO || SPET)) Suono.schiaffo();          // la mia l'ho gia' sentita al tocco
   pilaAggiungi(v.sg);
   if (v.apre && !SPET && IO >= 0 && v.sg !== IO && V.vite[IO] > 0)
-    dimmi(T('MANO SUL MAZZO!'), T('{nome} ha messo la mano: mettila anche tu', { nome: nomeVero(v.sg) }), 'rosso', true);
+    dimmi(T('MANO SUL MAZZO!'), T('{nome} ha messo la mano: tocca il mazzo anche tu', { nome: nomeVero(v.sg) }), 'rosso', true);
   disegnaTarghe(); disegnaMano();
 }
 
@@ -1069,6 +1106,7 @@ function suStart(m) {
   disegna();
   dimmi(T('SI COMINCIA'), T('Quattro carte uguali, poi la mano sul mazzo'), 'oro');
   bMano.className = 'spento'; $('#bManoA').textContent = T('METTI LA MANO'); $('#bManoB').textContent = T('aspetta');
+  $('#mazzo').dataset.st = 'spento'; $('#tocca').dataset.st = 'spento'; chiaveTasto = '';
 }
 function riceviS(m) {
   if (!ANAG) return;
@@ -1105,7 +1143,7 @@ function euro(x) { const s = (Math.round((+x || 0) * 100) / 100).toFixed(2); ret
 function riceviOver(m) {
   OVER = m; FASE = 'fine'; PUO_MANO = false; PUO_PASSA = false;
   $('#tempo').classList.remove('su'); chiaveTempo = '';
-  bMano.className = 'spento'; chiaveTasto = 'fine';
+  bMano.className = 'spento'; chiaveTasto = 'fine'; $('#mazzo').dataset.st = 'fine'; $('#tocca').dataset.st = 'fine';
   if (!ANAG) { fineScena(); return; }
   if (m.annullata) {
     finaleFatto = true;
@@ -1251,15 +1289,15 @@ function guida() {
     ['LE CARTE', T('Si gioca con tanti quartetti (4 carte dello stesso valore) quanti sono i giocatori ancora in gara. Quattro carte a testa: le tue le vedi solo tu.')],
     ['IL GIRO', T('Tutti insieme scegliete una carta da passare al vicino di sinistra. Avete {s} secondi: a chi non sceglie, il banco passa una carta a caso.', { s: n(r.passa_s) }) +
       (r.banco_giri > 0 ? ' ' + T('Dopo {g} giri senza un quartetto le carte le passa il banco, finché qualcuno chiude: tu guarda la tua mano e il mazzo.', { g: n(r.banco_giri) }) : '')],
-    ['LA MANO', T('Appena hai 4 carte uguali premi METTI LA MANO. Da quel momento tutti devono metterla: l’ULTIMO perde una vita.')],
-    ['A VUOTO', T('Se metti la mano senza avere 4 carte uguali, e nessuno l’ha ancora messa, la vita la perdi tu. Il tasto non si preme a caso.')],
+    ['LA MANO', T('Appena hai 4 carte uguali tocca il MAZZO al centro del tavolo: è la tua mano sul mazzo. Da quel momento tutti devono toccarlo: l’ULTIMO perde una vita.')],
+    ['A VUOTO', T('Se tocchi il mazzo senza avere 4 carte uguali, e nessuno l’ha ancora toccato, la vita la perdi tu. Il mazzo non si tocca a caso.')],
     ['I TEMPI', T('Chi non mette la mano entro {s} secondi perde una vita. Se gli ultimi due arrivano a meno di {p} millesimi uno dall’altro è pari: nessuno perde e si ridanno le carte.', { s: n(r.mano_max_s), p: n(r.pari_ms) })],
     ['LA RETE', (+r.lat_cap_ms > 0)
       ? T('Il server misura la tua connessione e la toglie dal tuo tempo (fino a {l} millesimi): conta il riflesso, non la rete. Sotto i {u} millesimi non si guadagna niente: più veloce di così non è un riflesso.', { l: n(r.lat_cap_ms), u: n(r.umano_min_ms) })
       : T('A questo tavolo c’è un premio: conta l’ordine di ARRIVO al server e la rete non si toglie dal tempo. Con una connessione lenta parti svantaggiato: se accanto alle tue vite vedi 📶, la tua rete è oltre i {a} millesimi. Sotto i {u} millesimi dal segnale non si guadagna niente: più veloce di così non è un riflesso.', { a: RETE_LENTA_MS, u: n(r.umano_min_ms) })],
     ['LE VITE', r.vite === 1 ? T('Si parte con una vita sola. Chi la perde è fuori. L’ultimo che resta al tavolo prende tutto il piatto.') : T('Si parte con {v} vite. A zero sei fuori. L’ultimo che resta al tavolo prende tutto il piatto.', { v: n(r.vite) })]
   ];
-  if (GEO && GEO.largo) voci.splice(4, 0, ['SUL PC', T('La barra spaziatrice vale come il tasto METTI LA MANO: stessa regola, a vuoto costa una vita.')]);   // cura G3
+  if (GEO && GEO.largo) voci.splice(4, 0, ['SUL PC', T('La barra spaziatrice vale come un tocco sul mazzo: stessa regola, a vuoto costa una vita.')]);   // cura G3
   $('#gTesta').textContent = T('📖 COME SI GIOCA');
   $('#gCorpo').innerHTML = voci.map(v => '<div class="gv"><b>' + esc(T(v[0])) + '</b><span>' + esc(v[1]) + '</span></div>').join('');
   $('#gChiudi').textContent = T('HO CAPITO');
@@ -1278,7 +1316,8 @@ window.TP_FILO = arr => { TPF.carica(arr); TPG.fattoPronto(); TPF.parti(); };  /
   $('#vCarte').innerHTML = [9, 19, 29, 39].map(c => '<img alt="" draggable="false" src="' + fileCarta(c) + '">').join('');
   $('#bManoA').textContent = T('METTI LA MANO'); $('#bManoB').textContent = T('aspetta');
   bMano.querySelector('.ico').innerHTML = svgMano('#d5e8dc');
-  bMano.addEventListener('pointerdown', toccoMano);
+  bMano.addEventListener('pointerdown', ev => toccoMano(ev, true));  // resta solo l'uscita di chi ha finito le vite
+  $('#mazzo').addEventListener('pointerdown', ev => { if (SPET || !ANAG || $('#guida').classList.contains('su')) return; toccoMano(ev, false); });   // BISCA SENZA TASTO: il mazzo e' la mano
   addEventListener('keydown', ev => {                                 // sul PC: la barra spaziatrice e' la mano
     if (ev.repeat || (ev.code !== 'Space' && ev.key !== ' ')) return;
     if ($('#guida').classList.contains('su') || !ANAG || SPET) return;
