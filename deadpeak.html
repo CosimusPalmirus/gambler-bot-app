@@ -8,6 +8,12 @@
   :root{--sat:0px;--sab:0px;--sal:0px;--sar:0px}
   html,body{margin:0;height:100%;background:#1b1f2a;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
   #gioco{position:fixed;left:0;top:0;display:block}
+  #vignetta,#pericolo,#lampo{position:fixed;inset:0;pointer-events:none}
+  #vignetta{background:radial-gradient(circle at 50% 45%,rgba(10,12,20,0) 25vh,rgba(10,12,20,.5) 75vh)}
+  #pericolo{opacity:0;background:radial-gradient(ellipse at 50% 38%,rgba(255,70,10,0) 52%,rgba(255,60,0,.62) 100%)}
+  #lampo{opacity:0;background:#fff0e6}
+  #pos.sale{animation:sale .5s cubic-bezier(.2,1.8,.4,1)}
+  @keyframes sale{0%{transform:scale(1.6) rotate(-6deg);background:#b6ff9a}100%{transform:scale(1)}}
   #hud{position:fixed;left:0;right:0;top:0;padding:calc(max(env(safe-area-inset-top),var(--sat)) + 8px) 10px 0 calc(10px + var(--sal));display:flex;align-items:flex-start;justify-content:space-between;pointer-events:none;z-index:5}
   .targa{background:#f8eed6;border:3px solid #24150f;border-radius:10px;padding:3px 9px;font-weight:900;color:#24150f;box-shadow:0 3px 0 #24150f;font-variant-numeric:tabular-nums}
   #tempo{font-size:22px;letter-spacing:.5px}
@@ -65,6 +71,7 @@
 </head>
 <body>
 <canvas id="gioco"></canvas>
+<div id="vignetta"></div><div id="pericolo"></div><div id="lampo"></div>
 <div id="hud">
   <div><div class="targa" id="tempo">00:00.0</div><div class="targa" id="morti">☠ 0</div></div>
   <div class="targa" id="pos">1°/1</div>
@@ -1870,17 +1877,17 @@ DPM.pezzo({ id:'z2_maglio', ruolo:'intro', zona:2, nome:'IL MAGLIO', battito:2.4
 });
 
 DPM.pezzo({ id:'z2_pistoni', ruolo:'intro', zona:2, nome:'I PISTONI', battito:2.4,
-  nota:'INTRO della pressa DAL BASSO: i pistoni escono dal pavimento. A sinistra i CORNICIONI: quattro tetti a sbalzo sul muro esterno, ognuno più lungo di quello sotto; non si sale dritti, si gira attorno al bordo di ogni cornicione allontanandosi dal muro, lontano dai pistoni (sicura, porta L). Al centro le piastre: tre alloggi a zig-zag che sparano verso l’alto in onda, con una sega bassa sul fianco destro (tolta quella di sinistra: prima la veloce scappava sui gradini della sicura, ora resta nelle piastre e il rischio vero basta); ci si posa appena hanno colpito e si salta via prima del colpo dopo (veloce, porta C). A destra il geyser: un pistone lungo dieci righe spara su per il camino fra due seghe; si aspetta sulla grata, si entra quando si ritira e si sale tutto in un fiato (esperta, porta R).',
+  nota:'INTRO della pressa DAL BASSO: i pistoni escono dal pavimento. A sinistra i CORNICIONI: quattro tetti a sbalzo sul muro esterno, ognuno più lungo di quello sotto (15/10: la parte che sporge è GRATA, si passa da sotto: si sale dritti di cornicione in cornicione; prima si girava attorno a ogni bordo con 0,05 celle di margine e la finestra del pollice era di 1 fotogramma), lontano dai pistoni (sicura, porta L). Al centro le piastre: tre alloggi a zig-zag che sparano verso l’alto in onda, con una sega bassa sul fianco destro (tolta quella di sinistra: prima la veloce scappava sui gradini della sicura, ora resta nelle piastre e il rischio vero basta); ci si posa appena hanno colpito e si salta via prima del colpo dopo (veloce, porta C). A destra il geyser: un pistone lungo dieci righe spara su per il camino fra due seghe; si aspetta sulla grata, si entra quando si ritira e si sale tutto in un fiato (esperta, porta R).',
   mappa:[
     '#.....................#',
     '#.....................#',
-    '######..##............#',
+    '##====..##............#',
     '#.............###...###',
     '#.............###...###',
-    '#####......XX.###...###',
+    '##===......XX.###...###',
     '#.............###...###',
     '#.............###...###',
-    '####....XX....###...###',
+    '##==....XX....###...###',
     '#............#......###',
     '#............#......###',
     '###........XX#==#XXX###',
@@ -1898,7 +1905,7 @@ DPM.pezzo({ id:'z2_pistoni', ruolo:'intro', zona:2, nome:'I PISTONI', battito:2.
   ],
   cp:[14.5, 1],
   vie:[
-    { nome:'cornicioni', tipo:'sicura', tappe:[[3,7,'g',1.5],[5,13,'g',1.5]] },
+    { nome:'cornicioni', tipo:'sicura', tappe:[[2.5,4,'g',1.0],[3,7,'g',1.0],[3.5,10,'g',1.0],[4.5,13,'g',1.0]] },
     { nome:'piastre', tipo:'veloce', tappe:[[12,1,'g',1.0],[9,13,'g',0.8]] },
     { nome:'geyser', tipo:'esperta', tappe:[[15,4,'g',0.6]] }
   ]
@@ -2553,7 +2560,7 @@ DPM.Gara = Gara;
 
 </script>
 <script>/* catalogo */
-globalThis.DPM.CATALOGO_MD5 = "4da34c25";
+globalThis.DPM.CATALOGO_MD5 = "835da3f8";
 
 </script>
 <script>/* client/arte_base.js */
@@ -4710,6 +4717,8 @@ AU.suona = function (k, v) {
   v = v === undefined ? 1 : v;
   switch (k) {
     case 'salto': osc('square', 220, 520, 0.09, 0.08 * v); rumore(0.05, 0.05 * v, 'highpass', 3000); break;
+    case 'cuore': osc('sine', 72, 44, 0.13, 0.42 * v); osc('sine', 62, 40, 0.11, 0.3 * v, t0() + 0.17); break;   // 15/10: lava vicina
+    case 'sorpasso': osc('square', 520, 1040, 0.07, 0.06 * v); osc('square', 780, 1560, 0.09, 0.06 * v, t0() + 0.07); break;
     case 'muro': osc('triangle', 160, 90, 0.08, 0.2 * v); rumore(0.12, 0.12 * v, 'bandpass', 1800, 1, 0, 0, 600); osc('square', 300, 640, 0.07, 0.05 * v); break;
     case 'atterra': rumore(0.09, 0.22 * v, 'lowpass', 500); osc('sine', 120, 50, 0.1, 0.25 * v); break;
     case 'bonk': osc('square', 180, 90, 0.06, 0.08); break;
@@ -5686,13 +5695,22 @@ var cam = { yT:0, xL:0, trauma:0, ox:0, oy:0, segui:-1 };
 var tempo = { stop:0, lento:0 };
 var input = { tmx:0, tmy:0, jh:false, keys:{}, usaLatch:false };
 var LOOKS = {};   // seat -> oggetto look (vedi look.js / LOOK_API.md)
+// 15/10 · A: il mio corpo disegnato fra due passi della fisica (ipx/ipy = posizione prima dell'ultimo passo)
+var INTERP = { a:1 };
+// 15/10 · F: qualita' adattiva (gradini di risoluzione; si scende soltanto, e il gradino si ricorda)
+var QUAL = G.qualita = { gradini:[2, 1.5, 1.25, 1], i:0, fin:[], t0:0, tCambio:0, cambi:0, storia:[] };
+try { var _qs = +localStorage.getItem('dpm_q'); if (_qs >= 0 && _qs < 4) QUAL.i = _qs; } catch (e) {}
+if (Q.q !== undefined) QUAL.i = Math.max(0, Math.min(3, +Q.q || 0));
+// 15/10 · G: lava vicina e sorpassi
+var FEEL = { cuoreT:0, avvisoLava:-99, pos:0, tSorpasso:-99 };
 
 /* ================= rete ================= */
 var NET = {
   snaps:[], ultimo:null, daApplicare:null, lastS:0, off:[], offMax:null,
   lead:8, leadMin:3, leadMax:45, codaMin:99, codaT:0, riempiti:-1,
   cmd:{}, pacco:null, paccoT:0, Fshown:0, corr:{ n:0, somma:0, max:0 }, mortePrev:-99, morti:{ prev:0, confermate:0, soloServer:0, smentite:0 }, attesaConferma:null,
-  ns:{ ult:[0, 0, 0], ultF:0, prevJh:0, edgeF:-99, usoF:-99 }, rtt:0, tardi:0
+  ns:{ ult:[0, 0, 0], ultF:0, prevJh:0, edgeF:-99, usoF:-99 }, rtt:0, tardi:0,
+  rit:RIT_REMOTI, dF:[]   // 15/10 · B: ritardo dei rivali (fotogrammi) e passo fra gli snapshot
 };
 G.NET = NET;
 var PONTE = {
@@ -5764,6 +5782,7 @@ function avvia(m, comeSpettatore) {
   // gli oggetti delle casse li dice il server (il seme non viaggia: rivelerebbe gli oggetti futuri)
   (mp.casse0 || []).forEach(function (id, i) { var kk = pred.og.casse[i]; if (kk && id) { kk.seq = [id]; kk.id = id; } });
   pred.F = 0; RC = []; me = null; mioSeat = -1; G.morti = []; G.fx = {}; G.usoId = {}; guarda = false;
+  FEEL.pos = 0; FEEL.avvisoLava = -99; NET.rit = RIT_REMOTI; NET.dF = []; QUAL.fin.length = 0; QUAL.tCambio = performance.now();
   NET.snaps = []; NET.ultimo = null; NET.daApplicare = null; NET.lastS = 0; NET.off = []; NET.offMax = null; NET.cmd = {}; NET.pacco = null; NET.Fshown = 0; NET.riempiti = -1;
   VG = { og: pred.og, corr: RC, M: L.M, L: L, T: 0 };
   G.stato = 'attesa'; G.fine = null; G.tVia = null; G.scena = null; G.lavaAvviso = false; clearInterval(fuochi.t);
@@ -5783,8 +5802,16 @@ function snap(m) {
   var now = performance.now();
   NET.off.push(m.F - now * 0.06);
   if (NET.off.length > 40) NET.off.shift();
-  var mx = -1e18; for (var i = 0; i < NET.off.length; i++) if (NET.off[i] > mx) mx = NET.off[i];
+  var mx = -1e18, mn = 1e18; for (var i = 0; i < NET.off.length; i++) { if (NET.off[i] > mx) mx = NET.off[i]; if (NET.off[i] < mn) mn = NET.off[i]; }
   NET.offMax = mx;
+  // 15/10 · B: il ritardo dei rivali = passo fra gli snapshot + quanto balla la rete (+1), fra 6 e 15 fotogrammi
+  if (NET.ultimo && m.F > NET.ultimo.F) { NET.dF.push(m.F - NET.ultimo.F); if (NET.dF.length > 21) NET.dF.shift(); }
+  if (NET.dF.length >= 5) {
+    var so = NET.dF.slice().sort(function (a, b) { return a - b; }), med = so[so.length >> 1];
+    var jit = NET.off.length >= 10 ? mx - mn : 2;
+    var tgt = Math.max(RIT_REMOTI, Math.min(15, med + Math.max(2, Math.min(6, jit)) + 1));
+    NET.rit += (tgt - NET.rit) * 0.1;
+  }
   if (!RC.length) primoSnap(m);
   NET.snaps.push(m); if (NET.snaps.length > 30) NET.snaps.shift();
   NET.ultimo = m;
@@ -5949,6 +5976,7 @@ function riconcilia() {
     var dx = ox - me.p.x, dy = oy - me.p.y, d = Math.sqrt(dx * dx + dy * dy);
     if (d > 1e-6) { NET.corr.n++; NET.corr.somma += d; if (d > NET.corr.max) NET.corr.max = d; }
     if (d < 2.5) { me.rox = (me.rox || 0) + dx; me.roy = (me.roy || 0) + dy; } else { me.rox = 0; me.roy = 0; }
+    if (me.ipx !== undefined) { me.ipx -= dx; me.ipy -= dy; }
   }
 }
 
@@ -5957,13 +5985,13 @@ function avanza(now) {
   if (!pred || G.stato === 'attesa' || G.stato === 'errore') return;
   var Fs = Fserver(now);
   if (spec) {
-    var Fr = Math.floor(Fs - RIT_REMOTI);
+    var Fr = Math.floor(Fs - NET.rit);
     if (Fr > pred.F) { if (Fr - pred.F > 30) pred.F = Fr - 1; while (pred.F < Fr) passoPred(); pred.ev.length = 0; }
     return;
   }
   if (!me) return;
   riconcilia();
-  var target = Math.floor(Fs + NET.lead), n = 0;
+  var tt = Fs + NET.lead, target = Math.ceil(tt), n = 0;   // 15/10 · A: ceil (prima floor) + disegno interpolato
   if (target - pred.F > 40) {   // troppo indietro (pausa, scheda sospesa): si salta avanti senza effetti
     while (pred.F < target - 2 && n < 400) { NET.cmd[pred.F + 1] = undefined; passoPred(); pred.ev.length = 0; n++; }
     NET.Fshown = pred.F; n = 0;
@@ -5977,11 +6005,13 @@ function avanza(now) {
     if (!NET.pacco) { NET.pacco = { f:f, k:[] }; NET.paccoT = now; }
     NET.pacco.k.push(v);
     if (NET.pacco.k.length >= PACCO_MAX) spedisci();
+    me.ipx = me.p.x; me.ipy = me.p.y;
     passoPred();
     eventiLocali();
     NET.Fshown = pred.F;
     n++;
   }
+  INTERP.a = pred.F === target ? Math.max(0, Math.min(1, 1 - (target - tt))) : 1;
   if (NET.pacco && (NET.pacco.k.length >= 3 || now - NET.paccoT > 34)) spedisci();
   // la storia dei comandi non cresce: servono solo quelli dopo l'ultimo snapshot
   if ((pred.F & 63) === 0) { var lim = (NET.ultimo ? NET.ultimo.F : pred.F) - 30; for (var kf in NET.cmd) if (+kf < lim) delete NET.cmd[kf]; }
@@ -6089,6 +6119,14 @@ function vibra(ms) { try { var tg = window.Telegram && window.Telegram.WebApp &&
 
 /* ================= eventi: juice ================= */
 function vicino(x, y) { var c = seguito(); if (!c) return 99; return Math.hypot(c.p.x - x, (c.p.y + 0.6) - y); }
+function offMio(asse) {
+  if (!me) return 0;
+  var r = asse ? (me.roy || 0) : (me.rox || 0);
+  if (me.ipx === undefined || !me.vivo) return r;
+  var dx = me.ipx - me.p.x, dy = me.ipy - me.p.y;
+  if (dx * dx + dy * dy > 2.25) return r;            // rinascita, teletrasporto: niente scia
+  return r + (asse ? dy : dx) * (1 - INTERP.a);
+}
 function seguito() { if (G.scena && G.scena.c) return G.scena.c; if (spec || guarda) return RC[cam.segui] || RC[0]; return me; }
 function fermo(s) { tempo.stop = Math.max(tempo.stop, s); }
 function lookDi(c) { return A.lookDi(c && c.lookObj != null ? c.lookObj : (c ? c.look : 0)); }
@@ -6214,7 +6252,7 @@ var ZONE = { 0:'', 1:'ZONA 1 · LA FORGIA', 2:'ZONA 2 · IL MATTATOIO', 3:'ZONA 
 /* ================= i rivali: interpolati dagli snapshot ================= */
 function aggiornaRemoti(now, dt) {
   if (!NET.snaps.length) return;
-  var Fr = Fserver(now) - RIT_REMOTI, sn = NET.snaps, a = sn[0], b = sn[sn.length - 1], i;
+  var Fr = Fserver(now) - NET.rit, sn = NET.snaps, a = sn[0], b = sn[sn.length - 1], i;
   for (i = sn.length - 1; i >= 0; i--) if (sn[i].F <= Fr) { a = sn[i]; b = sn[Math.min(sn.length - 1, i + 1)]; break; }
   var u = b.F > a.F ? DPM.clamp((Fr - a.F) / (b.F - a.F), 0, 1.25) : 0;
   var rows = b.p || [], rowsA = a.p || [];
@@ -6267,14 +6305,33 @@ function infoCorpo(c) {
 }
 
 /* ================= ciclo ================= */
-var tPrec = 0, tRaf = 0, perf = { lista:[] };
+var tPrec = 0, tRaf = 0, perf = { lista:[] }, LAMPO_V = 0;
 G.perf = perf;
 function ciclo(ts) { requestAnimationFrame(ciclo); tRaf = performance.now(); battito(ts); }
 function battito(ts) { var dtR = tPrec ? Math.min(0.1, (ts - tPrec) / 1000) : 1 / 60; tPrec = ts; fotogramma(dtR); }
 // rAF sospeso dal browser (iframe nascosto, pagina di Telegram che non ridisegna): lo porta avanti un timer
 setInterval(function () { var n = performance.now(); if (n - tRaf > 50 && n - tPrec > 12) battito(n); }, 16);
+// 15/10 · F: ogni 2 s di gioco si guarda quanti fotogrammi hanno perso il giro (> 24 ms): oltre il 15% si scende
+function misuraQualita(dtR, t0) {
+  if (G.stato !== 'gioco' || G.pausa || document.hidden || Q.q !== undefined || Q.dpr) { QUAL.fin.length = 0; QUAL.t0 = t0; return; }
+  if (t0 - QUAL.tCambio < 3000) { QUAL.fin.length = 0; QUAL.t0 = t0; return; }
+  QUAL.fin.push(dtR * 1000);
+  if (t0 - QUAL.t0 < 2000) return;
+  var n = QUAL.fin.length, lenti = 0; for (var i = 0; i < n; i++) if (QUAL.fin[i] > 24) lenti++;
+  QUAL.storia.push([Math.round(lenti * 100 / Math.max(1, n)), n]); if (QUAL.storia.length > 30) QUAL.storia.shift();
+  QUAL.fin.length = 0; QUAL.t0 = t0;
+  if (n >= 30 && lenti / n > 0.15 && QUAL.i < QUAL.gradini.length - 1) {
+    // si salta ai gradini che su QUESTO telefono cambiano davvero qualcosa (con dpr 1 si va dritti all'ultimo)
+    var dd = Math.min(2, window.devicePixelRatio || 1), ora = Math.min(dd, QUAL.gradini[QUAL.i]), j = QUAL.i + 1;
+    while (j < QUAL.gradini.length - 1 && Math.min(dd, QUAL.gradini[j]) >= ora - 0.01) j++;
+    QUAL.i = j; QUAL.cambi++; QUAL.tCambio = t0;
+    try { localStorage.setItem('dpm_q', QUAL.i); } catch (e) {}
+    if (Math.min(dd, QUAL.gradini[j]) < ora - 0.01) { dimensiona(); if (L) cuoci(); }
+  }
+}
 function fotogramma(dtR) {
   var t0 = performance.now();
+  misuraQualita(dtR, t0);
   if (L && G.stato !== 'attesa' && G.stato !== 'errore') {
     avanza(t0);
     var dtV = dtR;
@@ -6288,6 +6345,7 @@ function fotogramma(dtR) {
     for (var f in G.fx) { G.fx[f] -= dtR; if (G.fx[f] <= 0) delete G.fx[f]; }
     if (me) { var dec = Math.exp(-dtR * 14); me.rox = (me.rox || 0) * dec; me.roy = (me.roy || 0) * dec; }
     conto();
+    pericoloLava(dtR);
     if (!G.pausa) { disegna(dtR); hud(dtR); }
   }
   var msF = performance.now() - t0;
@@ -6296,6 +6354,22 @@ function fotogramma(dtR) {
   perf.blocco = perf.blocco || []; perf.blocco.push(msF);
   if (!perf.t0) perf.t0 = t0;
   if (t0 - perf.t0 > 5000) { var bl = perf.blocco.slice().sort(function (a, b) { return a - b; }); (perf.blocchi = perf.blocchi || []).push([+(bl[Math.floor(bl.length * 0.95)] || 0).toFixed(2), bl.length, SG.conta()]); perf.blocco = []; perf.t0 = t0; }
+}
+// 15/10 · G: quanto e' vicina la lava sotto di me (0 lontana, 1 addosso): bordo rosso che pulsa e battito
+var PER_V = -1;
+function pericoloLava(dt) {
+  var d = 0;
+  if (me && me.vivo && !me.arrivato && !guarda && !spec && G.stato === 'gioco' && pred.Tg >= DPM.REGOLE.LAVA_RITARDO) {
+    var gap = me.p.y - pred.lava;
+    d = Math.max(0, Math.min(1, 1 - (gap - 2) / 8));
+  }
+  var t = performance.now() / 1000, op = d > 0 ? d * (0.55 + 0.45 * Math.sin(t * (4 + 6 * d))) : 0;
+  if (Math.abs(op - PER_V) > 0.02) { PER_V = op; document.getElementById('pericolo').style.opacity = op.toFixed(2); }
+  if (d > 0.12) {
+    FEEL.cuoreT -= dt;
+    if (FEEL.cuoreT <= 0) { AU.suona('cuore', 0.35 + 0.65 * d); FEEL.cuoreT = 0.95 - 0.5 * d; }
+    if (d > 0.55 && t - FEEL.avvisoLava > 8) { FEEL.avvisoLava = t; avviso('LA LAVA TI STA PRENDENDO!', '#ff7a1a'); vibra(25); }
+  } else FEEL.cuoreT = 0;
 }
 function conto() {
   var tg = pred.Tg;
@@ -6316,6 +6390,7 @@ function scia(c, dt) {
 /* ================= disegno (dallo slice) ================= */
 function dimensiona() {
   dpr = Math.min(2, window.devicePixelRatio || 1);
+  dpr = Math.min(dpr, QUAL.gradini[QUAL.i]);   // 15/10 · F: gradino della qualita' adattiva
   if (Q.dpr) dpr = +Q.dpr;
   var w = window.innerWidth, h = window.innerHeight;
   cv.style.width = w + 'px'; cv.style.height = h + 'px';
@@ -6323,11 +6398,11 @@ function dimensiona() {
   S = CW / VC;
   vign = null;
 }
-var vign = null;
+var vign = null, FONDO = null, NOMI = {}, NOMI_N = 0;
 function disegna(dt) {
   var Hc = CH / S, c = seguito();
   if (!c) return;
-  var p = c.p, rx = c === me ? (me.rox || 0) : 0, ry = c === me ? (me.roy || 0) : 0;
+  var p = c.p, rx = c === me ? offMio(0) : 0, ry = c === me ? offMio(1) : 0;
   var look = DPM.clamp(p.vy * 0.1, -2.2, 1.8);
   var target = p.y + ry + Hc * 0.62 + look;
   if (!c.vivo) target = (c.chiodo ? c.chiodo.y : (c.cp ? c.cp[1] : p.y)) + Hc * 0.62;
@@ -6365,21 +6440,16 @@ function disegna(dt) {
     if (cc === me) continue;
     corpoA(cc, 0, 0, now);
   }
-  if (me && me.vivo && !me.fuori) corpoA(me, me.rox || 0, me.roy || 0, now);
+  if (me && me.vivo && !me.fuori) corpoA(me, offMio(0), offMio(1), now);
   morti(dt);
   SG.disegnaParticelle(g, V);
   if (A.disegnaSopra) A.disegnaSopra(g, V, VG, L);
   primoPiano();
   lava();
   fuoriSchermo(c);
-  if (!vign) {
-    vign = A.tela(CW, CH); var vg = vign.getContext('2d');
-    var gr = vg.createRadialGradient(CW / 2, CH * 0.45, CH * 0.25, CW / 2, CH * 0.45, CH * 0.75);
-    gr.addColorStop(0, 'rgba(10,12,20,0)'); gr.addColorStop(1, 'rgba(10,12,20,0.5)');
-    vg.fillStyle = gr; vg.fillRect(0, 0, CW, CH);
-  }
-  g.drawImage(vign, 0, 0);
-  if (G.lampo > 0) { g.fillStyle = 'rgba(255,240,230,' + G.lampo + ')'; g.fillRect(0, 0, CW, CH); G.lampo -= dt * 2.5; }
+  // 15/10 · D: la vignetta e il lampo sono strati CSS (#vignetta, #lampo): niente tela a tutto schermo da fondere
+  var la = Math.max(0, G.lampo || 0);
+  if (la > 0 || LAMPO_V > 0) { if (Math.abs(la - LAMPO_V) > 0.01) { LAMPO_V = la; document.getElementById('lampo').style.opacity = la.toFixed(2); } G.lampo -= dt * 2.5; if (G.lampo <= 0 && LAMPO_V > 0) { LAMPO_V = 0; document.getElementById('lampo').style.opacity = '0'; } }
   var ds = 99; for (i = 0; i < trs.length; i++) { tr = trs[i]; if ((tr.t === 'sega' || tr.t === 'binario' || (tr.t === 'muro' && tr.out > 0.2)) && tr.cx !== undefined) ds = Math.min(ds, vicino(tr.cx, tr.cy) - tr.r); if (tr.t === 'giostra') ds = Math.min(ds, Math.abs(vicino(tr.x, tr.y) - tr.R) - tr.r); }
   AU.seghe(ds); AU.scivola(!!(me && me.vivo && me.p.wallside !== 0), me ? Math.abs(me.p.vy) : 0);
 }
@@ -6397,9 +6467,22 @@ function corpoA(cc, ox, oy, now) {
   else if (pred.Tg < 2.5) freccia(X, Y, now);
 }
 function targhetta(c, X, Y, lk) {
-  g.font = '900 ' + Math.round(S * 0.3) + 'px system-ui,sans-serif'; g.textAlign = 'center'; g.lineJoin = 'round';
-  g.lineWidth = Math.max(3, S * 0.11); g.strokeStyle = PAL.ink; g.strokeText(c.nome, X, Y - S * 1.62);
-  g.fillStyle = lk.colL || lk.col; g.fillText(c.nome, X, Y - S * 1.62);
+  // 15/10 · E: il nome si scrive UNA volta in una tela piccola (tratto + riempimento), poi si copia
+  var col = lk.colL || lk.col, chiave = c.nome + '|' + col + '|' + Math.round(S);
+  var t = NOMI[chiave];
+  if (!t) {
+    if (NOMI_N > 64) { NOMI = {}; NOMI_N = 0; }
+    var fs = Math.round(S * 0.3), lw = Math.max(3, S * 0.11), cv0 = A.tela(4, 4), g0 = cv0.getContext('2d');
+    g0.font = '900 ' + fs + 'px system-ui,sans-serif';
+    var w = Math.ceil(g0.measureText(c.nome).width + lw * 2 + 4), h = Math.ceil(fs * 1.4 + lw * 2);
+    var cv = A.tela(w, h), gg = cv.getContext('2d');
+    gg.font = '900 ' + fs + 'px system-ui,sans-serif'; gg.textAlign = 'center'; gg.textBaseline = 'alphabetic'; gg.lineJoin = 'round';
+    var by = Math.round(h - lw - fs * 0.25);
+    gg.lineWidth = lw; gg.strokeStyle = PAL.ink; gg.strokeText(c.nome, w / 2, by);
+    gg.fillStyle = col; gg.fillText(c.nome, w / 2, by);
+    t = NOMI[chiave] = { cv:cv, ox:w / 2, oy:by }; NOMI_N++;
+  }
+  g.drawImage(t.cv, Math.round(X - t.ox), Math.round(Y - S * 1.62 - t.oy));
 }
 function freccia(X, Y, now) {
   g.fillStyle = PAL.yel; g.strokeStyle = PAL.ink; g.lineWidth = S * 0.06; g.beginPath(); var ay = Y - S * 1.7 + Math.sin(now * 8) * S * 0.08;
@@ -6433,8 +6516,20 @@ function fondale() {
   g.fillStyle = PAL.fondo || '#1b1f2a'; g.fillRect(0, 0, CW, CH);
   var Hc = CH / S, tot = L.H;
   var u = DPM.clamp((V.yT - Hc * 0.5) / tot, 0, 1), ux = L.W > VC ? DPM.clamp(V.x0 / (L.W - VC), 0, 1) : 0.5;
-  if (im) { var sc = Math.max(CW * 1.25 / im.width, CH * 1.75 / im.height), w = im.width * sc, h = im.height * sc; g.drawImage(im, -ux * (w - CW) + cam.ox * S * 0.1, -(1 - u) * (h - CH) + cam.oy * S * 0.1, w, h); }
+  if (im) {
+    var sc = Math.max(CW * 1.25 / im.width, CH * 1.75 / im.height), w = im.width * sc, h = im.height * sc;
+    // 15/10 · C: scalato una volta (tela pronta, poi una copia 1:1 per fotogramma); se troppo grande, a meta' risoluzione
+    var wi = Math.round(w), hi = Math.round(h), meta = wi * hi > 6e6;
+    if (!FONDO || FONDO.im !== im || FONDO.w !== wi || FONDO.h !== hi) {
+      var cw2 = meta ? Math.round(wi / 2) : wi, ch2 = meta ? Math.round(hi / 2) : hi, tf = A.tela(cw2, ch2), gf = tf.getContext('2d');
+      gf.imageSmoothingQuality = 'high'; gf.drawImage(im, 0, 0, cw2, ch2);
+      FONDO = { im:im, w:wi, h:hi, cv:tf };
+    }
+    var fx = Math.round(-ux * (w - CW) + cam.ox * S * 0.1), fy = Math.round(-(1 - u) * (h - CH) + cam.oy * S * 0.1);
+    if (FONDO.cv.width === wi) g.drawImage(FONDO.cv, fx, fy); else g.drawImage(FONDO.cv, fx, fy, wi, hi);
+  }
   var par = 0.45;
+  if (QUAL.i >= 3) return;   // 15/10 · F: all'ultimo gradino niente sagome del fondale
   for (var i = 0; i < props.length; i++) {
     var pr = props[i], img = (A.sil && A.sil[A.propNome(pr.id)]) || A.img[A.propNome(pr.id)]; if (!img) continue;
     var sy = CH / 2 + ((V.yT - Hc * 0.5) - pr.y) * par * S, hh = pr.s * S * 3.2, ww = img.width / img.height * hh;
@@ -6445,6 +6540,7 @@ function fondale() {
   g.globalAlpha = 1;
 }
 function primoPiano() {
+  if (QUAL.i >= 3) return;   // 15/10 · F: all'ultimo gradino niente catene in primo piano
   var par = 1.3, Hc = CH / S;
   g.strokeStyle = 'rgba(20,22,30,0.85)'; g.lineWidth = S * 0.16;
   for (var k = 0; k < 16; k++) {
@@ -6533,6 +6629,16 @@ function hud(dt) {
   document.getElementById('tempo').textContent = fmt(t);
   var ord = classifica();
   document.getElementById('pos').textContent = c ? (ord.indexOf(c) + 1) + '°/' + ord.length : '';
+  // 15/10 · G: SORPASSO (solo il mio, dopo il via): la posizione salta, un suono, una scritta (al piu' ogni 2,5 s)
+  if (c && c === me && !spec && !guarda && G.stato === 'gioco') {
+    var rk = ord.indexOf(c) + 1, ts = performance.now() / 1000;
+    if (FEEL.pos && rk < FEEL.pos && pred.Tg > 3) {
+      var pe = document.getElementById('pos'); pe.classList.remove('sale'); void pe.offsetWidth; pe.classList.add('sale');
+      AU.suona('sorpasso', 0.7);
+      if (ts - FEEL.tSorpasso > 2.5) { FEEL.tSorpasso = ts; avviso('SORPASSO! ' + rk + '°', '#b6ff9a'); vibra(10); }
+    }
+    FEEL.pos = rk;
+  }
   document.getElementById('morti').textContent = '☠ ' + (c ? c.morti : 0);
   if ((spec || guarda) && c && c.fuori) { cambiaSeguito(1); c = seguito(); }   // chi seguivo e' uscito: il prossimo in gara
   if (spec || guarda) { var sn = document.getElementById('specNome'); if (sn && c) sn.textContent = c.nome; }
@@ -6672,6 +6778,8 @@ window.DP2 = {
       n:RC.length, winner:G.fine ? G.fine.winner : undefined, perfN:perf.lista.length, blocchi:perf.blocchi || [] };
   },
   perf: function () { return perf.lista.slice(); },
+  disegnoMio: function () { return me ? { x:me.p.x + offMio(0), y:me.p.y + offMio(1), vivo:me.vivo, a:me.p.grounded } : null; },
+  qualita: function () { return { i:QUAL.i, dpr:dpr, cambi:QUAL.cambi, storia:QUAL.storia.slice(-10), rit:+NET.rit.toFixed(2), interp:+INTERP.a.toFixed(2) }; },
   input: function (mx, my, jh, usa) { input.tmx = mx; input.tmy = my; input.jh = !!jh; if (usa) input.usaLatch = true; },
   G: G, NET: NET
 };
