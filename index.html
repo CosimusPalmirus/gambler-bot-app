@@ -14084,90 +14084,126 @@ html.oz-l #bxrt-rot{display:none!important;}
   </div>
 </div>
 
+<style>
+/* ═══ ROULETTE v4 (18/10/2026) · ruota su canvas disegnata una volta, animazioni solo transform ═══ */
+#roulette .rl4{gap:10px;padding-bottom:18px}
+.rl4-stage{position:relative;display:flex;flex-direction:column;align-items:center;gap:8px;flex-shrink:0;
+  padding:12px 0 6px;border-radius:18px;
+  background:radial-gradient(120% 80% at 50% 0%,rgba(255,215,0,.10),transparent 60%),radial-gradient(90% 70% at 50% 45%,#0f3d2a,#08241a 70%,#051510);
+  border:1px solid rgba(255,215,0,.22);box-shadow:inset 0 0 40px rgba(0,0,0,.6),0 10px 30px rgba(0,0,0,.45)}
+.rl4-wheel{position:relative;width:var(--wd,260px);height:var(--wd,260px);flex-shrink:0;contain:layout paint}
+.rl4-rot{position:absolute;inset:0;will-change:transform;transform:translateZ(0)}
+.rl4-rot canvas{display:block;width:100%;height:100%}
+.rl4-glass{position:absolute;inset:0;border-radius:50%;pointer-events:none;
+  background:radial-gradient(60% 45% at 32% 22%,rgba(255,255,255,.22),transparent 60%),radial-gradient(closest-side,transparent 86%,rgba(0,0,0,.45) 100%)}
+.rl4-dia{position:absolute;left:50%;top:50%;width:7px;height:11px;margin:-5.5px 0 0 -3.5px;pointer-events:none;
+  background:linear-gradient(180deg,#fff6c8,#d4a017 55%,#7a5a08);clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+.rl4-ball{position:absolute;left:50%;top:50%;width:0;height:0;will-change:transform;z-index:3}
+.rl4-ball i{position:absolute;left:calc(var(--bd,13px)/-2);top:calc(var(--bd,13px)/-2);width:var(--bd,13px);height:var(--bd,13px);border-radius:50%;
+  background:radial-gradient(circle at 34% 30%,#fff 0 18%,#eceff3 40%,#a9b0b9 78%,#6d737b);box-shadow:0 0 0 .5px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.55);will-change:transform}
+.rl4-ball.hide{opacity:0}
+.rl4-res{position:absolute;left:50%;top:50%;width:34%;height:34%;transform:translate(-50%,-50%) scale(.2);border-radius:50%;z-index:4;
+  display:grid;place-items:center;opacity:0;pointer-events:none;transition:transform .45s cubic-bezier(.2,1.6,.4,1),opacity .25s}
+.rl4-res.on{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.rl4-res b{font-family:'Russo One',Impact,sans-serif;font-size:calc(var(--wd,260px)*.15);line-height:1;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.5)}
+.rl4-res.red{background:radial-gradient(circle at 35% 30%,#ff6b6b,#c41e1e 60%,#7a0c0c);box-shadow:0 0 0 4px #ffd700,0 0 30px rgba(255,60,60,.7)}
+.rl4-res.black{background:radial-gradient(circle at 35% 30%,#555,#151515 60%,#000);box-shadow:0 0 0 4px #ffd700,0 0 30px rgba(255,255,255,.35)}
+.rl4-res.green{background:radial-gradient(circle at 35% 30%,#5ef0a0,#0c8447 60%,#064d29);box-shadow:0 0 0 4px #ffd700,0 0 30px rgba(60,255,150,.6)}
+.rl4-hist{display:flex;gap:5px;min-height:24px;max-width:94%;overflow:hidden;align-items:center}
+.rl4-hist span{flex:none;min-width:24px;height:24px;padding:0 4px;border-radius:12px;display:grid;place-items:center;font-family:'Russo One',Impact,sans-serif;font-size:12px;color:#fff;
+  border:1.5px solid rgba(255,215,0,.35);animation:rl4pop .35s cubic-bezier(.2,1.6,.4,1)}
+.rl4-hist span:first-child{min-width:30px;height:28px;font-size:14px;border-color:#ffd700}
+.rl4-hist .red{background:#c41e1e} .rl4-hist .black{background:#151515} .rl4-hist .green{background:#0c8447}
+.rl4-hist em{font-style:normal;font-size:11px;letter-spacing:2px;color:rgba(255,255,255,.45);font-weight:700}
+@keyframes rl4pop{from{transform:scale(.3);opacity:0}}
+.rl4-info{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 4px;flex-shrink:0}
+.rl4-info .tot{font-family:'Russo One',Impact,sans-serif;font-size:15px;color:#fff;letter-spacing:.5px}
+.rl4-info .tot b{color:#ffd700;font-size:19px;margin-left:4px}
+.rl4-info .msg{font-size:13px;font-weight:700;color:rgba(255,255,255,.75);text-align:right}
+.rl4-info .msg.hot{color:#ffd700}
+.rl4-modes{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;flex-shrink:0}
+.rl4-modes button{padding:8px 4px;border-radius:10px;background:rgba(0,0,0,.35);border:1.5px solid rgba(255,215,0,.25);color:rgba(255,255,255,.8);
+  font-family:'Russo One',Impact,sans-serif;font-size:13px;letter-spacing:.5px;line-height:1.1}
+.rl4-modes button small{display:block;font-family:'Orbitron',monospace;font-size:10px;color:#ffd700;opacity:.85;margin-top:2px}
+.rl4-modes button.on{background:linear-gradient(180deg,#ffd700,#c99a06);color:#1a1200;border-color:#fff3a0}
+.rl4-modes button.on small{color:#3a2a00}
+/* il tavolo: panno verde, righe bianche, 13 colonne (lo zero + 12) */
+.rl4-table{position:relative;flex-shrink:0;padding:8px;border-radius:14px;touch-action:manipulation;user-select:none;-webkit-user-select:none;
+  background:radial-gradient(120% 90% at 50% 30%,#13603f,#0b4a30 60%,#083522);border:2px solid #6b4a12;
+  box-shadow:inset 0 0 0 2px rgba(255,215,0,.35),inset 0 0 30px rgba(0,0,0,.45),0 8px 20px rgba(0,0,0,.4)}
+.rl4-grid{display:grid;grid-template-columns:1.15fr repeat(12,1fr);grid-template-rows:repeat(3,40px) 34px 34px;gap:0}
+.rl4-c{position:relative;display:grid;place-items:center;border:1px solid rgba(255,255,255,.55);margin:0 -1px -1px 0;
+  font-family:'Russo One',Impact,sans-serif;font-size:13px;color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.6);transition:background .2s}
+.rl4-n span{display:grid;place-items:center;width:84%;height:68%;border-radius:6px}
+.rl4-n.red span{background:#c41e1e} .rl4-n.black span{background:#141414}
+.rl4-z{grid-row:1/4;grid-column:1;border-radius:22px 0 0 22px}
+.rl4-z span{display:grid;place-items:center;font-size:16px;background:#0c8447;width:80%;height:86%;border-radius:18px 4px 4px 18px}
+.rl4-o{font-size:12px;letter-spacing:.3px}
+.rl4-o.red span,.rl4-o.black span{display:block;width:18px;height:12px;clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+.rl4-o.red span{background:#e02828} .rl4-o.black span{background:#000;outline:1px solid #fff}
+.rl4-c.win{background:rgba(255,215,0,.45);animation:rl4win .5s 3 alternate}
+@keyframes rl4win{to{background:rgba(255,215,0,.8)}}
+.rl4-c.prev{background:rgba(255,215,0,.3)}
+.rl4-chips{position:absolute;inset:0;pointer-events:none}
+.rl4-chip{position:absolute;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;display:grid;place-items:center;
+  font-family:'Russo One',Impact,sans-serif;font-size:8.5px;color:#fff;text-shadow:0 1px 0 rgba(0,0,0,.6);
+  background:radial-gradient(circle,var(--cc) 0 52%,transparent 53%),repeating-conic-gradient(var(--cc) 0 30deg,#fff 30deg 45deg);
+  box-shadow:0 0 0 1.5px rgba(0,0,0,.55),0 3px 0 rgba(0,0,0,.45),0 4px 6px rgba(0,0,0,.4);transition:transform .25s,opacity .35s;animation:rl4drop .22s cubic-bezier(.2,1.6,.4,1)}
+@keyframes rl4drop{from{transform:translateY(-14px) scale(1.4);opacity:.3}}
+.rl4-chip.lose{transform:translateY(-120px) scale(.6);opacity:0;transition:transform .7s cubic-bezier(.5,0,.8,.3),opacity .7s}
+.rl4-chip.win{animation:rl4chipwin .6s 3 alternate;z-index:2}
+@keyframes rl4chipwin{to{transform:scale(1.35);box-shadow:0 0 0 2px #ffd700,0 0 18px #ffd700}}
+.rl4-fly{position:absolute;margin:-10px 0 0 -30px;width:60px;text-align:center;font-family:'Russo One',Impact,sans-serif;font-size:14px;color:#ffd700;
+  text-shadow:0 1px 0 #000,0 0 8px rgba(0,0,0,.8);pointer-events:none;animation:rl4fly 1.6s ease-out forwards;z-index:3}
+@keyframes rl4fly{from{transform:translateY(0) scale(.6);opacity:0}15%{opacity:1;transform:translateY(-6px) scale(1.15)}to{transform:translateY(-46px);opacity:0}}
+/* la rastrelliera delle fiche */
+.rl4-rack{display:flex;gap:6px;justify-content:space-between;flex-shrink:0;padding:2px 2px 0}
+.rl4-rack button{flex:1;max-width:52px;aspect-ratio:1;border-radius:50%;display:grid;place-items:center;font-family:'Russo One',Impact,sans-serif;font-size:12px;color:#fff;
+  text-shadow:0 1px 0 rgba(0,0,0,.6);background:radial-gradient(circle,var(--cc) 0 50%,transparent 51%),repeating-conic-gradient(var(--cc) 0 30deg,#fff 30deg 45deg);
+  box-shadow:0 0 0 2px rgba(0,0,0,.5),0 4px 0 rgba(0,0,0,.45);transition:transform .15s,box-shadow .15s}
+.rl4-rack button.on{transform:translateY(-6px) scale(1.08);box-shadow:0 0 0 2px #ffd700,0 0 14px rgba(255,215,0,.7),0 8px 0 rgba(0,0,0,.4)}
+.rl4-acts{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;flex-shrink:0}
+.rl4-acts button{padding:10px 2px;border-radius:11px;background:rgba(0,0,0,.4);border:1.5px solid rgba(255,255,255,.18);color:#fff;font-weight:800;font-size:13px}
+.rl4-acts button:disabled{opacity:.35}
+.rl4-spin{flex-shrink:0;padding:16px;border-radius:16px;font-family:'Russo One',Impact,sans-serif;font-size:20px;letter-spacing:2px;color:#1a1200;
+  background:linear-gradient(180deg,#fff3a0,#ffd700 45%,#c99a06);border:2px solid #fff6c8;box-shadow:0 5px 0 #7a5a08,0 10px 24px rgba(255,215,0,.25)}
+.rl4-spin:active{transform:translateY(3px);box-shadow:0 2px 0 #7a5a08}
+.rl4-spin:disabled{filter:grayscale(.6) brightness(.7)}
+.rl4 button{-webkit-tap-highlight-color:transparent}
+</style>
 <div id="roulette" class="screen">
   <div class="game-hdr">
     <button class="back-btn" onclick="go('home')">←</button>
     <div class="game-title">🎡 ROULETTE</div>
     <div class="game-bal" id="rl-bal">€0.00</div>
   </div>
-  <div class="game-content">
-    <div class="rl-stage">
-      <div class="rl-wheel-wrap">
-        <svg id="rl-svg" viewBox="-100 -100 200 200" class="rl-svg">
-          <defs>
-            <radialGradient id="rl-hub-grad" cx="0.3" cy="0.3" r="0.8">
-              <stop offset="0%" stop-color="#fff7a0"/>
-              <stop offset="40%" stop-color="#ffd700"/>
-              <stop offset="100%" stop-color="#8b6914"/>
-            </radialGradient>
-            <radialGradient id="rl-ball-grad" cx="0.3" cy="0.3" r="0.8">
-              <stop offset="0%" stop-color="#fff"/>
-              <stop offset="60%" stop-color="#e8e8e8"/>
-              <stop offset="100%" stop-color="#888"/>
-            </radialGradient>
-          </defs>
-          <!-- Outer gold ring -->
-          <circle cx="0" cy="0" r="95" fill="none" stroke="url(#rl-hub-grad)" stroke-width="6"/>
-          <!-- 37 numbered segments built dynamically -->
-          <g id="rl-segs"></g>
-          <!-- Inner dark ring -->
-          <circle cx="0" cy="0" r="42" fill="#0a0a0a" stroke="rgba(255,215,0,.4)" stroke-width="1.5"/>
-          <!-- Center hub -->
-          <circle cx="0" cy="0" r="28" fill="url(#rl-hub-grad)"/>
-          <text x="0" y="6" text-anchor="middle" font-family="Russo One,Impact,sans-serif" font-size="18" font-weight="900" fill="#000">★</text>
-          <!-- Ball (moves via transform) -->
-          <circle id="rl-ball-svg" cx="0" cy="-78" r="5" fill="url(#rl-ball-grad)" stroke="#444" stroke-width=".5"/>
-        </svg>
+  <div class="game-content rl4">
+    <div class="rl4-stage">
+      <div class="rl4-wheel" id="rl4-wheel">
+        <div class="rl4-rot" id="rl4-rot"><canvas id="rl4-cv"></canvas></div>
+        <div class="rl4-glass"></div>
+        <div class="rl4-ball hide" id="rl4-ball"><i></i></div>
+        <div class="rl4-res" id="rl4-res"></div>
       </div>
-      <div class="rl-result-card" id="rl-result-card">
-        <div class="rl-result-num" id="rl-result">—</div>
-        <div class="rl-result-color" id="rl-color">PLACE BETS</div>
-      </div>
+      <div class="rl4-hist" id="rl4-hist"></div>
     </div>
+    <div class="rl4-info"><div class="tot">BET<b id="rl4-tot">€0</b></div><div class="msg" id="rl4-msg">Tap a number or an outside bet</div></div>
+    <div class="rl4-modes">
+      <button class="on" data-m="num" onclick="rl4Mode('num')">NUMBER<small>x36</small></button>
+      <button data-m="cavallo" onclick="rl4Mode('cavallo')">CAVALLO<small>2 nums · x18</small></button>
+      <button data-m="quartina" onclick="rl4Mode('quartina')">QUARTINA<small>4 nums · x9</small></button>
     </div>
-    <div class="rl-history" id="rl-history">
-      <div class="rl-h-lbl">LAST</div>
-      <div class="rl-h-list" id="rl-h-list"><span class="rl-h-empty">—</span></div>
+    <div class="rl4-table" id="rl4-table"><div class="rl4-grid" id="rl4-grid"></div><div class="rl4-chips" id="rl4-chips"></div></div>
+    <div class="rl4-rack" id="rl4-rack"></div>
+    <div class="rl4-acts">
+      <button id="rl4-undo" onclick="rl4Undo()">↶ UNDO</button>
+      <button id="rl4-clear" onclick="rl4Clear()">CLEAR</button>
+      <button id="rl4-rebet" onclick="rl4Rebet()">REBET</button>
+      <button id="rl4-double" onclick="rl4Double()">x2</button>
     </div>
-    <div class="rl-bets-summary">
-      <span>Total bet:</span>
-      <span class="rl-bets-total">€<span id="rl-total">0</span></span>
-    </div>
-    <div id="rl-bets-list" class="rl-bets-list"><span class="rl-bets-empty">No bets yet — pick chip + bet type below</span></div>
-    <div class="rl-section">
-      <div class="rl-section-lbl">CHIP VALUE</div>
-      <div class="bet-selector" id="rl-bets"></div>
-    </div>
-    <div class="rl-section">
-      <div class="rl-section-lbl">COLOR · ODD/EVEN · HALF</div>
-      <div class="rl-grid-3">
-        <button class="rl-btn-out red"    onclick="rlAdd('red',2,'RED')">RED<span>x2</span></button>
-        <button class="rl-btn-out black"  onclick="rlAdd('black',2,'BLK')">BLACK<span>x2</span></button>
-        <button class="rl-btn-out green"  onclick="rlAdd('green',36,'0')">0<span>x36</span></button>
-        <button class="rl-btn-out gold"   onclick="rlAdd('even',2,'EVEN')">EVEN<span>x2</span></button>
-        <button class="rl-btn-out gold"   onclick="rlAdd('odd',2,'ODD')">ODD<span>x2</span></button>
-        <button class="rl-btn-out gold"   onclick="rlAdd('low',2,'1-18')">1-18<span>x2</span></button>
-        <button class="rl-btn-out gold"   onclick="rlAdd('high',2,'19-36')">19-36<span>x2</span></button>
-        <button class="rl-btn-out gold2"  onclick="rlAdd('d1',3,'1-12')">1-12<span>x3</span></button>
-        <button class="rl-btn-out gold2"  onclick="rlAdd('d2',3,'13-24')">13-24<span>x3</span></button>
-      </div>
-    </div>
-    <div class="rl-section">
-      <div class="rl-section-lbl">INSIDE BETS · HIGH PAYOUTS</div>
-      <div class="rl-grid-2">
-        <button class="rl-btn-in purple" onclick="rlPromptCavallo()">🐎 CAVALLO<span>2 nums · x18</span></button>
-        <button class="rl-btn-in blue"   onclick="rlPromptQuartina()">⚜ QUARTINA<span>4 nums · x9</span></button>
-      </div>
-      <div class="rl-num-row">
-        <input id="rl-num-input" type="number" min="0" max="36" placeholder="Pick 0-36" />
-        <button class="rl-num-btn" onclick="rlAddNumber()">+ STRAIGHT x36</button>
-      </div>
-    </div>
-    <div class="rl-actions">
-      <button class="rl-clear" onclick="rlClearBets()">🗑 Clear</button>
-      <button class="rl-spin" id="rl-spin" onclick="rlSpin()">🎡 SPIN</button>
-    </div>
+    <button class="rl4-spin" id="rl4-spin" onclick="rlSpin()">SPIN</button>
   </div>
+</div>
 
 <div id="dice" class="screen">
   <div class="game-hdr">
@@ -39977,196 +40013,267 @@ function slv2ApplyStickyWilds(){
 }
 
 
+/* ═══ ROULETTE v4 (18/10/2026) ═══
+   La ruota si disegna UNA volta su canvas; durante il giro si muovono solo due transform
+   (la ruota e la pallina), niente filtri ricalcolati a ogni fotogramma: era quello il lag.
+   Il numero lo decide il server (/play/roulette, invariato). La pagina parte a girare al tocco
+   e, quando arriva il numero, corregge la traiettoria della pallina in modo invisibile.
+   Puntate: quelle che il server conosce (num, cavallo, quartina, red, black, green, even, odd,
+   low, high, d1, d2, d3). Cavallo e quartina si piazzano toccando il numero vicino al bordo/angolo. */
 var RL_RED=[1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
-var RL_NUMS=[0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26];
-var RL={bets:[],angle:0,ballAngle:0,spinning:false,history:[]};
-function initRoulette(){
-  buildRouletteWheel();
-  buildBets('rl-bets','roulette');
-  rlRenderBets();
-}
-function rlRemoveBet(i){RL.bets.splice(i,1);rlRenderBets();}
-function rlRenderBets(){
-  var c=document.getElementById('rl-bets-list');
-  var tot=0;
-  if(!c)return;
-  if(!RL.bets.length){
-    c.innerHTML='<span class="rl-bets-empty">No bets yet — pick chip + bet type below</span>';
-  }else{
-    c.innerHTML=RL.bets.map(function(b,i){
-      tot+=b.amount;
-      return '<div class="rl-bet-pill">'+b.label+' '+betLbl(b.amount)+'<span class="x" onclick="rlRemoveBet('+i+')">✕</span></div>';
-    }).join('');
-  }
-  var totEl=document.getElementById('rl-total');
-  if(totEl)totEl.textContent=Math.round(tot);
-}
-function rlAdd(type,mult,label,nums){
-  var amt=currentBet.roulette;
-  if(!hasFunds(amt+RL.bets.reduce(function(a,b){return a+b.amount;},0))){
-    toast('Insufficient balance for this bet','err');return;
-  }
-  RL.bets.push({type:type,mult:mult,label:label,amount:amt,nums:nums});
-  rlRenderBets();
-}
-function rlAddNumber(){
-  var input=document.getElementById('rl-num-input');
-  var n=parseInt(input.value);
-  if(isNaN(n)||n<0||n>36){toast('Number must be 0-36','err');return;}
-  rlAdd('num',36,'#'+n,[n]);
-  input.value='';
-}
-function rlPromptCavallo(){
-  var s=prompt('Cavallo — enter 2 adjacent numbers (e.g. 5,8):');
-  if(!s)return;
-  var nums=s.split(/[,\s]+/).map(function(x){return parseInt(x);}).filter(function(x){return!isNaN(x)&&x>=0&&x<=36;});
-  if(nums.length!==2){toast('Need exactly 2 numbers','err');return;}
-  rlAdd('cavallo',18,'🐎'+nums.join('/'),nums);
-}
-function rlPromptQuartina(){
-  var s=prompt('Quartina — enter 4 corner numbers (e.g. 1,2,4,5):');
-  if(!s)return;
-  var nums=s.split(/[,\s]+/).map(function(x){return parseInt(x);}).filter(function(x){return!isNaN(x)&&x>=0&&x<=36;});
-  if(nums.length!==4){toast('Need exactly 4 numbers','err');return;}
-  rlAdd('quartina',9,'⚜'+nums.join('/'),nums);
-}
-function rlRemoveBet(i){RL.bets.splice(i,1);rlRenderBets();}
-function rlClearBets(){RL.bets=[];rlRenderBets();}
-
-function rlWinsBet(b,winNum){
-  if(b.type==='num'||b.type==='cavallo'||b.type==='quartina'){
-    return b.nums&&b.nums.indexOf(winNum)>=0;
-  }
-  var isRed=RL_RED.indexOf(winNum)>=0;
-  var isBlack=winNum>0&&!isRed;
-  if(b.type==='red')return isRed;
-  if(b.type==='black')return isBlack;
-  if(b.type==='green')return winNum===0;
-  if(b.type==='even')return winNum>0&&winNum%2===0;
-  if(b.type==='odd')return winNum%2===1;
-  if(b.type==='low')return winNum>=1&&winNum<=18;
-  if(b.type==='high')return winNum>=19&&winNum<=36;
-  if(b.type==='d1')return winNum>=1&&winNum<=12;
-  if(b.type==='d2')return winNum>=13&&winNum<=24;
-  return false;
-}
-// European roulette wheel order (clockwise starting from 0 at top)
 var ROULETTE_ORDER=[0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26];
-function buildRouletteWheel(){
-  var g=document.getElementById('rl-segs');
-  if(!g)return;
-  if(g.children.length>0)return; // already built
-  var segs='';
-  var step=360/37;
+var RL4_CHIPS=[0.5,1,2,5,10,25];
+var RL4_CHIPCOL={0.5:'#7d8590',1:'#2f6fd6',2:'#1f9d55',5:'#c41e1e',10:'#6b2bbf',25:'#d68a00',50:'#0f6b6b',100:'#111'};
+var RL={bets:{},order:[],last:null,spinning:false,history:[],mode:'num',chip:1,W:0,B:0};
+function rl4Color(n){return n===0?'green':(RL_RED.indexOf(n)>=0?'red':'black');}
+function rl4Lbl(v){v=Number(v)||0;return (Math.abs(v-Math.round(v))<0.005)?String(Math.round(v)):v.toFixed(2).replace(/0$/,'').replace(/^0\./,'.');}
+function rl4ChipCol(v){var k=0.5;RL4_CHIPS.concat([50,100]).forEach(function(c){if(v>=c)k=c;});return RL4_CHIPCOL[k]||'#555';}
+function rl4Tot(){var t=0;for(var k in RL.bets)t+=RL.bets[k].amount;return Math.round(t*100)/100;}
+
+/* ── la ruota, disegnata una volta ───────────────────────────────────────── */
+function rl4DrawWheel(){
+  var cv=document.getElementById('rl4-cv'),wh=document.getElementById('rl4-wheel');if(!cv||!wh)return;
+  var css=wh.clientWidth||260,dpr=Math.min(2.5,window.devicePixelRatio||1),S=Math.round(css*dpr);
+  if(cv.width===S&&cv._ok)return;cv.width=cv.height=S;cv._ok=1;
+  var x=cv.getContext('2d'),R=S/2,step=Math.PI*2/37;x.translate(R,R);
+  function ring(r0,r1,fill){x.beginPath();x.arc(0,0,r1,0,Math.PI*2);x.arc(0,0,r0,0,Math.PI*2,true);x.fillStyle=fill;x.fill();}
+  var g=x.createRadialGradient(0,0,R*.86,0,0,R);g.addColorStop(0,'#3b1d0b');g.addColorStop(.5,'#7a3f17');g.addColorStop(1,'#2a1206');ring(R*.9,R,g);
+  g=x.createLinearGradient(-R,-R,R,R);g.addColorStop(0,'#8b6914');g.addColorStop(.3,'#ffe27a');g.addColorStop(.6,'#c99a06');g.addColorStop(1,'#6b4a08');ring(R*.875,R*.905,g);
+  g=x.createRadialGradient(0,0,R*.74,0,0,R*.875);g.addColorStop(0,'#0b0b0b');g.addColorStop(.6,'#262626');g.addColorStop(1,'#0e0e0e');ring(R*.76,R*.875,g);
   for(var i=0;i<37;i++){
-    var num=ROULETTE_ORDER[i];
-    var color=getRouletteColor(num);
-    var cls=color==='red'?'seg-red':(color==='black'?'seg-black':'seg-green');
-    // Each segment is a pie slice from angle a1 to a2 (rotation around center)
-    var a1=(i*step-step/2)*Math.PI/180 - Math.PI/2;
-    var a2=((i+1)*step-step/2)*Math.PI/180 - Math.PI/2;
-    var r=95;
-    var x1=r*Math.cos(a1), y1=r*Math.sin(a1);
-    var x2=r*Math.cos(a2), y2=r*Math.sin(a2);
-    // Path: from origin, line to (x1,y1), arc to (x2,y2), close
-    segs+='<path class="seg '+cls+'" d="M 0 0 L '+x1.toFixed(2)+' '+y1.toFixed(2)+
-          ' A '+r+' '+r+' 0 0 1 '+x2.toFixed(2)+' '+y2.toFixed(2)+' Z"/>';
-    // Number text positioned along the segment center, near the outer edge
-    var midAngle=(i*step)*Math.PI/180 - Math.PI/2;
-    var tr=78;
-    var tx=tr*Math.cos(midAngle), ty=tr*Math.sin(midAngle);
-    // Rotate text to face outward
-    var rotDeg=(i*step);
-    segs+='<text class="seg-text" x="'+tx.toFixed(2)+'" y="'+(ty+2.5).toFixed(2)+
-          '" transform="rotate('+rotDeg+' '+tx.toFixed(2)+' '+ty.toFixed(2)+')">'+num+'</text>';
+    var n=ROULETTE_ORDER[i],c=rl4Color(n),a0=-Math.PI/2+(i-.5)*step,a1=a0+step;
+    var base=c==='red'?'#c41e1e':(c==='black'?'#161616':'#0c8447'),dark=c==='red'?'#7f1010':(c==='black'?'#050505':'#065a2f');
+    x.beginPath();x.arc(0,0,R*.76,a0,a1);x.arc(0,0,R*.60,a1,a0,true);x.closePath();x.fillStyle=base;x.fill();
+    x.beginPath();x.arc(0,0,R*.60,a0,a1);x.arc(0,0,R*.47,a1,a0,true);x.closePath();
+    var pg=x.createRadialGradient(0,0,R*.47,0,0,R*.6);pg.addColorStop(0,dark);pg.addColorStop(1,base);x.fillStyle=pg;x.fill();
+    x.save();x.rotate(i*step);x.fillStyle='#fff';x.font='700 '+Math.round(R*.085)+'px "Russo One",Impact,sans-serif';x.textAlign='center';x.textBaseline='middle';
+    x.fillText(String(n),0,-R*.68);x.restore();
   }
-  g.innerHTML=segs;
+  x.strokeStyle='#e8c25a';x.lineWidth=Math.max(1,R*.012);
+  for(i=0;i<37;i++){var a=-Math.PI/2+(i-.5)*step;x.beginPath();x.moveTo(Math.cos(a)*R*.47,Math.sin(a)*R*.47);x.lineTo(Math.cos(a)*R*.76,Math.sin(a)*R*.76);x.stroke();}
+  x.lineWidth=Math.max(1,R*.016);x.beginPath();x.arc(0,0,R*.60,0,Math.PI*2);x.stroke();x.beginPath();x.arc(0,0,R*.76,0,Math.PI*2);x.stroke();
+  g=x.createRadialGradient(-R*.12,-R*.12,R*.02,0,0,R*.47);g.addColorStop(0,'#c98a4b');g.addColorStop(.55,'#7a4119');g.addColorStop(1,'#3a1a08');
+  x.beginPath();x.arc(0,0,R*.47,0,Math.PI*2);x.fillStyle=g;x.fill();x.strokeStyle='#d4a017';x.lineWidth=Math.max(1,R*.02);x.stroke();
+  for(i=0;i<8;i++){x.save();x.rotate(i*Math.PI/4);x.fillStyle='rgba(0,0,0,.18)';x.fillRect(-R*.006,-R*.45,R*.012,R*.26);x.restore();}
+  var tg=x.createLinearGradient(-R*.2,-R*.2,R*.2,R*.2);tg.addColorStop(0,'#fff6c8');tg.addColorStop(.45,'#ffd700');tg.addColorStop(1,'#8b6914');
+  x.fillStyle=tg;for(i=0;i<4;i++){x.save();x.rotate(i*Math.PI/2);x.beginPath();x.moveTo(-R*.025,0);x.lineTo(-R*.016,-R*.27);x.arc(0,-R*.285,R*.03,Math.PI*.6,Math.PI*2.4);x.lineTo(R*.025,0);x.closePath();x.fill();x.restore();}
+  x.beginPath();x.arc(0,0,R*.095,0,Math.PI*2);x.fill();x.strokeStyle='rgba(0,0,0,.35)';x.lineWidth=R*.01;x.stroke();
+  x.beginPath();x.arc(0,0,R*.04,0,Math.PI*2);x.fillStyle='#fff6c8';x.fill();
 }
-function rlSpin(){
-  if(!RL.bets.length){toast('Place at least one bet','warn');return;}
-  if(RL.spinning)return;
-  var totalBet=RL.bets.reduce(function(a,b){return a+b.amount;},0);
-  if(!hasFunds(totalBet)){toast('Insufficient balance','err');return;}
-  if(!S.userId){toast('Open in Telegram to play','err');return;}
-  RL.spinning=true;
-  document.getElementById('rl-spin').disabled=true;
-  buildRouletteWheel();
-  gSound('chip-stack');
-  S.btc=Math.max(0,S.btc-eurToBtc(totalBet)); refresh();   // optimistic: show bet deducted now (server is authoritative)
-  var payload=RL.bets.map(function(b){return {type:b.type,nums:b.nums||[],...postaCent(b.amount,'amount')};});
-  fetch(BACKEND+'/play/roulette',{
-    method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},
-    body:JSON.stringify({user_id:S.userId,bets:payload})
-  }).then(function(r){return r.json();}).then(function(d){
-    if(!d||d.error){
-      RL.spinning=false;document.getElementById('rl-spin').disabled=false;
-      toast('⚠️ '+((d&&d.error)||'Network error - retry'),'err');
-      if(typeof loadBalance==='function')loadBalance();return;
-    }
-    gSound('ball-roll',{duration:4500});
-    var resultIdx=ROULETTE_ORDER.indexOf(d.result); if(resultIdx<0)resultIdx=0;
-    var slotAngle=resultIdx*(360/37), startTime=performance.now(), endAngle=7*360+slotAngle;
-    var ball=document.getElementById('rl-ball-svg');
-    (function frame(now){
-      var t=Math.min(1,(now-startTime)/4500), eased=1-Math.pow(1-t,3);
-      if(ball)ball.setAttribute('transform','rotate('+(eased*endAngle)+')');
-      if(t<1)requestAnimationFrame(frame);
-    })(startTime);
-    setTimeout(function(){
-      gSound('ball-stop'); hapGioco('colpo');   // la pallina si posa (01/08)
-      var result=d.result,color=d.color;
-      var resEl=document.getElementById('rl-result'),colEl=document.getElementById('rl-color');
-      if(resEl){resEl.textContent=result;resEl.className='rl-result-num '+color;}
-      if(colEl){colEl.textContent=color.toUpperCase()+(result%2===0&&result!==0?' · EVEN':(result!==0?' · ODD':''));}
-      RL.history.unshift({n:result,c:color});if(RL.history.length>10)RL.history.pop();renderRlHistory();
-      if(d.btc!==undefined)S.btc=saldoDa(d); if(d.wins!==undefined)S.wins=d.wins; if(d.losses!==undefined)S.losses=d.losses;
-      if(d.total_bet_eur!==undefined)S.totalBet=d.total_bet_eur; if(d.biggest_win_eur!==undefined)S.biggestWin=d.biggest_win_eur;
-      refresh(); if(CUR==='profile')renderProfile();
-      var wonEur=(d.won_btc||0)*S.rate;
-      if(d.won){
-        var ratio=wonEur/totalBet;
-        setTimeout(function(){ if(ratio>=18)gSound('win-big'); else if(ratio>=5)gSound('win-medium'); else gSound('win-small'); },250);
-        toast('🎉 +€'+wonEur.toFixed(2)+' on '+result+' '+color.toUpperCase(),'ok',3000);
-      }else{
-        setTimeout(function(){gSound('lose');},250);
-        toast('😞 Lost €'+totalBet.toFixed(2)+' on '+result+' '+color.toUpperCase(),'err');
-      }
-      RL.bets=[];rlRenderBets();
-      RL.spinning=false;document.getElementById('rl-spin').disabled=false;
-    },4600);
-  }).catch(function(e){
-    RL.spinning=false;document.getElementById('rl-spin').disabled=false;
-    toast('Network error','err'); if(typeof loadBalance==='function')loadBalance();
-  });
+function rl4Diamonds(){
+  var wh=document.getElementById('rl4-wheel');if(!wh||wh.querySelector('.rl4-dia'))return;
+  var r=(wh.clientWidth||260)/2*.815;
+  for(var i=0;i<8;i++){var d=document.createElement('i');d.className='rl4-dia';d.style.transform='rotate('+(i*45+22.5)+'deg) translateY('+(-r)+'px)';wh.appendChild(d);}
 }
 
-function getRouletteColor(n){
-  if(n===0)return'green';
-  var reds=[1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
-  return reds.indexOf(n)>=0?'red':'black';
+/* ── il tavolo ───────────────────────────────────────────────────────────── */
+function rl4Num(r,c){return 3*c+(3-r);}             /* r 0..2 dall alto, c 0..11 */
+function rl4Pos(n){return {r:3-((n-1)%3+1),c:Math.floor((n-1)/3)};}
+var RL4_OUT=[['low','1-18'],['even','EVEN'],['red','<span></span>'],['black','<span></span>'],['odd','ODD'],['high','19-36']];
+function rl4BuildTable(){
+  var g=document.getElementById('rl4-grid');if(!g||g.childNodes.length)return;
+  var h='<div class="rl4-c rl4-z" data-k="green" data-n="0"><span>0</span></div>';
+  for(var r=0;r<3;r++)for(var c=0;c<12;c++){var n=rl4Num(r,c);h+='<div class="rl4-c rl4-n '+rl4Color(n)+'" data-n="'+n+'" style="grid-row:'+(r+1)+';grid-column:'+(c+2)+'"><span>'+n+'</span></div>';}
+  ['1st 12','2nd 12','3rd 12'].forEach(function(t,i){h+='<div class="rl4-c rl4-o" data-k="d'+(i+1)+'" style="grid-row:4;grid-column:'+(2+i*4)+'/span 4">'+t+'</div>';});
+  RL4_OUT.forEach(function(o,i){h+='<div class="rl4-c rl4-o '+(o[0]==='red'||o[0]==='black'?o[0]:'')+'" data-k="'+o[0]+'" style="grid-row:5;grid-column:'+(2+i*2)+'/span 2">'+o[1]+'</div>';});
+  g.innerHTML=h;
+  g.addEventListener('pointerdown',rl4Tap);
 }
-function rlBetWins(b,n,color){
-  if(b.type==='red')return color==='red';
-  if(b.type==='black')return color==='black';
-  if(b.type==='green')return n===0;
-  if(b.type==='even')return n!==0&&n%2===0;
-  if(b.type==='odd')return n%2===1;
-  if(b.type==='low')return n>=1&&n<=18;
-  if(b.type==='high')return n>=19&&n<=36;
-  if(b.type==='d1')return n>=1&&n<=12;
-  if(b.type==='d2')return n>=13&&n<=24;
-  if(b.type==='d3')return n>=25&&n<=36;
+function rl4Cell(n){return document.querySelector('#rl4-grid [data-n="'+n+'"]');}
+function rl4Rel(el){var t=document.getElementById('rl4-table').getBoundingClientRect(),b=el.getBoundingClientRect();return {x:b.left-t.left,y:b.top-t.top,w:b.width,h:b.height};}
+/* dal tocco alla puntata: in modalita cavallo/quartina conta DOVE si tocca il numero */
+function rl4Tap(e){
+  if(RL.spinning){rl4Msg('Rien ne va plus',1);return;}
+  var el=e.target.closest('.rl4-c');if(!el)return;
+  var k=el.getAttribute('data-k'),n=el.getAttribute('data-n');
+  if(k&&n!=='0'){rl4Place({key:k,type:k,nums:[],anchor:el});return;}
+  n=parseInt(n,10);
+  var rc=el.getBoundingClientRect(),fx=(e.clientX-rc.left)/rc.width,fy=(e.clientY-rc.top)/rc.height;
+  if(RL.mode==='num'||isNaN(fx)){rl4Place(n===0?{key:'green',type:'green',nums:[],anchor:el}:{key:'num:'+n,type:'num',nums:[n],anchor:el});return;}
+  if(n===0){                                         /* lo zero fa cavallo con 3, 2 o 1 a seconda dell altezza */
+    var m=fy<1/3?3:(fy<2/3?2:1);
+    if(RL.mode==='cavallo')rl4Place({key:'cavallo:0-'+m,type:'cavallo',nums:[0,m],edge:[el,rl4Cell(m)]});
+    else rl4Place({key:'quartina:0-1-2-3',type:'quartina',nums:[0,1,2,3],edge:[el,rl4Cell(2)]});
+    return;
+  }
+  var p=rl4Pos(n),up=p.r>0?n+1:null,dn=p.r<2?n-1:null,lf=p.c>0?n-3:null,rt=p.c<11?n+3:null;
+  if(RL.mode==='cavallo'){
+    var cand=[[up,fy],[dn,1-fy],[lf,fx],[rt,1-fx]].filter(function(q){return q[0]!==null;}).sort(function(a,b){return a[1]-b[1];});
+    var o=cand[0][0],ns=[n,o].sort(function(a,b){return a-b;});
+    rl4Place({key:'cavallo:'+ns.join('-'),type:'cavallo',nums:ns,edge:[el,rl4Cell(o)]});return;
+  }
+  var v=(fy<.5?up:dn)!==null?(fy<.5?up:dn):(up!==null?up:dn),hh=(fx<.5?lf:rt)!==null?(fx<.5?lf:rt):(lf!==null?lf:rt);
+  var q=[n,v,hh,hh+(v-n)].sort(function(a,b){return a-b;});
+  rl4Place({key:'quartina:'+q.join('-'),type:'quartina',nums:q,edge:[el,rl4Cell(q[0]===n?q[3]:q[0])]});
+}
+function rl4Place(b,amt,silenzio){
+  amt=amt||RL.chip;
+  if(Object.keys(RL.bets).length>=60&&!RL.bets[b.key]){rl4Msg('Max 60 bets',1);return false;}
+  if(typeof hasFunds==='function'&&!hasFunds(rl4Tot()+amt)){if(!silenzio)toast('Insufficient balance','err');return false;}
+  var cur=RL.bets[b.key];
+  if(cur)cur.amount=Math.round((cur.amount+amt)*100)/100;
+  else RL.bets[b.key]={type:b.type,nums:b.nums,amount:amt,edge:b.edge?b.edge.map(function(x){return x&&x.getAttribute('data-n');}):null,anchor:b.anchor?(b.anchor.getAttribute('data-n')||b.anchor.getAttribute('data-k')):null};
+  RL.order.push({key:b.key,amt:amt});
+  if(!silenzio){try{gSound('chip');}catch(_){} try{hapGioco('');}catch(_){} }
+  rl4RenderChips();return true;
+}
+function rl4AnchorXY(b){
+  var t=document.getElementById('rl4-table');
+  if(b.edge){var p=b.edge.map(function(n){var el=n!==null&&n!==undefined?rl4Cell(n):null;return el?rl4Rel(el):null;}).filter(Boolean);
+    if(b.type==='quartina'&&b.nums.length===4&&b.nums[0]!==0){var r=b.nums.map(function(n){return rl4Rel(rl4Cell(n));});
+      var xs=r.map(function(q){return q.x+q.w/2;}),ys=r.map(function(q){return q.y+q.h/2;});
+      return {x:(Math.min.apply(0,xs)+Math.max.apply(0,xs))/2,y:(Math.min.apply(0,ys)+Math.max.apply(0,ys))/2};}
+    if(p.length===2)return {x:(p[0].x+p[0].w/2+p[1].x+p[1].w/2)/2,y:(p[0].y+p[0].h/2+p[1].y+p[1].h/2)/2};}
+  var el=document.querySelector('#rl4-grid [data-n="'+b.anchor+'"]')||document.querySelector('#rl4-grid [data-k="'+b.anchor+'"]');
+  if(!el)return {x:0,y:0};var q=rl4Rel(el);return {x:q.x+q.w/2,y:q.y+q.h/2};
+}
+function rl4RenderChips(){
+  var L=document.getElementById('rl4-chips');if(!L)return;
+  var h='';for(var k in RL.bets){var b=RL.bets[k],p=rl4AnchorXY(b);
+    h+='<div class="rl4-chip" data-key="'+k+'" style="left:'+p.x.toFixed(1)+'px;top:'+p.y.toFixed(1)+'px;--cc:'+rl4ChipCol(b.amount)+'">'+rl4Lbl(b.amount)+'</div>';}
+  L.innerHTML=h;rl4Info();
+}
+function rl4Info(){
+  var t=document.getElementById('rl4-tot');if(t)t.textContent=(typeof betLbl==='function')?betLbl(rl4Tot()):('€'+rl4Tot());
+  var n=Object.keys(RL.bets).length;
+  ['undo','clear'].forEach(function(id){var b=document.getElementById('rl4-'+id);if(b)b.disabled=RL.spinning||!n;});
+  var rb=document.getElementById('rl4-rebet');if(rb)rb.disabled=RL.spinning||!RL.last;
+  var db=document.getElementById('rl4-double');if(db)db.disabled=RL.spinning||!n;
+  var sp=document.getElementById('rl4-spin');if(sp)sp.disabled=RL.spinning;
+  if(!RL.spinning)rl4Msg(n?'Ready? Spin!':(RL.mode==='num'?'Tap a number or an outside bet':(RL.mode==='cavallo'?'Cavallo: tap a number near the edge you want':'Quartina: tap a number near the corner you want')));
+}
+function rl4Msg(t,hot){var m=document.getElementById('rl4-msg');if(m){m.textContent=t;m.className='msg'+(hot?' hot':'');}}
+function rl4Undo(){var o=RL.order.pop();if(!o)return;var b=RL.bets[o.key];if(b){b.amount=Math.round((b.amount-o.amt)*100)/100;if(b.amount<=0.001)delete RL.bets[o.key];}try{gSound('click');}catch(_){}rl4RenderChips();}
+function rl4Clear(){RL.bets={};RL.order=[];try{gSound('click');}catch(_){}rl4RenderChips();}
+function rl4Rebet(){if(!RL.last)return;RL.bets={};RL.order=[];var ok=true;
+  RL.last.forEach(function(b){if(!ok)return;ok=rl4Place({key:b.key,type:b.type,nums:b.nums,edge:b.edge?b.edge.map(rl4Cell):null,anchor:b.anchor?(rl4Cell(b.anchor)||document.querySelector('#rl4-grid [data-k="'+b.anchor+'"]')):null},b.amount,true);});
+  try{gSound('chip-stack');}catch(_){}rl4RenderChips();}
+function rl4Double(){var need=rl4Tot();if(typeof hasFunds==='function'&&!hasFunds(need*2)){toast('Insufficient balance','err');return;}
+  for(var k in RL.bets){RL.order.push({key:k,amt:RL.bets[k].amount});RL.bets[k].amount=Math.round(RL.bets[k].amount*200)/100;}
+  try{gSound('chip-stack');}catch(_){}rl4RenderChips();}
+function rl4Mode(m){RL.mode=m;document.querySelectorAll('.rl4-modes button').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-m')===m);});rl4Info();}
+function rl4Rack(){
+  var r=document.getElementById('rl4-rack');if(!r)return;
+  r.innerHTML=RL4_CHIPS.map(function(v){return '<button data-v="'+v+'" class="'+(v===RL.chip?'on':'')+'" style="--cc:'+RL4_CHIPCOL[v]+'">'+rl4Lbl(v)+'</button>';}).join('');
+  r.onclick=function(e){var b=e.target.closest('button');if(!b)return;RL.chip=parseFloat(b.getAttribute('data-v'));r.querySelectorAll('button').forEach(function(x){x.classList.toggle('on',x===b);});try{gSound('chip');}catch(_){}};
+}
+
+/* ── il giro: ruota e pallina, solo transform ───────────────────────────── */
+var RL4_STEP=360/37;
+function rl4Anim(onLand){
+  var wh=document.getElementById('rl4-wheel'),rot=document.getElementById('rl4-rot'),ball=document.getElementById('rl4-ball'),bi=ball&&ball.firstChild;
+  var Rw=(wh.clientWidth||260)/2,rT=Rw*.815,rP=Rw*.535;
+  var A={t0:performance.now(),W0:RL.W,B0:RL.B,res:null,tRes:0,tLand:0,delta:0,idx:0,done:false,ticks:[]};
+  ball.classList.remove('hide');
+  function Wf(t){return A.W0+95*6*(1-Math.exp(-t/6));}                 /* la ruota: oraria, rallenta piano */
+  function Bf(t){return A.B0-760*2.3*(1-Math.exp(-t/2.3));}             /* la pallina: antioraria, perde forza */
+  function smooth(u){u=Math.max(0,Math.min(1,u));return u*u*(3-2*u);}
+  A.setResult=function(n){
+    var now=(performance.now()-A.t0)/1000;A.res=n;A.idx=ROULETTE_ORDER.indexOf(n);A.tRes=now;A.tLand=Math.max(now+2.7,4.4);
+    var target=Wf(A.tLand)+A.idx*RL4_STEP,free=Bf(A.tLand),d=((target-free)%360+540)%360-180;A.delta=d;
+    for(var k=0;k<4;k++)A.ticks.push(A.tLand-1.05+k*.27);
+  };
+  A.abort=function(){A.done=true;ball.classList.add('hide');};
+  function frame(){
+    if(A.done)return;
+    var t=(performance.now()-A.t0)/1000,W=Wf(t),B,r=rT;
+    if(A.res===null||t<A.tLand){
+      B=Bf(t);
+      if(A.res!==null){B+=A.delta*smooth((t-A.tRes)/(A.tLand-A.tRes));
+        var u=(t-(A.tLand-1.15))/1.15;
+        if(u>0){r=rT+(rP-rT)*smooth(u)-Math.abs(Math.sin(u*Math.PI*3.5))*(1-u)*Rw*.07;B+=Math.sin(u*Math.PI*7)*(1-u)*5;}
+        while(A.ticks.length&&t>=A.ticks[0]){A.ticks.shift();try{gSound('tick');}catch(_){}}
+      }
+    }else{
+      var s=t-A.tLand;r=rP;
+      B=W+A.idx*RL4_STEP+Math.exp(-s/.18)*Math.sin(s*28)*4;
+      if(!A.landed){A.landed=true;try{gSound('ball-stop');}catch(_){} try{hapGioco('colpo');}catch(_){} if(onLand)setTimeout(onLand,350);}
+      if(s>2.6){RL.W=W%360;RL.B=B%360;A.done=true;}
+    }
+    rot.style.transform='rotate('+W.toFixed(2)+'deg)';
+    ball.style.transform='rotate('+B.toFixed(2)+'deg) translateY('+(-r).toFixed(1)+'px)';
+    if(bi)bi.style.transform='rotate('+(-B).toFixed(2)+'deg)';
+    RL.Wnow=W;
+    if(!A.done)requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+  return A;
+}
+
+/* ── giocare ─────────────────────────────────────────────────────────────── */
+function rlSpin(){
+  var keys=Object.keys(RL.bets);
+  if(!keys.length){rl4Msg('Place at least one bet',1);toast('Place at least one bet','warn');return;}
+  if(RL.spinning)return;
+  var totalBet=rl4Tot();
+  if(typeof hasFunds==='function'&&!hasFunds(totalBet)){toast('Insufficient balance','err');return;}
+  if(!S.userId){toast('Open in Telegram to play','err');return;}
+  RL.spinning=true;rl4Info();rl4Msg('Rien ne va plus',1);
+  document.getElementById('rl4-res').className='rl4-res';
+  document.querySelectorAll('#rl4-grid .win').forEach(function(x){x.classList.remove('win');});
+  RL.last=keys.map(function(k){var b=RL.bets[k];return {key:k,type:b.type,nums:b.nums,amount:b.amount,edge:b.edge,anchor:b.anchor};});
+  try{gSound('chip-stack');}catch(_){}
+  S.btc=Math.max(0,S.btc-eurToBtc(totalBet));refresh();               /* ottimista: il server resta la verita */
+  try{gSound('ball-roll',{duration:4600});}catch(_){}
+  var A=rl4Anim(null),fine=false;
+  var payload=keys.map(function(k){var b=RL.bets[k];return Object.assign({type:b.type,nums:b.nums||[]},postaCent(b.amount,'amount'));});
+  function errore(msg){if(fine)return;fine=true;A.abort();RL.spinning=false;rl4Info();toast('⚠️ '+msg,'err');if(typeof loadBalance==='function')loadBalance();}
+  fetch(BACKEND+'/play/roulette',{method:'POST',headers:{'Content-Type':'application/json','ngrok-skip-browser-warning':'1'},
+    body:JSON.stringify({user_id:S.userId,bets:payload})})
+  .then(function(r){return r.json();}).then(function(d){
+    if(!d||d.error||typeof d.result!=='number'){errore((d&&d.error)||'Network error - retry');return;}
+    A.setResult(d.result);
+    var aspetta=setInterval(function(){if(A.landed){clearInterval(aspetta);setTimeout(function(){rl4Settle(d,totalBet);},350);}},60);
+  }).catch(function(){errore('Network error');});
+}
+function rl4Settle(d,totalBet){
+  var n=d.result,c=d.color||rl4Color(n),res=document.getElementById('rl4-res');
+  res.innerHTML='<b>'+n+'</b>';res.className='rl4-res on '+c;
+  RL.history.unshift({n:n,c:c});if(RL.history.length>14)RL.history.pop();rl4Hist();
+  var cell=rl4Cell(n);if(cell)cell.classList.add('win');
+  document.querySelectorAll('#rl4-grid [data-k]').forEach(function(el){var k=el.getAttribute('data-k');if(rl4Wins({type:k,nums:[]},n))el.classList.add('win');});
+  if(d.btc!==undefined||d.cent!==undefined)S.btc=saldoDa(d);if(d.wins!==undefined)S.wins=d.wins;if(d.losses!==undefined)S.losses=d.losses;
+  if(d.total_bet_eur!==undefined)S.totalBet=d.total_bet_eur;if(d.biggest_win_eur!==undefined)S.biggestWin=d.biggest_win_eur;
+  refresh();if(typeof CUR!=='undefined'&&CUR==='profile'&&typeof renderProfile==='function')renderProfile();
+  var wonEur=d.won_eur!=null?Number(d.won_eur):((d.won_cent||0)/100),L=document.getElementById('rl4-chips'),delay=0;
+  L.querySelectorAll('.rl4-chip').forEach(function(ch){var b=RL.bets[ch.getAttribute('data-key')];if(!b)return;
+    if(rl4Wins(b,n)){ch.classList.add('win');var f=document.createElement('div');f.className='rl4-fly';f.style.left=ch.style.left;f.style.top=ch.style.top;
+      f.textContent='+'+rl4Lbl(b.amount*({num:36,green:36,cavallo:18,quartina:9,d1:3,d2:3,d3:3}[b.type]||2));L.appendChild(f);}
+    else{setTimeout(function(){ch.classList.add('lose');},500+delay);delay+=40;}});
+  if(d.won){var ratio=wonEur/Math.max(.01,totalBet);
+    setTimeout(function(){try{gSound(ratio>=18?'win-big':(ratio>=5?'win-medium':'win-small'));}catch(_){} try{hapGioco('vittoria');}catch(_){}},250);
+    rl4Msg('+€'+wonEur.toFixed(2)+' on '+n+' '+c.toUpperCase(),1);
+  }else{setTimeout(function(){try{gSound('lose');}catch(_){}},250);rl4Msg(n+' '+c.toUpperCase()+' · no win this time');}
+  setTimeout(function(){RL.bets={};RL.order=[];RL.spinning=false;rl4RenderChips();if(d.won)rl4Msg('+€'+wonEur.toFixed(2)+' · tap REBET to play again',1);},2400);
+}
+function rl4Wins(b,n){
+  var c=rl4Color(n);
   if(b.type==='num'||b.type==='cavallo'||b.type==='quartina')return (b.nums||[]).indexOf(n)>=0;
-  return false;
+  if(b.type==='red')return c==='red';if(b.type==='black')return c==='black';if(b.type==='green')return n===0;
+  if(b.type==='even')return n!==0&&n%2===0;if(b.type==='odd')return n%2===1;
+  if(b.type==='low')return n>=1&&n<=18;if(b.type==='high')return n>=19&&n<=36;
+  if(b.type==='d1')return n>=1&&n<=12;if(b.type==='d2')return n>=13&&n<=24;if(b.type==='d3')return n>=25&&n<=36;return false;
 }
-function renderRlHistory(){
-  var c=document.getElementById('rl-h-list');
-  if(!c)return;
-  if(!RL.history.length){c.innerHTML='<span class="rl-h-empty">—</span>';return;}
-  c.innerHTML=RL.history.map(function(hh){
-    return '<div class="rl-h-chip '+hh.c+'">'+hh.n+'</div>';
-  }).join('');
+function rl4Hist(){
+  var h=document.getElementById('rl4-hist');if(!h)return;
+  h.innerHTML=RL.history.length?RL.history.map(function(x){return '<span class="'+x.c+'">'+x.n+'</span>';}).join(''):'<em>LAST NUMBERS</em>';
 }
+function rl4Size(){
+  var st=document.querySelector('#roulette .rl4-stage'),wh=document.getElementById('rl4-wheel');if(!st||!wh)return;
+  var w=Math.max(200,Math.min(300,st.clientWidth*.78,(window.innerHeight||700)*.36));
+  wh.style.setProperty('--wd',Math.round(w)+'px');wh.style.setProperty('--bd',Math.round(w*.052)+'px');
+}
+function initRoulette(){
+  rl4Size();rl4DrawWheel();rl4Diamonds();rl4BuildTable();rl4Rack();rl4Hist();
+  var ball=document.getElementById('rl4-ball');if(ball&&!RL.spinning){ball.classList.add('hide');}
+  rl4RenderChips();
+  if(!RL._rs){RL._rs=1;window.addEventListener('resize',function(){if(typeof CUR!=='undefined'&&CUR!=='roulette')return;var c=document.getElementById('rl4-cv');if(c)c._ok=0;rl4Size();rl4DrawWheel();rl4RenderChips();});}
+}
+/* nomi vecchi che altre parti della pagina potrebbero chiamare */
+function buildRouletteWheel(){rl4DrawWheel();}
+function getRouletteColor(n){return rl4Color(n);}
+function rlClearBets(){rl4Clear();}
+function renderRlHistory(){rl4Hist();}
 
 /* ═══ VISUAL_2409 · DADI 3D ═══ */
 /* ═══════════════════════════════════════════════════════════════════════════
