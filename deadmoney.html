@@ -694,6 +694,22 @@ details.set[open] summary{margin-bottom:10px}
 .list .btn img,.list .btn .ini{ width:32px; height:32px; border-radius:50%; object-fit:cover; flex:0 0 32px; }
 .list .btn .ini{ display:inline-grid; place-items:center; background:#2a1d12; font-weight:800; }
 
+/* chiarezza (19/10): avvisi, regola della sala, cosa ti giochi */
+.avviso{margin:8px 0;padding:9px 12px;border-radius:12px;background:rgba(0,0,0,.45);border:1px solid rgba(239,228,204,.18);font:600 15px/1.3 'Barlow Condensed',sans-serif;color:#efe4cc}
+.avviso b{color:#d9a63c}
+.avviso.mal{background:rgba(63,191,106,.14);border-color:#3fbf6a;animation:malPulse 1.6s ease-in-out infinite}
+.avviso.mal b{color:#7ff0a8}
+@keyframes malPulse{50%{box-shadow:0 0 18px rgba(63,191,106,.45)}}
+.avviso.cond{background:rgba(208,38,58,.16);border-color:#d0263a}.avviso.cond b{color:#ff7a88}
+.avviso.fuori{background:rgba(217,166,60,.10);border-color:rgba(217,166,60,.5)}
+.poste{margin-top:8px;text-align:center;font:600 14px/1.3 'Barlow Condensed',sans-serif;color:#b9ad93}
+.poste b{color:#efe4cc}
+.regola{margin:-2px 0 8px;font:500 14px/1.3 'Barlow Condensed',sans-serif;color:#b9ad93;font-style:italic}
+.ruolo{padding:1px 7px;border-radius:999px;font-weight:800}
+.ruolo.c{background:#d0263a;color:#fff}.ruolo.f{background:rgba(217,166,60,.25);color:#f3d28a}
+.ans.balla .btn{animation:balla .45s cubic-bezier(.3,1.6,.5,1)}
+@keyframes balla{0%{transform:translateX(-14px) rotate(-2deg);opacity:.4}100%{transform:none;opacity:1}}
+
 </style>
 
 <div id="app" data-scene="">
@@ -1185,7 +1201,10 @@ const tocca = g => !ST.spec && (g.attori || []).includes(ST.me) && !(g.fatto || 
 const inCond = g => (g.cond || []).includes(ST.me);
 const condP = g => (g.cond || []).map(pDi).filter(Boolean);
 const timerSala = (g, mio) => timerHTML({resta_s: g.resta_s}, {tot: g.dur, mio});
-function testa(g, kick, titolo, mio){ return `<div class="qhead"><div class="ql"><div class="eyebrow">${esc(salaNome(g.id))}${kick ? " · " + esc(kick) : ""}</div>${titolo ? `<div class="big">${titolo}</div>` : ""}</div>${g.passo !== "rivela" ? timerSala(g, mio) : ""}</div>`; }
+function testa(g, kick, titolo, mio){
+  /* la regola della sala sempre sotto il titolo (19/10: «molte cose non sono chiarissime»), e chi sei tu qui */
+  const ruolo = ST.spec ? "" : inCond(g) ? T("sei condannato","you're condemned") : T("sei fuori","you're safe");
+  return `<div class="qhead"><div class="ql"><div class="eyebrow">${esc(salaNome(g.id))}${kick ? " · " + esc(kick) : ""}${ruolo && g.passo !== "rivela" ? ` · <span class="ruolo ${inCond(g) ? "c" : "f"}">${ruolo}</span>` : ""}</div>${titolo ? `<div class="big">${titolo}</div>` : ""}</div>${g.passo !== "rivela" ? timerSala(g, mio) : ""}</div>${g.passo !== "rivela" ? `<div class="regola">📜 ${esc(salaReg(g.id))}</div>` : ""}`; }
 function guarda(g, verbo){ return vivoHTML((g.attori || []).length ? g.attori : g.cond, g.fatto, verbo); }
 const dopoRivela = (g, S, f) => { const id = "sr" + S.tok; if (ST.rivFatte.has(id)) return; ST.rivFatte.add(id); f(); };
 const mio = g => g.mio || {};
@@ -2012,7 +2031,9 @@ function evento(v, S){
     case "carta": { const d = S.domanda || {}; cineQ(() => cineCarta(v.k_ || S.k, S.nd, catNome(d), d.cat)); sayEvQ("domanda", {cat: catNome(d)}, {extra:-700}); break; }
     case "risposto": if (v.sg !== ST.me) sfx("altro", {vary:true}); break;
     case "raddoppio": sfx("raddoppio"); flash("w"); sayEvQ("raddoppio", {nome: nomeDi(p)}, {extra:-500}); break;
-    case "malocchio": sfx("malocchio"); flash("g"); sayEvQ("malocchio", {nome: nomeDi(p), vittima: nomeDi(pDi(v.su))}, {extra:-500}); break;
+    case "malocchio": sfx("malocchio"); flash("g"); sayEvQ("malocchio", {nome: nomeDi(p), vittima: nomeDi(pDi(v.su))}, {extra:-500});
+      if (v.su === ST.me && !ST.spec) cineQ(() => cine(`<div class="kick">👁</div><div class="ttl">${lettere(T("MALOCCHIO!","EVIL EYE!"))}</div><div class="rule">${esc(T(`${nomeDi(p)} ti ha lanciato il malocchio: in questa domanda le risposte cambiano posto ogni 4 secondi e il timer sparisce.`, `${nomeDi(p)} cast the evil eye on you: this question the answers swap places every 4 seconds and the timer disappears.`))}</div>`, "", 800, 3200));
+      break;
     case "fiche": if (p && v.d && v.m !== "totomorto" && v.m !== "mazzetta") flyText(p, (v.d > 0 ? "+" : "−") + fmt(Math.abs(v.d))); if (v.m === "dead_money"){ sfx("pioggia"); coins(26);
         sayQ(T(`DEAD MONEY: <b>${fmt(v.d)}</b> fiche dei morti vanno a <b>${esc(nomeDi(p))}</b>, il più veloce.`, `DEAD MONEY: <b>${fmt(v.d)}</b> chips from the dead go to <b>${esc(nomeDi(p))}</b>, the fastest.`), {espr:"soldi", extra:-500}); } break;
     case "sala": { SALA_ORA = v.sala; const nomi = (v.cond || []).map(i => nomeDi(pDi(i))).join(", ");
@@ -2146,12 +2167,17 @@ FASI.domanda = (S, nuovo) => {
   if (nuovo){
     espr("carte");
     ST.loc.order = [0,1,2,3];
-    show(`<div class="qhead"><div class="ql"><div class="eyebrow">${esc(catNome(d))} · ${["", T("facile","easy"), T("media","medium"), T("difficile","hard")][d.diff||2]}${cursed ? T(" · MALOCCHIO"," · EVIL EYE") : ""}${(d.raddoppi||[]).includes(ST.me) ? T(" · RADDOPPIO"," · DOUBLE") : ""}${m && !m.vivo ? T(" · da anima"," · as a soul") : ""}${ST.spec ? T(" · guardi"," · watching") : ""}</div><div class="q">${esc(qq.q)}</div></div>${timerHTML(S.orologio, {tot: 20, nascosto: cursed, mio: puo("risposta")})}</div><div class="ans" id="as"></div>`);
+    const chiMal = d.malocchio ? pDi(d.malocchio.da) : null, suMal = d.malocchio ? pDi(d.malocchio.su) : null;
+    const avviso = cursed ? `<div class="avviso mal">👁 <b>${T("MALOCCHIO","EVIL EYE")}</b> ${T("di","from")} ${esc(nomeDi(chiMal))}: ${T("le risposte cambiano posto ogni 4 secondi e il tuo timer è nascosto. Tocca quella giusta quando la vedi.","the answers swap places every 4 seconds and your timer is hidden. Tap the right one when you see it.")}</div>`
+      : (suMal ? `<div class="avviso">👁 ${T(`${esc(nomeDi(chiMal))} ha lanciato il malocchio su <b>${esc(nomeDi(suMal))}</b>: le sue risposte ballano.`, `${esc(nomeDi(chiMal))} cast the evil eye on <b>${esc(nomeDi(suMal))}</b>: their answers dance.`)}</div>` : "");
+    const posta = !m ? "" : !m.vivo ? T("Sei un'anima: rispondi per le fiche, non rischi niente.","You're a soul: answer for chips, you risk nothing.")
+      : ((d.raddoppi||[]).includes(ST.me) ? T("RADDOPPIO: giusta <b>+2000</b> · sbagliata = Sala del Debito e metà fiche.","DOUBLE: right <b>+2000</b> · wrong = Debt Room and half your chips.") : T("Giusta <b>+1000</b> fiche · sbagliata o nessuna risposta = <b>Sala del Debito</b>.","Right <b>+1000</b> chips · wrong or no answer = <b>the Debt Room</b>."));
+    show(`<div class="qhead"><div class="ql"><div class="eyebrow">${esc(catNome(d))} · ${["", T("facile","easy"), T("media","medium"), T("difficile","hard")][d.diff||2]}${cursed ? T(" · MALOCCHIO"," · EVIL EYE") : ""}${(d.raddoppi||[]).includes(ST.me) ? T(" · RADDOPPIO"," · DOUBLE") : ""}${m && !m.vivo ? T(" · da anima"," · as a soul") : ""}${ST.spec ? T(" · guardi"," · watching") : ""}</div><div class="q">${esc(qq.q)}</div></div>${timerHTML(S.orologio, {tot: 20, nascosto: cursed, mio: puo("risposta")})}</div>${avviso}<div class="ans" id="as"></div>${posta && !ST.spec ? `<div class="poste">${posta}</div>` : ""}`);
     const draw = () => { const as = $("#as"); if (!as) return;
       as.innerHTML = ST.loc.order.map((i,k) => `<button class="btn ${i===cut?"cut":""} ${mia===i?"sel":""}" data-i="${i}" style="--kc:${KC[k]}" ${(i===cut || mia!=null || !puo("risposta")) ? "disabled" : ""}><span class="k">${i===cut?"✂":"ABCD"[k]}</span><span>${esc(qq.a[i] || "")}</span><span class="who"></span></button>`).join("");
-      as.querySelectorAll("button:not([disabled])").forEach(b => b.onclick = () => { if (ST.loc.risposto) return; ST.loc.risposto = true; sfx("lock"); haptic("soft"); b.classList.add("sel"); as.querySelectorAll("button").forEach(x => x.disabled = true); act("risposta", +b.dataset.i); }); };
+      as.querySelectorAll("button:not([disabled])").forEach(b => b.onclick = () => { if (ST.loc.risposto) return; if (performance.now() - (ST.loc.cambio || 0) < 350) return;   /* niente tocco a vuoto mentre le risposte si spostano */ ST.loc.risposto = true; sfx("lock"); haptic("soft"); b.classList.add("sel"); as.querySelectorAll("button").forEach(x => x.disabled = true); act("risposta", +b.dataset.i); }); };
     ST.loc.draw = draw; draw();
-    if (cursed){ ST.loc.iv = setInterval(() => { if (!ST.S || ST.S.fase !== "domanda" || ST.loc.risposto || (ST.S.you && ST.S.you.risposta != null)) return clearInterval(ST.loc.iv); ST.loc.order = shuffle(ST.loc.order); draw(); sfx("malocchio",{vol:0.25}); }, 3000); }
+    if (cursed){ ST.loc.iv = setInterval(() => { if (!ST.S || ST.S.fase !== "domanda" || ST.loc.risposto || (ST.S.you && ST.S.you.risposta != null)) return clearInterval(ST.loc.iv); ST.loc.order = shuffle(ST.loc.order); ST.loc.cambio = performance.now(); draw(); const a2 = $("#as"); if (a2){ a2.classList.remove("balla"); void a2.offsetWidth; a2.classList.add("balla"); } sfx("malocchio",{vol:0.25}); }, 4000); }
   }
 };
 
@@ -2183,7 +2209,10 @@ FASI.cartello = (S, nuovo) => {
   if (!nuovo) return;
   const s = S.sala || {}; SALA_ORA = s.id;
   scena("sala");
-  show(roomCardS(s.id) + listHTML((s.cond||[]).map(pDi).filter(Boolean), p => ({t: fmt(p.fiche) + T(" fiche"," chips")})));
+  const sono = (s.cond||[]).includes(ST.me) && !ST.spec;
+  const chi = sono ? `<div class="avviso cond">⛓ <b>${T("SEI CONDANNATO","YOU'RE CONDEMNED")}</b> · ${T("hai sbagliato: in questa sala puoi morire. Se hai 1500 fiche puoi pagare la mazzetta e saltarla.","you got it wrong: in this room you can die. With 1500 chips you can pay the bribe and skip it.")}</div>`
+    : (ST.spec ? "" : `<div class="avviso fuori">👀 <b>${T("SEI FUORI","YOU'RE SAFE")}</b> · ${T("guardi i condannati, puoi scommettere su chi sopravvive e in alcune sale giochi contro di loro: se li fai fuori prendi fiche.","you watch the condemned, can bet on who survives, and in some rooms you play against them: take them out and earn chips.")}</div>`);
+  show(roomCardS(s.id) + chi + listHTML((s.cond||[]).map(pDi).filter(Boolean), p => ({t: fmt(p.fiche) + T(" fiche"," chips")})));
 };
 FASI.mazzetta = (S, nuovo) => {
   const s = S.sala || {};
