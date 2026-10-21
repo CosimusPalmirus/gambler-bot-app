@@ -51,12 +51,17 @@
   }
   caricaIndice();
 
+  // 21/10 sera (proprietario: «modelli non caricati» — il Cucù restava vettoriale per tutta la partita sul telefono): un
+  // atlante che non arrivava (rete, decodifica) restava in 'errore' per sempre e il lottatore si disegnava col ripiego.
+  // Ora si riprova da soli (3 volte, 0,8 / 1,6 / 2,4 s) e, se resta in errore, il disegno riprova ogni 3 s (fino a 10 volte).
   function carica(id) {
+    const v = C[id];
+    if (v && v.stato === 'errore' && (v.giri || 0) < 10 && performance.now() - (v.errT || 0) > 3000) { delete C[id]; const p = carica(id); C[id].giri = (v.giri || 0) + 1; return p; }
     if (C[id]) return C[id].p;
-    const c = C[id] = { stato: 'carico', J: null, img: null, rit: null, scal: {}, tinte: new Map(), p: null };
+    const c = C[id] = { stato: 'carico', J: null, img: null, rit: null, scal: {}, tinte: new Map(), p: null, tent: 0 };
     c.p = caricaIndice().then(ix => {
       if (!ix.has(id)) { c.stato = 'no'; return false; }
-      return fetch(BASE + id + '.json').then(r => r.json()).then(J => {
+      const tenta = () => fetch(BASE + id + '.json').then(r => { if (!r.ok) throw new Error('json ' + r.status); return r.json(); }).then(J => {
         c.J = J;
         const basso = !!J.basso && (QUAL === 'basso' || (!FORZATA && ALTEZZA > 0 && ALTEZZA <= J.basso.scala * (J.h_rif || 150) * 1.1));
         c.basso = basso;
@@ -74,8 +79,13 @@
           pr.push(ri.decode().then(() => { c.rit = ri; }).catch(() => { }));
         }
         return Promise.all(pr);
-      }).then(() => { c.stato = 'pronto'; return true; })
-        .catch(e => { c.stato = 'errore'; console.warn('roster3d: ' + id, e); return false; });
+      });
+      const giro = () => tenta().catch(e => {
+        if (c.tent++ < 3) return new Promise(r => setTimeout(r, 800 * c.tent)).then(giro);
+        throw e;
+      });
+      return giro().then(() => { c.stato = 'pronto'; return true; })
+        .catch(e => { c.stato = 'errore'; c.errT = performance.now(); console.warn('roster3d: ' + id, e); return false; });
     });
     return c.p;
   }
@@ -186,7 +196,7 @@
     o = o || {};
     const c = pronto(id);
     if (!c) {
-      if (indice && indice.has(id) && !C[id]) carica(id);          // in partita: si carica da solo
+      if (indice && indice.has(id) && (!C[id] || C[id].stato === 'errore')) carica(id);   // in partita: si carica (e si riprova) da solo
       if (VETT) VETT.draw(ctx, id, x, y, perVett(o));
       return;
     }
