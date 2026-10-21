@@ -124359,7 +124359,7 @@ var GSRT={wrap:null,fr:null,pronto:false,coda:[],aperto:false,nascosto:false,fir
 // ⚠️ `v=` NUOVO A OGNI md5 NUOVO DI smash.html: lo scrive il patcher
 //    (server/applica_index.py) leggendo pagina/uscita/GSRT_VER.txt. index.html,
 //    smash.html e la cartella smash/ vanno su Pages INSIEME.
-var GSRT_VER="20261021eb19";
+var GSRT_VER="202610217076";
 // la versione del MOTORE (pagina/uscita/MOTORE_VER.txt): la stessa del
 // verificatore sul VPS. Va nel `join` della coda (`sv`) e si confronta con
 // `start.map.ver`.
@@ -124392,6 +124392,7 @@ window.GSSOLDI={
     if(this.saldo()<parseFloat(t)-1e-9)return "saldo";
     RTD.game="smash";RTD.practice=false;RTD.tier=t;
     GSRT.menu=false;
+    gsrtPosta({t:"pausa"});  // la musica del menu si ferma mentre si cerca il tavolo
     gsrtViaDalloSchermo();   // nascosta, NON spenta: resta caricata per selettore e partita
     rtdJoin();               // come mgGioca: la schermata di ricerca la apre la risposta del server
     return "ok";
@@ -124411,6 +124412,9 @@ function gsrtApriMenu(){
   try{
     if(typeof rtdStopRaf==="function")rtdStopRaf();
     try{GBMusic.stop();}catch(e0){}
+    // 21/10 sera (proprietario: «nel menu di smash non parte subito la musica»): l audio dell iframe si sbloccava solo al primo
+    // tocco DENTRO la pagina. Qui siamo nel tocco sulla card: si crea/sblocca un contesto che la pagina usa (audio.js, GSRT_AC)
+    try{var AC=window.AudioContext||window.webkitAudioContext;if(AC){if(!window.GSRT_AC)window.GSRT_AC=new AC();if(window.GSRT_AC.state==="suspended")window.GSRT_AC.resume();}}catch(e1){}
     gsrtMonta();
     GSRT.menu=true;
     gsrtASchermo();
@@ -125944,5 +125948,210 @@ body.evh-6 .bnav .bnav-btn{font-size:10px;letter-spacing:.2px;padding-left:1px;p
 })();
 </script>
 <!-- EVENTO_1210 ◂ -->
+<!-- TCAN_2110 ▸ CANALI OBBLIGATORI DEI TORNEI (21/10/2026). Blocco autonomo: la card di un
+     torneo in arrivo mostra i suoi canali (foto profilo del gruppo, nome); «Iscriviti» su un
+     torneo coi canali apre un foglio coi tasti «Entra» → «Sei dentro» e iscrive appena si è
+     dentro tutti. Il controllo vero lo fa il server (POST /tournament/canali, e di nuovo
+     all'iscrizione). Se il server è vecchio (nessun campo `canali`) non cambia niente.
+     Si toglie cancellando da questo commento a «TCAN_2110 ◂». -->
+<style>
+.tcan-cip{display:flex;align-items:center;gap:8px;margin:8px 0 2px;padding:7px 9px;border-radius:10px;background:rgba(60,230,255,.08);border:1px solid rgba(60,230,255,.3);font-size:12px;font-weight:700;color:#cfe9f2;}
+.tcan-cip .tcan-av{display:flex;}
+.tcan-cip .tcan-av img,.tcan-cip .tcan-av b{width:24px;height:24px;border-radius:7px;margin-left:-6px;box-shadow:0 0 0 2px #10141c;object-fit:cover;background:#1d2533;}
+.tcan-cip .tcan-av img:first-child,.tcan-cip .tcan-av b:first-child{margin-left:0;}
+.tcan-av b{display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#9fb3c8;}
+.tcan-v{position:fixed;inset:0;z-index:9400;background:rgba(4,6,10,.78);display:flex;align-items:flex-end;justify-content:center;font-family:var(--gb-f-txt,system-ui,sans-serif);}
+.tcan-f{width:100%;max-width:480px;max-height:86%;overflow-y:auto;background:#121722;border-top:3px solid #3ce6ff;border-radius:20px 20px 0 0;padding:18px 16px 26px;color:#e8eef6;}
+.tcan-t{font-family:var(--gb-f-disp,Impact,sans-serif);font-size:21px;text-transform:uppercase;line-height:1.1;}
+.tcan-s{font-size:13px;line-height:1.45;color:#9fb3c8;margin:6px 0 10px;}
+.tcan-s b{color:#e8eef6;}
+.tcan-r{display:flex;align-items:center;gap:11px;padding:9px 0;border-top:1px solid #222b3a;}
+.tcan-r img,.tcan-r .tcan-ph{flex:none;width:44px;height:44px;border-radius:11px;object-fit:cover;background:#1d2533;}
+.tcan-ph{display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;color:#9fb3c8;}
+.tcan-r span{flex:1;min-width:0;font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tcan-r span small{display:block;font-size:11px;font-weight:600;color:#7f93a8;}
+.tcan-e{flex:none;border:0;border-radius:9px;background:#3ce6ff;color:#031a20;font-family:inherit;font-size:12px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;padding:9px 12px;min-height:38px;cursor:pointer;}
+.tcan-e.gh{background:transparent;color:#3ce6ff;border:1px solid #3ce6ff;}
+.tcan-r span.tcan-ok,.tcan-ok{flex:none;font-size:12px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:#062b00;background:#39ff14;border-radius:9px;padding:9px 10px;}
+.tcan-go{display:block;width:100%;margin-top:14px;border:0;border-radius:12px;background:#39ff14;color:#062b00;font-family:inherit;font-size:15px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;padding:14px;min-height:52px;cursor:pointer;}
+.tcan-go[disabled]{opacity:.55;}
+.tcan-x{font-size:12px;font-weight:700;color:#ff8d8d;margin-top:8px;text-align:center;}
+.tcan-no{display:block;width:100%;background:transparent;border:0;color:#7f93a8;font-family:inherit;font-size:13px;font-weight:700;padding:12px 0 0;cursor:pointer;}
+</style>
+<script>
+(function(){
+  "use strict";
+  var TC = {ok: {}, st: null, v: null, tid: "", busy: false, err: "", aperto: false};
+  window.TCAN = TC;
+  function en(){ return window.GB_LANG === "en"; }
+  function L(it, e){ return en() ? e : it; }
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]; }); }
+  function uid(){ try{ return (typeof S !== "undefined" && S && S.userId) ? String(S.userId) : ""; }catch(e){ return ""; } }
+  function base(){ try{ return typeof BACKEND !== "undefined" ? BACKEND : ""; }catch(e){ return ""; } }
+  function iniz(n){ var p = String(n || "?").replace(/[^A-Za-z0-9À-ÿ ]/g, " ").trim().split(/\s+/); return ((p[0] || "?")[0] + ((p[1] || "")[0] || "")).toUpperCase(); }
+  function foto(c, cls){
+    if(c && c.foto) return '<img' + (cls ? ' class="' + cls + '"' : "") + ' src="' + esc(base() + "/tournament/canale_foto/" + encodeURIComponent(c.id) + ".jpg?v=" + c.foto) + '" alt="" onerror="this.outerHTML=\'<b>' + esc(iniz(c.nome)) + '</b>\'">';
+    return cls ? '<div class="tcan-ph">' + esc(iniz(c && c.nome)) + "</div>" : "<b>" + esc(iniz(c && c.nome)) + "</b>";
+  }
+  function torneo(tid){
+    try{
+      var st = TRN.state || {}, up = st.upcoming || [], i;
+      for(i = 0; i < up.length; i++) if(String(up[i].id) === String(tid)) return up[i];
+      if(!tid || String(st.id) === String(tid)) return st;
+    }catch(e){}
+    return null;
+  }
+  function apri(url){
+    url = String(url || "");
+    if(window.EVH && EVH.apriLink){ EVH.apriLink(url); return; }
+    try{
+      if(/^https:\/\/signal\.group\//.test(url) && Telegram.WebApp.openLink){ Telegram.WebApp.openLink(url); return; }
+      if(/^https:\/\/(t|telegram)\.me\//.test(url) && Telegram.WebApp.openTelegramLink){ Telegram.WebApp.openTelegramLink(url); return; }
+    }catch(e){}
+    try{ window.open(url, "_blank"); }catch(e2){}
+  }
+
+  /* la card del torneo in arrivo: la riga dei canali */
+  if(typeof window.utUpCard === "function" && !window.utUpCard.__tcan){
+    var _card = window.utUpCard;
+    window.utUpCard = function(t){
+      var h = _card.apply(this, arguments);
+      try{
+        var cc = (t && t.canali) || [];
+        if(cc.length){
+          var av = "", i;
+          for(i = 0; i < cc.length; i++) av += foto(cc[i]);
+          var riga = '<div class="tcan-cip"><span class="tcan-av">' + av + "</span>📢 " + L("Obbligatorio entrare in ", "Required: join ") + cc.length + L(cc.length === 1 ? " canale" : " canali", cc.length === 1 ? " channel" : " channels") + "</div>";
+          var k = h.lastIndexOf('<div class="ut-more">');
+          h = k >= 0 ? h.slice(0, k) + riga + h.slice(k) : h + riga;
+        }
+      }catch(e){}
+      return h;
+    };
+    window.utUpCard.__tcan = true;
+  }
+
+  /* la pagina del torneo: sotto i premi, i canali con il loro tasto */
+  if(typeof window.utPremiHTML === "function" && !window.utPremiHTML.__tcan){
+    var _pr = window.utPremiHTML;
+    window.utPremiHTML = function(t, cur){
+      var h = _pr.apply(this, arguments);
+      try{
+        var cc = (t && t.canali) || [], i, x = "";
+        if(cc.length){
+          for(i = 0; i < cc.length; i++)
+            x += '<div class="tcan-r">' + foto(cc[i], "x") + "<span>" + esc(cc[i].nome) + "<small>" + (/^https:\/\/signal\.group\//.test(cc[i].link || "") ? "Signal" : "Telegram") + "</small></span>"
+              + (cc[i].link ? '<button class="tcan-e gh" onclick="event.stopPropagation();TCAN.entraDa(\'' + esc(String(t.id || "")) + '\',' + i + ')">' + L("Entra", "Join") + " ↗</button>" : "") + "</div>";
+          h += '<div class="tcan-cip" style="display:block;margin-top:12px;padding:10px 12px"><div style="font-size:13px;margin-bottom:4px">📢 ' + L("Canali obbligatori", "Required channels") + '</div><div style="font-weight:600;color:#9fb3c8;font-size:12px;margin-bottom:4px">'
+            + L("Per iscriverti devi essere dentro tutti: il bot controlla.", "To sign up you must be in all of them: the bot checks.") + "</div>" + x + "</div>";
+        }
+      }catch(e){}
+      return h;
+    };
+    window.utPremiHTML.__tcan = true;
+  }
+  TC.entraDa = function(tid, i){ var t = torneo(tid) || {}, cc = t.canali || []; if(cc[i]){ TC.aperto = false; apri(cc[i].link); } };
+
+  /* il foglio dei canali */
+  function disegna(){
+    if(!TC.v) return;
+    var t = torneo(TC.tid) || {}, cc = (TC.st && TC.st.canali) || t.canali || [], det = (TC.st && TC.st.esito && TC.st.esito.det) || {}, h = "", i, c, x, tutti = !!(TC.st && TC.st.esito && TC.st.esito.ok);
+    h += '<div class="tcan-f" onclick="event.stopPropagation()"><div class="tcan-t">📢 ' + L("Prima entra nei canali", "Join the channels first") + "</div>"
+      + '<div class="tcan-s">' + L("Per iscriverti a <b>", "To sign up for <b>") + esc(t.name || L("questo torneo", "this tournament")) + "</b>" + L(" devi essere dentro tutti questi canali. Tocca «Entra», torna qui e controlliamo.", " you must be in all of these channels. Tap «Join», come back and we check.") + "</div>";
+    for(i = 0; i < cc.length; i++){
+      c = cc[i]; x = det[c.id];
+      var sg = /^https:\/\/signal\.group\//.test(c.link || "");
+      h += '<div class="tcan-r">' + foto(c, "x") + "<span>" + esc(c.nome) + "<small>" + (sg ? "Signal" : (c.verifica === false ? L("non controllato", "not checked") : "Telegram")) + "</small></span>"
+        + (x === true ? '<span class="tcan-ok">' + L("Sei dentro", "You’re in") + "</span>"
+           : (c.link ? '<button class="tcan-e' + (x === null || c.verifica === false ? " gh" : "") + '" onclick="TCAN.entra(' + i + ')">' + (sg ? L("Entra su Signal", "Join on Signal") : L("Entra", "Join")) + " ↗</button>" : ""))
+        + "</div>";
+    }
+    h += '<button class="tcan-go" ' + (TC.busy ? "disabled" : "") + ' onclick="TCAN.controlla(true)">' + (TC.busy ? "…" : (tutti ? L("Iscrivimi", "Sign me up") : L("Sono dentro: controlla e iscrivimi", "I joined: check and sign me up"))) + "</button>"
+      + (TC.err ? '<div class="tcan-x">' + esc(TC.err) + "</div>" : "")
+      + '<button class="tcan-no" onclick="TCAN.chiudi()">' + L("Chiudi", "Close") + "</button></div>";
+    TC.v.innerHTML = h;
+  }
+  TC.apri = function(tid){
+    TC.tid = String(tid || ""); TC.err = ""; TC.st = null;
+    if(!TC.v){
+      TC.v = document.createElement("div");
+      TC.v.className = "tcan-v";
+      TC.v.setAttribute("onclick", "TCAN.chiudi()");
+      document.body.appendChild(TC.v);
+    }
+    disegna();
+    TC.controlla(false);
+  };
+  TC.chiudi = function(){ if(TC.v && TC.v.parentNode) TC.v.parentNode.removeChild(TC.v); TC.v = null; };
+  TC.entra = function(i){
+    var t = torneo(TC.tid) || {}, cc = (TC.st && TC.st.canali) || t.canali || [];
+    if(!cc[i]) return;
+    TC.aperto = true;
+    apri(cc[i].link);
+  };
+  /* iscrivi = true: se sei dentro tutti, ti iscrive subito */
+  TC.controlla = function(iscrivi){
+    if(TC.busy || !uid()) return;
+    TC.busy = true; disegna();
+    fetch(base() + "/tournament/canali", {method: "POST", headers: (typeof dlBjHdr === "function" ? dlBjHdr() : {"Content-Type": "application/json"}), body: JSON.stringify({user_id: uid(), tid: TC.tid})})
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        TC.busy = false;
+        if(d && d.ok){
+          TC.st = d;
+          if(d.esito && d.esito.ok){
+            TC.ok[TC.tid] = Date.now();
+            if(iscrivi){ TC.chiudi(); try{ trnRegister(TC.tid || undefined); }catch(e){} return; }
+            TC.err = "";
+          }else if(iscrivi){
+            var nn = [], cc = d.canali || [], i;
+            for(i = 0; i < cc.length; i++) if(d.esito && d.esito.det && d.esito.det[cc[i].id] === false) nn.push(cc[i].nome);
+            TC.err = L("Non ti vedo ancora in: ", "Not in yet: ") + nn.join(", ");
+          }
+        }else{ TC.err = L("Controllo non riuscito. Riprova fra poco.", "Check failed. Try again shortly."); }
+        disegna();
+      })["catch"](function(){ TC.busy = false; TC.err = L("Controllo non riuscito. Riprova fra poco.", "Check failed. Try again shortly."); disegna(); });
+  };
+  document.addEventListener("visibilitychange", function(){
+    if(!document.hidden && TC.aperto && TC.v){ TC.aperto = false; setTimeout(function(){ TC.controlla(false); }, 700); }
+  });
+
+  /* «Iscriviti»: su un torneo coi canali, prima il foglio */
+  if(typeof window.trnRegister === "function" && !window.trnRegister.__tcan){
+    var _reg = window.trnRegister;
+    window.trnRegister = function(tid){
+      try{
+        var t = torneo(tid), cc = (t && t.canali) || [];
+        if(cc.length && !(TC.ok[String(tid || "")] && Date.now() - TC.ok[String(tid || "")] < 600000)){ TC.apri(tid); return; }
+      }catch(e){}
+      return _reg.apply(this, arguments);
+    };
+    window.trnRegister.__tcan = true;
+  }
+  /* GEO BET si guarda anche dalla scheda tornei (21/10): il server lo fa guardare (verbo
+     watch, seggio -1) e la pagina ha la sua vista spettatore (rtdShowGeoRT), ma il blocco
+     GEO_SCELTA lo dichiarava watch:false e il tasto 👁 non compariva */
+  if(typeof window.trnGC === "function" && !window.trnGC.geoWatch){
+    var _gc = window.trnGC;
+    window.trnGC = function(g){
+      var r = _gc.apply(this, arguments);
+      if(g === "geo" && r && r.watch === false){ var o = {}, k; for(k in r) o[k] = r[k]; o.watch = true; return o; }
+      return r;
+    };
+    for(var _k in _gc) if(Object.prototype.hasOwnProperty.call(_gc, _k)) window.trnGC[_k] = _gc[_k];
+    window.trnGC.geoWatch = 1;
+  }
+
+  /* il rifiuto del server (es. uscito da un canale dopo il controllo): si riapre il foglio */
+  (function(){
+    var t0 = window.toast;
+    if(typeof t0 !== "function" || t0.__tcan) return;
+    var t1 = function(m){ var r = t0.apply(this, arguments); try{ if(/canali del torneo/.test(String(m))){ delete TC.ok[TC.tid]; setTimeout(function(){ TC.apri(TC.tid); }, 600); } }catch(e){} return r; };
+    t1.__tcan = true; t1.__evh = t0.__evh;
+    window.toast = t1;
+  })();
+})();
+</script>
+<!-- TCAN_2110 ◂ -->
 </body>
 </html>
