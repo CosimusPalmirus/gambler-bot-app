@@ -68,6 +68,7 @@
     L.dopo = function () { const r = dopo.apply(this, arguments); corrente = null; return r; };
     function altezzaIdle() {
       if (idleK) return idleK;
+      if (!(window.GBR && GBR.pronto && GBR.pronto('lupo'))) return 1.11;   // 21/10 sera: misurare la sagoma provvisoria (atlante non pronto) salvava una scala sbagliata per sempre
       const cv = document.createElement('canvas'); cv.width = cv.height = 300; const x = cv.getContext('2d');
       draw.call(G, x, 'lupo', 150, 260, { pose: 'idle', t: 0, h: 100, facing: 1 });
       const d = x.getImageData(0, 0, 300, 300).data; let y0 = 300, y1 = -1;

@@ -110,6 +110,7 @@
     L.traccia = function (c, F) { if (!(mossa(F) && pronto)) return traccia.apply(this, arguments); };   // la scia sottile di campione_fx lascia il posto a questa
     function altezzaIdle() {   // idle disegnato con h = 100 (una volta)
       if (idleK) return idleK;
+      if (!(window.GBR && GBR.pronto && GBR.pronto('boxer'))) return 1.09;   // 21/10 sera: misurare la sagoma provvisoria (atlante non pronto) salvava una scala sbagliata per sempre
       const cv = document.createElement('canvas'); cv.width = cv.height = 300; const x = cv.getContext('2d');
       draw.call(G, x, 'boxer', 150, 260, { pose: 'idle', t: 0, h: 100, facing: 1 });
       const d = x.getImageData(0, 0, 300, 300).data; let y0 = 300, y1 = -1;

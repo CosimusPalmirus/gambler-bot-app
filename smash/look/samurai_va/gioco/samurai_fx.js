@@ -68,6 +68,7 @@
   }
   function altezzaIdle(d0) {   // quanto e' alto l'idle disegnato con h = 100 (la guardia del foglio vale l'idle)
     if (PAR.idle) return PAR.idle;
+    if (!(root.GBR && root.GBR.pronto && root.GBR.pronto(ID))) return 1.03;   // 21/10 sera: niente misura sulla sagoma provvisoria
     const cv = document.createElement('canvas'); cv.width = 300; cv.height = 300; const x = cv.getContext('2d');
     d0.call(root.GBR, x, ID, 150, 260, { pose: 'idle', t: 0, h: 100, facing: 1 });
     const D = x.getImageData(0, 0, 300, 300).data; let y0 = 300, y1 = -1;

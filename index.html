@@ -124359,11 +124359,11 @@ var GSRT={wrap:null,fr:null,pronto:false,coda:[],aperto:false,nascosto:false,fir
 // ⚠️ `v=` NUOVO A OGNI md5 NUOVO DI smash.html: lo scrive il patcher
 //    (server/applica_index.py) leggendo pagina/uscita/GSRT_VER.txt. index.html,
 //    smash.html e la cartella smash/ vanno su Pages INSIEME.
-var GSRT_VER="202610217076";
+var GSRT_VER="2026102219fc";
 // la versione del MOTORE (pagina/uscita/MOTORE_VER.txt): la stessa del
 // verificatore sul VPS. Va nel `join` della coda (`sv`) e si confronta con
 // `start.map.ver`.
-var GSRT_MOTORE_VER="cc7df89e15d5";
+var GSRT_MOTORE_VER="de29db2dddfa";
 function gsrtUrl(){return "smash.html?guscio=1&v="+GSRT_VER+"&lang="+((window.GB_LANG==="en")?"en":"it");}
 var GSRT_URL=gsrtUrl();
 var GSRT_ORIGIN=location.origin;
@@ -124397,6 +124397,35 @@ window.GSSOLDI={
     rtdJoin();               // come mgGioca: la schermata di ricerca la apre la risposta del server
     return "ok";
   },
+  // 22/10 (proprietario: «scelta la modalita' manca la coda… contatori delle lobby attive per modalita'… gratis sopra e a soldi
+  // sotto… e crea lobby in un gruppo»): il menu del gioco legge le lobby Smash aperte e ci entra / ne crea una, con le schermate
+  // lobby del bot (lobOpen / lobOpenCreate). Nessun cambio al server.
+  lobby:function(){
+    try{
+      if(typeof S==="undefined"||!S.userId||typeof BACKEND==="undefined")return Promise.resolve(null);
+      return fetch(BACKEND+"/lobby/list?user_id="+encodeURIComponent(S.userId)).then(function(r){return r.json();}).then(function(d){
+        return ((d&&d.lobbies)||[]).filter(function(c){return c&&c.game==="smash";}).map(function(c){
+          return {lid:String(c.lid||""),gratis:!!c.gratis,eur:Number(c.stake_eur)||0,posti:Number(c.posti)||2,seduti:Number(c.seduti)||0,chi:String(c.creator_name||"").slice(0,24)};});
+      }).catch(function(){return null;});
+    }catch(e){return Promise.resolve(null);}
+  },
+  entra:function(lid){
+    if(!lid||RTD.ui==="match"||RTD.ui==="search")return false;
+    GSRT.menu=false;gsrtPosta({t:"pausa"});rtdChiudiSmashRT(true);
+    try{LOB.from="arc";lobOpen(String(lid),false);}catch(e){return false;}
+    return true;
+  },
+  crea:function(gratis,posti){
+    if(RTD.ui==="match"||RTD.ui==="search")return false;
+    GSRT.menu=false;gsrtPosta({t:"pausa"});rtdChiudiSmashRT(true);
+    try{
+      lobOpenCreate("smash","arc");
+      LOB.gratis=!!gratis;if(!gratis)LOB.eur=parseFloat(RTD.tier)||0.5;
+      var n=Number(posti)||0;if(n>=2&&n<=4)LOB.posti=n;
+      if(typeof lobRenderCrea==="function")lobRenderCrea();
+    }catch(e){return false;}
+    return true;
+  },
   esci:function(){
     GSRT.menu=false;rtdChiudiSmashRT(true);
     RTD.ui="";
@@ -124426,7 +124455,7 @@ function gsrtApriMenu(){
 // in partita si esce dal tasto ESCI in alto a destra
 try{window.OZ_RAIL=window.OZ_RAIL||{};window.OZ_RAIL.smash={nascondi:true};}catch(e){}
 var GSRT_CODA_MAX=4000;
-var GSRT_TETTO_FINE=8000;   // ms: la pagina mostra il podio ~3 s dopo la fine confermata
+var GSRT_TETTO_FINE=11000;   // ms: la pagina mostra il podio ~3 s dopo la fine e lo tiene ~5 s (22/10: «dargli il suo tempo» prima della schermata del bot)
 var GSRT_HO_BLOCCATO=false;
 function gsrtBlocca(){
   try{ if(typeof bx2Blocca==="function"&&typeof BX2_BLOCCATI!=="undefined"&&BX2_BLOCCATI===null){bx2Blocca();GSRT_HO_BLOCCATO=true;} }catch(e){}
