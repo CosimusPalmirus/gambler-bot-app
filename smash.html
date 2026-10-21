@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="it">
+<head>
+<base href="./smash/">
+<!-- smash_look_1710: pagina di prova. Tutti i file del gioco sono quelli di smash_1410 (sola lettura, via <base>);
+     gli sprite vengono da /smash_look_1710/gioco/sprite/ (copia di prerender_1410/sprite + i lottatori rifatti). -->
+
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Gambler Smash</title>
+<style>
+  :root { --oro: #ffd23b; --rosa: #ff2bd6; --ciano: #1ad7ff; --fondo: #0b0714; --carta: #160f26; --riga: #2c2148; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+  html, body { margin: 0; height: 100%; background: var(--fondo); color: #fff; overflow: hidden; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overscroll-behavior: none; }
+  canvas#c { position: fixed; inset: 0; display: block; touch-action: none; }
+  #ui { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom)); overflow-y: auto; background: radial-gradient(120% 80% at 50% 0%, #2a0c3d 0%, #0b0714 60%); }
+  #ui.nascosto { display: none; }
+  .titolo { font: italic 900 clamp(38px, 10vw, 76px)/.9 "Arial Black", Impact, sans-serif; letter-spacing: -1px; text-align: center; margin: 4px 0 2px; color: #fff; text-shadow: 0 0 18px var(--rosa), 3px 3px 0 #000; transform: rotate(-4deg); }
+  .titolo b { display: block; color: var(--oro); font-size: 1.25em; text-shadow: 0 0 22px #ff8a1c, 4px 4px 0 #000; }
+  .sotto { opacity: .75; font-size: 13px; margin: 10px 0 18px; text-align: center; }
+  .btn { display: block; width: min(340px, 86vw); margin: 7px auto; padding: 14px 16px; border: 0; border-radius: 14px; font: italic 900 20px "Arial Black", Impact, sans-serif; color: #0b0714; background: var(--oro); box-shadow: 0 5px 0 #a87a00, 0 0 24px rgba(255,210,59,.35); cursor: pointer; text-transform: uppercase; }
+  .btn:active { transform: translateY(3px); box-shadow: 0 2px 0 #a87a00; }
+  .btn.sec { background: #2c2148; color: #fff; box-shadow: 0 5px 0 #150e26; font-size: 16px; }
+  .btn.rosa { background: var(--rosa); box-shadow: 0 5px 0 #8a0f72, 0 0 24px rgba(255,43,214,.35); color: #fff; }
+  .opz { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 12px 0 0; }
+  .chip { padding: 8px 12px; border-radius: 999px; background: #1d1433; border: 2px solid #3a2a60; font-weight: 800; font-size: 13px; cursor: pointer; }
+  .chip.on { border-color: var(--oro); color: var(--oro); }
+  .riga { display: flex; gap: 6px; align-items: center; justify-content: center; flex-wrap: wrap; }
+  .etic { font-size: 12px; opacity: .6; margin-right: 4px; text-transform: uppercase; letter-spacing: 1px; }
+  /* scelta del lottatore */
+  #scelta { width: 100%; height: 100%; display: flex; flex-direction: column; gap: 8px; }
+  .testa { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .testa h2 { margin: 0; font: italic 900 22px "Arial Black", Impact, sans-serif; color: var(--oro); }
+  .anteprima { display: flex; gap: 10px; background: var(--carta); border: 2px solid var(--riga); border-radius: 14px; padding: 8px; align-items: stretch; }
+  .anteprima canvas { background: radial-gradient(circle at 50% 70%, #3a1c5a, #120a22); border-radius: 10px; flex: none; }
+  .scheda { flex: 1; min-width: 0; font-size: 12px; }
+  .scheda .nome { font: italic 900 22px "Arial Black", Impact, sans-serif; line-height: 1; }
+  .scheda .classe { color: var(--ciano); font-weight: 800; text-transform: uppercase; font-size: 11px; letter-spacing: 1px; margin: 3px 0; }
+  .scheda .motto { opacity: .7; font-style: italic; margin-bottom: 4px; }
+  .barra { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+  .barra span { width: 62px; opacity: .65; font-size: 11px; }
+  .barra i { flex: 1; height: 6px; border-radius: 3px; background: #2c2148; position: relative; overflow: hidden; }
+  .barra i::after { content: ''; position: absolute; inset: 0; width: var(--v); background: linear-gradient(90deg, var(--oro), #ff8a1c); border-radius: 3px; }
+  .spe { margin-top: 4px; line-height: 1.35; opacity: .9; }
+  .spe b { color: var(--oro); }
+  .griglia { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 6px; padding: 2px; }
+  .cella { position: relative; background: var(--carta); border: 2px solid var(--riga); border-radius: 10px; padding: 3px 3px 4px; cursor: pointer; text-align: center; }
+  .cella.sel { border-color: var(--oro); box-shadow: 0 0 0 2px var(--oro), 0 0 16px rgba(255,210,59,.5); }
+  .cella canvas { width: 100%; aspect-ratio: 1; display: block; border-radius: 7px; }
+  .cella .n { font: 900 10px/1.1 "Arial Black", Impact, sans-serif; margin-top: 2px; height: 2.2em; display: flex; align-items: center; justify-content: center; overflow: hidden; word-break: break-word; }
+  @media (orientation: landscape) and (max-height: 560px) {
+    #scelta { display: grid; grid-template-columns: minmax(230px, 34%) 1fr; grid-template-rows: auto 1fr auto; gap: 8px; }
+    #scelta .testa { grid-column: 1 / 3; }
+    #scelta .anteprima { grid-column: 1; grid-row: 2; flex-direction: column; align-items: center; overflow: hidden; }
+    #scelta .anteprima canvas { width: 96px !important; height: 96px !important; }
+    #scelta .griglia { grid-column: 2; grid-row: 2 / 4; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); }
+    #scelta .piede { grid-column: 1; grid-row: 3; }
+    #scelta .piede .btn { font-size: 15px; padding: 10px; }
+    .scheda .nome { font-size: 18px; }
+    .titolo { font-size: 44px; }
+  }
+  .cella .p { display: flex; gap: 2px; justify-content: center; margin-top: 2px; }
+  .cella .p i { width: 6px; height: 6px; border-radius: 50%; background: #3a2a60; }
+  .cella .p i.on { background: var(--oro); }
+  .piede { display: flex; gap: 8px; }
+  .piede .btn { margin: 0; width: auto; flex: 1; }
+  /* arene */
+  .arene { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; width: min(760px, 96vw); }
+  @media (min-width: 600px) { .arene { grid-template-columns: repeat(4, 1fr); } }
+  .arena { background: var(--carta); border: 2px solid var(--riga); border-radius: 12px; overflow: hidden; cursor: pointer; }
+  .arena canvas { width: 100%; display: block; aspect-ratio: 16/9; }
+  .arena div { padding: 5px 7px 0; font: italic 900 13px/1.15 "Arial Black", Impact, sans-serif; }
+  .arena small { display: block; padding: 2px 7px 6px; font: 600 10px/1.2 system-ui, sans-serif; color: #b9a8d8; }
+  .arena.pericolo small::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #ff6a3b; margin-right: 5px; vertical-align: 1px; }
+  /* podio */
+  .podio { width: min(560px, 96vw); }
+  .posto { display: flex; align-items: center; gap: 10px; background: var(--carta); border: 2px solid var(--riga); border-radius: 12px; padding: 8px; margin: 6px 0; }
+  .posto.primo { border-color: var(--oro); box-shadow: 0 0 22px rgba(255,210,59,.35); }
+  .posto .num { font: italic 900 30px "Arial Black", Impact, sans-serif; width: 36px; text-align: center; }
+  .posto canvas { width: 56px; height: 56px; }
+  .posto .info { flex: 1; min-width: 0; }
+  .posto .info b { font: italic 900 17px "Arial Black", Impact, sans-serif; }
+  .stat { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; font-size: 11px; opacity: .85; margin-top: 3px; }
+  .stat span b { display: block; font-size: 15px; color: var(--oro); font-style: normal; font-family: "Arial Black", Impact, sans-serif; }
+  #perf { position: fixed; left: 6px; top: 40px; font: 12px/1.3 monospace; background: rgba(0,0,0,.6); padding: 4px 6px; border-radius: 6px; pointer-events: none; z-index: 9; white-space: pre; display: none; }
+  #pausa { position: fixed; right: max(8px, env(safe-area-inset-right)); top: max(8px, env(safe-area-inset-top)); z-index: 5; width: 44px; height: 44px; border-radius: 50%; border: 2px solid #3a2a60; background: rgba(12,9,24,.7); color: #fff; font: 900 15px sans-serif; display: none; }
+  .tasti { font-size: 12px; opacity: .6; text-align: center; margin-top: 14px; line-height: 1.6; }
+  /* 16/10 telefono: tasti dei menu almeno 44 px per il pollice; in orizzontale basso i menu si stringono e non scorrono */
+  @media (pointer: coarse) {
+    .chip { min-height: 44px; padding: 11px 14px; display: inline-flex; align-items: center; }
+    body #gt .gt-seg button, body #gt .gt-tog { min-height: 44px; }
+  }
+  @media (orientation: landscape) and (max-height: 500px) {
+    #ui > .titolo { font-size: 30px !important; margin: 0; }
+    #ui > br { display: none; }
+    #ui > .btn { padding: 10px 14px; margin: 5px auto; font-size: 17px; min-height: 44px; }
+    #ui > .opz { margin-top: 6px; }
+    .arene { width: min(760px, 96vw, 165vh); gap: 6px; }
+    .arena div { font-size: 12px; } .arena small { font-size: 9.5px; }
+    .podio { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; width: min(820px, 98vw); }
+    .podio .titolo { grid-column: 1 / 3; }
+    .podio .posto { margin: 3px 0; padding: 5px 8px; }
+    .podio .btn { margin: 4px 0; width: auto; padding: 10px; font-size: 16px; min-height: 44px; }
+  }
+  kbd { background: #2c2148; border-radius: 4px; padding: 1px 5px; font-size: 11px; }
+</style>
+
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui"></div>
+<button id="pausa" aria-label="pausa">II</button>
+<div id="perf"></div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- pose a mano: ogni pose_mano_<id>.js prima di pose_mano.js (il pacchetto li prende da solo) -->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- 21/10 nave: bordata e kraken disegnati --><!-- 18/10 arte AI delle arene (?arene=vecchie per le vecchie) -->
+
+
+   <!-- 20/10: pose delle ulti per fase -->   <!-- 20/10: video cinematico delle ulti (prova) -->
+
+<!-- 21/10 CUCÙ ulti: rintocchi e onda d'urto -->
+
+
+
+
+
+
+
+
+
+
+
+   <!-- 20/10: fumo e polvere a sprite -->
+
+<!-- 19/10 oggetti, proiettili ed evocazioni AI (smash_1410/oggetti_ai.js; ?oggetti=vecchi per i vecchi) -->
+
+
+<!-- 18/10 voci e suoni dei lottatori (voci/<id>/; ?voci=0 le spegne) -->
+<!-- 19/10 musica di sottofondo (musica/<scena>.mp3; ?musica=0 la spegne) -->
+<!-- 19/10 conto alla rovescia con l'annunciatore (voci/annunciatore/) -->
+
+
+
+
+
+
+
+
+
+
+
+<script>window.GBR3D_BASE="sprite_32e9a3781b82/";</script><script src="roster.js?v=ec4e2a7b64d4"></script><script src="roster3d.js?v=0dd34f4707a7"></script><script src="smash_online.min.js?v=3dbd2be75cef"></script></body>
+</html>
