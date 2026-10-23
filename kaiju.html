@@ -774,13 +774,13 @@ html[lang="en"] .targa.assente::after{content:"AWAY"}
   var MODI = {
     classica: {},
     ultimo: { STELLE: 0, FURIA: 2, FURIA_SALE: 3, DRAFT: 1 },
-    caos: { MUTA: 0.07, STELLE: 12, LEGG: 2, DRAFT: 1, PARI: 1 },
+    caos: { MUTA: 0.07, STELLE: 12, LEGG: 2, DRAFT: 1, PARI: 0 },
     squadre: { SQUADRE: 1, STELLE: 30, DRAFT: 1, PARI: 1 }
   };
   // ritocchi per numero di giocatori, sopra la modalità
   var MODI_N = {
     ultimo: { 2: { DOTE: 1 }, 3: { DOTE: 2 } },
-    caos: { 2: { STELLE: 15 }, 3: { DOTE: 2 } }
+    caos: { 3: { DOTE: 2 } }
   };
 
   // LO STATO DI PRIMA (per i banchi: il motore v2 a interruttori spenti)
@@ -3071,14 +3071,14 @@ function aggAnte() {
 function miniCarta(id, k) {
   if (!id) return '<button class="mc vuota"></button>';
   const c = KJ.CARTE[id];
-  return '<button class="mc ' + c.tipo + '" data-k="' + k + '"><span class="mc-ico">' + icoCarta(id) + '</span><span class="mc-nome">' + c.nome + '</span><span class="mc-costo">' + I.fulmine() + c.costo + '</span></button>';
+  return '<button class="mc ' + c.tipo + '" data-k="' + k + '" data-carta="' + id + '"><span class="mc-ico">' + icoCarta(id) + '</span><span class="mc-nome">' + c.nome + '</span><span class="mc-costo">' + I.fulmine() + c.costo + '</span></button>';
 }
 function aggMercato(posto) {
   const box = $('#mercato');
   box.innerHTML = '<div class="mc-tit">POTERI</div>' + S.mercato.map(miniCarta).join('');
   box.querySelectorAll('.mc[data-k]').forEach(b => {
     const k = +b.dataset.k;
-    b.onclick = () => { Suono.tasto(); dettaglioCarta(k); };
+    b.onclick = () => { Suono.tasto(); dettaglioCarta(k, b.dataset.carta); };
     if (posto === -2 || k === posto) b.animate([{ transform: 'rotateX(90deg) scale(.8)' }, { transform: 'rotateX(0) scale(1)' }], { duration: T(300), delay: T(k * 60), fill: 'backwards', easing: 'cubic-bezier(.3,1.5,.5,1)' });
   });
   segnaMercato();
@@ -3096,14 +3096,16 @@ function cartaGrande(id) {
   const c = KJ.CARTE[id];
   return '<div class="cartaGrande ' + c.tipo + '"><span class="mc-ico">' + icoCarta(id) + '</span><div><h3>' + c.nome + '</h3><span class="tipo">' + (c.tipo === 'tieni' ? 'RESTA CON TE' : 'EFFETTO SUBITO') + '</span><p>' + c.testo + '</p></div></div>';
 }
-function dettaglioCarta(k) {
+function dettaglioCarta(k, idMostrato) {
   const id = S.mercato[k], c = KJ.CARTE[id]; if (!c) return;
+  if (idMostrato && idMostrato !== id) { potereCambiato(); return; }
+  const sceltaMn = sMn;
   const mio = mioAcquisto(), posso = mio && S.g[IO].energia >= c.costo;
   foglio(cartaGrande(id) + '<div class="pila">' +
     (posso ? '<button class="bott" id="fCompra">COMPRA PER ' + c.costo + ' ' + I.fulmine() + '</button>'
       : '<button class="bott" disabled>' + (mio ? 'TI MANCANO ' + (c.costo - S.g[IO].energia) + ' ' + I.fulmine() : 'COSTA ' + c.costo + ' ' + I.fulmine() + ' · si compra a fine turno') + '</button>') +
     '<button class="bott due" onclick="chiudiFoglio()">CHIUDI</button></div>');
-  if (posso) $('#fCompra').onclick = () => { chiudiFoglio(); manda('compra', k); };
+  if (posso) $('#fCompra').onclick = () => confermaPotere('compra', k, id, sceltaMn);
 }
 function mostraCarteDi(i) {
   const p = S.g[i], v = V.g[i];
@@ -3691,6 +3693,19 @@ function premuto(x) {
   } else if (m === 'compra') { if (x === 'a') manda('passa', null); else if (x === 'b') manda('rinnova', null); }
 }
 // UNA mossa: si manda l'intenzione e i tasti restano spenti finche' `mn` cambia, o 1,5 s, o arriva kj_act_no
+// La conferma resta legata alla carta e alla revisione che il giocatore ha visto.
+function potereCambiato() {
+  foglio('<h2>POTERI AGGIORNATI</h2><p>La scelta non è più disponibile. Riapri il potere che vuoi acquistare.</p><button class="bott due" style="width:100%" onclick="chiudiFoglio()">CHIUDI</button>');
+}
+function confermaPotere(a, k, id, mn) {
+  const lista = S && (a === 'prendi' ? S.bottino : S.mercato);
+  if (!lista || lista[k] !== id || MN !== mn || sMn !== mn || !mioAcquisto() || !tastiVivi()) {
+    potereCambiato(); return false;
+  }
+  if (!manda(a, k)) return false;
+  chiudiFoglio(); return true;
+}
+
 function manda(a, ax) {
   if (!ACCESI || !tastiVivi() || spenti()) return false;
   spentiMn = MN; spentiFino = performance.now() + 1500;
@@ -4436,7 +4451,7 @@ function aggAnte() {
 function miniCarta(id, k) {
   if (!id) return '<button class="mc vuota"></button>';
   const c = KJ.CARTE[id];
-  return '<button class="mc ' + c.tipo + (c.legg ? ' legg' : '') + '" data-k="' + k + '"><span class="mc-ico">' + icoCarta(id) + '</span><span class="mc-nome">' + c.nome + '</span><span class="mc-costo">' + I.fulmine() + c.costo + '</span></button>';
+  return '<button class="mc ' + c.tipo + (c.legg ? ' legg' : '') + '" data-k="' + k + '" data-carta="' + id + '"><span class="mc-ico">' + icoCarta(id) + '</span><span class="mc-nome">' + c.nome + '</span><span class="mc-costo">' + I.fulmine() + c.costo + '</span></button>';
 }
 function segnaMercato() {
   const mio = mioAcquisto();
@@ -4455,18 +4470,20 @@ function aggBottino() {
   const mio = mioAcquisto();
   box.innerHTML = '<div class="mc-tit">BOTTINO · ½ PREZZO</div>' + bt.map((id, k) => {
     const c = KJ.CARTE[id], p = KJ.prezzoBottino(id);
-    return '<button class="kv-bt ' + (mio ? (S.g[IO].energia >= p ? 'puoi' : 'caro') : '') + '" data-k="' + k + '"><span class="mc-ico" style="background:' + (c.legg ? '#FFB400' : '#9B6BF2') + '">' + icoCarta(id) + '</span>' + I.fulmine() + p + ' <s>' + c.costo + '</s></button>';
+    return '<button class="kv-bt ' + (mio ? (S.g[IO].energia >= p ? 'puoi' : 'caro') : '') + '" data-k="' + k + '" data-carta="' + id + '"><span class="mc-ico" style="background:' + (c.legg ? '#FFB400' : '#9B6BF2') + '">' + icoCarta(id) + '</span>' + I.fulmine() + p + ' <s>' + c.costo + '</s></button>';
   }).join('');
-  box.querySelectorAll('.kv-bt').forEach(b => b.onclick = () => { Suono.tasto(); dettaglioBottino(+b.dataset.k); });
+  box.querySelectorAll('.kv-bt').forEach(b => b.onclick = () => { Suono.tasto(); dettaglioBottino(+b.dataset.k, b.dataset.carta); });
 }
-function dettaglioBottino(k) {
+function dettaglioBottino(k, idMostrato) {
   const id = (S.bottino || [])[k]; if (!id) return;
+  if (idMostrato && idMostrato !== id) { potereCambiato(); return; }
+  const sceltaMn = sMn;
   const p = KJ.prezzoBottino(id), mio = mioAcquisto(), posso = mio && S.g[IO].energia >= p;
   foglio(cartaGrande(id) + '<div class="riquadro">Era di un mostro andato <b>KO</b>: nel <b>bottino</b> costa la metà.</div><div class="pila">' +
     (posso ? '<button class="bott" id="fPrendi">PRENDI PER ' + p + ' ' + I.fulmine() + '</button>'
       : '<button class="bott" disabled>' + (mio ? 'TI MANCANO ' + (p - S.g[IO].energia) + ' ' + I.fulmine() : 'COSTA ' + p + ' ' + I.fulmine() + ' · si prende a fine turno') + '</button>') +
     '<button class="bott due" onclick="chiudiFoglio()">CHIUDI</button></div>');
-  if (posso) $('#fPrendi').onclick = () => { chiudiFoglio(); manda('prendi', k); };
+  if (posso) $('#fPrendi').onclick = () => confermaPotere('prendi', k, id, sceltaMn);
 }
 function notaModo(id) {
   const c = KJ.CARTE[id];
@@ -5095,7 +5112,7 @@ function apriCarte() {
     '<div class="kv-sez">LEGGENDARIE<small>Bordo d\'oro, una copia sola nel mazzo.</small></div><div class="kv-carte">' +
     tutte.filter(id => KJ.CARTE[id].legg).map(id => cartaGrande(id, notaModo(id)).replace('</h3>', '<span class="kv-costo">' + KJ.CARTE[id].costo + '⚡</span></h3>')).join('') + '</div>' +
     '<div class="kv-sez">IL BOTTINO<small>Quando un mostro va KO (in 3 o più) i suoi poteri cadono nel bottino: chiunque li può prendere a metà prezzo, e chi lo ha steso sceglie per primo.</small></div>' +
-    '<div class="kv-sez">LE MODALITÀ<small><b>CLASSICA</b>: 20 stelle o l\'ultimo in piedi.<br><b>ULTIMO IN PIEDI</b>: niente stelle, le stelle diventano energia, la furia sale ogni 3 giri, si parte con un potere a scelta.<br><b>CAOS</b>: dadi mutanti 3 volte più spesso, leggendarie doppie, si vince a 12 stelle (15 in due), un potere a scelta.<br><b>2 CONTRO 2</b>: due squadre, stelle in comune (30 per vincere), i colpi non toccano il compagno, la vita che avanza cura lui, un potere a scelta.</small></div>';
+    '<div class="kv-sez">LE MODALITÀ<small><b>CLASSICA</b>: 20 stelle o l\'ultimo in piedi.<br><b>ULTIMO IN PIEDI</b>: niente stelle, le stelle diventano energia, la furia sale ogni 3 giri, si parte con un potere a scelta.<br><b>CAOS</b>: dadi mutanti 3 volte più spesso, leggendarie doppie, vince subito chi raggiunge 12 stelle, un potere a scelta.<br><b>2 CONTRO 2</b>: due squadre, stelle in comune (30 per vincere), i colpi non toccano il compagno, la vita che avanza cura lui, un potere a scelta.</small></div>';
   schermoV2('kvCarte', 'POTERI E CARTE', h);
 }
 
@@ -5210,7 +5227,7 @@ window.KJ_V2_F = {
   'Quando un mostro va KO (in 3 o più) i suoi poteri cadono nel bottino: chiunque li può prendere a metà prezzo, e chi lo ha steso sceglie per primo.': 'When a monster is knocked out (with 3 or more players) its powers fall into the loot: anyone can take them at half price, and whoever knocked it out picks first.',
   'LE MODALITÀ': 'THE MODES', ': 20 stelle o l\'ultimo in piedi.': ': 20 stars or the last one standing.',
   ': niente stelle, le stelle diventano energia, la furia sale ogni 3 giri, si parte con un potere a scelta.': ': no stars, stars become energy, fury rises every 3 rounds, you start with a power of your choice.',
-  ': dadi mutanti 3 volte più spesso, leggendarie doppie, si vince a 12 stelle (15 in due), un potere a scelta.': ': mutant dice 3 times as often, double legendaries, 12 stars to win (15 in a duel), a power of your choice.',
+  ': dadi mutanti 3 volte più spesso, leggendarie doppie, vince subito chi raggiunge 12 stelle, un potere a scelta.': ': mutant dice 3 times as often, double legendaries, the first to reach 12 stars wins immediately, a power of your choice.',
   ': due squadre, stelle in comune (30 per vincere), i colpi non toccano il compagno, la vita che avanza cura lui, un potere a scelta.': ': two teams, shared stars (30 to win), hits don\'t touch your partner, extra healing goes to them, a power of your choice.',
   '.': '.', '7 · SORPRESE': '7 · SURPRISES', 'DADI MUTANTI': 'MUTANT DICE', 'Ogni tanto un dado esce': 'Now and then a die comes up', 'mutante': 'mutant', '. Quelli': '. The', 'ti aiutano. Quelli': 'ones help you. The', 'marci': 'rotten',
   'ti fregano e': 'ones hurt you and', 'restano attaccati': 'stay stuck', ': non li puoi ritirare.': ': you can\'t reroll them.',
@@ -5317,6 +5334,8 @@ if (LOCALE) v2Home();
     '↑ QUI SALGONO I DADI CHE TIENI': '↑ THE DICE YOU KEEP GO UP HERE',
     'COSÌ FAI:': 'YOU GET:', 'in città non cura': 'no healing in the city', 'ENTRI IN CITTÀ': 'ENTER THE CITY',
     'così non fai niente: servono 3 numeri uguali': 'nothing yet: you need 3 matching numbers',
+    'POTERI AGGIORNATI': 'POWERS UPDATED',
+    'La scelta non è più disponibile. Riapri il potere che vuoi acquistare.': 'This choice is no longer available. Open the power you want to buy again.',
     'RESTA CON TE': 'STAYS WITH YOU', 'EFFETTO SUBITO': 'INSTANT EFFECT', 'CHIUDI': 'CLOSE',
     '· si compra a fine turno': '· you buy at the end of your turn', 'Nessun potere, per ora.': 'No powers yet.',
     'CITTÀ VUOTA': 'EMPTY CITY', '· il primo colpo entra': '· the first hit gets in', 'IN CITTÀ': 'IN THE CITY', 'A TURNO': 'PER TURN',
