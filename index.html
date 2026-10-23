@@ -124388,11 +124388,11 @@ var GSRT={wrap:null,fr:null,pronto:false,coda:[],aperto:false,nascosto:false,fir
 // ⚠️ `v=` NUOVO A OGNI md5 NUOVO DI smash.html: lo scrive il patcher
 //    (server/applica_index.py) leggendo pagina/uscita/GSRT_VER.txt. index.html,
 //    smash.html e la cartella smash/ vanno su Pages INSIEME.
-var GSRT_VER="20261020e32f";
+var GSRT_VER="2026102317516ae6";
 // la versione del MOTORE (pagina/uscita/MOTORE_VER.txt): la stessa del
 // verificatore sul VPS. Va nel `join` della coda (`sv`) e si confronta con
 // `start.map.ver`.
-var GSRT_MOTORE_VER="ab9519e3165b";
+var GSRT_MOTORE_VER="d7daee4a3a76";
 function gsrtUrl(){return "smash.html?guscio=1&v="+GSRT_VER+"&lang="+((window.GB_LANG==="en")?"en":"it");}
 var GSRT_URL=gsrtUrl();
 var GSRT_ORIGIN=location.origin;
@@ -124519,7 +124519,10 @@ function gsrtAltezza(){
   try{
     if(!GSRT.wrap)return;
     var tg2=window.Telegram&&Telegram.WebApp;
-    var h=tg2?Number(tg2.viewportStableHeight||tg2.viewportHeight||0):0;
+    var vv=window.visualViewport;
+    var h=Math.min(window.innerHeight||0,vv&&vv.height>0?vv.height:window.innerHeight);
+    // Anche viewportHeight può aggiornarsi dopo la rotazione: la finestra
+    // e visualViewport sono il limite attuale per l'iframe.
     if(h>0){GSRT.wrap.style.height=Math.round(h)+"px";GSRT.wrap.style.bottom="auto";}
     else{GSRT.wrap.style.height="100%";GSRT.wrap.style.bottom="0px";}
   }catch(e){}
@@ -124548,10 +124551,15 @@ function gsrtTelegram(){
       tg2.onEvent("viewportChanged",function(){gsrtAltezza();gsrtBordi();});
       tg2.onEvent("safeAreaChanged",gsrtBordi);
       tg2.onEvent("contentSafeAreaChanged",gsrtBordi);
-      tg2.onEvent("fullscreenChanged",gsrtBordi);
+      tg2.onEvent("fullscreenChanged",function(){gsrtAltezza();gsrtBordi();});
     }
   }catch(e){}
-  try{window.addEventListener("orientationchange",function(){setTimeout(gsrtBordi,250);});}catch(e2){}
+  try{
+    var misura=function(){gsrtAltezza();gsrtBordi();};
+    window.addEventListener("resize",misura);
+    if(window.visualViewport)window.visualViewport.addEventListener("resize",misura);
+    window.addEventListener("orientationchange",function(){misura();setTimeout(misura,120);setTimeout(misura,400);});
+  }catch(e2){}
 }
 function gsrtMonta(){
   if(!GSRT.wrap){
@@ -126897,7 +126905,7 @@ html.gb-lite .gbf-raggi{display:none;}
     if(/TORNEO|RADUNO/.test(testo)){tit=L('RADUNO','CHECK-IN');modo=['m-torneo',L('TORNEO','TOURNAMENT')];tema='gelo';}
     else if(/ALLENAMENTO|PRATICA|PRACTICE|TRAINING/.test(testo)){tit=L('ALLENAMENTO','TRAINING');modo=['m-pratica',L('ALLENAMENTO','PRACTICE')];tema='neutro';}
     else{
-      var gr=pr&&/€\s*0[.,]00/.test(pr.textContent||'');
+      var gr=pr&&/(?:€\s*0[.,]00|\bGRATIS\b|\bFREE\b)/i.test(pr.textContent||'');
       tit=L('IN CODA','IN QUEUE');modo=gr?['m-gratis',L('GRATIS','FREE')]:['m-soldi',L('A SOLDI','FOR MONEY')];tema=gr?'neutro':'oro';
     }
     var gioco=(CODE[el.id]||function(){return '';})();
@@ -126937,5 +126945,67 @@ html.gb-lite .gbf-raggi{display:none;}
 })();
 </script>
 <!-- GBC_2210 FINE -->
+<!-- SMASH_FIX_2310 CODA -->
+<script>
+// 23/10: la posta della ricerca viene dal messaggio server o dalla lobby
+// effettivamente aperta. Il tier del menu precedente non è una posta di lobby.
+(function () {
+  var server = null, card = null;
+  function en() { return window.GB_LANG === 'en'; }
+  function L(it, eng) { return en() ? eng : it; }
+  function cifra(v) { return '€' + Number(v).toFixed(2).replace('.', en() ? '.' : ','); }
+  function numero(v) { if (v === null || v === undefined || v === '') return null; var n=Number(v); return isFinite(n)&&n>=0?n:null; }
+  function dati() {
+    if (RTD.tour) return { modo:'torneo' };
+    if (RTD.practice) return { modo:'pratica' };
+    var c=server||card, posta=c?numero(c.stake_eur):null;
+    if (c&&c.gratis===true)posta=0;
+    // Il tier è attendibile soltanto per un join della coda standard.
+    if (!c&&RTD._postaCoda2310!==undefined)posta=numero(RTD._postaCoda2310);
+    return {modo:posta===0?'gratis':posta===null?'attesa':'soldi',posta:posta,
+      n:server?Math.max(1,Number(server.players)||1):null};
+  }
+  function dipingi() {
+    if (RTD.ui!=='search')return;
+    var el=document.getElementById('arc-body');if(!el)return;
+    var d=dati(),p=el.querySelector('#arc-prize,.twr-prize'),html='';
+    if (d.modo==='torneo')html=L('MATCH DEL TORNEO','TOURNAMENT MATCH');
+    else if(d.modo==='pratica')html=L('ALLENAMENTO GRATUITO','FREE PRACTICE');
+    else if(d.modo==='gratis')html=L('GRATIS','FREE');
+    else if(d.modo==='soldi')html=L('POSTA','STAKE')+': <b>'+cifra(d.posta)+'</b><span>'+(d.n===null?L('In attesa del tavolo','Waiting for the table'):L('Montepremi attuale','Current prize pool')+': '+cifra(d.posta*d.n))+'</span>';
+    else html=L('Verifica della posta…','Checking stake…');
+    if(p&&p.innerHTML!==html)p.innerHTML=html;
+    var b=el.querySelector('button[onclick="rtdLeave()"]');
+    if(b){var text=d.modo==='soldi'?L('ANNULLA (rimborso)','CANCEL (refund)'):L('ESCI','LEAVE');if(b.textContent!==text)b.textContent=text;}
+    var badge=el.querySelector('.gbf-modo'),theme=d.modo==='soldi'?'oro':d.modo==='torneo'?'gelo':'neutro';
+    if(badge){var label=d.modo==='soldi'?L('A SOLDI','FOR MONEY'):d.modo==='torneo'?L('TORNEO','TOURNAMENT'):d.modo==='pratica'?L('ALLENAMENTO','PRACTICE'):d.modo==='gratis'?L('GRATIS','FREE'):L('IN ATTESA','WAITING');
+      badge.textContent=label;badge.className='gbf-modo m-'+d.modo;}
+    if(el.classList.contains('gbc-on')){
+      ['oro','gelo','neutro'].forEach(function(t){el.classList.toggle('gbc-'+t,t===theme);});
+      var w=el.querySelector('.gbc');if(w)['oro','gelo','neutro'].forEach(function(t){w.classList.toggle('gbf-t-'+t,t===theme);w.classList.toggle('gbc-'+t,t===theme);});
+    }
+  }
+  var join=rtdJoin;
+  rtdJoin=function(){server=null;card=null;RTD.searchN=1;RTD.searchCap=RTD.sq?4:2;RTD._postaCoda2310=RTD.tier;return join.apply(this,arguments);};
+  var entra=lobEnter;
+  lobEnter=function(){server=null;card=typeof LOB!=='undefined'&&LOB.card?Object.assign({},LOB.card):null;delete RTD._postaCoda2310;return entra.apply(this,arguments);};
+  var msg=rtdOnMsg;
+  rtdOnMsg=function(m){
+    if(m&&m.t==='lobby'&&m.game===RTD.game&&(!m.tour||RTD.tour)){
+      server=Object.assign({},m);
+      if(m.tour)server.tour=m.tour;
+    }
+    var r=msg.apply(this,arguments);dipingi();return r;
+  };
+  var show=rtdShowSearch;
+  rtdShowSearch=function(){var r=show.apply(this,arguments);dipingi();return r;};
+  // GBC muove i nodi dopo la ricerca. Aggiorna badge e tema appena finisce,
+  // senza osservare i nostri stessi cambiamenti di testo o attributi.
+  var body=document.getElementById('arc-body');
+  if(body)new MutationObserver(function(){if(body.querySelector('.gbc'))dipingi();}).observe(body,{childList:true});
+  window.GBPostaCoda2310={dati:dati,dipingi:dipingi};
+})();
+
+</script>
 </body>
 </html>
