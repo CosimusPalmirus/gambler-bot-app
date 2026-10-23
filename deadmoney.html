@@ -720,6 +720,39 @@ details.set[open] summary{margin-bottom:10px}
 #app[data-fase="porta"] .porta-regola{font-size:14px;line-height:1.3;padding:7px 10px}
 .avviso.fuori>b{display:block}
 
+/* [24/10] lo spavento delle anime */
+#boo{position:absolute;left:8px;right:8px;bottom:calc(var(--b-bot,0px) + 8px);z-index:55;padding:8px 10px 7px;border-radius:16px;
+  background:linear-gradient(180deg,rgba(28,48,52,.94),rgba(10,22,26,.96));border:2px solid var(--ghost,#8fe3d8);box-shadow:0 0 22px rgba(143,227,216,.35),0 8px 24px rgba(0,0,0,.6);
+  animation:booin .4s var(--ease-pop) both}
+#boo .bt{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12.5px;letter-spacing:.06em;color:var(--ghost,#8fe3d8)}
+#boo .bt span{color:var(--bone);opacity:.8;font-size:12px}
+#boo .bv{display:flex;gap:6px;overflow-x:auto;margin-top:6px;padding-bottom:2px}
+#boo .bv button{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:2px;width:62px;padding:4px 2px;border-radius:12px;border:2px solid rgba(143,227,216,.5);background:rgba(0,0,0,.35);color:var(--bone)}
+#boo .bv button img,#boo .bv button .ini{width:34px;height:34px;border-radius:50%;object-fit:cover;display:grid;place-items:center;background:#333;font-size:12px}
+#boo .bv button i{font-style:normal;font-size:10.5px;max-width:58px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#boo .bv button:not([disabled]):active{transform:scale(.92)}
+#boo .bv button[disabled]{opacity:.38;filter:grayscale(1)}
+#boo .bn{font-size:11px;opacity:.7;margin-top:4px;color:var(--bone)}
+#app.conboo #panel{padding-bottom:132px}
+#panel.infestato{animation:infesta 1.6s ease-out}
+#panel.infestato::after{content:"👻";position:absolute;left:50%;top:38%;font-size:90px;transform:translate(-50%,-50%);pointer-events:none;animation:fantasmino 1.6s ease-out forwards;z-index:9}
+@keyframes infesta{0%{filter:blur(0)}12%{filter:blur(7px) grayscale(.6) brightness(.7)}70%{filter:blur(5px) grayscale(.5) brightness(.75)}100%{filter:none}}
+@keyframes fantasmino{0%{opacity:0;transform:translate(-50%,-30%) scale(.6)}20%{opacity:.95;transform:translate(-50%,-50%) scale(1.1)}80%{opacity:.8}100%{opacity:0;transform:translate(-50%,-80%) scale(1.3)}}
+@keyframes booin{from{transform:translateY(30px);opacity:0}to{transform:none;opacity:1}}
+.chip.boo .disc{animation:chipboo 1s}
+@keyframes chipboo{0%,100%{filter:none}30%{filter:drop-shadow(0 0 10px #8fe3d8) grayscale(.6)}}
+/* [24/10] un tasto spento si vede spento (prima CONFERMA restava rosso pieno dopo il tocco) */
+.cta:disabled,.cta[disabled]{filter:grayscale(.85) brightness(.75);opacity:.6;transform:none;box-shadow:0 2px 0 rgba(0,0,0,.5)}
+input:disabled{opacity:.6}
+.esm,.esv{font-style:normal;font-weight:800;font-size:11px;letter-spacing:.06em;padding:2px 6px;border-radius:6px;margin-left:4px}
+.esm{background:var(--blood);color:#fff}.esv{background:var(--ok);color:#042}
+.cell.open.dopo{opacity:.42;animation:none}
+/* [24/10] LE MACCHIE: lo stile copriva solo i bottoni, il panno da guardare (div) era INVISIBILE */
+.stain>div{aspect-ratio:1;border-radius:9px;background:var(--felt2);border:2px solid rgba(0,0,0,.5);box-shadow:inset 0 0 12px rgba(0,0,0,.5)}
+.stain>div.m{background:radial-gradient(circle at 45% 40%,#e0364b 0 28%,#a1142a 45%,transparent 62%),radial-gradient(circle at 70% 70%,#a1142a 0 12%,transparent 14%),var(--felt2)}
+.stain>div.hit{box-shadow:0 0 0 3px var(--ok)}
+.stain>div.miss{box-shadow:0 0 0 3px var(--blood)}
+
 </style>
 
 <div id="app" data-scene="">
@@ -1094,6 +1127,32 @@ function ask(sec, build, def, opt={}){
   });
 }
 function show(html){ const p = P(); p.innerHTML = html; p.scrollTop = 0; return p; }
+/* [24/10] MORPH: ridisegnare il pannello SENZA ricrearlo. Con show() a ogni fotogramma (blackjack, dadi, gratta,
+   cassaforte, memoria, macchie...) tutto il pannello rientrava scivolando, le carte si ridistribuivano, i dadi
+   si rilanciavano e la pagina tornava in cima: «cose che si muovono strane». morph() tiene i nodi che ci sono
+   gia' (le animazioni CSS non ripartono), aggiorna testi e attributi, anima solo quello che e' nuovo. */
+function morph(html){ const p = P(); const t = document.createElement("div"); t.innerHTML = html; morphFigli(p, t); return p; }
+function mostra(html, nuovo){ return nuovo ? show(html) : morph(html); }
+function morphFigli(a, b){
+  const na = [...a.childNodes], nb = [...b.childNodes];
+  for (let i = 0; i < nb.length; i++){
+    const o = na[i], n = nb[i];
+    if (!o){ a.appendChild(n); continue; }
+    if (o.nodeType !== n.nodeType || o.nodeName !== n.nodeName || (o.nodeType === 1 && (o.id || "") !== (n.id || ""))){ a.replaceChild(n, o); continue; }
+    if (o.nodeType === 3 || o.nodeType === 8){ if (o.nodeValue !== n.nodeValue) o.nodeValue = n.nodeValue; continue; }
+    morphNodo(o, n);
+  }
+  for (let i = na.length - 1; i >= nb.length; i--) if (na[i].parentNode === a) a.removeChild(na[i]);
+}
+function morphNodo(o, n){
+  if (o.classList.contains("timer")){ for (const k of ["data-fine","data-tot"]) if (o.getAttribute(k) !== n.getAttribute(k)) o.setAttribute(k, n.getAttribute(k)); o.classList.toggle("hide", n.classList.contains("hide")); return; }
+  for (const at of [...o.attributes]) if (!n.hasAttribute(at.name)) o.removeAttribute(at.name);
+  for (const at of [...n.attributes]) if (o.getAttribute(at.name) !== at.value) o.setAttribute(at.name, at.value);
+  if (o.nodeName === "CANVAS") return;                                   // il disegno non sta nell'HTML
+  if (o.nodeName === "INPUT"){ if (document.activeElement !== o && n.hasAttribute("value") && o.value !== n.getAttribute("value")) o.value = n.getAttribute("value"); o.disabled = n.disabled; return; }
+  if ("disabled" in o) o.disabled = n.disabled;
+  morphFigli(o, n);
+}
 
 /* ================= DISEGNI (dal prototipo, sale2.js): soggetti, scarabocchi dei bot, lavagna ================= */
 /* ---------- disegni a mano: tratti in coordinate 0..100 ---------- */
@@ -1249,8 +1308,8 @@ VISTE_SALA.mate = (g, S, nuovo) => {
     const gioco = inCond(g) && !ST.spec;
     if (nuovo || (gioco && ST.loc.k !== m.k)){
       ST.loc.k = m.k;
-      show(testa(g, g.solo ? T("servono ","need ") + g.need : T("muore chi ne fa meno","fewest dies"), gioco ? "" : T("Guarda i condannati sudare.","Watch the condemned sweat."), gioco) +
-        (gioco && m.t ? `<div class="num">${esc(m.t)}</div><div class="row" id="op">${m.o.map(o=>`<button class="btn" style="justify-content:center;font-size:26px" data-v="${o}">${o}</button>`).join("")}</div>` : "") + `<div class="list" id="bars">${barre(g, 12)}</div>`);
+      mostra(testa(g, g.solo ? T("servono ","need ") + g.need : T("muore chi ne fa meno","fewest dies"), gioco ? "" : T("Guarda i condannati sudare.","Watch the condemned sweat."), gioco) +
+        (gioco && m.t ? `<div class="num">${esc(m.t)}</div><div class="row" id="op">${m.o.map(o=>`<button class="btn" style="justify-content:center;font-size:26px" data-v="${o}">${o}</button>`).join("")}</div>` : "") + `<div class="list" id="bars">${barre(g, 12)}</div>`, nuovo);
       document.querySelectorAll("#op button").forEach(b => b.onclick = () => { const vecchio = (ST.loc.ultimo || 0); sfx("tap"); haptic("soft"); salaAct(+b.dataset.v, m.k); document.querySelectorAll("#op button").forEach(x => x.disabled = true); });
     } else { const l = $("#bars"); if (l) l.innerHTML = barre(g, 12); }
     const mio_ = (g.punti || {})[ST.me]; if (mio_ != null && ST.loc.p != null && mio_ > ST.loc.p){ sfx("fiche",{vol:.5,rate:1+mio_*0.03}); } else if (mio_ != null && ST.loc.p != null && ST.loc.kv != null && ST.loc.kv !== m.k && mio_ === ST.loc.p) sfx("sbagliato",{vol:.4});
@@ -1265,8 +1324,8 @@ VISTE_SALA.ordini = (g, S, nuovo) => {
     const gioco = inCond(g) && !ST.spec;
     if (nuovo || (gioco && ST.loc.k !== m.n_k)){
       ST.loc.k = m.n_k;
-      show(testa(g, g.solo ? T("ne servono ","need ") + g.need : T("muore chi ne fa meno","fewest dies"), "", gioco) +
-        (gioco && m.t ? ordineHTML(m) : `<div class="big">${T("Guarda i condannati obbedire.","Watch the condemned obey.")}</div>`) + `<div class="list" id="bars">${barre(g, 14)}</div>`);
+      mostra(testa(g, g.solo ? T("ne servono ","need ") + g.need : T("muore chi ne fa meno","fewest dies"), "", gioco) +
+        (gioco && m.t ? ordineHTML(m) : `<div class="big">${T("Guarda i condannati obbedire.","Watch the condemned obey.")}</div>`) + `<div class="list" id="bars">${barre(g, 14)}</div>`, nuovo);
       document.querySelectorAll(".ordg button").forEach(b => b.onclick = () => { sfx("tap"); haptic("soft"); salaAct(+b.dataset.i, m.n_k); document.querySelectorAll(".ordg button").forEach(x => x.disabled = true); });
     } else { const l = $("#bars"); if (l) l.innerHTML = barre(g, 14); }
     const pu = (g.punti || {})[ST.me]; if (pu != null && ST.loc.p != null){ if (pu > ST.loc.p) sfx("fiche",{vol:.5,rate:1+pu*0.03}); else if (pu < ST.loc.p || (ST.loc.kv != null && ST.loc.kv !== m.n_k && pu === ST.loc.p)) sfx("sbagliato",{vol:.4}); }
@@ -1315,7 +1374,7 @@ VISTE_SALA.monta = (g, S, nuovo) => {
     if (nuovo || firma !== ST.loc.firma){
       if (!nuovo && ST.loc.firma) sfx("passo",{vol:.5});
       ST.loc.firma = firma;
-      show(testa(g, g.solo ? T("in uno c'è la bomba","one has the bomb") : T("vedete le scelte, potete cambiare","you see the choices, you can switch"), "", gioco) + porte(gioco));
+      mostra(testa(g, g.solo ? T("in uno c'è la bomba","one has the bomb") : T("vedete le scelte, potete cambiare","you see the choices, you can switch"), "", gioco) + porte(gioco), nuovo);
       document.querySelectorAll("button.door").forEach(b => b.onclick = () => { sfx("tap"); salaAct(+b.dataset.d); });
     }
     return;
@@ -1324,7 +1383,8 @@ VISTE_SALA.monta = (g, S, nuovo) => {
   const r = g.riv || {};
   show(testa(g, T("si sale","going up"), "") + porte(false));
   dopoRivela(g, S, async () => { sfx("ascensore"); await sleep(1200);
-    if (r.cade >= 0){ const d = $("#dr"+r.cade); if (d){ d.classList.add("fall"); d.querySelector(".dn").textContent = T("GIÙ!","DOWN!"); } sfx("crollo"); shake(); }
+    if (r.cade >= 0){ const d = $("#dr"+r.cade); if (d){ d.classList.add("fall"); d.querySelector(".dn").textContent = T("GIÙ!","DOWN!"); } sfx("crollo"); shake();
+      const n0 = condP(g).filter(p => sc[p.id] === 0).length, n1 = condP(g).length - n0; if (!g.solo && n0 === n1) $("#panel").insertAdjacentHTML("beforeend", `<div class="note">🎲 ${T("Pari: ha deciso la sorte.","A tie: fate decided.")}</div>`); }
     else sayQ(T("Tutti nello stesso ascensore. Che spirito di squadra. Salite, salite.","All in the same lift. Such team spirit. Up you go."), {espr:"deluso"}); });
 };
 
@@ -1333,7 +1393,8 @@ VISTE_SALA.gratta = (g, S, nuovo) => {
   const ap = g.aperte || {};
   const cella = (v) => v === "c" ? `<span class="cc">◉</span>` : v === "x" ? "☠" : "·";
   const griglia = (sg, cliccabile) => { const a = new Map((ap[sg]||[]).map(([i,v]) => [i,v]));
-    return `<div class="grid3">${Array(9).fill(0).map((_,i)=> a.has(i) ? `<div class="cell open ${a.get(i)==="c"?"coinc":a.get(i)==="x"?"skull":""}">${cella(a.get(i))}</div>` : `<${cliccabile?"button":"div"} class="cell" data-i="${i}"></${cliccabile?"button":"div"}>`).join("")}</div>`; };
+    const tutta = g.passo === "rivela" ? ((g.riv || {}).carte || {})[sg] : null;     /* [24/10] alla rivela il resto della carta, sbiadito */
+    return `<div class="grid3">${Array(9).fill(0).map((_,i)=> a.has(i) ? `<div class="cell open ${a.get(i)==="c"?"coinc":a.get(i)==="x"?"skull":""}">${cella(a.get(i))}</div>` : tutta ? `<div class="cell open dopo ${tutta[i]==="c"?"coinc":tutta[i]==="x"?"skull":""}">${cella(tutta[i])}</div>` : `<${cliccabile?"button":"div"} class="cell" data-i="${i}"></${cliccabile?"button":"div"}>`).join("")}</div>`; };
   const conta = sg => (ap[sg]||[]).filter(([i,v]) => v === "c").length;
   const firma = JSON.stringify(ap);
   if (!nuovo && firma === ST.loc.firma && g.passo !== "rivela") return;
@@ -1341,9 +1402,9 @@ VISTE_SALA.gratta = (g, S, nuovo) => {
   ST.loc.firma = firma;
   const gioco = inCond(g) && !ST.spec && g.passo === "gratta" && !(g.fatto || []).includes(ST.me);
   const altri = condP(g).filter(p => !p.me || ST.spec);
-  show(testa(g, g.passo === "rivela" ? T("le carte","the cards") : T("trova 3 fiche prima del teschio","find 3 chips before the skull"), "", gioco) +
+  mostra(testa(g, g.passo === "rivela" ? T("le carte","the cards") : T("trova 3 fiche prima del teschio","find 3 chips before the skull"), "", gioco) +
     (inCond(g) && !ST.spec ? `<div class="sl-who">${avatarHTML(io())}<b>${T("La tua carta","Your card")}</b><span>${conta(ST.me)}/3</span></div>` + griglia(ST.me, gioco) : "") +
-    `<div class="mini">${altri.map(p => `<div><div class="sl-who">${avatarHTML(p)}<b>${esc(nomeDi(p))}</b><span>${conta(p.id)}/3</span></div>${griglia(p.id, false)}</div>`).join("")}</div>`);
+    `<div class="mini">${altri.map(p => `<div><div class="sl-who">${avatarHTML(p)}<b>${esc(nomeDi(p))}</b><span>${conta(p.id)}/3</span></div>${griglia(p.id, false)}</div>`).join("")}</div>`, nuovo);
   document.querySelectorAll("button.cell").forEach(b => b.onclick = () => { sfx("gratta",{vary:true}); haptic("soft"); salaAct(+b.dataset.i); b.disabled = true; });
   for (const p of condP(g)){ const n = (ap[p.id]||[]).length, n0 = (prima[p.id]||[]).length; if (n > n0){ const v = ap[p.id][n-1][1]; if (v === "x"){ sfx("teschio"); if (p.me) shake(); } else if (v === "c") sfx("fiche",{vol:.5}); else sfx("gratta",{vol:.4}); } }
 };
@@ -1352,7 +1413,7 @@ VISTE_SALA.gratta = (g, S, nuovo) => {
 VISTE_SALA.mente = (g, S, nuovo) => {
   if (g.passo === "scrivi"){
     if (nuovo){ const sono = tocca(g);
-      show(testa(g, "", esc(fl(g.cat)), sono) + (sono ? `<div class="note">${inCond(g) ? T("Non scrivere quello che scriverebbero gli altri.","Don't write what the others would.") : T("Se scrivi la stessa parola del condannato, muore e tu prendi 500 fiche.","If you write the same word as the condemned, they die and you get 500 chips.")}</div><div class="field"><input type="text" id="w" maxlength="20" autocomplete="off" placeholder="${T("scrivi...","write...")}"></div><button class="cta" id="ok">${T("CONFERMA","CONFIRM")}</button>` : "") + guarda(g, T("ha scritto","wrote")));
+      show(testa(g, "", esc(fl(g.cat)), sono) + (sono ? `<div class="note">${inCond(g) ? T("Non scrivere quello che scriverebbero gli altri.","Don't write what the others would.") : T("Scrivi la stessa parola di un condannato: muore e tu prendi 500 fiche.","Write the same word as a condemned player: they die and you get 500 chips.")}</div><div class="field"><input type="text" id="w" maxlength="20" autocomplete="off" placeholder="${T("scrivi...","write...")}"></div><button class="cta" id="ok">${T("CONFERMA","CONFIRM")}</button>` : "") + guarda(g, T("ha scritto","wrote")));
       const inp = $("#w"); if (inp){ setTimeout(() => inp.focus(), 50); inp.oninput = () => sfx("blip");
         const go = () => { const v = inp.value.trim(); if (!v) return; sfx("lock"); salaAct(null, null, {tx:v}); inp.disabled = true; $("#ok").disabled = true; }; $("#ok").onclick = go; inp.onkeydown = e => { if (e.key === "Enter") go(); }; }
     } else aggiornaVivo(g.fatto, T("ha scritto","wrote"));
@@ -1372,7 +1433,7 @@ VISTE_SALA.avidita = (g, S, nuovo) => {
     if (nuovo){ const sono = tocca(g);
       show(testa(g, inCond(g) ? "" : T("giochi anche tu, ma non rischi","you play too, without risk"), sono ? T("Quante fiche vuoi?","How many chips do you want?") : T("Scrivono quante fiche vogliono…","Writing how many chips they want…"), sono) +
         (sono ? cursore("r", 1000, 10, 500) + `<button class="cta" id="ok">${T("SIGILLA","SEAL IT")}</button>` : "") + guarda(g, T("busta sigillata","envelope sealed")));
-      const r = $("#r"); if (r){ r.oninput = () => { $("#rv").textContent = fmt(+r.value); sfx("tic",{vol:.4,rate:0.8+r.value/1000}); }; $("#ok").onclick = () => { sfx("lock"); salaAct(+r.value); r.disabled = true; $("#ok").disabled = true; }; }
+      const r = $("#r"); if (r){ r.oninput = () => { $("#rv").textContent = fmt(+r.value); sfx("tic",{vol:.4,rate:0.8+r.value/1000}); }; $("#ok").onclick = () => { sfx("lock"); salaAct(+r.value); r.disabled = true; $("#ok").disabled = true; }; ST.loc.tmo = setTimeout(() => { const b = $("#ok"); if (b && !b.disabled) b.click(); }, Math.max(0, (g.resta_s - 1.2) * 1000));   /* [24/10] allo scadere si manda quello che c'e' */ }
     } else aggiornaVivo(g.fatto, T("busta sigillata","envelope sealed"));
     return;
   }
@@ -1401,7 +1462,7 @@ VISTE_SALA.prendi = (g, S, nuovo) => {
 };
 
 /* ---------- MEMORIA ---------- */
-const COL6 = ["#d0263a","#15100c","#d9a63c","#3f8fd6","#efe4cc","#a35fd6"];
+const COL6 = ["#d0263a","#4b4458","#d9a63c","#3f8fd6","#efe4cc","#a35fd6"];
 VISTE_SALA.memoria = (g, S, nuovo) => {
   if (g.passo === "mostra"){
     if (nuovo){ show(testa(g, T("guardate bene","look closely"), T("4 secondi","4 seconds")) + `<div class="seq" id="sq"></div>`);
@@ -1410,11 +1471,12 @@ VISTE_SALA.memoria = (g, S, nuovo) => {
   }
   if (g.passo === "rifai"){
     if (nuovo){ const sono = tocca(g); ST.loc.got = [];
-      const draw = () => { const got = ST.loc.got;
-        show(testa(g, "", sono ? T("Rimettile in ordine","Put them back in order") : T("Rimettono le fiche in ordine…","Putting the chips back in order…"), sono) +
-          (sono ? `<div class="seq">${Array(6).fill(0).map((_,i)=>got[i]!=null?`<i style="--cc:${COL6[got[i]]}"></i>`:`<i class="empty"></i>`).join("")}</div><div class="seq">${COL6.map((c,i)=>`<button data-c="${i}" aria-label="${i+1}" style="--cc:${c}"></button>`).join("")}</div>` : "") + guarda(g, T("ha finito","finished")));
+      const draw = (primo) => { const got = ST.loc.got;
+        mostra(testa(g, "", sono ? T("Rimettile in ordine","Put them back in order") : T("Rimettono le fiche in ordine…","Putting the chips back in order…"), sono) +
+          (sono ? `<div class="seq">${Array(6).fill(0).map((_,i)=>got[i]!=null?`<i style="--cc:${COL6[got[i]]}"></i>`:`<i class="empty"></i>`).join("")}</div><div class="seq">${COL6.map((c,i)=>`<button data-c="${i}" aria-label="${i+1}" style="--cc:${c}"></button>`).join("")}</div>` + (got.length ? `<button class="cta ghost" id="und">⌫ ${T("ANNULLA L'ULTIMA","UNDO LAST")}</button>` : "") : "") + guarda(g, T("ha finito","finished")), primo);
+        $("#und") && ($("#und").onclick = () => { got.pop(); sfx("tap"); draw(); });   /* [24/10] un tocco sbagliato si toglie */
         document.querySelectorAll("[data-c]").forEach(b => b.onclick = () => { sfx("puntata",{vol:.6,vary:true}); got.push(+b.dataset.c); if (got.length === 6){ salaAct(got.reduce((a,c,i) => a + c*Math.pow(6,i), 0)); ST.loc.mandato = true; show(testa(g, "", T("Fatto.","Done."), false) + guarda(g, T("ha finito","finished"))); } else draw(); }); };
-      draw();
+      draw(true);
     } else aggiornaVivo(g.fatto, T("ha finito","finished"));
     return;
   }
@@ -1453,7 +1515,8 @@ VISTE_SALA.trecarte = (g, S, nuovo) => {
   }
   if (!nuovo) return;
   const r = g.riv || {}, sc = r.scelte || {};
-  show(testa(g, T("si girano","face up"), "") + `<div class="cards3">${[0,1,2].map(s=>`<div class="card3 face ${s===r.regina?"":"x"}" style="left:${L(s)}">${s===r.regina?"Q":"7"}<span class="who">${Object.entries(sc).filter(([k,v]) => v === s).map(([k]) => avatarHTML(pDi(+k))).join("")}</span></div>`).join("")}</div>`);
+  show(testa(g, T("si girano","face up"), "") + `<div class="cards3">${[0,1,2].map(s=>`<div class="card3 face ${s===r.regina?"":"x"}" style="left:${L(s)}">${s===r.regina?"Q":"7"}<span class="who">${Object.entries(sc).filter(([k,v]) => v === s).map(([k]) => avatarHTML(pDi(+k))).join("")}</span></div>`).join("")}</div>` +
+    listHTML(condP(g), p => ({t: (sc[p.id] != null ? T("carta ","card ") + (sc[p.id] + 1) : T("nessuna","none")) + ((g.morti||[]).includes(p.id) ? " · ☠" : " · " + T("VIVO","ALIVE")), cls: (g.morti||[]).includes(p.id) ? "dead" : "safe"})));   /* [24/10] chi ha scelto cosa, e com'e' finita */
   dopoRivela(g, S, () => sfx("carta"));
 };
 
@@ -1468,8 +1531,9 @@ VISTE_SALA.slot = (g, S, nuovo) => {
     show(testa(g, g.passo === "rivela" ? T("i rulli","the reels") : T("due uguali: vivi","two alike: you live"), "", gioco) +
       (inCond(g) && !ST.spec ? `<div class="reels" id="mr">${[0,1,2].map(i=>`<div class="reel spin" id="rl${i}"><span></span></div>`).join("")}</div>` + (gioco ? `<button class="cta" id="st">STOP</button><div class="note" style="margin-top:8px">${T("Ogni rullo gira più veloce del precedente. Due teschi = morto.","Each reel spins faster than the last. Two skulls = dead.")}</div>` : "") : "") +
       `<div class="mini" id="altri"></div>`);
-    if ($("#st")) $("#st").onclick = () => { const i = (ST.S.sala.gioco.fermi[ST.me] || []).length + (ST.loc.premuti || 0); if (i > 2) return;
-      const k = Math.floor((performance.now() - ST.loc.t0) / g.spd[i]); ST.loc.premuti = (ST.loc.premuti || 0) + 1;
+    // [24/10] il rullo da fermare: quelli confermati dal server O quelli gia' premuti, mai la somma (il secondo STOP fermava il terzo rullo e il terzo tocco si perdeva)
+    if ($("#st")) $("#st").onclick = () => { const i = Math.max(((ST.S.sala.gioco.fermi || {})[ST.me] || []).length, ST.loc.premuti || 0); if (i > 2) return;
+      const k = Math.floor((performance.now() - ST.loc.t0) / g.spd[i]); ST.loc.premuti = i + 1; if (i === 2) $("#st").disabled = true;
       salaAct(k, i); sfx("rullo_stop"); haptic(); const el = $("#rl"+i); if (el){ el.classList.remove("spin"); el.classList.add("stop"); ST.loc["f"+i] = g.seq[i][k % g.seq[i].length]; } };
     if (inCond(g) && !ST.spec && g.passo === "gira"){ sfx("rullo");
       clearInterval(ST.loc.iv); ST.loc.iv = setInterval(() => { const gg = ST.S && ST.S.sala && ST.S.sala.gioco; if (!gg || gg.id !== "slot" || gg.passo !== "gira") return clearInterval(ST.loc.iv);
@@ -1514,17 +1578,20 @@ VISTE_SALA.asta = (g, S, nuovo) => {
       const tit = !sono ? T("Le buste si chiudono…","Envelopes closing…") : cond ? (g.solo ? T("Quanto paghi la tua vita?","How much is your life worth?") : T("Offerta segreta per un biglietto di vita","Secret bid for a life ticket")) : T("Fissa il prezzo per ","Set the price for ") + esc(nomeDi(pDi(g.cond[0])));
       const nota = !sono ? "" : cond ? (g.solo ? T("Devi pagare almeno il prezzo segreto fissato da chi è fuori. Paghi comunque quello che offri.","You must pay at least the secret price set by those outside. You pay your bid regardless.") : T(`${g.cond.length-1} biglietti per ${g.cond.length} condannati. Chi offre meno muore. Tutti pagano.`, `${g.cond.length-1} tickets for ${g.cond.length} condemned. Lowest bid dies. Everyone pays.`)) : T("Se il tuo è il prezzo più alto e non lo paga, prendi 500 fiche.","If yours is the highest price and they don't pay it, you get 500 chips.");
       show(testa(g, "", tit, sono) + (nota ? `<div class="note">${nota}</div>` : "") + (sono ? cursore("r", max, 50, 0) + `<button class="cta alt" id="ok">${T("SIGILLA L'OFFERTA","SEAL THE BID")}</button>` : "") + guarda(g, T("busta chiusa","envelope sealed")));
-      const r = $("#r"); if (r){ r.oninput = () => { $("#rv").textContent = fmt(+r.value); sfx("tic",{vol:.4,rate:0.8+r.value/Math.max(1,max)}); }; $("#ok").onclick = () => { sfx("martello"); salaAct(+r.value); r.disabled = true; $("#ok").disabled = true; }; }
+      const r = $("#r"); if (r){ r.oninput = () => { $("#rv").textContent = fmt(+r.value); sfx("tic",{vol:.4,rate:0.8+r.value/Math.max(1,max)}); }; $("#ok").onclick = () => { sfx("martello"); salaAct(+r.value); r.disabled = true; $("#ok").disabled = true; }; ST.loc.tmo = setTimeout(() => { const b = $("#ok"); if (b && !b.disabled) b.click(); }, Math.max(0, (g.resta_s - 1.2) * 1000));   /* [24/10] allo scadere si manda quello che c'e' */ }
     } else aggiornaVivo(g.fatto, T("busta chiusa","envelope sealed"));
     return;
   }
   if (!nuovo) return;
   const r = g.riv || {}, off = r.off || {};
-  show(testa(g, g.solo ? T("prezzo ","price ") + fmt(r.prezzo) : T("si aprono le buste","envelopes open"), "") + `<div class="list" id="ol"></div>`);
+  const vs = Object.values(off), lo = vs.length ? Math.min(...vs) : 0, pari = !g.solo && vs.filter(v => v === lo).length > 1 && (g.morti || []).length < vs.filter(v => v === lo).length;
+  show(testa(g, g.solo ? T("prezzo ","price ") + fmt(r.prezzo) : T("si aprono le buste","envelopes open"), "") + `<div class="list" id="ol"></div>` + (pari ? `<div class="note">🎲 ${T("Offerte pari: ha deciso la sorte.","Tied bids: fate decided.")}</div>` : ""));
   dopoRivela(g, S, async () => { for (const [sg, v] of Object.entries(off).sort((a,b) => b[1]-a[1])){ const p = pDi(+sg); const el = $("#ol"); if (!el || !p) return;
     el.insertAdjacentHTML("beforeend", `<div class="li ${(g.morti||[]).includes(+sg)?"dead":"safe"}">${avatarHTML(p)}<span>${esc(nomeDi(p))}</span><span class="s">${fmt(v)}</span></div>`); sfx("martello",{vol:.5}); await sleep(500); } });
 };
 
+/* [24/10] alla rivela ogni mano dice com'e' finita */
+const esitoH = (g, p) => g.passo !== "rivela" || !(g.cond || []).includes(p.id) ? "" : (g.morti || []).includes(p.id) ? ` <em class="esm">☠ ${T("MORTO","DEAD")}</em>` : ` <em class="esv">${T("VIVO","ALIVE")}</em>`;
 /* ---------- BLACKJACK ---------- */
 const cartaH = c => c ? `<span class="pc ${c[1]==="♥"||c[1]==="♦"?"r":""}">${c[0]}${c[1]}</span>` : `<span class="pc hole"></span>`;
 VISTE_SALA.bj = (g, S, nuovo) => {
@@ -1533,11 +1600,11 @@ VISTE_SALA.bj = (g, S, nuovo) => {
   if (!nuovo && firma === ST.loc.firma) return;
   const prima = ST.loc.firma; ST.loc.firma = firma;
   const gioco = g.passo === "gioca" && tocca(g);
-  const manoH = p => { const h = mani[p.id] || {c:[], t:0}; const fin = (g.fatto||[]).includes(p.id); return `<div class="bjm ${p.me?"me":""}"><div class="sl-who">${avatarHTML(p)}<b>${esc(nomeDi(p))}</b><span>${h.t}${h.t>21?T(" · SBALLA"," · BUST"):fin?T(" · STA"," · STANDS"):""}</span></div><div class="bj">${h.c.map(cartaH).join("")}</div></div>`; };
-  show(testa(g, g.passo === "gioca" ? "" : g.passo === "banco" ? T("il banco gioca","the dealer plays") : T("il conto","the count"), "", gioco) +
+  const manoH = p => { const h = mani[p.id] || {c:[], t:0}; const fin = (g.fatto||[]).includes(p.id); return `<div class="bjm ${p.me?"me":""}"><div class="sl-who">${avatarHTML(p)}<b>${esc(nomeDi(p))}</b><span>${h.t}${h.t>21?T(" · SBALLA"," · BUST"):fin && g.passo !== "rivela"?T(" · STA"," · STANDS"):""}${esitoH(g, p)}</span></div><div class="bj">${h.c.map(cartaH).join("")}</div></div>`; };
+  mostra(testa(g, g.passo === "gioca" ? "" : g.passo === "banco" ? T("il banco gioca","the dealer plays") : T("il conto","the count"), "", gioco) +
     `<div class="note" style="margin:0">${T("Banco","Dealer")}${g.banco_t != null ? " · <b>" + g.banco_t + "</b>" : ""}</div><div class="bj">${(g.banco||[]).map(cartaH).join("")}</div>` +
     (inCond(g) && !ST.spec ? manoH(io()) : "") + (gioco ? `<div class="row"><button class="cta alt" id="h">${T("CARTA","HIT")}</button><button class="cta" id="s">${T("STO","STAND")}</button></div>` : "") +
-    condP(g).filter(p => !p.me || ST.spec).map(manoH).join(""));
+    condP(g).filter(p => !p.me || ST.spec).map(manoH).join(""), nuovo);
   $("#h") && ($("#h").onclick = () => { sfx("carta"); salaAct(1); $("#h").disabled = $("#s").disabled = true; });
   $("#s") && ($("#s").onclick = () => { sfx("lock"); salaAct(0); $("#h").disabled = $("#s").disabled = true; });
   if (prima) sfx("carta",{vol:.6});
@@ -1554,12 +1621,12 @@ VISTE_SALA.dadi = (g, S, nuovo) => {
   const cond = inCond(g) && !ST.spec, fuori = !ST.spec && !cond && (g.attori||[]).includes(ST.me);
   const gioco = g.passo === "tira" && tocca(g);
   const r = g.riv || {};
-  const manoH = p => `<div class="bjm ${p.me?"me":""}"><div class="sl-who">${avatarHTML(p)}<b>${esc(nomeDi(p))}</b><span>${somma(mani[p.id])}${g.passo==="rivela" ? ((r.teschi||{})[p.id] ? " +" + r.teschi[p.id] + "☠" : "") + " = " + (r.fin||{})[p.id] : ""}${somma(mani[p.id])>21?T(" · SBALLA"," · BUST"):""}</span></div><div class="dice">${(mani[p.id]||[]).map(v=>`<span class="die">${v}</span>`).join("")}</div></div>`;
+  const manoH = p => `<div class="bjm ${p.me?"me":""}"><div class="sl-who">${avatarHTML(p)}<b>${esc(nomeDi(p))}</b><span>${somma(mani[p.id])}${g.passo==="rivela" ? ((r.teschi||{})[p.id] ? " +" + r.teschi[p.id] + "☠" : "") + " = " + (r.fin||{})[p.id] : ""}${(g.passo==="rivela" ? (r.fin||{})[p.id] : somma(mani[p.id]))>21?T(" · SBALLA"," · BUST"):""}${esitoH(g, p)}</span></div><div class="dice">${(mani[p.id]||[]).map(v=>`<span class="die">${v}</span>`).join("")}</div></div>`;
   let h = testa(g, T("arriva a 21","reach 21"), "", gioco);
   if (cond) h += manoH(io()) + (gioco ? `<div class="note" style="text-align:center">${T("I teschi che ti hanno regalato si scoprono alla fine.","Gifted skulls are revealed at the end.")}</div><div class="row"><button class="cta alt" id="h">${T("TIRA ANCORA","ROLL AGAIN")}</button><button class="cta" id="s">${T("MI FERMO","STOP")}</button></div>` : "");
   else if (fuori && gioco) h += `<div class="big">${T("Regali un dado col teschio?","Gift a skull die?")}</div><div class="note">${T("Vale +1 a fine tiro: può far sballare chi è vicino a 21.","+1 at the end: can bust whoever is close to 21.")}</div><div class="list">${condP(g).map(c=>`<button class="btn" data-sg="${c.id}">${avatarHTML(c)} ${esc(nomeDi(c))}</button>`).join("")}</div><button class="cta ghost" id="n">${T("Nessuno","Nobody")}</button>`;
   h += condP(g).filter(p => !p.me || ST.spec).map(manoH).join("");
-  show(h);
+  mostra(h, nuovo);
   $("#h") && ($("#h").onclick = () => { sfx("dadi"); salaAct(1); $("#h").disabled = $("#s").disabled = true; });
   $("#s") && ($("#s").onclick = () => { sfx("lock"); salaAct(0); $("#h").disabled = $("#s").disabled = true; });
   document.querySelectorAll("[data-sg]").forEach(b => b.onclick = () => { sfx("dadi",{vol:.5}); salaAct(+b.dataset.sg); });
@@ -1592,9 +1659,9 @@ VISTE_SALA.cassaforte = (g, S, nuovo) => {
     const nOra = Object.values(prove).reduce((a,x)=>a+x.length,0); if (nOra > nPrima && !nuovo) sfx("rullo_stop",{vol:.6});
     const mie = prove[ST.me] || [];
     const altri = condP(g).filter(p => !p.me || ST.spec);
-    show(testa(g, T(`${Math.max(0,5-mie.length)} tentativi`, `${Math.max(0,5-mie.length)} tries`) + (g.setter === ST.me ? T(" · il codice è tuo"," · the code is yours") : ""), "", gioco) +
+    mostra(testa(g, T(`${Math.max(0,5-mie.length)} tentativi`, `${Math.max(0,5-mie.length)} tries`) + (g.setter === ST.me ? T(" · il codice è tuo"," · the code is yours") : ""), "", gioco) +
       (inCond(g) && !ST.spec ? provaH(mie) + (gioco ? quadrante("q", ST.loc.c) + `<button class="cta alt" id="ok">${T("PROVA","TRY")}</button><div class="note" style="margin-top:8px">${T("Verde = cifra giusta al posto giusto. Oro = c'è ma altrove. Grigio = non c'è.","Green = right digit, right place. Gold = in the code, elsewhere. Grey = not in it.")}</div>` : `<div class="big">${(g.aperte||[]).includes(ST.me) ? T("APERTA!","OPEN!") : T("Resta chiusa…","Still shut…")}</div>`) : (g.setter === ST.me ? `<div class="note">${T("Il tuo codice: ","Your code: ")}<b>${(mio(g).codice||[]).join(" ")}</b></div>` : "")) +
-      `<div class="mini">${altri.map(p => `<div><div class="sl-who">${avatarHTML(p)}<b>${esc(nomeDi(p))}</b><span>${(g.aperte||[]).includes(p.id) ? T("APERTA","OPEN") : (prove[p.id]||[]).length + "/5"}</span></div>${provaH(prove[p.id])}</div>`).join("")}</div>`);
+      `<div class="mini">${altri.map(p => `<div><div class="sl-who">${avatarHTML(p)}<b>${esc(nomeDi(p))}</b><span>${(g.aperte||[]).includes(p.id) ? T("APERTA","OPEN") : (prove[p.id]||[]).length + "/5"}</span></div>${provaH(prove[p.id])}</div>`).join("")}</div>`, nuovo);
     if (gioco){ legaQuadrante("q", ST.loc.c); $("#ok").onclick = () => { const c = ST.loc.c; sfx("rullo_stop"); salaAct(c[0]*100 + c[1]*10 + c[2]); $("#ok").disabled = true; setTimeout(() => { const b = $("#ok"); if (b) b.disabled = false; }, 700); }; }
     if (mie.length && mie[mie.length-1][1] === "ggg" && !ST.loc.aperta){ ST.loc.aperta = true; sfx("porta_apre"); flash("g"); haptic("ok"); }
     return;
@@ -1615,7 +1682,7 @@ VISTE_SALA.conta = (g, S, nuovo) => {
   if (g.passo === "stima"){
     if (nuovo){ const sono = tocca(g);
       show(testa(g, "", sono ? T("Quanto vale il mucchio?","What's the pile worth?") : T("Contano il mucchio…","Counting the pile…"), sono) + (sono ? cursore("r", 3000, 10, 1000) + `<button class="cta" id="ok">${T("CONFERMA","CONFIRM")}</button>` : "") + guarda(g, T("ha detto il suo numero","named a number")));
-      const r = $("#r"); if (r){ r.oninput = () => { $("#rv").textContent = fmt(+r.value); sfx("tic",{vol:.3}); }; $("#ok").onclick = () => { sfx("lock"); salaAct(+r.value); r.disabled = true; $("#ok").disabled = true; }; }
+      const r = $("#r"); if (r){ r.oninput = () => { $("#rv").textContent = fmt(+r.value); sfx("tic",{vol:.3}); }; $("#ok").onclick = () => { sfx("lock"); salaAct(+r.value); r.disabled = true; $("#ok").disabled = true; }; ST.loc.tmo = setTimeout(() => { const b = $("#ok"); if (b && !b.disabled) b.click(); }, Math.max(0, (g.resta_s - 1.2) * 1000));   /* [24/10] allo scadere si manda quello che c'e' */ }
     } else aggiornaVivo(g.fatto, T("ha detto il suo numero","named a number"));
     return;
   }
@@ -1643,6 +1710,8 @@ VISTE_SALA.barile = (g, S, nuovo) => {
   dopoRivela(g, S, async () => { await sleep(700); for (const h of buchi){ const el = $("#h"+h); if (el) el.classList.add("blade"); sfx("crollo",{vol:.45,rate:1.6}); shake(); await sleep(420); } });
 };
 
+/* [24/10] il pareggio nel voto lo decide la sorte (server): ora si dice */
+function pariH(r){ const v = r.voti || [], p = r.perd || []; if (!p.length || !v.length) return ""; const x = v[p[0]] || 0; return v.filter(n => (n || 0) === x).length > 1 ? `<div class="note">🎲 ${T("Pareggio nei voti: ha deciso la sorte.","Tied vote: fate decided.")}</div>` : ""; }
 /* ---------- DISEGNI: TATUATORE e RITRATTO ---------- */
 const DIS = { tatuaggi:{fondo:"schiena", lw:2.6, colori:["#14202a","#b0182b","#1d5a3a","#7a5410"], intro:[ "Bruno si toglie la giacca. Ha la schiena libera. Il tema è","Bruno takes off his jacket. His back is free. The theme is"]},
               ritratto:{fondo:"carta", lw:2.2, colori:["#1b140c","#b0182b","#2a5fb0","#1d7a4a"], intro:["Carta, dito, niente scuse. Disegnate","Paper, finger, no excuses. Draw"]} };
@@ -1683,7 +1752,7 @@ function salaDisegni(g, S, nuovo){
   }
   if (!nuovo) return;
   const r = g.riv || {};
-  show(testa(g, "«" + esc(fl(tema)) + "» · " + T("i voti","the votes"), "") + galleria(false));
+  show(testa(g, "«" + esc(fl(tema)) + "» · " + T("i voti","the votes"), "") + galleria(false) + pariH(r));
   ord.forEach((o,i) => { const cv = $("#op"+i+" canvas"); if (cv) disegnaOpera(cv, o, cfg, false); });
   dopoRivela(g, S, async () => { for (let i=0;i<ord.length;i++){ const el = $("#op"+i); if (!el) continue; const a = (r.autori||[])[i]; const p = a === -9 ? {nome:"Monsieur Fiche", foto: img("host_neutro")} : pDi(a);
       el.insertAdjacentHTML("beforeend", `<span class="au">${avatarHTML(p)}${esc(a === -9 ? "Monsieur Fiche" : nomeDi(p))}</span><span class="vt">${(r.voti||[])[i]||0} ${((r.voti||[])[i]||0)===1?T("voto","vote"):T("voti","votes")}</span>`); sfx("carta",{vol:.5}); await sleep(380); }
@@ -1760,7 +1829,7 @@ VISTE_SALA.battuta = (g, S, nuovo) => {
   }
   if (!nuovo) return;
   const r = g.riv || {};
-  show(testa(g, T("i voti","the votes"), "") + `<div class="note">${esc(dom)}</div><div class="list" id="bl"></div>`);
+  show(testa(g, T("i voti","the votes"), "") + `<div class="note">${esc(dom)}</div><div class="list" id="bl"></div>` + pariH(r));
   dopoRivela(g, S, async () => { const idx = fr.map((f,i)=>i).sort((a,b) => ((r.voti||[])[a]||0) - ((r.voti||[])[b]||0));
     for (const i of idx){ const a = (r.autori||[])[i]; const p = a === -9 ? {nome:"Monsieur Fiche", foto: img("host_neutro")} : pDi(a); const el = $("#bl"); if (!el) return;
       el.insertAdjacentHTML("beforeend", `<div class="li ${(r.perd||[]).includes(i)?"dead":""}">${avatarHTML(p)}<span class="qt">«${esc(fl(fr[i]) || "…")}»</span><span class="s">${(r.voti||[])[i]||0}</span></div>`); sfx("carta",{vol:.5}); await sleep(450); } });
@@ -1836,9 +1905,9 @@ VISTE_SALA.dita = (g, S, nuovo) => {
   if (g.passo === "scegli"){
     if (nuovo){ const sono = tocca(g); ST.loc.ord = [0,1,2,3];
       show(testa(g, "", sono ? T("Taglia un dito. Adesso.","Cut a finger. Now.") : T("Scelgono quale dito dare…","Choosing which finger to give…"), sono) + (sono ? `<div class="note">${T("Quella risposta resterà chiusa per le prossime due domande. Le dita si muovono.","That answer stays closed for the next two questions. The fingers move.")}</div><div class="dita">${[0,1,2,3].map(i=>`<button data-i="${i}" style="--kc:${KC[i]}"><span>✋</span><b>${"ABCD"[i]}</b></button>`).join("")}</div>` : "") + guarda(g, T("ha scelto","chose")));
-      document.querySelectorAll(".dita button").forEach(b => b.onclick = () => { sfx("martello"); haptic("ko"); salaAct(+b.dataset.i); document.querySelectorAll(".dita button").forEach(x => x.disabled = true); b.classList.add("sel"); });
+      document.querySelectorAll(".dita button").forEach(b => b.onclick = () => { if (performance.now() - (ST.loc.mosse || 0) < 300) return;   /* [24/10] niente dito sbagliato mentre si spostano */ sfx("martello"); haptic("ko"); salaAct(+b.dataset.i); document.querySelectorAll(".dita button").forEach(x => x.disabled = true); b.classList.add("sel"); });
       if (sono){ clearInterval(ST.loc.iv); ST.loc.iv = setInterval(() => { const gg = ST.S && ST.S.sala && ST.S.sala.gioco; if (!gg || gg.id !== "dita" || gg.passo !== "scegli") return clearInterval(ST.loc.iv);
-        ST.loc.ord = shuffle(ST.loc.ord); document.querySelectorAll(".dita button").forEach(b => b.style.order = ST.loc.ord.indexOf(+b.dataset.i)); sfx("whoosh",{vol:.2}); }, 1300); }
+        ST.loc.ord = shuffle(ST.loc.ord); ST.loc.mosse = performance.now(); document.querySelectorAll(".dita button").forEach(b => b.style.order = ST.loc.ord.indexOf(+b.dataset.i)); sfx("whoosh",{vol:.2}); }, 1300); }
     } else aggiornaVivo(g.fatto, T("ha scelto","chose"));
     return;
   }
@@ -1872,17 +1941,20 @@ VISTE_SALA.macchie = (g, S, nuovo) => {
   if (g.passo === "mostra"){ if (nuovo){ show(testa(g, T("3 secondi","3 seconds"), T("Guardate il panno","Look at the cloth")) + grid(g.mac || [], null, false, false)); sfx("veleno",{vol:.4}); } return; }
   if (g.passo === "rifai"){
     if (nuovo){ const sono = tocca(g); ST.loc.s = [];
-      const draw = () => { const s = ST.loc.s;
-        show(testa(g, "", sono ? T(`Rifalle: ${s.length}/${K}`, `Redo them: ${s.length}/${K}`) : T("Rifanno le macchie…","Redoing the stains…"), sono) + (sono ? grid(null, s, true, false) + `<button class="cta" id="ok">${T("FATTO","DONE")}</button>` : "") + guarda(g, T("ha finito","finished")));
+      const draw = (primo) => { const s = ST.loc.s;
+        mostra(testa(g, "", sono ? T(`Rifalle: ${s.length}/${K}`, `Redo them: ${s.length}/${K}`) : T("Rifanno le macchie…","Redoing the stains…"), sono) + (sono ? grid(null, s, true, false) + `<button class="cta" id="ok">${T("FATTO","DONE")}</button>` : "") + guarda(g, T("ha finito","finished")), primo);
         document.querySelectorAll(".stain button").forEach(b => b.onclick = () => { const i = +b.dataset.i; const at = s.indexOf(i); if (at >= 0) s.splice(at,1); else if (s.length < K) s.push(i); sfx("gratta",{vol:.4,vary:true}); draw(); });
         $("#ok") && ($("#ok").onclick = () => { sfx("lock"); salaAct(s.reduce((a,i) => a | (1<<i), 0)); show(testa(g, "", T("Fatto.","Done."), false) + guarda(g, T("ha finito","finished"))); }); };
-      draw();
+      draw(true);
+      if (sono) ST.loc.tmo = setTimeout(() => { const b = $("#ok"); if (b && ST.loc.s && ST.loc.s.length) b.click(); }, Math.max(0, (g.resta_s - 1.2) * 1000));   /* [24/10] allo scadere si manda il panno com'e' */
     } else aggiornaVivo(g.fatto, T("ha finito","finished"));
     return;
   }
   if (!nuovo) return;
   const r = g.riv || {};
-  show(testa(g, T("risultato","result"), "") + (inCond(g) && !ST.spec ? grid(r.mac || [], (r.sel||{})[ST.me] || [], false, true) : grid(r.mac || [], null, false, true)) + listHTML(condP(g), p => ({t: ((r.punti||{})[p.id]||0) + "/" + K, cls: (g.morti||[]).includes(p.id) ? "dead" : "safe"})));
+  show(testa(g, T("risultato","result"), "") + (inCond(g) && !ST.spec ? grid(r.mac || [], (r.sel||{})[ST.me] || [], false, true) : grid(r.mac || [], null, false, true)) + listHTML(condP(g), p => { const se = (r.sel||{})[p.id], mac = r.mac || [];   /* [24/10] giuste e sbagliate, non «-3/6» */
+    const t = se ? `${se.filter(i => mac.includes(i)).length} ✓ · ${se.filter(i => !mac.includes(i)).length} ✗` : T("punti ","score ") + ((r.punti||{})[p.id]||0);
+    return {t, cls: (g.morti||[]).includes(p.id) ? "dead" : "safe"}; }));
   dopoRivela(g, S, () => sfx("carta"));
 };
 
@@ -1911,7 +1983,7 @@ const SALE_INFO = {
   calici:["I Calici","The Goblets","Chi è fuori avvelena un calice. Voi ne bevete uno.","Those outside poison a goblet. You drink one."],
   mate:["Matematica","Maths","25 secondi di conti. In due o più muore chi ne fa meno; da solo ne servono 8.","25 seconds of sums. With two or more, whoever solves fewest dies; alone you need 8."],
   ruota:["La Ruota del Perdente","The Loser's Wheel","Un giro di ruota. Uno spicchio su sei è VITA. Niente mazzetta.","One spin. One slice in six is LIFE. No bribes."],
-  monta:["Il Montacarichi","The Service Lift","Due ascensori. Se vi dividete cade quello più pieno.","Two lifts. If you split up, the fuller one falls."],
+  monta:["Il Montacarichi","The Service Lift","Due ascensori. Tutti nello stesso: salvi. Se vi dividete cade quello più pieno (a parità, a sorte).","Two lifts. All in one: safe. If you split up, the fuller one falls (a tie: fate decides)."],
   gratta:["Gratta e Vinci","Scratch Card","Trova 3 fiche prima del teschio.","Find 3 chips before the skull."],
   mente:["Mente Unica","One Mind","Scrivi una parola della categoria. Se un altro scrive la stessa, muori.","Write a word in the category. If anyone writes the same, you die."],
   avidita:["Avidità","Greed","Scegli da 0 a 1000 fiche: te le tieni, ma il più alto e il più basso fra i condannati muoiono.","Pick 0 to 1000 chips: you keep them, but the highest and lowest among the condemned die."],
@@ -2018,10 +2090,11 @@ function suSnap(S){
   ST.S = S; ST.clockT = performance.now();
   aggiornaGiocatori(S);
   const feed = S.feed || [];
+  const ora = typeof S.time === "number" ? S.time : +S.t;   // [24/10] dal server arriva t:"s" e il tempo in `time`: con S.t il conto dava NaN e ogni rientro riviveva le scene vecchie
   for (const v of feed){
     if (v.s <= ST.ultimoFeed) continue;
     ST.ultimoFeed = v.s;
-    const vecchio = (S.t - v.t) > 4 || primo;      // al rientro non si rivedono le scene passate
+    const vecchio = (ora - v.t) > 4 || primo;      // al rientro non si rivedono le scene passate
     if (v.k === "opera"){ ST.opere[v.ch] = trattiDaFilo(v.tratti); continue; }
     if (!vecchio) try { evento(v, S); } catch(e){ alGuscio({dm:"err", msg:"evento " + v.k + ": " + e}); }
   }
@@ -2052,6 +2125,10 @@ function evento(v, S){
       sayQ(frase("sala_ingresso", {nomi, sala: salaNome(v.sala)}), {espr:"indica"}); break; }
     case "mazzetta": sfx("mazzetta"); sayEvQ("mazzetta", {nome: nomeDi(p)}, {extra:-600}); break;
     case "puntata": sfx("puntata", {vol:.6}); break;
+    case "boo": { const vit = pDi(v.su); if (!vit) break;
+      if (v.su === ST.me && !ST.spec) infesta(p);
+      else { sfx("fantasma",{vol:.35,rate:1.3}); const ch = $("#ch" + v.su); if (ch){ ch.classList.remove("boo"); void ch.offsetWidth; ch.classList.add("boo"); } flyText(vit, "👻"); }
+      break; }
     case "morte": { const ps = p; if (!ps) break; const k = (v.killers || []).map(i => nomeDi(pDi(i)));
       cineQ(() => cineMorte(ps));
       sayQ(frase("morte", {nome: nomeDi(ps)}) + (v.meta ? T(` <b>${fmt(v.meta)}</b> fiche cadono sul tavolo.`, ` <b>${fmt(v.meta)}</b> chips hit the table.`) : "") + (k.length ? T(" Incassano: ", " Cashing in: ") + k.map(x => "<b>"+esc(x)+"</b>").join(", ") + "." : ""), {espr:"ride"});
@@ -2140,8 +2217,9 @@ function render(){
   let key = S.fase + "|" + S.tok;
   if (S.fase === "sala" && S.sala && S.sala.gioco) key += "|" + S.sala.gioco.passo;
   const nuovo = key !== ST.key;
-  if (nuovo){ ST.key = key; ST.loc = {}; }
+  if (nuovo){ ST.key = key; if (ST.loc){ clearInterval(ST.loc.iv); clearTimeout(ST.loc.tmo); } ST.loc = {}; }   // [24/10] i timer della fase vecchia muoiono con lei: il malocchio ridisegnava le risposte di 5 domande prima
   const f = FASI[S.fase];
+  if (S.fase !== "sala") booBar(null);
   if (f) f(S, nuovo);
   ST.primo = false;
 }
@@ -2230,7 +2308,9 @@ FASI.cartello = (S, nuovo) => {
   const sono = (s.cond||[]).includes(ST.me) && !ST.spec;
   const chi = sono ? `<div class="avviso cond">⛓ <b>${T("SEI CONDANNATO","YOU'RE CONDEMNED")}</b> · ${T("hai sbagliato: in questa sala puoi morire. Se hai 1500 fiche puoi pagare la mazzetta e saltarla.","you got it wrong: in this room you can die. With 1500 chips you can pay the bribe and skip it.")}</div>`
     : (ST.spec ? "" : `<div class="avviso fuori">👀 <b>${T("SEI FUORI","YOU'RE SAFE")}</b> · ${T("guardi i condannati, puoi scommettere su chi sopravvive e in alcune sale giochi contro di loro: se li fai fuori prendi fiche.","you watch the condemned, can bet on who survives, and in some rooms you play against them: take them out and earn chips.")}</div>`);
-  show(roomCardS(s.id) + chi + listHTML((s.cond||[]).map(pDi).filter(Boolean), p => ({t: fmt(p.fiche) + T(" fiche"," chips")})));
+  const m = io(), anima = !ST.spec && m && !m.vivo && !sono;
+  const nota = anima ? `<div class="avviso fuori">👻 <b>${T("SEI UN'ANIMA","YOU'RE A SOUL")}</b> · ${T("in sala puoi spaventare i condannati (3 volte): gli appanni lo schermo. Se muoiono, +150 fiche a te.","in the room you can haunt the condemned (3 times): you fog their screen. If they die, +150 chips for you.")}</div>` : "";
+  show(roomCardS(s.id) + chi + nota + listHTML((s.cond||[]).map(pDi).filter(Boolean), p => ({t: fmt(p.fiche) + T(" fiche"," chips")})));
 };
 FASI.mazzetta = (S, nuovo) => {
   const s = S.sala || {};
@@ -2259,7 +2339,31 @@ FASI.sala = (S, nuovo) => {
   SALA_ORA = g.id;
   const r = VISTE_SALA[g.id];
   if (r) r(g, S, nuovo);
+  booBar(S);
 };
+/* [24/10] LO SPAVENTO: le anime fuori dalla sala infestano un condannato (3 a sala, uno ogni 5 s).
+   Al condannato il pannello si appanna per un attimo; se poi muore, l'anima incassa 150 fiche. */
+const BOO_AY = -77;
+function booBar(S){
+  const b = S && S.fase === "sala" && !ST.spec && S.you && S.you.boo;
+  let el = $("#boo");
+  if (!b){ if (el) el.remove(); $("#app").classList.remove("conboo"); return; }
+  if (!el){ el = document.createElement("div"); el.id = "boo"; $("#app").appendChild(el); sfx("fantasma",{vol:.35}); }
+  $("#app").classList.add("conboo");
+  const cond = ((S.sala || {}).cond || []).map(pDi).filter(Boolean);
+  const attesa = b.tra > 0 || (ST.booFino || 0) > performance.now(), finiti = b.resta <= 0;
+  const h = `<div class="bt"><b>👻 ${T("SEI UN'ANIMA: SPAVENTA","YOU'RE A SOUL: HAUNT")}</b><span>${finiti ? T("spaventi finiti","no scares left") : attesa ? T("riprendi fiato…","catching breath…") : b.resta + T(" rimasti"," left")}</span></div>` +
+    `<div class="bv">${cond.map(p => `<button data-sg="${p.id}" ${finiti || attesa ? "disabled" : ""}>${avatarHTML(p)}<i>${esc(nomeDi(p))}</i></button>`).join("")}</div>` +
+    `<div class="bn">${T("Gli appanni lo schermo. Se muore in questa sala, +150 fiche a te.","You fog their screen. If they die in this room, +150 chips for you.")}</div>`;
+  if (el.dataset.h !== h){ el.dataset.h = h; el.innerHTML = h;
+    el.querySelectorAll("button").forEach(x => x.onclick = () => { if (x.disabled) return; sfx("fantasma",{vol:.7}); haptic("soft"); ST.booFino = performance.now() + 1500; el.querySelectorAll("button").forEach(y => y.disabled = true); act("sala", +x.dataset.sg, BOO_AY); }); }
+}
+function infesta(da){
+  const pn = $("#panel"); if (!pn) return;
+  pn.classList.remove("infestato"); void pn.offsetWidth; pn.classList.add("infestato");
+  clearTimeout(pn._boo); pn._boo = setTimeout(() => pn.classList.remove("infestato"), 1600);
+  sfx("fantasma"); haptic("ko"); toast(T(`👻 ${nomeDi(da)} ti infesta!`, `👻 ${nomeDi(da)} is haunting you!`), 1600);
+}
 FASI.esito_sala = (S, nuovo) => {
   if (!nuovo) return;
   const s = S.sala || {}; const e = s.esito || {};

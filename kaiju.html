@@ -3387,7 +3387,7 @@ function suStart(m) {
   schermo('gioco');
   montaArena();
   montaPlancia();
-  v2Arena(); RECITA._lv = 1; RECITA._dc = 0; DRAFT_SCELTO = -1; chiudiDraftUI();
+  v2Arena(); RECITA._lv = 1; RECITA._dc = 0; DRAFT_SCELTO = -1; DRAFT_SCADUTO = false; chiudiDraftUI();
   caricaPose();
   $('#meta').innerHTML = ''; aggPiatto();
   dimmi(SPET ? 'Stai guardando la partita' : 'La partita sta per cominciare…');
@@ -3571,6 +3571,14 @@ async function rifai(v) {
       break;
     case 'draft':                                      // [v2] tutti hanno scelto: i poteri vanno ai mostri
       RECITA._dc = 0;
+      if (!SPET) {                                     // 23/10 · se il potere non e' quello toccato, si dice perche'
+        const mio = (v.ev || []).find(e => e.t === 'draft' && e.chi === IO), voluto = DRAFT_SCELTO >= 0 && S.proposte[IO] ? S.proposte[IO][DRAFT_SCELTO] : null;
+        if (mio && (DRAFT_SCADUTO || (voluto && voluto !== mio.id))) {
+          const el = $('#kvDraft'), perche = voluto && voluto !== mio.id ? 'La tua scelta è arrivata tardi' : 'Tempo scaduto';
+          dimmi(perche + ': il banco ha scelto per te <b>' + esc(KJ.CARTE[mio.id].nome) + '</b>');
+          if (el && el.classList.contains('su')) { el.innerHTML = '<h2><small>' + perche + '</small>IL BANCO HA SCELTO</h2>' + cartaGrande(mio.id); await pausa(1800); }
+        }
+      }
       await recita(v.ev);
       chiudiDraftUI();
       break;
@@ -5003,14 +5011,14 @@ async function trasformazione(i) {
 }
 
 // ---------- IL DRAFT (fase «draft» della stanza): tre poteri, se ne sceglie uno
-let DRAFT_SCELTO = -1;
+let DRAFT_SCELTO = -1, DRAFT_SCADUTO = false;
 function apriDraftUI() {
   RECITA._dc = 0;
   let el = $('#kvDraft');
   if (!el) { el = document.createElement('div'); el.id = 'kvDraft'; app.appendChild(el); }
   const io = !SPET && !AUTO && S.proposte && S.proposte[IO];
   if (!io || (S.scelte && S.scelte[IO] != null)) { disegnaAttesaDraft(); return; }
-  DRAFT_SCELTO = -1;
+  DRAFT_SCELTO = -1; DRAFT_SCADUTO = false;
   el.innerHTML = '<h2><small>' + NOMI_MODO[MODO()] + '</small>SCEGLI IL TUO POTERE</h2>' +
     S.proposte[IO].map((id, k) => '<button class="cartaGrande ' + KJ.CARTE[id].tipo + '" data-k="' + k + '">' + cartaGrande(id).replace(/^<div class="cartaGrande[^"]*">/, '').replace(/<\/div>$/, '') + '</button>').join('') +
     '<div class="kv-dtempo" id="kvDt"></div>';
@@ -5018,7 +5026,7 @@ function apriDraftUI() {
   el.querySelectorAll('.cartaGrande').forEach((b, k) => {
     b.animate([{ transform: 'translateY(60%) rotate(' + (k - 1) * 8 + 'deg) scale(.6)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: T(380), delay: T(k * 120), fill: 'backwards', easing: 'cubic-bezier(.3,1.5,.5,1)' });
     b.onclick = () => {
-      if (DRAFT_SCELTO >= 0) return;
+      if (DRAFT_SCELTO >= 0 || DRAFT_SCADUTO) return;
       DRAFT_SCELTO = k; S2.carta(); Suono.compra();
       el.querySelectorAll('.cartaGrande').forEach((x, j) => { x.classList.toggle('scelta', j === k); x.classList.toggle('no', j !== k); });
       FONTE.su({ t: 'act', a: 'draft', ax: k, power: MN });
@@ -5038,11 +5046,16 @@ function chiudiDraftUI() {
   const el = $('#kvDraft'); if (!el || !el.classList.contains('su')) return;
   el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: T(240) }).finished.then(() => { el.classList.remove('su'); el.innerHTML = ''; });
 }
+// 23/10 · a tempo finito le carte si spengono: un tocco all'ultimo non diceva «HAI SCELTO» mentre il banco sceglieva un'altra carta
 function aggTempoDraft(m) {
-  const el = $('#kvDt'), o = m && m.orologio;
-  if (!el || !o || o.tipo !== 'draft') return;
-  const r = Math.ceil(+o.resta_s || 0);
-  if (r > 0 && DRAFT_SCELTO < 0 && !(S.scelte && S.scelte[IO] != null)) el.textContent = '⏱ ' + r;
+  const el = $('#kvDt'), o = (m && m.orologio) || {};
+  if (!el || !RETE || SPET || DRAFT_SCELTO >= 0 || DRAFT_SCADUTO || (S.scelte && S.scelte[IO] != null) || !$('#kvDraft .cartaGrande')) return;
+  const r = o.tipo === 'draft' ? Math.ceil(+o.resta_s || 0) : 0;
+  if (r > 0) { el.textContent = '⏱ ' + r; return; }
+  if (m.fase === 'draft' && o.tipo !== 'draft') return;
+  DRAFT_SCADUTO = true;
+  el.textContent = 'TEMPO SCADUTO · sceglie il banco';
+  $('#kvDraft').querySelectorAll('.cartaGrande').forEach(x => x.classList.add('no'));
 }
 
 // ---------- LA GALLERIA DEI KAIJU
@@ -5205,7 +5218,9 @@ window.KJ_V2_F = {
   'BLACKOUT': 'BLACKOUT', 'MANI IN ALTO!': 'HANDS UP!', 'IL PROSSIMO È D\'ORO': 'THE NEXT ONE IS GOLDEN', 'TI MALEDICO!': 'I CURSE YOU!', 'FRUSTATA!': 'WHIPLASH!',
   'SECONDA PELLE!': 'SECOND SKIN!', 'Le carte di': 'The cards of', 'cadono nel': 'fall into the', ': ora costano la metà': ': now they cost half',
   'TRASFORMAZIONE': 'FINAL', 'FINALE!': 'FORM!', 'VITA MASSIMA +4 · COLPI +1': 'MAX LIFE +4 · HITS +1',
-  'SCEGLI IL TUO POTERE': 'PICK YOUR POWER', 'I MOSTRI SCELGONO': 'THE MONSTERS ARE PICKING', 'HAI SCELTO': 'YOU PICKED', 'aspettiamo gli altri…': 'waiting for the others…',
+  'SCEGLI IL TUO POTERE': 'PICK YOUR POWER', 'TEMPO SCADUTO · sceglie il banco': 'TIME UP · the house picks', 'IL BANCO HA SCELTO': 'THE HOUSE PICKED', 'La tua scelta è arrivata tardi': 'Your pick arrived too late', 'Tempo scaduto': 'Time up',
+  'La tua scelta è arrivata tardi: il banco ha scelto per te': 'Your pick arrived too late: the house picked for you',
+  'Tempo scaduto: il banco ha scelto per te': 'Time up: the house picked for you', 'I MOSTRI SCELGONO': 'THE MONSTERS ARE PICKING', 'HAI SCELTO': 'YOU PICKED', 'aspettiamo gli altri…': 'waiting for the others…',
   'I KAIJU': 'THE KAIJU', 'tocca per vederlo': 'tap to see it', 'NORMALE': 'NORMAL', 'POTENZIATO': 'POWERED UP', 'FORMA FINALE': 'FINAL FORM',
   'FERMO': 'IDLE', 'ATTACCO': 'ATTACK', 'COLPITO': 'HIT', 'EVVIVA': 'CHEER', 'KO': 'KO',
   'Così diventa con la': 'This is what it becomes with', 'TRASFORMAZIONE FINALE': 'FINAL FORM', ', la carta leggendaria: più grosso, più cattivo, vita massima +4 e colpi +1.': ', the legendary card: bigger, meaner, max life +4 and hits +1.',
