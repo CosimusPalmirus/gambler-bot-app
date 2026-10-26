@@ -130232,12 +130232,15 @@ html.gb-lite .gbf-raggi{display:none;}
 
 /* ═══ CPL · PLINKO contro la casa, la pagina (25/10/2026) ═══════════════
    Stesso giro di soldi di prima (plDrop/plFireBall/plLandBall):
-   · il primo lancio di un giro chiede /play/plinko {action:'reveal'}: il
-     server mescola in segreto i premi delle 7 caselle, li scopre e manda la
-     sua plancia di pioli; fino a 10 palline usano quella disposizione;
+   · il primo lancio di un giro chiede /play/plinko {action:'reveal', v:2}:
+     il server manda solo la sua plancia di pioli, i premi restano coperti;
+     (26/10) i premi si mescolano PER OGNI PALLINA e solo dopo che e' caduta:
+     prima erano scoperti per tutto il giro e si poteva alzare la puntata
+     quando il premio grosso capitava sotto la colonna scelta;
    · ogni pallina toglie la posta subito (in pagina, come prima) e quando
      atterra chiede /play/plinko {action:'settle', landed_bucket, bet_cent…}:
-     il server paga layout[casella]; la pagina aggiunge won_btc (delta);
+     il server tira la disposizione di quella pallina e paga
+     disposizione[casella]; la pagina la mostra un attimo e aggiunge won_btc;
    · errore → la posta torna indietro in pagina e si rilegge il saldo.
    La fisica è quella di prima (gravità vera + rimbalzi a caso, stessi numeri),
    ma a passo fisso di 60 Hz: su un telefono a 120 Hz non corre il doppio.
@@ -130253,7 +130256,7 @@ html.gb-lite .gbf-raggi{display:none;}
             ZONE:[40,80,120,160,200,240,280], CASE:7, MAX:10 };
   var TAB = { LOW:[2.8,2.2,1.6,0,0,0,0], MEDIUM:[4.4,2.2,0,0,0,0,0], HIGH:[6.6,0,0,0,0,0,0] };
   var CPL = window.CPL = { risk:'LOW', zona:3, posta:1, palle:[], seq:0, volo:false, avvio:false, layout:null, lanci:0, coda:0,
-    sparando:false, ultimi:[], giro:null, pioli:[], pioliSrv:null, raf:null, tmr:null, acc:0, prev:0, ultimoTap:0, suonoT:0 };
+    sparando:false, ultimi:[], giro:null, pioli:[], pioliSrv:null, raf:null, tmr:null, acc:0, prev:0, ultimoTap:0, suonoT:0, copri:null };
   function $(id){ return document.getElementById(id); }
   try { var p0 = parseFloat(localStorage.getItem('cpl_posta')); if (p0 > 0) CPL.posta = p0; } catch(e){}
   try { var r0 = localStorage.getItem('cpl_risk'); if (TAB[r0]) CPL.risk = r0; } catch(e){}
@@ -130277,8 +130280,8 @@ html.gb-lite .gbf-raggi{display:none;}
     $('cpl-regole').innerHTML = '<b>' + L('COME SI GIOCA', 'HOW TO PLAY') + '</b>' +
       '<p>' + L('Scegli il punto di caduta con le frecce e lancia: la pallina rimbalza sui pioli e cade in una casella, che paga puntata × il suo valore.',
                 'Pick a drop point with the arrows and launch: the ball bounces off the pegs and lands in a bucket, which pays bet × its value.') + '</p>' +
-      '<p>' + L('I premi sono coperti: il server li mescola in segreto e li scopre al primo lancio. Con la stessa disposizione puoi lanciare fino a 10 palline; quando sono tutte giù si rimescola.',
-                'Prizes start hidden: the server shuffles them in secret and reveals them on the first launch. You can drop up to 10 balls on the same layout; once they all land, it reshuffles.') + '</p>' +
+      '<p>' + L('I premi sono coperti: per ogni pallina il server li mescola in segreto e li scopre quando la pallina tocca il fondo. Puoi avere fino a 10 palline in aria.',
+                'Prizes are hidden: for every ball the server shuffles them in secret and reveals them when the ball lands. Up to 10 balls can be in the air.') + '</p>' +
       '<p>' + L('Il rischio cambia quante caselle vincono e quanto pagano.', 'Risk changes how many buckets win and how much they pay.') + '</p>';
   }
   function rischioUI(){
@@ -130302,7 +130305,7 @@ html.gb-lite .gbf-raggi{display:none;}
   function bottoni(){
     var resto = G.MAX - CPL.lanci - CPL.coda;
     $('cpl-b1-t').textContent = (CPL.giro && !CPL.volo && CPL.giro.fatto ? L('RILANCIA', 'DROP AGAIN') : L('LANCIA', 'DROP')) + ' · ' + E(CPL.posta);
-    $('cpl-b1-s').textContent = CPL.volo ? L('ancora ', '') + Math.max(0, resto) + L(' su questa disposizione', ' left on this layout') : L('1 pallina', '1 ball');
+    $('cpl-b1-s').textContent = CPL.volo ? L('ancora ', '') + Math.max(0, resto) + L(' palline in questo giro', ' balls left this round') : L('1 pallina', '1 ball');
     $('cpl-b5-s').textContent = E(CPL.posta * 5);
     $('cpl-b1').disabled = CPL.avvio || resto <= 0;
     $('cpl-b5').disabled = CPL.avvio || resto < 5;
@@ -130495,13 +130498,13 @@ html.gb-lite .gbf-raggi{display:none;}
     if (!CPL.volo) {
       if (CPL.avvio) return;
       CPL.avvio = true; bottoni(); rischioUI(); zoneUI();
-      post({ user_id:S.userId, risk:CPL.risk, action:'reveal' }).then(function(d){
+      post({ user_id:S.userId, risk:CPL.risk, action:'reveal', v:2 }).then(function(d){
         CPL.avvio = false;
-        if (!d || d.error || !d.buckets) { CPL.coda = 0; toast('⚠️ ' + ((d && d.error) || L('Errore di rete', 'Network error')), 'err'); bottoni(); rischioUI(); zoneUI(); return; }
+        if (!d || d.error || !d.ok) { CPL.coda = 0; toast('⚠️ ' + ((d && d.error) || L('Errore di rete', 'Network error')), 'err'); bottoni(); rischioUI(); zoneUI(); return; }
         CPL.pioliSrv = (d.pegs && d.pegs.length) ? d.pegs : null; pioli();
-        CPL.layout = d.buckets.slice(); CPL.volo = true; CPL.lanci = 0;
+        CPL.layout = null; CPL.volo = true; CPL.lanci = 0;
         CPL.giro = { n:0, puntato:0, vinto:0, fatto:false };
-        caselle(true); CASA.sfx('flip'); setTimeout(function(){ CASA.sfx('flip'); }, 160);
+        caselle(false);
         rischioUI(); zoneUI(); riepilogo();
         spara();
       }).catch(function(){ CPL.avvio = false; CPL.coda = 0; toast(L('Errore di rete', 'Network error'), 'err'); bottoni(); rischioUI(); zoneUI(); });
@@ -130531,7 +130534,7 @@ html.gb-lite .gbf-raggi{display:none;}
     if (b.mandata) return; b.mandata = true;
     var eur = b.eur, el = $('cpl-buca-' + c);
     if (el && el.animate && !CASA.lento()) el.animate([{ transform:'translateY(0)' }, { transform:'translateY(5px) scaleY(.94)' }, { transform:'translateY(0)' }], { duration:260, easing:'ease-out' });
-    post(Object.assign({ user_id:S.userId }, postaCent(eur), { risk:CPL.risk, action:'settle', landed_bucket:c })).then(function(d){
+    post(Object.assign({ user_id:S.userId }, postaCent(eur), { risk:CPL.risk, action:'settle', landed_bucket:c, v:2 })).then(function(d){
       if (!d || d.error) {
         S.btc = Math.max(0, S.btc + eurToBtc(eur)); refresh(); saldo();   // la posta torna indietro
         toast('⚠️ ' + ((d && d.error) || L('Errore di rete', 'Network error')), 'err');
@@ -130539,9 +130542,12 @@ html.gb-lite .gbf-raggi{display:none;}
         CPL.giro.n--; CPL.giro.puntato -= eur;
         b.pagata = Date.now(); riepilogo(); return;
       }
-      if (d.buckets && CPL.volo) {
-        var cambia = !CPL.layout || d.buckets.join() !== CPL.layout.join();
-        CPL.layout = d.buckets.slice(); if (cambia) caselle(false);
+      // la disposizione di QUESTA pallina: si scopre adesso e si ricopre dopo un attimo
+      if (d.buckets && d.buckets.length === G.CASE) {
+        CPL.layout = d.buckets.slice(); caselle(true);
+        if (visibile()) CASA.sfx('flip');
+        clearTimeout(CPL.copri);
+        CPL.copri = setTimeout(function(){ CPL.copri = null; CPL.layout = null; caselle(false); }, 1300);
       }
       var tav = CPL.layout || TAB[CPL.risk];
       var multi = (d.multi != null) ? d.multi : tav[c];
@@ -130587,7 +130593,8 @@ html.gb-lite .gbf-raggi{display:none;}
     else CASA.sfx('click');
   }
   function fineGiro(){
-    CPL.volo = false; CPL.layout = null; CPL.lanci = 0; CPL.coda = 0;
+    CPL.volo = false; CPL.lanci = 0; CPL.coda = 0;
+    if (!CPL.copri) CPL.layout = null;
     if (CPL.giro) {
       CPL.giro.fatto = true;
       var netto = CPL.giro.vinto - CPL.giro.puntato;
