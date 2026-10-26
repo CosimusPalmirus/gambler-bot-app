@@ -948,8 +948,10 @@ var ND = {
 /* LA CURVA DI DIFFICOLTÀ: i primi piani insegnano, poi il Palazzo morde sempre di più.
    (è la curva di sopravvivenza che fa il margine della casa: tarata col banco dei piloti) */
 /* 25/09 (produzione): PV dal piano 3 in giu' x0,85 — tarato col banco dei piloti sul motore vero (medio 92%, fortissimo 101%) */
-var DIFF = { pv:[0.65,0.75,0.7225,1.19,1.615,2.04,2.72,3.40,4.08],
-             folla:[0,0,0.05,0.20,0.35,0.50,0.65,0.80,0.95],
+/* 26/10: vita e folla dal piano 3 dimezzate (prima 0.7225,1.19,1.615,2.04,2.72,3.40,4.08 e 0.05..0.95):
+   con meno poteri i piani di mezzo restano giocabili, la stretta la fa DUR sugli ultimi tre */
+var DIFF = { pv:[0.65,0.75,0.36125,0.595,0.8075,1.02,1.36,1.70,2.04],
+             folla:[0,0,0.025,0.10,0.175,0.25,0.325,0.40,0.475],
              colpi:[0.74,0.78,0.80,0.95,1.03,1.10,1.18,1.25,1.32],
              vel:[1,1,1.02,1.08,1.13,1.18,1.23,1.28,1.33] };
 /* le manopole del BANCO (solo per tarare: la rigiocata del server non le legge mai, quindi nella
@@ -958,6 +960,11 @@ var DIFF = { pv:[0.65,0.75,0.7225,1.19,1.615,2.04,2.72,3.40,4.08],
   if(m){ var k = +m[1]; DIFF.pv = DIFF.pv.map(function(v, i){ return i >= 2 ? v*k : v; }); }
   if(m2){ var k2 = +m2[1]; DIFF.folla = DIFF.folla.map(function(v){ return v*k2; }); }
   if(m3){ var k3 = +m3[1]; DIFF.colpi = DIFF.colpi.map(function(v, i){ return i >= 2 ? 1 + (v-1)*k3 : v; }); } })();
+/* 26/10: gli ULTIMI piani (7, 8, 9) molto piu' duri: piu' vita, piu' nemici, piu' colpi, piu' veloci.
+   DUR_K e' la manopola (dur= nel banco). */
+var DUR = [0,0,0,0,0,0,0.25,0.45,0.65], DUR_K = 1.8;
+(function(){ var m = QS.match(/dur=([\d.]+)/); if(m) DUR_K = +m[1];
+  for(var i=0;i<9;i++){ var d = DUR[i]*DUR_K; DIFF.pv[i] *= 1+d; DIFF.folla[i] += d; DIFF.colpi[i] *= 1+0.4*d; DIFF.vel[i] *= 1+0.25*d; } })();
 var ONDATE = [
   /* zona 0 — I SALONI: si impara uno alla volta, poi due insieme */
   [ [[['scagnozzo',3]],[['scagnozzo',2],['fiche',4]]],
@@ -1282,8 +1289,9 @@ var NOMI_STANZA = { boss:'BOSS', tavolo:'IL TAVOLO', dialogo:'UN INCONTRO', pozz
 
 function generaPiano(n, rng){
   var cfg = STORIA.PIANI[n], combat = [0,2,2,3,3,3,3,3,3,2][n];
-  var serve = ['tavolo','dialogo','tesoro']; if(n>=ECON.POZZO_DA && n<9) serve.push('pozzo');
-  if(n===9) serve = ['tesoro'];
+  var serve = ['tavolo','dialogo']; if(n%2===1 && n<9) serve.push('tesoro');   /* 26/10: il tesoro solo ai piani 1-3-5-7 (prima su tutti e nove) */
+  if(n>=ECON.POZZO_DA && n<9) serve.push('pozzo');
+  if(n===9) serve = [];
   if(cfg.negozio) serve.push('negozio');
   if(cfg.boss) serve.unshift('boss');
   var N = 1 + combat + serve.length, best = null;
@@ -1424,7 +1432,7 @@ var PEGNI = { denteOro:{ nm:'DENTE D\'ORO', img:'i_dente', de:'al tavolo c\'è s
               occhioVetro:{ nm:'OCCHIO DI VETRO', img:'i_segugio', de:'ogni piano nuovo si vede tutto' } };
 function riempiSegreta(room){
   var n = STATO.piano;
-  if(!room.dentro){ room.dentro = (n===2||n===5||n===8) ? 'ingranaggio' : (n===7 ? 'oracolo' : pick(['potere','soldi','soldi','cuori'])); }
+  if(!room.dentro){ room.dentro = (n===2||n===5||n===8) ? 'ingranaggio' : (n===7 ? 'oracolo' : pick(['soldi','soldi','cuori'])); }
   var cx=K.RW/2, cy=K.RH/2;
   if(room.fatto) return;
   if(room.dentro==='ingranaggio'){ lascia('ingranaggio',cx,cy-20); if(n===5) PROPS.push({ k:'npc', ev:'oracolo_ev', chi:'oracolo', x:cx, y:cy-80, w:70, r:30 }); }
@@ -2507,6 +2515,7 @@ var ECON = {
   SEGRETA_V: 0.0032,    // la segreta
   BOSS_V: 0.0060,       // il Bandito e l'Esattore (× crescita)
   CASA_V: 0.008,        // la Casa, in fondo (× crescita)
+  FINE_X: 0.20,        // 26/10: il PREMIO di chi batte la Casa (× posta), messo al sicuro all'uscita
   PREZZO: { potere:0.030, cuore:0.020, chiave:0.010, cura:0.008 },   // × posta × (1 + 0,18 per piano)
   PREZZO_SALE: 0.18
 };
@@ -2585,14 +2594,14 @@ function bossVinto(bb, saltato){
     lascia('cuoreMax', K.RW/2-40, K.RH/2+40);
     var v = STATO.R.posta*(bt==='casa' ? ECON.CASA_V : ECON.BOSS_V)*crescita()*(STATO.flag.patto?1.2:1);
     lasciaSoldi(v, K.RW/2, K.RH/2-20, 10);
-    if(bt!=='casa'){ ROOM.pwBoss = pescaPotere(); PROPS.push({ k:'piedistallo', img:'o_piedistallo', x:K.RW/2+40, y:K.RH/2+30, w:74, r:24, pw:ROOM.pwBoss, bossPw:1 }); } }
+    if(bt!=='casa' && bt!=='croupier'){ ROOM.pwBoss = pescaPotere(); PROPS.push({ k:'piedistallo', img:'o_piedistallo', x:K.RW/2+40, y:K.RH/2+30, w:74, r:24, pw:ROOM.pwBoss, bossPw:1 }); } }
   if(STATO.piano===9){ DOPO(saltato?0.2:2.6, function(){ laCasaParla(); }); return; }
   var tavoloFatto = MAPPA.list.some(function(r){ return r.t==='tavolo' && r.fatto; });
   if(tavoloFatto){ STATO.botolaBoss = 1; PROPS.push({ k:'botola', img:'o_botola', x:K.RW/2+100, y:fy1-80, w:50, r:22 }); }
   else setTimeout(function(){ banner('LA BOTOLA È CHIUSA', 'prima il tavolo ♠', 2); }, 2100);
 }
 function laCasaParla(){
-  var R = STATO.R, sc = [ { t:'ESCI CON '+eurGiu(R.pot+R.safe), sub:'la notte è finita: hai battuto la Casa', cls:'oro', fai:function(){ chiudiCarta(1, function(){ finisci('casa'); }); } } ];
+  var R = STATO.R, sc = [ { t:T_('ESCI CON')+' '+eurGiu(R.pot+R.safe+R.posta*ECON.FINE_X), sub:T_('hai battuto la Casa')+' · '+T_('premio della Casa')+' +'+eurGiu(R.posta*ECON.FINE_X), cls:'oro', fai:function(){ chiudiCarta(1, function(){ finisci('casa'); }); } } ];
   if(STATO.ingranaggi>=3) sc.unshift({ t:'SPEGNI IL PALAZZO', sub:'tre ingranaggi: esci, e la Casa si spegne', cls:'oro', fai:function(){ chiudiCarta(1, function(){ finisci('liberata'); }); } });
   apriCarta({ chi:'casa', piccolo:1, testo:'«Hai vinto, macchina. Prendi quello che hai raccolto e vattene, prima che cambi idea.»', scelte:sc });
   pilotaClic(500, 0);
@@ -2630,7 +2639,7 @@ function laPorta(){
 
 /* ══ FINE NOTTE ══ */
 /* ══ IL BANCO: la tabella misurata coi piloti (abilità × politica) ══ */
-var TARATURA = {"politiche":["salva","spende","avido"],"righe":[{"abil":"principiante","rtp":[0.6336,0.8594,0.193],"n":[200,200,200],"err":[0.0669,0.0464,0.0615],"fondo":[0.1,0.47,0.16]},{"abil":"medio","rtp":[0.8305,0.9716,0.4469],"n":[200,200,200],"err":[0.0629,0.0279,0.0802],"fondo":[0.33,0.79,0.395]},{"abil":"bravo","rtp":[0.9555,0.9937,0.7499],"n":[200,200,200],"err":[0.056,0.0222,0.0808],"fondo":[0.55,0.935,0.645]},{"abil":"fortissimo","rtp":[0.93,0.9981,0.8018],"n":[200,200,200],"err":[0.0632,0.0201,0.0783],"fondo":[0.645,0.935,0.675]}],"nota":"Notti vere del pilota col motore di produzione (node, tempo finto, 60 passi al secondo). SALVA = mette nel pozzo appena può; SPENDE = compra quello che può al pegno; AVIDO = non salva e non compra. Tutti tranne l'avido incassano se restano con l'ultimo cuore. f = notti arrivate alla Casa. ± = intervallo al 95%."};
+var TARATURA = {"politiche":["salva","spende","avido"],"righe":[{"abil":"principiante","rtp":[0.558,0.7616,0.0347],"n":[200,200,200],"err":[0.0655,0.0634,0.0301],"fondo":[0.02,0.205,0.04]},{"abil":"medio","rtp":[0.641,0.8807,0.1334],"n":[200,200,200],"err":[0.068,0.0627,0.0572],"fondo":[0.115,0.435,0.14]},{"abil":"bravo","rtp":[0.6665,0.9756,0.3452],"n":[200,200,200],"err":[0.0799,0.0605,0.0842],"fondo":[0.325,0.645,0.335]},{"abil":"fortissimo","rtp":[0.6428,0.9694,0.4133],"n":[200,200,200],"err":[0.0821,0.0634,0.0888],"fondo":[0.35,0.685,0.41]}],"nota":"Notti vere del pilota col motore di produzione (node, tempo finto, 60 passi al secondo). SALVA = mette nel pozzo appena può; SPENDE = compra quello che può al pegno; AVIDO = non salva e non compra. Tutti tranne l'avido incassano se restano con l'ultimo cuore. f = notti arrivate alla Casa. ± = intervallo al 95%."};
 function banco(){
   var h = '<div class="col"><div class="grande">IL BANCO DEI BOT</div><div class="sotto">Il pilota automatico ha giocato notti intere, vere, a quattro livelli di abilità e con tre modi di usare i soldi. Qui c\'è quanto ha riportato a casa, in percentuale della posta (RTP).</div>';
   if(TARATURA && TARATURA.righe){ h += '<table class="tab"><tr><th>ABILITÀ</th>'+TARATURA.politiche.map(function(p){ return '<th>'+p.toUpperCase()+'</th>'; }).join('')+'</tr>';
@@ -2657,7 +2666,7 @@ function banco(){
    ══════════════════════════════════════════════════════════════════════════ */
 ECON.VARIANTE = (QS.match(/var=([AB])/)||[0,'B'])[1];   // decisione del proprietario (25/09): B
 ECON.BASE = 0.0030;                            // F(1): quanto si trova, in media, su un piano (× posta)
-ECON.SCALA_B = 1.20; (function(){ var m = QS.match(/scala=([\d.]+)/); if(m) ECON.SCALA_B = +m[1]; var mp = QS.match(/porta=([\d.]+)/); if(mp) ECON.PORTA = +mp[1]; })();   // con la regola B (il pozzo salva solo i trovati) si trova di più: tarato col banco dei piloti
+ECON.SCALA_B = 1.20; (function(){ var m = QS.match(/scala=([\d.]+)/); if(m) ECON.SCALA_B = +m[1]; var mp = QS.match(/porta=([\d.]+)/); if(mp) ECON.PORTA = +mp[1]; var mf = QS.match(/fine=([\d.]+)/); if(mf) ECON.FINE_X = +mf[1]; })();   // con la regola B (il pozzo salva solo i trovati) si trova di più: tarato col banco dei piloti
 if(ECON.VARIANTE==='B'){ ['NEMICO_V','TAVOLO_V','SEGRETA_V','BOSS_V','CASA_V'].forEach(function(k){ ECON[k] *= ECON.SCALA_B; }); ECON.BASE *= ECON.SCALA_B; }
 function F(n){ return STATO.R.posta * ECON.BASE * crescita(n); }
 var MERCE = {
@@ -2746,7 +2755,7 @@ function apriNegozio(room){
     if(!STORIA.PIANI[STATO.piano].boss) pool.splice(pool.indexOf('spia'),1);
     if(!STATO.poteri.length) pool.splice(pool.indexOf('ripara'),1);
     if(STATO.chiavi>=2) pool.splice(pool.indexOf('chiave'),1);
-    shuffle(pool); sc = ['potere'].concat(pool.slice(0,3));
+    shuffle(pool); sc = STATO.piano%4===0 ? ['potere'].concat(pool.slice(0,3)) : pool.slice(0,4);   /* 26/10: il potere al pegno solo ai piani 4 e 8 */
     room.merce = sc.map(function(k){ return { k:k, id:k==='potere'?pescaPotere():null, prezzo:prezzo(k) }; }); }
   PROPS.push({ k:'banco', img:'o_banco', x:K.RW/2, y:fy0+70, w:170, r:0 });
   PROPS.push({ k:'npcmuto', chi:'pegnaio', x:K.RW/2, y:fy0+12, w:0, r:0 });
@@ -2826,7 +2835,7 @@ function controllaMattone(x, y){
   var mx = pz.x + 38, my = pz.y - 4; if(DM.hypot(x-mx, y-my) > 12) return;
   pz.mattone = (pz.mattone||0)+1; scintille(mx, my, 5, '#ffe27a'); sfx('tic');
   if(pz.mattone>=5){ pz.mattoneFatto = 1; ROOM.mattone = 1; kick(0.2); sfx('potere'); var r = RS();
-    if(r<0.34){ P.hp = P.hpMax; hud.cuori(); popFuoriScala('i_cuore','CUORI PIENI'); } else if(r<0.67){ lasciaSoldi(F()*0.8, mx, my+20, 4); banner('IL MATTONE GIALLO','dentro c\'erano monete',1.4); } else { prendiPotere(pescaPotere()); } }
+    if(r<0.5){ P.hp = P.hpMax; hud.cuori(); popFuoriScala('i_cuore','CUORI PIENI'); } else { lasciaSoldi(F()*0.8, mx, my+20, 4); banner('IL MATTONE GIALLO','dentro c\'erano monete',1.4); } }
 }
 /* ── la fine della notte: il conto «salvato / perso», come Sol Cesto ── */
 function schermataFinale(F2, esito){
@@ -2994,7 +3003,7 @@ var LINGUA_EN = {
   '«Tutto.»':'«Everything.»', '«Bravo. Allora giochiamo per il resto.»':'«Good. Then we play for the rest.»', '«Niente.»':'«Nothing.»',
   '«Nessuno mi deve niente.» Il palazzo ride con tutte le finestre.':'«Nobody owes me nothing.» The palace laughs with all its windows.',
   '«Hai vinto, macchina. Prendi quello che hai raccolto e vattene, prima che cambi idea.»':'«You won, machine. Take what you gathered and leave, before I change my mind.»',
-  'la notte è finita: hai battuto la Casa':'the night is over: you beat the House', 'SPEGNI IL PALAZZO':'SWITCH OFF THE PALACE', 'tre ingranaggi: esci, e la Casa si spegne':'three gears: you leave, and the House goes dark',
+  'la notte è finita: hai battuto la Casa':'the night is over: you beat the House', 'hai battuto la Casa':'you beat the House', 'premio della Casa':'House prize','SPEGNI IL PALAZZO':'SWITCH OFF THE PALACE', 'tre ingranaggi: esci, e la Casa si spegne':'three gears: you leave, and the House goes dark',
   /* i finali */
   'UN\'ALTRA NOTTE':'ANOTHER NIGHT', '«La Casa non ricorda il tuo nome. È l\'unico premio che concede gratis.»':'«The House does not remember your name. It is the only prize it gives for free.»',
   'LA MACCHINA LIBERA':'THE FREE MACHINE', 'Tre ingranaggi al loro posto. Il Palazzo si spegne piano per piano, come un\'insegna all\'alba. Per la prima volta, il tuo schermo mostra la tua faccia.':'Three gears in place. The Palace goes dark floor by floor, like a sign at dawn. For the first time, your screen shows your face.',
@@ -3323,7 +3332,9 @@ function finisci(esito){
   if(STATO.finito) return; STATO.finito = true;
   var R = STATO.R;
   if(esito==='trascinato'){ STATO.borsaPersa = R.pot; R.pot = 0; }
-  R.esito = esito; R.premio = 0; R.uscita = R.pot + R.safe;
+  R.esito = esito; R.premio = 0;
+  if(esito==='casa' || esito==='liberata'){ R.premio = R.posta*ECON.FINE_X; R.safe += R.premio; }   /* 26/10: chi batte la Casa esce col premio */
+  R.uscita = R.pot + R.safe;
   var F = STORIA.finale(GAPI, esito==='incasso' ? (R.esito==='incasso'?'incasso':R.esito) : esito);
   STATO.esitoFinale = esito; STATO.finale = F.tit; STATO.Tfine = SIM.T;
   fase = 'pausa'; suono.musica(null);
@@ -3536,7 +3547,7 @@ if(!SENZA_AVVIO) caricaArte(avvio);
 
 /* ══ z_api.js — la porta del motore verso fuori (l'ospite nella pagina, l'arbitro sul server) ══ */
 var GRN_API = {
-  versione: '4a62dceafe53',
+  versione: '30950386ddef',
   SIM: SIM, MODE: MODE, PIL: PIL, IN: IN, DM: DM,
   get STATO(){ return STATO; }, get fase(){ return fase; }, get ROOM(){ return ROOM; }, get boss(){ return boss; }, get MAPPA(){ return MAPPA; }, P: P, get PROPS(){ return PROPS; }, get PICK(){ return PICK; }, EN: EN,
   pilotaMeta: function(){ return pilotaMeta(); },
