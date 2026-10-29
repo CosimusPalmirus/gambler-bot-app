@@ -42,10 +42,14 @@
   let ALTEZZA = 0;
   const FORZATA = !!(root.GBR3D_Q || /[?&]q=(basso|normale)/.test(root.location ? root.location.search : ''));
   const FADE = 60;                               // ms di dissolvenza al cambio di posa
+  // 26/10 unione quartetto 2: INTERRUTTORE della dissolvenza per lottatore. Con le pose di Nitro (in aria centrate, a terra sui
+  // piedi) il fotogramma vecchio che sfuma sotto il nuovo si vede come una DOPPIA FIGURA. 28/10: il proprietario la SPEGNE PER TUTTI.
+  const FADE_SPENTA = { pilota: 1 };
+  const FADE_SPENTA_TUTTI = true;
   const ST = new Map();                          // chiave -> ultima posa disegnata (per la dissolvenza)
 
   function caricaIndice() {
-    if (!indiceP) indiceP = fetch(BASE + 'indice.json').then(r => r.ok ? r.json() : { ids: [] })
+    if (!indiceP) indiceP = fetch(BASE + 'indice.json?v=3a4999d88c').then(r => r.ok ? r.json() : { ids: [] })
       .catch(() => ({ ids: [] })).then(j => { indice = new Set(j.ids || []); return indice; });
     return indiceP;
   }
@@ -219,7 +223,7 @@
     }
     // dissolvenza di 60 ms al cambio di posa: il fotogramma vecchio sfuma sotto il nuovo (1 drawImage in più,
     // solo durante il passaggio). Non per i fantasmi (alpha < 1) né per due istanze dello stesso id senza `chiave`.
-    if (FADE > 0 && (o.alpha == null || o.alpha >= 0.99)) {
+    if (FADE > 0 && !FADE_SPENTA_TUTTI && !FADE_SPENTA[id] && (o.alpha == null || o.alpha >= 0.99)) {
       const key = o.chiave || id, now = performance.now();
       let S = ST.get(key);
       if (!S) ST.set(key, S = { nome, cella: F[0], ax: F[2], ay: F[3], f, t0: -1e9, prev: null, x, ts: now, doppio: false });
