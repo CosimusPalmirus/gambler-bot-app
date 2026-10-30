@@ -124642,6 +124642,36 @@ function gsrtASchermo(){
   }catch(e){}
   gsrtAltezza();
 }
+// 30/10 TENDINA: mentre Smash e a schermo (body.gsrt-on) lo swipe verticale di Telegram resta SPENTO.
+// Chi lo riaccende in partita (il giro della rotazione ozAggiorna, le chiusure degli altri tavoli) viene
+// ignorato e scritto nel diario (smash-tendina); un controllo al secondo lo rispegne se qualcosa lo ha acceso.
+// Su Android lo swipe acceso si contende il dito con la pagina: la levetta a volte si fermava.
+var GSRT_TENDINA={bloccati:0,rispenti:0};
+(function(){
+  function inGioco(){try{return document.body.classList.contains("gsrt-on");}catch(e){return false;}}
+  function diario(cosa){
+    if(GSRT_TENDINA.bloccati+GSRT_TENDINA.rispenti>6)return;
+    try{var s=String((new Error()).stack||"").split("\n").slice(2,5).join(" | ").replace(/https?:[^ )]*\//g,"");
+      tonUiDiario("smash-tendina",cosa+" "+s);}catch(e){}
+  }
+  function tieni(){
+    try{
+      var tg=window.Telegram&&Telegram.WebApp;if(!tg)return;
+      if(!tg.__gsrtSw&&typeof tg.enableVerticalSwipes==="function"){
+        var acc=tg.enableVerticalSwipes;
+        tg.enableVerticalSwipes=function(){
+          if(inGioco()){GSRT_TENDINA.bloccati++;diario("bloccato");return tg;}
+          return acc.apply(tg,arguments);
+        };
+        tg.__gsrtSw=1;
+      }
+      if(inGioco()&&tg.isVerticalSwipesEnabled===true&&typeof tg.disableVerticalSwipes==="function"){
+        tg.disableVerticalSwipes();GSRT_TENDINA.rispenti++;diario("rispento");
+      }
+    }catch(e){}
+  }
+  tieni();setInterval(tieni,1000);
+})();
 function gsrtViaDalloSchermo(){
   gsrtSblocca();
   try{document.body.classList.remove("gsrt-on");}catch(e0){}
