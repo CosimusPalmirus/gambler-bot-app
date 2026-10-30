@@ -60735,17 +60735,24 @@ function trnDetMe(t,cur){
   st.next=!!(mm&&mm.ticket&&(mm.status==='pending'||mm.status==='live'));
   var uid=String(S.userId||'');
   if(!st.reg||st.next||!uid)return st;
-  var br=cur.bracket||[],last=-1,i,j,k;
+  var br=cur.bracket||[],last=-1,mio=null,i,j,k;
   for(i=0;i<br.length;i++){
     var ms=br[i].matches||[];
     for(j=0;j<ms.length;j++){
       var pls=ms[j].players||[];
       for(k=0;k<pls.length;k++){
-        if(pls[k]&&pls[k].uid!=null&&String(pls[k].uid)===uid)last=i;
+        if(pls[k]&&pls[k].uid!=null&&String(pls[k].uid)===uid){last=i;mio={m:ms[j],nome:String(pls[k].name||'')};}
       }
     }
   }
   if(last>=0&&last<br.length-1)st.out=true;   // il torneo è andato avanti senza di me
+  // (30/10) la MIA partita e' finita e non l'ho vinta: fuori SUBITO, senza aspettare
+  // che nasca il round dopo (prima diceva «sei ancora in gara»). Se il vincitore ha
+  // il mio nome (anche un omonimo) resta come prima: mai un «eliminato» falso.
+  if(!st.out&&mio&&mio.m.status==='done'){
+    var wn=mio.m.winner_name;
+    if(!wn||String(wn)!==mio.nome)st.out=true;
+  }
   return st;
 }
 function trnDetStatus(cur){
@@ -130061,7 +130068,7 @@ html.gb-lite .gbf-raggi{display:none;}
     togliCartello(); hud();
     CCR.fase = 'parte'; blocca(true); bottone(); stato(L('Accensione dei motori…', 'Engines on…'));
     CASA.sfx('chips'); CASA.hap('leggero'); disegna(0.016);
-    post('/crash/start', Object.assign({ user_id:S.userId }, postaCent(bet))).then(function(d){
+    post('/crash/start', Object.assign({ user_id:S.userId, auto:(CCR.auto > 0 ? CCR.auto : 0) }, postaCent(bet))).then(function(d){   // (29/10) il tetto lo decide il server
       if (!d || d.error) {
         toast('⚠️ ' + errTesto((d && d.error) || 'error'), 'err');
         if (typeof loadBalance === 'function') loadBalance();
@@ -130091,6 +130098,7 @@ html.gb-lite .gbf-raggi{display:none;}
     }
     post('/crash/state', { user_id:S.userId }).then(function(d){
       if (!d || d.error) return;
+      if (d.cashed && CCR.fase === 'volo') { incassa(); return; }   // (29/10) incasso automatico gia' pagato dal server
       if (d.crashed && CCR.fase === 'volo') esplodi(d.crashAt, d.btc, d.losses);
     }).catch(function(){});
   }
