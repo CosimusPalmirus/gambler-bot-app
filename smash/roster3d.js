@@ -29,7 +29,7 @@
   const DURATA = Object.assign({ attack: 0.34, super: 0.75, hit: 0.32, ko: 0.65 }, VETT && VETT.durata);
   const SCALINI = [1, 0.7, 0.5, 0.35, 0.25];     // atlanti ridotti in anticipo (qualità alta, drawImage ~1:1)
   const C = {};                                  // id -> stato del personaggio
-  let indice = null, indiceP = null;
+  let indice = null, indiceP = null, indiceV = {};   // 11/11 rilascio: indiceV = id -> impronta dell'atlante (?v=, niente json nuovo con webp vecchio in cache)
   let dpr = Math.min(2, root.devicePixelRatio || 1);
   // qualità: 'basso' = atlante a 0,75x (memoria x0,56). ?q=basso, oppure window.GBR3D_Q, oppure da sola
   // sui telefoni con poca memoria (navigator.deviceMemory <= 2). Va decisa prima di load().
@@ -49,8 +49,8 @@
   const ST = new Map();                          // chiave -> ultima posa disegnata (per la dissolvenza)
 
   function caricaIndice() {
-    if (!indiceP) indiceP = fetch(BASE + 'indice.json?v=3a4999d88c').then(r => r.ok ? r.json() : { ids: [] })
-      .catch(() => ({ ids: [] })).then(j => { indice = new Set(j.ids || []); return indice; });
+    if (!indiceP) indiceP = fetch(BASE + 'indice.json?v=47247d630b').then(r => r.ok ? r.json() : { ids: [] })
+      .catch(() => ({ ids: [] })).then(j => { indice = new Set(j.ids || []); indiceV = j.v || {}; return indice; });
     return indiceP;
   }
   caricaIndice();
@@ -65,12 +65,13 @@
     const c = C[id] = { stato: 'carico', J: null, img: null, rit: null, scal: {}, tinte: new Map(), p: null, tent: 0 };
     c.p = caricaIndice().then(ix => {
       if (!ix.has(id)) { c.stato = 'no'; return false; }
-      const tenta = () => fetch(BASE + id + '.json').then(r => { if (!r.ok) throw new Error('json ' + r.status); return r.json(); }).then(J => {
+      const vq = indiceV[id] ? '?v=' + indiceV[id] : '';   // 11/11 rilascio
+      const tenta = () => fetch(BASE + id + '.json' + vq).then(r => { if (!r.ok) throw new Error('json ' + r.status); return r.json(); }).then(J => {
         c.J = J;
         const basso = !!J.basso && (QUAL === 'basso' || (!FORZATA && ALTEZZA > 0 && ALTEZZA <= J.basso.scala * (J.h_rif || 150) * 1.1));
         c.basso = basso;
         c.b0 = basso ? J.basso.scala : (J.scala || 1);
-        const img = new Image(); img.decoding = 'async'; img.src = BASE + (basso ? J.basso.atlante : J.atlante);
+        const img = new Image(); img.decoding = 'async'; img.src = BASE + (basso ? J.basso.atlante : J.atlante) + vq;
         // l'atlante si copia in un canvas: un <img> grande in certi percorsi di disegno (raster software,
         // cache di decodifica piena) può venire ridecodificato a ogni drawImage
         const pr = [img.decode().then(() => {
@@ -330,6 +331,7 @@
     pose: POSE_FN,
     ha3d: id => !!(indice && indice.has(id)),
     pronto: id => !!pronto(id),
+    infoPosa: (id, n) => { const c = pronto(id); return (c && c.J.pose[n]) || null; },   // feel 08/11: la girata dice da che fase riparte la corsa (ponte)
     durataPosa: (id, n) => { const c = pronto(id), P = c && c.J.pose[n]; return P ? P.durata : 0; },   // 20/10: copione delle pose delle ulti
     base: BASE,                                   // cartella degli sprite (ritratti <id>_ritratto.webp)
     // libera la memoria di un personaggio (schermata di scelta: si tengono solo gli ultimi guardati)
