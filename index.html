@@ -56836,7 +56836,7 @@ function gldOnMsg(m){
     // B-list reset: slow-mo/KO-cam/decal/soglie zona/ready-ping/heartbeat
     GLD.vt=0;GLD.slowUntil=0;GLD.koCam=null;GLD._koK=0;GLD.decalN=0;
     GLD._ant=null;GLD._antD=0;GLD._antT=0;GLD._stopQ=null;GLD.stopUntil=0;GLD._predHold=0;GLD._shHeld=0;GLD._buf=null;GLD._seatKs=null;   // 11/09 audit
-    GLD._camT=null;   // 13/09 CAMMINA: zona morta della camera, riparte sul nuovo gladiatore
+    GLD._camT=null;GLD._camM=null;   // 13/09 CAMMINA: zona morta della camera, riparte sul nuovo gladiatore · 14/09 CENTRO: corpo seguito
     if(GLD.nt){GLD.nt.off=null;GLD.nt.ok=false;GLD.nt.hn=0;GLD.nt.ox=GLD.nt.oy=0;}GLD._lg=null;GLD._lkDir=null;GLD._aimLk=null;GLD._kick=null;   // 14/09 FEEL P: il tempo del server riparte da 0 a ogni partita
     GLD._three=false;GLD.zone1=false;GLD.zone2=false;GLD._cdPrev={};GLD._lastSt=-1;GLD._pilTick=0;
     GLD.heartOn=false;try{TWS.heart(false);}catch(e){}
@@ -58034,6 +58034,7 @@ function gldDrawStatic(){
     c.fillStyle='rgba(90,64,32,.16)';
     c.fillRect(cx+Math.cos(ga)*gr,cy+Math.sin(ga)*gr,1.5,1.5);
   }
+  if(!GLD.spec)gldSabbiaViva(c,cx,cy,r0,bs);   // 14/09 CENTRO: con la camera inchiodata il passo si legge dalla sabbia che scorre
   // arena wall rim
   c.strokeStyle='rgba(60,40,22,.9)';c.lineWidth=Math.max(3,scale*0.16);
   c.beginPath();c.arc(cx,cy,r0,0,6.283);c.stroke();
@@ -58056,6 +58057,38 @@ function gldDrawStatic(){
   var dctx=dcv.getContext('2d');
   dctx.beginPath();dctx.arc(cx,cy,r0,0,6.283);dctx.clip();
   GLD.decal=dcv;GLD._dctx=dctx;GLD.decalN=0;
+}
+// 14/09 CENTRO · SABBIA VIVA (cotta una volta, costo per fotogramma zero). Col gladiatore sempre nello
+// stesso punto il movimento si legge SOLO da cio' che gli scorre sotto: sulla sabbia di prima (gradiente,
+// 4 cerchi e 160 granelli da 1,5 px) quasi niente (13/09: «si gira ma non cammina»). Qui, in celle del
+// mondo: chiazze larghe di sabbia battuta (si vedono anche col moto sfocato), segni di trascinamento,
+// granelli scuri e chiari da 2-4 px e sassolini. Tinte della sabbia, alfa bassi: sotto i gladiatori.
+function gldSabbiaViva(c,cx,cy,r0,bs){
+  var sd=(Math.round(GLD.r0*100)*2654435761)>>>0;
+  var rnd=function(){sd=(sd+0x6D2B79F5)>>>0;var t=sd;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return ((t^(t>>>14))>>>0)/4294967296;};
+  var area=Math.PI*GLD.r0*GLD.r0,pt=function(){var a=rnd()*6.2832,r=Math.sqrt(rnd())*r0*0.985;return [cx+Math.cos(a)*r,cy+Math.sin(a)*r];};
+  c.save();c.beginPath();c.arc(cx,cy,r0,0,6.2832);c.clip();
+  var i,p,n;
+  n=Math.round(area*0.14);   // chiazze
+  for(i=0;i<n;i++){p=pt();var rr=bs*(0.7+rnd()*1.3),dk=rnd()<0.62,al=dk?0.11+rnd()*0.06:0.08+rnd()*0.05;
+    var g=c.createRadialGradient(0,0,0,0,0,rr);
+    g.addColorStop(0,dk?'rgba(120,84,42,'+al.toFixed(3)+')':'rgba(246,226,176,'+al.toFixed(3)+')');g.addColorStop(1,dk?'rgba(120,84,42,0)':'rgba(246,226,176,0)');
+    c.save();c.translate(p[0],p[1]);c.rotate(rnd()*3.1416);c.scale(1,0.55+rnd()*0.45);
+    c.fillStyle=g;c.beginPath();c.arc(0,0,rr,0,6.2832);c.fill();c.restore();}
+  n=Math.round(area*0.30);   // segni di trascinamento
+  c.lineCap='round';
+  for(i=0;i<n;i++){p=pt();var an=rnd()*6.2832,ln=bs*(0.22+rnd()*0.38),cu=(rnd()-0.5)*1.4;
+    c.strokeStyle='rgba(104,72,36,'+(0.10+rnd()*0.07).toFixed(3)+')';c.lineWidth=Math.max(1,bs*(0.025+rnd()*0.025));
+    c.beginPath();c.moveTo(p[0],p[1]);c.quadraticCurveTo(p[0]+Math.cos(an+cu)*ln*0.5,p[1]+Math.sin(an+cu)*ln*0.5,p[0]+Math.cos(an)*ln,p[1]+Math.sin(an)*ln);c.stroke();}
+  n=Math.round(area*5.0);   // granelli
+  for(i=0;i<n;i++){p=pt();var sz=Math.max(1,bs*(0.03+rnd()*0.05));
+    c.fillStyle=rnd()<0.6?'rgba(92,64,30,'+(0.16+rnd()*0.12).toFixed(3)+')':'rgba(252,236,196,'+(0.14+rnd()*0.12).toFixed(3)+')';
+    c.fillRect(p[0]-sz/2,p[1]-sz/2,sz,sz);}
+  n=Math.round(area*0.07);   // sassolini
+  for(i=0;i<n;i++){p=pt();var ps=bs*(0.05+rnd()*0.05);
+    c.fillStyle='rgba(70,50,26,.30)';c.beginPath();c.ellipse(p[0]+ps*0.35,p[1]+ps*0.45,ps,ps*0.7,0,0,6.2832);c.fill();
+    c.fillStyle='rgba(214,200,172,.85)';c.beginPath();c.ellipse(p[0],p[1],ps,ps*0.75,rnd()*3.1416,0,6.2832);c.fill();}
+  c.restore();
 }
 // B2: stampa un decal sulla sabbia (kind: 'blood' | 'step'); cap ~500 poi fade
 function gldDecal(kind,wx,wy,ang){
@@ -58185,6 +58218,51 @@ function gldPumpTick(){var n=performance.now();if(!gldPred2()){if(n-(GLD._pumpT|
   if(GLD.ui==='match'&&!GLD.spec)gldNetPing(n);
   var dl=n-(GLD._pumpT||0),s0=GLD._inS,edge=!s0||(GLD.joy.on?1:0)!==s0[0];   // partenza e arresto: subito (bastano 16 ms)
   if(dl>=50||(dl>=33&&gldInChanged())||(dl>=8&&edge)){GLD._pumpT=n;gldPump();}}
+// ── 14/09 CENTRO · LA CAMERA TIENE IL MIO GLADIATORE SEMPRE NELLO STESSO PUNTO ──────────────────
+// Prima (13/09 CAMMINA): zona morta ±20% W ±14% H, inseguimento al 9/s, fermo ai limiti della cottura
+// e KO-cam che tirava al 60% verso la vittima: il gladiatore girava per lo schermo e ai bordi dell'arena
+// scivolava fuori centro. Ora la camera e' la posizione predetta (gldPredStep la tiene gia' liscia:
+// le correzioni del server sono spalmate in ~90 ms), piu' l'alzo fisso GLD_CAM_ALTO. Del KO resta solo
+// lo zoom (perno sul mio gladiatore) e la vignetta. Scuotimento e colpo di camera restano (pochi px).
+// 14/11: in ORIZZONTALE i comandi stanno ai lati: il gladiatore al centro esatto (come l'_ozAl di prima)
+function gldCamAlto(){if(typeof ozLargoOra==='function'&&ozLargoOra('glad'))return 0;var a=+window.GLD_CAM_ALTO;return (a>=0&&a<=0.4)?a:0.10;}
+function gldCamCentro(now,W,H,zs,lp){
+  var kc=GLD.koCam;GLD._koK=0;
+  if(kc){var k=(now-kc.t0)/450;if(k>=1)GLD.koCam=null;else GLD._koK=1-k;}
+  var x=GLD.pred.ok?GLD.pred.x:0,y=GLD.pred.ok?GLD.pred.y:0;
+  // morto: il mio corpo non e' piu' predetto (si disegna dal server, 1-1,5 celle piu' in la' per la caduta,
+  // misurato). Camera E corpo seguono insieme GLD._camM, che scivola sul corpo in ~90 ms: resta al centro.
+  var rb=lp&&lp.b&&lp.b.idx&&lp.b.idx[GLD.myId];
+  if(GLD.pred.ok&&rb&&!(rb[7]&1)){
+    var ra=(lp.a&&lp.a.idx&&lp.a.idx[GLD.myId])||rb,sx=ra[1]+(rb[1]-ra[1])*lp.k,sy=ra[2]+(rb[2]-ra[2])*lp.k,M=GLD._camM;
+    if(!M)M=GLD._camM={x:x,y:y,t:now};
+    var f=1-Math.exp(-Math.max(0,now-M.t)/90);M.t=now;M.x+=(sx-M.x)*f;M.y+=(sy-M.y)*f;x=M.x;y=M.y;
+  }else GLD._camM=null;
+  GLD.cam.x=x;GLD.cam.y=y+(gldCamAlto()*H)/zs;
+}
+// Fondo sotto la cottura: fuori dalla tela cotta (EXT = 1,62 r0) continua lo STESSO gradiente delle
+// gradinate lontane (stessi colori, stessi raggi, in coordinate schermo), cosi' non c'e' ne' vuoto ne'
+// taglio. Il gradiente si disegna solo se la vista esce dalla cottura (costo zero lontano dal muro). La lettura della cottura si ritaglia a mano dentro
+// la tela (WebKit vecchi non disegnano niente se il rettangolo sorgente esce dall'immagine).
+function gldStSfondo(ctx,W,H,zs,BK,scx,scy){
+  // pd: con scuotimento o colpo di camera si legge un margine in piu' (48 px) cosi' il bordo della tela non si scopre
+  var sw=GLD.stW,pd=(GLD.shake>0.3||GLD._kick)?48*(GLD.dpr||1):0,pb=pd*BK,Wd=W+2*pd,Hd=H+2*pd;
+  var x0=scx-W/2*BK-pb,y0=scy-H/2*BK-pb,x1=x0+Wd*BK,y1=y0+Hd*BK;
+  if(x0>=0&&y0>=0&&x1<=sw&&y1<=sw){
+    ctx.drawImage(GLD.st,x0,y0,Wd*BK,Hd*BK,-pd,-pd,Wd,Hd);
+    if(GLD.decal)ctx.drawImage(GLD.decal,x0,y0,Wd*BK,Hd*BK,-pd,-pd,Wd,Hd);
+    return;
+  }
+  var ac=gldW2S(0,0),r0=GLD.r0*zs;
+  var g=gldGrad(ctx,'stFondo|'+Math.round(r0),function(cc){var gg=cc.createRadialGradient(0,0,r0*0.9,0,0,2*GLD.r0*1.62*zs*0.75);
+    gg.addColorStop(0,'#241a10');gg.addColorStop(0.5,'#160f0a');gg.addColorStop(1,'#070505');return gg;});
+  ctx.save();ctx.translate(ac[0],ac[1]);ctx.fillStyle=g;ctx.fillRect(-ac[0]-pd,-ac[1]-pd,Wd,Hd);ctx.restore();
+  var cx0=Math.max(0,x0),cy0=Math.max(0,y0),cx1=Math.min(sw,x1),cy1=Math.min(sw,y1);
+  if(cx1-cx0<1||cy1-cy0<1)return;
+  var dx=-pd+(cx0-x0)/BK,dy=-pd+(cy0-y0)/BK,dw=(cx1-cx0)/BK,dh=(cy1-cy0)/BK;
+  ctx.drawImage(GLD.st,cx0,cy0,cx1-cx0,cy1-cy0,dx,dy,dw,dh);
+  if(GLD.decal)ctx.drawImage(GLD.decal,cx0,cy0,cx1-cx0,cy1-cy0,dx,dy,dw,dh);
+}
 function gldLerp(){
   var t=GLD.vt||(performance.now()-85),s=GLD.snaps;   // B3: clock virtuale (slow-mo su kill, cap drift 250ms)
   if(!s.length)return null;
@@ -58247,21 +58325,14 @@ function gldFrame(){gldDiagFrame();
     else if(Math.hypot(ddx,ddy)>1.8){GLD.pred.x=meRow[1];GLD.pred.y=meRow[2];}
     else{GLD.pred.x+=ddx*0.16;GLD.pred.y+=ddy*0.16;}
   }
+  // 14/09 CENTRO: il MIO gladiatore resta SEMPRE nello stesso punto dello schermo (gldCamCentro):
+  // niente zona morta, niente inseguimento in ritardo, niente fermo ai bordi, la KO-cam non sposta.
+  // Lo spettatore del torneo (GLD.spec) tiene la camera di prima, riga per riga.
+  if(!GLD.spec){gldCamCentro(now,W,H,zs,lp);}
+  else{
   // follow camera clampata all'estensione baked
   var camTX=0,camTY=0;
-  if(GLD.pred.ok){camTX=GLD.pred.x;camTY=GLD.pred.y;
-    // 13/09 CAMMINA: ZONA MORTA della camera. Con lo zoom C1 (44 px per cella) la camera
-    // inseguiva il mio gladiatore al 100%: restava INCHIODATO al centro dello schermo e sotto
-    // scorreva solo la sabbia (misurato: 0,0-0,4 celle di spostamento a schermo su 6 di
-    // cammino, contro 5-6 celle prima del rilascio). Il proprietario: «si gira ma non cammina».
-    // Ora il gladiatore si muove davvero sullo schermo dentro un riquadro centrale, e la
-    // camera lo segue solo quando ne esce.
-    if(!GLD.spec){var _ct=GLD._camT||(GLD._camT={x:camTX,y:camTY}),_dzx=(W*0.20)/zs,_dzy=(H*0.14)/zs;
-      if(camTX-_ct.x>_dzx)_ct.x=camTX-_dzx;else if(_ct.x-camTX>_dzx)_ct.x=camTX+_dzx;
-      if(camTY-_ct.y>_dzy)_ct.y=camTY-_dzy;else if(_ct.y-camTY>_dzy)_ct.y=camTY+_dzy;
-      camTX=_ct.x;camTY=_ct.y;}}
-  var _ozAl=(typeof ozLargoOra==='function'&&ozLargoOra('glad'))?0:0.10;   // ORIZZONTALE: comandi ai lati, niente alzo
-  if(!GLD.spec)camTY+=(H*_ozAl)/zs;   // 11/09 C1: i comandi coprono il basso: il MIO gladiatore sta un po' piu' su
+  if(GLD.pred.ok){camTX=GLD.pred.x;camTY=GLD.pred.y;}
   // B3: KO-cam 450ms — bias verso la vittima PRIMA del clamp + zoom kick non persistente
   var kc=GLD.koCam;GLD._koK=0;
   if(kc){
@@ -58273,11 +58344,9 @@ function gldFrame(){gldDiagFrame();
   var limX=Math.max(0,EXT-halfVX), limY=Math.max(0,EXT-halfVY);
   camTX=Math.max(-limX,Math.min(limX,camTX));
   camTY=Math.max(-limY,Math.min(limY,camTY));
-  // 13/09 CAMMINA: il centro della zona morta non esce dai limiti della camera (senza KO-cam),
-  // se no tornando indietro dal bordo si camminerebbe "a vuoto" prima che la camera riparta
-  if(GLD._camT&&!kc){var _off=GLD.spec?0:(H*_ozAl)/zs;GLD._camT.x=Math.max(-limX,Math.min(limX,GLD._camT.x));GLD._camT.y=Math.max(-limY,Math.min(limY,GLD._camT.y+_off))-_off;}
   var cf=Math.min(1,9*dt);
   GLD.cam.x+=(camTX-GLD.cam.x)*cf;GLD.cam.y+=(camTY-GLD.cam.y)*cf;
+  }
   ctx.save();
   ctx.clearRect(0,0,W,H);
   // 11/09 C7: scuotimento "trauma" — ampiezza al quadrato (i colpetti quasi non muovono, i
@@ -58286,11 +58355,14 @@ function gldFrame(){gldDiagFrame();
   if(GLD.shake>0.3){var _tr=Math.min(1,GLD.shake/16),_sa=_tr*_tr*16*GLD_SHAKE_K,_ts=now*0.03;
     ctx.translate(_sa*Math.sin(_ts*1.7),_sa*0.8*Math.sin(_ts*2.3));GLD.shake*=Math.pow(0.001,dt);}
   if(GLD._kick){var _kk=(now-GLD._kick.t)/170;if(_kk>=1||_kk<0||!GLD._kick.d)GLD._kick=null;else{var _ka=Math.sin(_kk*3.1416)*6*(GLD.dpr||1);ctx.translate(-GLD._kick.d[0]*_ka,-GLD._kick.d[1]*_ka);}}   // 14/09 FEEL F: la camera accompagna la spinta
-  if(GLD._koK>0){var zk=1+0.08*GLD._koK;ctx.translate(W/2,H/2);ctx.scale(zk,zk);ctx.translate(-W/2,-H/2);}   // B3: zoom kick
+  if(GLD._koK>0){var zk=1+0.08*GLD._koK,_zpy=GLD.spec?H/2:H/2-gldCamAlto()*H;ctx.translate(W/2,_zpy);ctx.scale(zk,zk);ctx.translate(-W/2,-_zpy);}   // B3: zoom kick (14/09 CENTRO: perno sul mio gladiatore)
   // 11/09 C1: il livello statico e' cotto a scala ridotta (BK, tetto 2048 px): si legge un rettangolo scalato
   var BK=GLD._bk||1, srcCx=GLD.stOX+GLD.cam.x*zs*BK, srcCy=GLD.stOY+GLD.cam.y*zs*BK;
+  if(!GLD.spec){gldStSfondo(ctx,W,H,zs,BK,srcCx,srcCy);}   // 14/09 CENTRO: senza fermo ai bordi la vista esce dalla cottura
+  else{
   ctx.drawImage(GLD.st, srcCx-W/2*BK, srcCy-H/2*BK, W*BK, H*BK, 0,0, W,H);
   if(GLD.decal)ctx.drawImage(GLD.decal, srcCx-W/2*BK, srcCy-H/2*BK, W*BK, H*BK, 0,0, W,H);   // B2: decal persistenti (stesso src-rect)
+  }
   var ac=gldW2S(0,0), cx=ac[0], cy=ac[1];
   // ── A-ATM: atmosfera — raggi di luce dal velario + polvere sospesa (gradiente cachato, zero alloc/frame) ──
   var rayG=gldGrad(ctx,'rayG',function(cc){var g=cc.createLinearGradient(0,0,0,300);g.addColorStop(0,'rgba(255,226,160,.16)');g.addColorStop(0.7,'rgba(255,206,120,.05)');g.addColorStop(1,'rgba(255,206,120,0)');return g;});
@@ -58427,6 +58499,7 @@ function gldFrame(){gldDiagFrame();
       var wx=ra[1]+(rb[1]-ra[1])*lp.k,wy=ra[2]+(rb[2]-ra[2])*lp.k;
       var isMe=rb[0]===GLD.myId;
       if(isMe&&GLD.pred.ok&&(rb[7]&1)){wx=GLD.pred.x;wy=GLD.pred.y;}
+      else if(isMe&&GLD._camM&&!GLD.spec){wx=GLD._camM.x;wy=GLD._camM.y;}   // 14/09 CENTRO: il mio corpo resta al centro
       var an=GLD.anim[rb[0]];
       var targ=gldByteAng(rb[4]);
       // 29/07: la predizione locale della MIA direzione seguiva i piedi non
@@ -58669,6 +58742,10 @@ var GLD_OUT='#1a1109',GLD_ME='#7ee9fb';
 // manopola dello scuotimento del Colosseo (1 = pieno, 0.5 = ridotto, 0 = spento). Il gioco
 // non ha un pannello impostazioni suo: si tocca qui (o da console) finche' non ce n'e' uno.
 var GLD_SHAKE_K=1;
+// 14/09 CENTRO: dove sta il MIO gladiatore sullo schermo. Frazione dell'altezza della tela SOPRA il centro
+// (0 = centro esatto, 0.10 = il C1 dell'11/09: le levette e i tasti coprono il 35% basso). Sempre lo
+// stesso punto: cambia solo quale. Si tocca qui (o da console: GLD_CAM_ALTO=0).
+var GLD_CAM_ALTO=0;   // 14/11: il proprietario lo vuole al centro esatto anche in verticale
 // colore del seggio: stesso indice su ogni telefono per lo stesso avversario
 // visto da me (id ordinati, io escluso). Il ciano e' solo mio, il rosso e' del pericolo.
 function gldSeatCol(pid){
