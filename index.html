@@ -57262,7 +57262,7 @@ function gldOnSnap(m){
   var idx={};(m.p||[]).forEach(function(r){idx[r[0]]=r;});
   m.idx=idx;
   GLD.snaps.push(m);if(GLD.snaps.length>7)GLD.snaps.shift();
-  GLD.lastRaw=m;GLD.you=m.you||GLD.you;
+  GLD.lastRaw=m;GLD.you=m.you||GLD.you;gldGhOnSnap(m);   // 15/11 FANTASMA
   gldNetSnap(m);gldLgCheck(m);   // 14/09 FEEL P: orologio del server + il mio gesto confermato/rifiutato
   if(m.r!=null)GLD.r=m.r;GLD.sd=!!m.sd;
   if(m.viewers!=null&&m.viewers!==GLD.viewers){   // TORNEO: contatore spettatori in broadcast — DOM solo quando cambia (no write 20x/s)
@@ -57522,7 +57522,7 @@ function gldShowSearch(){
     },250);
   }
 }
-function gldShowMatch(){
+function gldShowMatch(){GLD.ghost=null;GLD.gh=null;GLD._ghDeadT=0;   // 15/11 FANTASMA
   if(GLD.spec){gldShowSpecMatch();return;}   // TORNEO: vista spettatore dedicata
   GLD.ui='match';gldOvClose();
   // ── IL CANALE SI SCEGLIE DOVE SI ENTRA IN PARTITA (12/08/2026) ────────────
@@ -58214,7 +58214,7 @@ function gldPredStep(now,raw,meRow){
 function gldInChanged(){var J=GLD.joy,s=GLD._inS;if(!s)return true;var on=J.on?1:0;if(on!==s[0])return true;if(!on)return false;
   var m0=Math.hypot(s[1],s[2]),m1=Math.hypot(J.mx,J.my);if(Math.abs(m1-m0)>0.2)return true;
   if(m0>0.01&&m1>0.01){var c=(s[1]*J.mx+s[2]*J.my)/(m0*m1);if(c<0.978)return true;}return false;}
-function gldPumpTick(){var n=performance.now();if(!gldPred2()){if(n-(GLD._pumpT||0)>=48){GLD._pumpT=n;gldPump();}return;}
+function gldPumpTick(){var n=performance.now();if(gldGhPump(n))return;if(!gldPred2()){if(n-(GLD._pumpT||0)>=48){GLD._pumpT=n;gldPump();}return;}
   if(GLD.ui==='match'&&!GLD.spec)gldNetPing(n);
   var dl=n-(GLD._pumpT||0),s0=GLD._inS,edge=!s0||(GLD.joy.on?1:0)!==s0[0];   // partenza e arresto: subito (bastano 16 ms)
   if(dl>=50||(dl>=33&&gldInChanged())||(dl>=8&&edge)){GLD._pumpT=n;gldPump();}}
@@ -58225,11 +58225,99 @@ function gldPumpTick(){var n=performance.now();if(!gldPred2()){if(n-(GLD._pumpT|
 // le correzioni del server sono spalmate in ~90 ms), piu' l'alzo fisso GLD_CAM_ALTO. Del KO resta solo
 // lo zoom (perno sul mio gladiatore) e la vignetta. Scuotimento e colpo di camera restano (pochi px).
 // 14/11: in ORIZZONTALE i comandi stanno ai lati: il gladiatore al centro esatto (come l'_ozAl di prima)
+// ── 15/11 FANTASMA · chi viene eliminato resta nell'arena come fantasmino spettatore ──────────────
+// Solo DISEGNO e un `in` a passo lento: il server (gladiator_rt FANTASMA 15/11) muove il fantasma in
+// un registro separato dai gladiatori, lo manda agli altri in `gh` circa 7 volte al secondo e non lo fa
+// toccare niente: niente colpi, niente pilum, niente lava, niente classifica. Nessun suono.
+// Chi e' ancora vivo li vede appena (GLD_FANTASMI_VIVI, 0 = per niente), piccoli e sotto a tutto;
+// fantasmi e spettatori li vedono chiari (GLD_GH_A).
+var GLD_GH_DOPO=1400,GLD_GH_V=4.0,GLD_GH_PASSO=150,GLD_GH_A=0.30,GLD_GH_A_ME=0.50;
+function gldGhAVivi(){var a=window.GLD_FANTASMI_VIVI;return (typeof a==='number'&&a>=0&&a<=1)?a:0.12;}
+// pompa del fantasma: un `in` al massimo ogni 150 ms quando il dito cambia, e uno ogni 2 s per dire
+// "ci sono ancora" (il server lo nasconde dopo 6 s senza). Niente mira, niente ping.
+function gldGhPump(n){var G=GLD.ghost;if(!G||!G.on||GLD.spec||GLD.ui!=='match')return false;
+  var J=GLD.joy,on=J.on?1:0,s=GLD._inS,dl=n-(GLD._pumpT||0),edge=!s||on!==s[0];
+  if((dl>=GLD_GH_PASSO&&(edge||gldInChanged()))||dl>=2000){GLD._pumpT=n;gldSend({t:'in',mx:on?J.mx:0,my:on?J.my:0});GLD._inS=[on,J.mx,J.my];}
+  return true;}
+function gldGhOnSnap(m){var now=m.rx||performance.now();
+  if(m.gh&&m.gh.length){var H=GLD.gh||(GLD.gh={}),seen={};
+    for(var i=0;i<m.gh.length;i++){var r=m.gh[i],id=String(r[0]),h=H[id];seen[id]=1;
+      if(!(isFinite(r[1])&&isFinite(r[2])))continue;
+      if(!h)H[id]={x:+r[1],y:+r[2],tx:+r[1],ty:+r[2],a:0,ph:(i*1.7)%6.283};else{h.tx=+r[1];h.ty=+r[2];}}
+    for(var k in H)if(!seen[k])delete H[k];
+    GLD._ghRx=now;}
+  else if(GLD.gh&&now-(GLD._ghRx||0)>800)GLD.gh=null;}   // gh arriva uno snapshot su tre (allo spettatore ogni 300 ms): assente per 800 ms = nessun fantasma
+// il MIO fantasma: nasce 1,4 s dopo la morte (si vede prima la caduta) dove sta la camera, si muove
+// in pagina con la levetta (nessuna attesa di rete: non conta niente, non serve il server)
+function gldGhStep(now,dt,raw){
+  if(GLD.spec||GLD.ui!=='match'){if(GLD.ghost){GLD.ghost=null;gldGhHud(false);}return;}
+  var me=raw&&raw.idx&&raw.idx[GLD.myId];
+  if(!me||(me[7]&1)){if(GLD.ghost){GLD.ghost=null;gldGhHud(false);}GLD._ghDeadT=0;return;}
+  if(!GLD._ghDeadT)GLD._ghDeadT=now;
+  var G=GLD.ghost;
+  if(!G){if(now-GLD._ghDeadT<GLD_GH_DOPO)return;
+    var M=GLD._camM;G=GLD.ghost={x:M?M.x:me[1],y:M?M.y:me[2],on:true,t0:now};
+    gldGhHud(true);GLD._pumpT=0;GLD._inS=null;}   // il primo `in` parte subito: gli altri lo vedono nascere
+  if(GLD.joy.on){G.x+=GLD.joy.mx*GLD_GH_V*dt;G.y+=GLD.joy.my*GLD_GH_V*dt;
+    var r=Math.hypot(G.x,G.y),lm=GLD.r0+1.0;if(r>lm){G.x*=lm/r;G.y*=lm/r;}
+    if(Math.abs(GLD.joy.mx)>0.15)G.fl=GLD.joy.mx<0;}
+}
+// lo sprite si disegna UNA volta (due pose della coda): a ogni fotogramma solo drawImage con alfa
+function gldGhSprite(fr){var S=GLD._ghSp||(GLD._ghSp=[]);if(S[fr])return S[fr];
+  var c=document.createElement('canvas');c.width=c.height=128;var g=c.getContext('2d');
+  g.save();g.shadowColor='rgba(120,190,255,.95)';g.shadowBlur=18;
+  var gr=g.createLinearGradient(0,22,0,108);gr.addColorStop(0,'rgba(222,242,255,1)');gr.addColorStop(0.6,'rgba(170,214,255,.94)');gr.addColorStop(1,'rgba(120,185,255,.6)');
+  g.fillStyle=gr;g.beginPath();g.moveTo(34,54);g.arc(64,54,30,Math.PI,0);g.lineTo(94,96);
+  for(var i=0;i<4;i++){var xa=94-i*15,dn=((i+fr)%2)?90:108;g.quadraticCurveTo(xa-7.5,dn,xa-15,96);}
+  g.closePath();g.fill();g.restore();
+  g.strokeStyle='rgba(70,130,210,.85)';g.lineWidth=3;g.stroke();   // contorno freddo: si legge anche sulla sabbia chiara
+  g.fillStyle='rgba(18,36,74,.78)';
+  g.beginPath();g.ellipse(53,52,5,7.5,0,0,6.283);g.fill();g.beginPath();g.ellipse(75,52,5,7.5,0,0,6.283);g.fill();
+  g.fillStyle='rgba(18,36,74,.45)';g.beginPath();g.ellipse(64,68,3.2,4,0,0,6.283);g.fill();
+  S[fr]=c;return c;}
+function gldGhOne(ctx,x,y,sz,al,now,ph,fl){if(al<=0.005)return;
+  var fr=((now/280+ph)|0)&1,sp=gldGhSprite(fr),bob=Math.sin(now/520+ph)*sz*0.10;
+  ctx.save();ctx.globalAlpha=al;ctx.translate(x,y-sz*0.55+bob);ctx.rotate(Math.sin(now/900+ph)*0.08);if(fl)ctx.scale(-1,1);
+  ctx.drawImage(sp,-sz/2,-sz/2,sz,sz);ctx.restore();}
+// SOTTO i gladiatori (si chiama prima di loro), mai sopra comandi o scritte
+function gldGhDraw(ctx,now,dt,zs,W,H){
+  var raw=GLD.lastRaw,me=raw&&raw.idx&&raw.idx[GLD.myId];
+  var vivo=!GLD.spec&&!!(me&&(me[7]&1));
+  var aO=vivo?gldGhAVivi():GLD_GH_A,sz=zs*(vivo?0.62:0.80),Hh=GLD.gh,f=1-Math.exp(-dt/0.18),my=String(GLD.myId);
+  if(Hh&&aO>0){for(var id in Hh){if(id===my)continue;var h=Hh[id];
+    h.x+=(h.tx-h.x)*f;h.y+=(h.ty-h.y)*f;h.a=Math.min(1,h.a+dt*2.5);
+    if(Math.abs(h.tx-h.x)>0.02)h.fl=(h.tx<h.x);
+    var s=gldW2S(h.x,h.y);if(s[0]<-sz||s[0]>W+sz||s[1]<-sz||s[1]>H+sz)continue;
+    gldGhOne(ctx,s[0],s[1],sz,aO*h.a,now,h.ph,h.fl);}}
+}
+// il MIO fantasma lo vedo solo io: sopra a tutto (anche al mio corpo) e un poco piu' marcato, per
+// ritrovarmi; gli altri mi vedono con GLD_GH_A (fantasmi) o quasi niente (vivi)
+function gldGhDrawMe(ctx,now,zs){var G=GLD.ghost;if(!G||!G.on||GLD.spec)return;
+  var k=Math.min(1,(now-G.t0)/700),s2=gldW2S(G.x,G.y);
+  // nasce dal corpo: sale di mezza cella e appare in 0,7 s
+  gldGhOne(ctx,s2[0],s2[1]+(1-k)*zs*0.5,zs*0.90,GLD_GH_A_ME*k,now,0.5,G.fl);}
+function gldGhHud(on){var w=document.getElementById('gld-wrap');if(!w)return;
+  var r=w.querySelector('.gld-ov-right');if(r)r.style.display=on?'none':'';   // da fantasma i tasti di combattimento spariscono, resta la levetta
+  var cw=w.querySelector('.gld-charge-wrap');if(cw)cw.style.display=on?'none':'';
+  var p=document.getElementById('gld-gh-pill');
+  if(on&&!p){p=document.createElement('div');p.id='gld-gh-pill';
+    // in basso a destra, dove stavano i tasti di combattimento (spariti): non copre la levetta ne' il feed
+    p.style.cssText='position:absolute;right:12px;bottom:calc(18px + env(safe-area-inset-bottom,0px));max-width:46%;z-index:6;pointer-events:none;padding:9px 13px;border-radius:16px;background:rgba(12,20,36,.66);border:1px solid rgba(160,210,255,.38);color:#dcefff;font:600 12.5px/1.3 system-ui,-apple-system,sans-serif;letter-spacing:.2px;text-align:right;box-shadow:0 0 18px rgba(120,190,255,.25);';
+    var en=(typeof GB_LANG!=='undefined'&&GB_LANG==='en');
+    // MAI emoji (regola del proprietario 15/11): icona fantasma disegnata, bianco traslucido
+    var ic='<svg width="15" height="16" viewBox="0 0 30 32" aria-hidden="true" style="vertical-align:-2px;margin-right:6px;">'
+      +'<path d="M3 15a12 12 0 0 1 24 0v15l-4-3-4 3-4-3-4 3-4-3-4 3z" fill="rgba(235,246,255,.82)" stroke="rgba(150,200,255,.9)" stroke-width="1.5"/>'
+      +'<ellipse cx="11" cy="14" rx="2" ry="3" fill="rgba(18,36,74,.85)"/><ellipse cx="19" cy="14" rx="2" ry="3" fill="rgba(18,36,74,.85)"/></svg>';
+    p.innerHTML='<div style="font-size:14px;font-weight:700;">'+ic+(en?'You are a ghost':'Sei un fantasma')+'</div><div style="opacity:.8;font-weight:500;">'+(en?'Move around and watch the fight':'Muoviti e guarda la sfida')+'</div>';
+    w.appendChild(p);}
+  else if(!on&&p)p.parentNode.removeChild(p);
+}
 function gldCamAlto(){if(typeof ozLargoOra==='function'&&ozLargoOra('glad'))return 0;var a=+window.GLD_CAM_ALTO;return (a>=0&&a<=0.4)?a:0.10;}
 function gldCamCentro(now,W,H,zs,lp){
   var kc=GLD.koCam;GLD._koK=0;
   if(kc){var k=(now-kc.t0)/450;if(k>=1)GLD.koCam=null;else GLD._koK=1-k;}
   var x=GLD.pred.ok?GLD.pred.x:0,y=GLD.pred.ok?GLD.pred.y:0;
+  if(GLD.ghost&&GLD.ghost.on){GLD._camM=null;GLD.cam.x=GLD.ghost.x;GLD.cam.y=GLD.ghost.y+(gldCamAlto()*H)/zs;return;}   // 15/11 FANTASMA
   // morto: il mio corpo non e' piu' predetto (si disegna dal server, 1-1,5 celle piu' in la' per la caduta,
   // misurato). Camera E corpo seguono insieme GLD._camM, che scivola sul corpo in ~90 ms: resta al centro.
   var rb=lp&&lp.b&&lp.b.idx&&lp.b.idx[GLD.myId];
@@ -58492,6 +58580,7 @@ function gldFrame(){gldDiagFrame();
       ctx.beginPath();ctx.arc(ex,ey-((now/12+em*40)%60)*0.3,1.6,0,6.283);ctx.fill();
     }
   }
+  gldGhStep(now,dt,raw);gldGhDraw(ctx,now,dt,zs,W,H);   // 15/11 FANTASMA: sotto i gladiatori
   // fighters
   if(lp){
     (lp.b.p||[]).forEach(function(rb){
@@ -58605,6 +58694,7 @@ function gldFrame(){gldDiagFrame();
     ctx.fillStyle=gldSeatCol(rb[0]);ctx.strokeStyle=GLD_OUT;ctx.lineWidth=2*u;
     ctx.beginPath();ctx.moveTo(12*u,0);ctx.lineTo(-7*u,-9*u);ctx.lineTo(-7*u,9*u);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
   });}
+  gldGhDrawMe(ctx,now,zs);   // 15/11 FANTASMA: il mio, sopra al mio corpo
   // pilum (server-authoritative state read defensively from raw.pl)
   gldDrawPilum(ctx,raw,now,zs);
   // B21: tick di tensione crescente (tone 300+frac*500 ogni 250ms) su windup pilum avversario vicino
