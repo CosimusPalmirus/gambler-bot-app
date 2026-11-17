@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Non svegliare il drago</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="abisso.css?v=20261117040d">
+</head>
+<body>
+<div id="app">
+  <header id="testa">
+    <div class="titolo"><span class="logo" data-t="logo">NON SVEGLIARE IL DRAGO</span><span id="sotto"></span></div>
+    <div id="spedizioni"></div>
+    <div class="pillole">
+      <span class="pill" id="p-piatto"></span>
+      <button class="pill tondo" id="b-regole" title="H / ?">?</button>
+      <button class="pill tondo" id="b-lingua">EN</button>
+      <button class="pill tondo" id="b-audio" aria-label="audio"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path d="M16 9a4 4 0 0 1 0 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg></button>
+    </div>
+  </header>
+
+  <aside id="colonna-sx"><div class="pannello"><h3 data-t="sommozzatori"></h3><div id="giocatori-pc"></div></div></aside>
+
+  <main id="scena-box">
+    <canvas id="scena"></canvas>
+    <div id="pericoli"></div>
+    <div id="metro"><div class="m-testa"><span data-t="disastro"></span><b id="metro-num">0%</b></div><div class="m-barra"><i id="metro-fill"></i></div></div>
+    <div id="prof"></div>
+    <div id="annuncio"></div>
+    <div id="chi-risale"></div>
+    <div id="tip" hidden></div>
+  </main>
+
+  <aside id="colonna-dx">
+    <div class="pannello"><h3 data-t="mazzo"></h3><div id="mazzo"></div></div>
+    <div class="pannello grande"><h3 data-t="diario"></h3><div id="diario"></div></div>
+    <div class="pannello"><h3 data-t="firma"></h3><code id="firma">-</code></div>
+  </aside>
+
+  <section id="giocatori-tel"></section>
+
+  <footer id="azioni">
+    <div class="pulsanti">
+      <button id="b-giu" class="btn giu" disabled><svg viewBox="0 0 24 24"><path d="M12 4v14m0 0l-6-6m6 6l6-6"/></svg><span data-t="resta"></span><kbd>↓ S</kbd></button>
+      <div id="anello"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="23" class="a-fondo"/><circle id="a-giro" cx="26" cy="26" r="23"/></svg><b id="a-num">·</b></div>
+      <button id="b-risali" class="btn risali" disabled><svg viewBox="0 0 24 24"><path d="M12 20V6m0 0l-6 6m6-6l6 6"/></svg><span data-t="risali"></span><kbd>↑ W</kbd></button>
+    </div>
+    <div id="fase-pill"></div>
+    <div id="riga-log"></div>
+  </footer>
+
+  <div id="velo" hidden><div class="scheda" id="scheda"></div></div>
+</div>
+<script>
+/* ABISSO_PONTE_RT_1711 — la pagina dentro la mini app (?rt=1): niente socket sue.
+   La "WebSocket" della pagina diventa un ponte postMessage verso il guscio dell index (ABRT, stessa origine), che
+   parla col server real-time vero sulla socket della mini app. Traduce i messaggi del server nel formato del server
+   di prova su cui la pagina e' stata collaudata:
+     start (game=abisso)   -> {t:"info", info: map}        (map = map_info() del motore: nomi, n, D, firma, a_soldi, B...)
+     s (g=abisso)          -> {t:"snap", s}                (il tempo torna in s.t; eventi del feed gia visti: tolti)
+     over (game=abisso)    -> {t:"fine", extra, premi:null} (i soldi li mostra l index dopo la scheda finale)
+     err code=ab_act_no    -> {t:"no", a}
+   e manda su solo {t:"act", a, ax} e rientra. Fuori da ?rt=1 non fa niente: la pagina resta quella di prova. */
+(function(){
+  "use strict";
+  var Q=new URLSearchParams(location.search);
+  if(Q.get('rt')!=='1'||window.parent===window)return;
+  var ORIG=location.origin,vivo=null,ultimoInfo=null,finita=false,firma='',visto=0,ultimoSnap=0,partita=false;
+  window.__ABRT_PONTE={giu:0,su:0,start:0,no:0,doppi:0,rientra:0,fine:0,ult:[]};
+  try{document.documentElement.classList.add('in-rt');}catch(e){}
+  function su(o){try{window.parent.postMessage(o,ORIG);}catch(e){}}
+  function nomePulito(n){return String(n||'').replace(/[\u0000-\u001f<>&"]/g,'').trim().slice(0,16);}
+  function traduci(m){
+    if(!m||typeof m!=='object')return null;
+    if(m.t==='s'){
+      if(m.g!=='abisso')return null;
+      var s={},k;for(k in m){if(k!=='t'&&k!=='time')s[k]=m[k];}
+      s.t=(typeof m.time==='number')?m.time:0;
+      // il rientro rimanda gli ultimi eventi del feed: quelli gia visti non si rigiocano
+      if(Array.isArray(s.feed)){
+        var f=[],i;for(i=0;i<s.feed.length;i++){var e=s.feed[i];if(e&&typeof e.s==='number'&&e.s<=visto){window.__ABRT_PONTE.doppi++;continue;}f.push(e);if(e&&typeof e.s==='number')visto=Math.max(visto,e.s);}
+        s.feed=f;
+      }
+      if(s.fine)finita=true;
+      ultimoSnap=Date.now();
+      return {t:'snap',s:s};
+    }
+    if(m.t==='start'){
+      if(m.game!=='abisso'||!m.map||m.map.abisso!==1)return null;
+      var info={},k2;for(k2 in m.map)info[k2]=m.map[k2];
+      // i nomi: quelli del motore (profilo dell hello per gli umani, nomi dei ladri per i bot); mai un uid
+      try{if(Array.isArray(info.nomi))info.nomi=info.nomi.map(function(n,i){var p=nomePulito(n);return (p&&p.indexOf('bot:')!==0)?p:('#'+(i+1));});}catch(e){}
+      info.foto=[];                                  // niente foto: ogni ladro ha il suo colore e il nome
+      info.spec=!!(m.spec||m.you==null);
+      info.rt=1;
+      var f2=String(info.firma||'')+'|'+String(info.n||'');
+      if(f2!==firma){firma=f2;visto=0;finita=false;}   // una partita nuova: si riparte da zero
+      window.__ABRT_PONTE.start++;partita=true;ultimoSnap=Date.now();
+      return {t:'info',info:info};
+    }
+    if(m.t==='over'){
+      if(m.game!=='abisso')return null;
+      finita=true;
+      var ex={},k3;for(k3 in m){if(k3!=='t')ex[k3]=m[k3];}
+      return {t:'fine',extra:ex,premi:null,rt:1};
+    }
+    if(m.t==='err'&&m.code==='ab_act_no'){window.__ABRT_PONTE.no++;return {t:'no',a:String(m.a||'')};}
+    return null;
+  }
+  function FintaWS(url){
+    var me=this;this.url=String(url);this.readyState=0;this.binaryType='blob';this.bufferedAmount=0;this.extensions='';this.protocol='';
+    this.onopen=this.onmessage=this.onclose=this.onerror=null;vivo=this;
+    setTimeout(function(){
+      if(vivo!==me)return;me.readyState=1;
+      try{if(me.onopen)me.onopen({type:'open'});}catch(e){}
+      su({sm:'pronto'});
+      if(ultimoInfo)me._giu(ultimoInfo);       // una seconda connessione riceve lo start che c era
+    },0);
+  }
+  FintaWS.CONNECTING=0;FintaWS.OPEN=1;FintaWS.CLOSING=2;FintaWS.CLOSED=3;
+  FintaWS.prototype._giu=function(x){if(this.readyState!==1||!this.onmessage)return;try{this.onmessage({data:JSON.stringify(x)});}catch(e){su({sm:'err',msg:'ponte: '+String(e&&e.message||e)});}};
+  FintaWS.prototype.send=function(raw){
+    if(this.readyState!==1)return;
+    var o;try{o=JSON.parse(raw);}catch(e){return;}
+    if(!o||typeof o!=='object'||typeof o.a!=='string')return;
+    var m={t:'act',a:o.a.slice(0,16)};
+    if(typeof o.ax==='number'&&isFinite(o.ax)&&Math.floor(o.ax)===o.ax&&Math.abs(o.ax)<64)m.ax=o.ax;
+    var P=window.__ABRT_PONTE;P.su++;P.ult.push(m.a);if(P.ult.length>20)P.ult.shift();
+    su({sm:'su',m:m});
+  };
+  FintaWS.prototype.close=function(){this.readyState=3;};
+  FintaWS.prototype.addEventListener=function(){};FintaWS.prototype.removeEventListener=function(){};
+  window.WebSocket=FintaWS;
+  window.addEventListener('message',function(ev){
+    if(ev.origin!==ORIG||ev.source!==window.parent)return;
+    var d=ev.data;if(!d||typeof d!=='object')return;
+    if(d.sm==='bordi'){        // i bordi del telefono dal guscio (dentro l iframe env(safe-area-inset-*) vale 0)
+      try{var r=document.documentElement.style,l=['top','bottom','left','right'],i;
+        for(i=0;i<l.length;i++){var v=Number(d[l[i]]);if(isFinite(v)&&v>=0&&v<=200)r.setProperty('--sa-'+l[i],Math.round(v)+'px');}}catch(e){}
+      return;
+    }
+    if(d.sm!=='giu')return;
+    window.__ABRT_PONTE.giu++;
+    var x=traduci(d.m);if(!x)return;
+    if(x.t==='info')ultimoInfo=x;
+    if(vivo)vivo._giu(x);
+  });
+  // il guardiano: senza fotogrammi per 5 s a partita in corso si chiede di rientrare (il guscio ne lascia passare uno ogni 3 s)
+  setInterval(function(){
+    if(!partita||finita||document.visibilityState==='hidden')return;
+    if(Date.now()-ultimoSnap>5000){ultimoSnap=Date.now();window.__ABRT_PONTE.rientra++;su({sm:'su',m:{t:'rientra'}});}
+  },1000);
+  // la fine e le uscite della pagina: la scheda finale e pronta -> il guscio mostra l esito vero (soldi)
+  window.addEventListener('abisso',function(e){
+    var m=e&&e.detail;if(!m)return;
+    if(m.t==='fine'){window.__ABRT_PONTE.fine++;setTimeout(function(){su({sm:'fine_scena'});},3500);}   // la scheda di fine resta 3,5 s prima dell esito dell index
+    else if(m.t==='rivincita'){su({sm:'fine_scena'});}
+    else if(m.t==='menu'){su({sm:'esci'});}
+  });
+  window.addEventListener('error',function(e){su({sm:'err',msg:String(e&&e.message||'')+' @'+String(e&&e.lineno||'')});});
+})();
+</script>
+<script src="abisso.js?v=20261117040d"></script>
+<script src="pixel.js?v=20261117040d"></script>
+<script src="drago_anim.js?v=20261117040d"></script>
+<script src="drago_risveglio.js?v=20261117040d"></script>
+<script src="speciali.js?v=20261117040d"></script>
+<script src="chiarezza.js?v=20261117040d"></script>
+<script src="ritorno.js?v=20261117040d"></script>
+<script src="vita.js?v=20261117040d"></script>
+<script src="scena_orizzontale.js?v=20261117040d"></script>
+<script src="perdita.js?v=20261117040d"></script>
+<script src="nomi_piccoli.js?v=20261117040d"></script>
+<script src="rifiniture.js?v=20261117040d"></script>
+<script src="avventura.js?v=20261117040d"></script>
+<script src="rilascio.js?v=20261117040d"></script>
+<script src="polish.js?v=20261117040d"></script>
+</body>
+</html>
