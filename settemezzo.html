@@ -59,6 +59,7 @@ body:not(.largo) #piatto{font-size:11px;padding:3px 7px}
 .posto.guarda{opacity:.42}
 .targa{position:relative;display:flex;align-items:center;gap:6px;max-width:100%;padding:2px 9px 3px;border-radius:11px;background:rgba(0,0,0,.36);font-size:12px;line-height:1.2;overflow:hidden}
 .targa .nome{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-transform:uppercase;letter-spacing:.3px}
+.targa .fvAv{flex:0 0 auto;width:1.45em;height:1.45em;margin:-2px 0 -2px -6px;border-radius:50%;object-fit:cover;background:rgba(0,0,0,.3)}   /* FOTO_VERE_1711 */
 .targa .pt{flex:0 0 auto;font-family:'Bungee','Rubik',sans-serif;font-weight:400;font-size:12px;color:var(--oro);transition:color .25s,text-shadow .25s}
 .targa .pt.su{color:#fff;text-shadow:0 0 9px var(--oro),0 0 3px var(--oro)}
 .targa .oro{position:absolute;left:0;bottom:0;height:3px;width:0;background:var(--oro);border-radius:2px}
@@ -453,6 +454,35 @@ function scriviNome(i) {
 }
 function nome(sg) { return sg === IO ? T('TU') : String(NOMI[sg] == null ? '?' : NOMI[sg]).toUpperCase(); }
 function nomeVero(sg) { return String(NOMI[sg] == null ? '?' : NOMI[sg]).toUpperCase(); }
+// FOTO_VERE_1711: la foto vera di un giocatore umano (mai dei bot)
+function fvFoto(uid, prof){
+  var s = String(uid == null ? '' : uid);
+  if (/^bot/.test(s)) return '';
+  var u = String((prof && prof.photo_url) || '');
+  if (/^(https?:|data:image\/|blob:|\/)/.test(u)) return u;
+  if (/^\d{3,15}$/.test(s)) return 'https://62-238-17-24.sslip.io/foto/' + s + '.jpg';
+  return '';
+}
+// FOTO_VERE_1711: un <img> tondo (mai url() nel CSS: dentro Discord si riscrivono solo gli src);
+// se non carica sparisce e resta la targa di prima. Niente crossOrigin, niente tela.
+let FV_SRC = [];
+const FV_KO = {};
+function fvAvatar(src) {
+  if (!src || FV_KO[src]) return null;
+  const im = new Image();
+  im.className = 'fvAv'; im.alt = ''; im.draggable = false; im.decoding = 'async';
+  im.addEventListener('error', () => { FV_KO[src] = 1; if (im.parentNode) im.parentNode.removeChild(im); });
+  im.src = src;
+  return im;
+}
+function fvMonta() {                                                      // FOTO_VERE_1711
+  POSTI.forEach((p, i) => {
+    const tg = p.el.querySelector('.targa'), nm = tg && tg.querySelector('.nome');
+    if (!nm) return;
+    const im = fvAvatar(FV_SRC[i]);
+    if (im) tg.insertBefore(im, nm);
+  });
+}
 
 // ---------- MISURA: le larghezze delle carte in px INTERI; rifatta a bordi, riprendi, font pronti, plancia montata
 const MISURE = { W: 0, H: 0, largo: false, cwi: 0, cwa: 0, col: 1 };
@@ -513,6 +543,7 @@ function montaTavolo() {
     POSTI.push({ el: el, mano: el.querySelector('.mano'), carte: {}, nm: -1, mio: i === sotto, punti: null });
   }
   for (let i = 0; i < N; i++) scriviNome(i);
+  fvMonta();                                                             // FOTO_VERE_1711
   // gli altri in senso dei seggi a partire da chi viene dopo di me
   for (let j = 1; j < N; j++) altri.appendChild(POSTI[(sotto + j) % N].el);
   mio.replaceWith(POSTI[sotto].el); POSTI[sotto].el.id = 'mio';
@@ -782,12 +813,13 @@ function suStart(m) {
   N = MAPPA.n | 0;
   REG = MAPPA.reg || {};
   const seggi = MAPPA.seggi || [];
-  NOMI = [];
+  NOMI = []; FV_SRC = [];                                                 // FOTO_VERE_1711
   for (let i = 0; i < N; i++) {
     const s = seggi[i] || {};
     let nm = (MAPPA.nomi && MAPPA.nomi[i]) || s.nome;
     if (m.names && s.uid != null && m.names[s.uid]) nm = m.names[s.uid];
     NOMI.push(String(nm == null ? '?' : nm).slice(0, 24));
+    FV_SRC.push(s.bot ? '' : fvFoto(s.uid, m.profiles && s.uid != null ? m.profiles[s.uid] : null));   // FOTO_VERE_1711
   }
   SPET = !!m.spec || m.you == null;
   IO = -1;

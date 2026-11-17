@@ -134,6 +134,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .targa{position:absolute;transform:translate(-50%,0);width:calc(var(--u)*25);margin-top:calc(var(--u)*1.6);z-index:210;cursor:pointer}
 .tg-in{position:relative;background:var(--bianco);border:calc(var(--u)*.6) solid var(--ink);border-radius:calc(var(--u)*2.4);padding:calc(var(--u)*2.5) calc(var(--u)*1.2) calc(var(--u)*1);font-size:calc(var(--u)*3.5);box-shadow:0 calc(var(--u)*.8) 0 var(--ink);transition:background .3s,opacity .4s,filter .4s}
 .tg-nome{position:absolute;left:50%;top:0;transform:translate(-50%,-58%) rotate(-2deg);background:var(--col,var(--ink));color:#fff;text-shadow:1px 1px 0 var(--ink),-1px 1px 0 var(--ink),1px -1px 0 var(--ink),-1px -1px 0 var(--ink);border:calc(var(--u)*.5) solid var(--ink);font-family:'Bungee';font-size:calc(var(--u)*2.7);padding:calc(var(--u)*.2) calc(var(--u)*1.6);border-radius:99px;white-space:nowrap;max-width:112%;overflow:hidden;text-overflow:ellipsis}
+/* FOTO_VERE_1711 */.tg-nome .fv-foto{display:inline-block;width:1.25em;height:1.25em;margin:-.2em .3em -.15em -.45em;vertical-align:middle;border-radius:50%;object-fit:cover;border:1px solid var(--ink);background:#fff;pointer-events:none}
 .di-turno .tg-in,#io.di-turno{background:var(--giallo)}
 .morta .tg-in{filter:grayscale(1);opacity:.55}
 .morta .tg-in::after{content:"KO";position:absolute;inset:0;display:grid;place-items:center;font-family:'Bungee';font-size:calc(var(--u)*7);color:var(--rosa);transform:rotate(-12deg);-webkit-text-stroke:calc(var(--u)*.3) var(--ink)}
@@ -2559,7 +2560,7 @@ function cittaDavantiSvg() { return ''; }
 const ANELLI = '<svg viewBox="0 0 400 240"><ellipse cx="200" cy="120" rx="196" ry="114" fill="none" stroke="' + INK + '" stroke-opacity=".16" stroke-width="3" stroke-dasharray="3 12" stroke-linecap="round"/><ellipse cx="200" cy="120" rx="140" ry="80" fill="rgba(27,23,48,.05)" stroke="' + INK + '" stroke-opacity=".2" stroke-width="3" stroke-dasharray="16 12"/></svg>';
 
 function targaHtml(i) {
-  return '<div class="tg-nome">' + esc(S.g[i].nome) + '</div>' +
+  return '<div class="tg-nome">' + fvImg(i) /* FOTO_VERE_1711 */ + esc(S.g[i].nome) + '</div>' +
     '<div class="vita">' + I.cuore() + '<div class="vt-b"><i class="vt-g"></i><i class="vt-f"></i></div><b class="n-vi">0</b></div>' +
     '<div class="tg-num"><span>' + I.stella() + '<b class="n-st">0</b>' + (i === IO ? '<small>/' + S.reg.STELLE + '</small>' : '') + '</span><span>' + I.fulmine() + '<b class="n-en">0</b></span></div><div class="tg-carte"></div><i class="tg-oro"><i></i></i>';
 }
@@ -3297,6 +3298,23 @@ const MISURE = { tira: [], tieni: [], lente: [] };            // quanto dura dav
 const GR = () => (ANAG && ANAG.reg) || KJ.REG;      // le regole del tavolo aperto, o quelle di fabbrica
 const euro = x => EN ? '€' + (+x).toFixed(2) : (+x).toFixed(2).replace('.', ',') + ' €';
 const tenuti = () => (S && !SPET && S.turno === IO && TEN_MIO.length ? TEN_MIO : (S ? S.tenuti : []));
+// FOTO_VERE_1711: la foto vera di un giocatore umano (mai dei bot)
+function fvFoto(uid, prof){
+  var s = String(uid == null ? '' : uid);
+  if (/^bot/.test(s)) return '';
+  var u = String((prof && prof.photo_url) || '');
+  if (/^(https?:|data:image\/|blob:|\/)/.test(u)) return u;
+  if (/^\d{3,15}$/.test(s)) return 'https://62-238-17-24.sslip.io/foto/' + s + '.jpg';
+  return '';
+}
+// FOTO_VERE_1711: le foto che non caricano non si richiedono piu' (resta la targa di oggi)
+var FV_NO = {};
+// FOTO_VERE_1711: la fotina tonda dentro la targa del nome (solo umani; <img>, mai sfondo CSS: in Discord il guscio riscrive i src)
+function fvImg(i) {
+  var g = ANAG && ANAG.g && ANAG.g[i], u = g && !g.eBot ? String(g.foto || '') : '';
+  if (!u || FV_NO[u]) return '';
+  return '<img class="fv-foto" src="' + esc(u) + '" alt="" draggable="false" onerror="try{FV_NO[this.getAttribute(\'src\')]=1}catch(e){}this.remove()">';
+}
 function nomeTarga(s) {
   s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim().toUpperCase() || '?';
   const a = Array.from(s);
@@ -3366,7 +3384,7 @@ function suStart(m) {
     modo: map.modo || 'classica', squadre: Array.isArray(map.squadre) ? map.squadre : null,
     g: map.seggi.map((s, i) => {
       const vero = String((map.nomi && map.nomi[i]) || s.nome || (m.names && m.names[s.uid]) || '?');
-      return { nome: nomeTarga(vero), vero: vero, bot: SPET || AUTO || i !== IO, eBot: !!s.bot, mostro: { specie: KJM.OPZ.specie[most[i].sp], tinta: most[i].ti } };
+      return { nome: nomeTarga(vero), vero: vero, bot: SPET || AUTO || i !== IO, eBot: !!s.bot, foto: s.bot ? '' : fvFoto(s.uid, (m.profiles || {})[s.uid]) /* FOTO_VERE_1711 */, mostro: { specie: KJM.OPZ.specie[most[i].sp], tinta: most[i].ti } };
     })
   };
   CODA = []; maxS = 0; MN = 0; sMn = 0; ULT = null; OVER = null; primoFot = true; daEntrare = false; BUCO = false;
@@ -4522,7 +4540,7 @@ function mostraCarteDi(i) {
 // ---------- targhe, pedine, squadre, forma potenziata
 function targaHtml(i) {
   const sq = SQUADRE() && S.g[i] && S.g[i].squadra >= 0 ? '<span class="kv-sq ' + (S.g[i].squadra ? 'B' : 'A') + '">' + (S.g[i].squadra ? 'B' : 'A') + '</span>' : '';
-  return '<div class="tg-nome">' + esc(S.g[i].nome) + '</div>' +
+  return '<div class="tg-nome">' + fvImg(i) /* FOTO_VERE_1711 */ + esc(S.g[i].nome) + '</div>' +
     '<div class="vita">' + I.cuore() + '<div class="vt-b"><i class="vt-g"></i><i class="vt-f"></i></div><b class="n-vi">0</b></div>' +
     '<div class="tg-num"><span>' + I.stella() + '<b class="n-st">0</b>' + (i === IO && !SQUADRE() ? '<small>/' + S.reg.STELLE + '</small>' : '') + '</span><span>' + I.fulmine() + '<b class="n-en">0</b></span>' + sq + '</div><div class="tg-carte"></div><i class="tg-oro"><i></i></i>';
 }

@@ -36,6 +36,9 @@ body{font-family:'Rubik',system-ui,-apple-system,'Segoe UI',sans-serif;font-weig
   transition:opacity .3s,filter .3s,transform .18s}
 .tgNome{max-width:100%;font-size:11px;line-height:13px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.02em}
 .tgNome i{font-style:normal;color:#ffb4a8;font-size:9px}
+.tg .fvAv{position:absolute;left:-5px;top:-10px;width:22px;height:22px;border-radius:50%;object-fit:cover;background:#10231b;box-shadow:0 0 0 2px var(--col),0 2px 5px rgba(0,0,0,.45);pointer-events:none}   /* FOTO_VERE_1711 */
+.tg.fvSi .tgNome{box-sizing:border-box;padding-left:16px}   /* FOTO_VERE_1711: il nome non finisce sotto la foto */
+#mio .fvAv{flex:0 0 auto;width:20px;height:20px;margin:0 -3px;border-radius:50%;object-fit:cover;background:#10231b}   /* FOTO_VERE_1711 */
 .mini{position:relative;height:calc(var(--mw)*1.5);width:calc(var(--mw) + var(--mw)*1.8)}
 .mini img{position:absolute;top:0;width:var(--mw);height:calc(var(--mw)*1.5);filter:drop-shadow(0 1px 1px rgba(0,0,0,.5));transition:opacity .2s}
 .mini img:nth-child(1){left:0}.mini img:nth-child(2){left:calc(var(--mw)*.6)}
@@ -488,6 +491,27 @@ function chiudiGuida() {   // cura G1: la guida non copre MAI una gara (o il mio
 }
 
 const nomeVero = sg => (ANAG && ANAG.nomi[sg] != null ? String(ANAG.nomi[sg]) : '?');
+// FOTO_VERE_1711: la foto vera di un giocatore umano (mai dei bot)
+function fvFoto(uid, prof){
+  var s = String(uid == null ? '' : uid);
+  if (/^bot/.test(s)) return '';
+  var u = String((prof && prof.photo_url) || '');
+  if (/^(https?:|data:image\/|blob:|\/)/.test(u)) return u;
+  if (/^\d{3,15}$/.test(s)) return 'https://62-238-17-24.sslip.io/foto/' + s + '.jpg';
+  return '';
+}
+// FOTO_VERE_1711: un <img> tondo (mai url() nel CSS: dentro Discord si riscrivono solo gli src);
+// se non carica sparisce e resta la targa di prima. Niente crossOrigin, niente tela.
+let FV_SRC = {}, FV_MIO = null;
+const FV_KO = {};
+function fvAvatar(src) {
+  if (!src || FV_KO[src]) return null;
+  const im = new Image();
+  im.className = 'fvAv'; im.alt = ''; im.draggable = false; im.decoding = 'async';
+  im.addEventListener('error', () => { FV_KO[src] = 1; const pa = im.parentNode; if (pa) { pa.classList.remove('fvSi'); pa.removeChild(im); } });
+  im.src = src;
+  return im;
+}
 function vicino(sg) {       // a chi passa `sg`: il vivo successivo nei seggi
   if (!V) return -1;
   for (let k = 1; k <= ANAG.n; k++) { const j = (sg + k) % ANAG.n; if (V.vite[j] > 0) return j; }
@@ -619,6 +643,7 @@ function monta() {
     el.querySelectorAll('.mini img').forEach(i => { i.src = DORSO; });
     box.appendChild(el);
     TARGHE[sg] = { sg: sg, el: el, nome: el.querySelector('.tgNome'), vite: el.querySelector('.vite'), segno: el.querySelector('.tgSegno'), kv: '', kn: '', ks: '' };
+    { const fa = fvAvatar(FV_SRC[sg]); if (fa) { el.insertBefore(fa, el.firstChild); el.classList.add('fvSi'); } }   // FOTO_VERE_1711
   });
   const mano = $('#mano'); mano.innerHTML = ''; SLOT = [];
   for (let i = 0; i < 4; i++) {
@@ -673,6 +698,10 @@ function disegnaMio() {
     el.innerHTML = '<span class="pall" style="--col:' + TINTE[IO % TINTE.length] + '"></span><span>' + esc(nomeVero(IO)) + '</span><span class="vite">' + cuori(V.vite[IO], ANAG.reg.vite) + '</span>' +
       (tx ? '<span class="mioSegno ' + cl + '">' + esc(tx) + '</span>' : '') +
       (rl ? '<span class="rete">' + esc(T('📶 rete lenta {ms} ms', { ms: rl })) + '</span>' : '');
+    if (FV_SRC[IO] && !FV_KO[FV_SRC[IO]]) {                            // FOTO_VERE_1711: sempre lo stesso <img>, niente ricarica
+      if (!FV_MIO || FV_MIO._fv !== FV_SRC[IO]) { FV_MIO = fvAvatar(FV_SRC[IO]); if (FV_MIO) FV_MIO._fv = FV_SRC[IO]; }
+      const pa = el.querySelector('.pall'); if (FV_MIO && pa) pa.after(FV_MIO);
+    }
   }
 }
 function mettiCarta(s, c) {
@@ -1090,6 +1119,7 @@ function suStart(m) {
   const mp = m.map || {};
   if (!mp.seggi || !mp.reg) { errorePagina('start senza map.seggi/map.reg'); return; }
   ANAG = { n: mp.n || mp.seggi.length, nomi: (mp.nomi || mp.seggi.map(s => s.nome)).slice(), bot: mp.seggi.map(s => !!s.bot), reg: mp.reg, tempi: mp.tempi || {} };
+  FV_SRC = {}; mp.seggi.forEach((s, i) => { FV_SRC[s.sg != null ? s.sg : i] = s.bot ? '' : fvFoto(s.uid, m.profiles && s.uid != null ? m.profiles[s.uid] : null); });   // FOTO_VERE_1711
   SPET = !!m.spec || m.you == null;
   IO = -1;
   if (!SPET) mp.seggi.forEach(s => { if (s.uid === m.you) IO = s.sg; });

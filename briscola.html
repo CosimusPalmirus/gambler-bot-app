@@ -47,6 +47,7 @@ button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;paddin
 /* ── targhe ── */
 .targa{position:absolute;display:flex;align-items:center;gap:8px;padding:5px 10px 7px;border-radius:12px;background:rgba(4,22,16,.78);border:2px solid rgba(255,255,255,.12);min-width:132px;max-width:calc(100% - 118px);transition:border-color .2s,box-shadow .2s}
 .targa .nome{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;opacity:.92}
+.targa .fvAv{flex:0 0 auto;width:26px;height:26px;margin:-1px -2px;border-radius:50%;object-fit:cover;background:rgba(0,0,0,.3)}   /* FOTO_VERE_1711 */
 .targa .pt{font-size:24px;font-weight:800;line-height:1;color:var(--oro);min-width:30px;text-align:right;transition:transform .18s}
 .targa .pt.bum{transform:scale(1.45)}
 .targa .su{font-size:11px;opacity:.6;margin-left:-4px}
@@ -299,6 +300,34 @@ const F = () => VEL * (CODA.length > 8 ? 3 : CODA.length > 4 ? 1.7 : 1);       /
 const aspetta = ms => new Promise(r => setTimeout(r, Math.max(0, ms / F())));
 const posto = sg => (sg === GIU ? 'giu' : 'su');
 const nome = sg => (!SPET && sg === IO ? T('TU') : (NOMI[sg] || ''));
+// FOTO_VERE_1711: la foto vera di un giocatore umano (mai dei bot)
+function fvFoto(uid, prof){
+  var s = String(uid == null ? '' : uid);
+  if (/^bot/.test(s)) return '';
+  var u = String((prof && prof.photo_url) || '');
+  if (/^(https?:|data:image\/|blob:|\/)/.test(u)) return u;
+  if (/^\d{3,15}$/.test(s)) return 'https://62-238-17-24.sslip.io/foto/' + s + '.jpg';
+  return '';
+}
+// FOTO_VERE_1711: un <img> tondo (mai url() nel CSS: dentro Discord si riscrivono solo gli src);
+// se non carica sparisce e resta la targa di prima. Niente crossOrigin, niente tela.
+const FV_KO = {};
+function fvAvatar(src) {
+  if (!src || FV_KO[src]) return null;
+  const im = new Image();
+  im.className = 'fvAv'; im.alt = ''; im.draggable = false; im.decoding = 'async';
+  im.addEventListener('error', () => { FV_KO[src] = 1; if (im.parentNode) im.parentNode.removeChild(im); });
+  im.src = src;
+  return im;
+}
+function fvTarghe(seggi, prof) {                                          // FOTO_VERE_1711
+  [['#targaGiu', GIU], ['#targaSu', SU]].forEach(x => {
+    const tg = $(x[0]), nm = tg.querySelector('.nome'), s = seggi[x[1]];
+    tg.querySelectorAll('.fvAv').forEach(e => e.remove());
+    const im = (s && !s.bot) ? fvAvatar(fvFoto(s.uid, prof && s.uid != null ? prof[s.uid] : null)) : null;
+    if (im) tg.insertBefore(im, nm);
+  });
+}
 
 // ---------- misura e impaginazione (telefono in piedi e PC)
 function impagina() {
@@ -775,6 +804,7 @@ function suStart(m) {
   scartello();
   $('#targaGiu .nome').textContent = SPET ? NOMI[GIU] : T('TU');
   $('#targaSu .nome').textContent = NOMI[SU];
+  fvTarghe(seggi, m.profiles);                                          // FOTO_VERE_1711
   const v61 = (mp.reg && mp.reg.punti_vittoria) || 61;
   ['#targaGiu', '#targaSu'].forEach(q => { $(q + ' .su').textContent = '/' + v61; $(q + ' .ass').textContent = T('ASSENTE'); });
   const p = $('#piatto');

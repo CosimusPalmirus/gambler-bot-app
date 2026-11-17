@@ -5820,10 +5820,36 @@ function snap(m) {
   for (var j = 0; j < fd.length; j++) { var e = fd[j]; if (e.s <= NET.lastS) continue; NET.lastS = e.s; eventoServer(e); }
   if (m.over && G.stato !== 'fine') G.overSnap = true;
 }
+// FOTO_VERE_1711 (17/11): regola del proprietario, nome vero e foto vera per ogni umano. La foto: photo_url del
+// profilo (anche la data: di chi guarda, l'avatar Discord), poi la copia del backend; mai per i bot. Disegnata con
+// new Image() (dentro Discord lo strato riscrive l'indirizzo); la tela principale non si rilegge mai (niente getImageData).
+var FV_DP = [], FV_DP_IMG = {};
+function fvNomeDP(s) {
+  return String(s == null ? '' : s).replace(/&(amp|lt|gt|quot|#x27|#39);/g, function (a, k) { return { amp:'&', lt:'<', gt:'>', quot:'"', '#x27':"'", '#39':"'" }[k]; });
+}
+function fvFotoDP(uid, prof) {
+  var s = String(uid == null ? '' : uid);
+  if (/^bot/.test(s)) return '';
+  var u = String((prof && prof.photo_url) || '');
+  if (/^(https?:|data:image\/|blob:|\/)/.test(u)) return u;
+  if (/^\d{3,15}$/.test(s)) return 'https://62-238-17-24.sslip.io/foto/' + s + '.jpg';
+  return '';
+}
+function fvImgDP(seat) {
+  var u = FV_DP[seat]; if (!u) return null;
+  var im = FV_DP_IMG[u];
+  if (!im) { im = FV_DP_IMG[u] = new Image(); im.decoding = 'async'; im.onerror = function () { im._no = 1; }; im.src = u; }
+  return (!im._no && im.complete && im.naturalWidth > 0) ? im : null;
+}
 function primoSnap(m) {
   var rows = m.p || [];
+  FV_DP = [];   // FOTO_VERE_1711
   for (var i = 0; i < rows.length; i++) {
     var r = rows[i], uid = String(r[0]), nome = (avvio.names && avvio.names[uid]) || (uid.indexOf('bot:') === 0 ? 'BOT' : 'SCALATORE');
+    // FOTO_VERE_1711: per gli umani il nome del PROFILO; quelli del motore («Rocco», «Gina»...) restano ai bot
+    var fvPr = avvio.profiles && avvio.profiles[uid];
+    if (uid.indexOf('bot:') !== 0 && fvPr && fvPr.name) nome = fvNomeDP(fvPr.name).slice(0, 16);
+    FV_DP[i] = fvFotoDP(uid, fvPr);
     LOOKS[i] = DPM.LOOK_DA_PROFILO ? DPM.LOOK_DA_PROFILO(avvio.profiles && avvio.profiles[uid], i, uid, rows.map(function (q) { return avvio.profiles && avvio.profiles[String(q[0])]; })) : i;   // COSMETICI DP 19/09: tinte uniche a due passate
     if (uid === mioUid) {
       mioSeat = i;
@@ -5835,6 +5861,7 @@ function primoSnap(m) {
         p:{ x:r[1], y:r[2], vx:0, vy:0, grounded:true, wallside:0, stun:0, skidT:0, wjLock:0, face:1, tiroT:0, tiroX:0, tiroY:0, magT:0, colT:0, dashT:0, dashV:0, rimbT:0, mom:0, landT:0 }, prev:null };
     }
   }
+  window.FV_DP_STATO = { nomi: RC.map(function (c) { return c ? c.nome : null; }), foto: FV_DP.slice(), img: function () { return RC.map(function (c, i) { return !!fvImgDP(i); }); } };   // FOTO_VERE_1711: in sola lettura (banchi)
   if (spec) cam.segui = 0;
   // DECISIONE 15/09: partite affollate (piu' di 7 giocatori) = sangue MEDIO di serie. «Di serie» = solo per chi non ha
   // mai scelto col tasto SANGUE (18/09: prima abbassava anche chi aveva scelto ALTO, e restava MEDIO nella partita dopo).
@@ -6483,6 +6510,14 @@ function targhetta(c, X, Y, lk) {
     t = NOMI[chiave] = { cv:cv, ox:w / 2, oy:by }; NOMI_N++;
   }
   g.drawImage(t.cv, Math.round(X - t.ox), Math.round(Y - S * 1.62 - t.oy));
+  // FOTO_VERE_1711: la foto del rivale in un tondino a sinistra del nome
+  var fi = fvImgDP(c.id);
+  if (fi) {
+    var fr = Math.max(5, Math.round(S * 0.19)), fx = Math.round(X - t.ox - fr - 1), fy = Math.round(Y - S * 1.62 - t.oy + t.cv.height / 2);
+    g.save(); g.beginPath(); g.arc(fx, fy, fr, 0, 6.2832); g.closePath(); g.clip();
+    g.drawImage(fi, fx - fr, fy - fr, fr * 2, fr * 2); g.restore();
+    g.lineWidth = Math.max(1.5, S * 0.035); g.strokeStyle = lk.colL || lk.col; g.beginPath(); g.arc(fx, fy, fr, 0, 6.2832); g.stroke();
+  }
 }
 function freccia(X, Y, now) {
   g.fillStyle = PAL.yel; g.strokeStyle = PAL.ink; g.lineWidth = S * 0.06; g.beginPath(); var ay = Y - S * 1.7 + Math.sin(now * 8) * S * 0.08;
@@ -6731,6 +6766,9 @@ function mostraClassifica(win) {
     var tr = document.createElement('tr'); if (c === me) tr.className = 'io';
     var td0 = document.createElement('td'); td0.textContent = (c.uid === win ? '🏆 ' : '') + (i + 1) + '°';
     var td1 = document.createElement('td'); td1.textContent = c.nome;
+    var fvU = FV_DP[c.id];   // FOTO_VERE_1711: la foto accanto al nome
+    if (fvU) { var fvI = document.createElement('img'); fvI.alt = ''; fvI.onerror = function () { this.remove(); }; fvI.src = fvU;
+      fvI.style.cssText = 'width:20px;height:20px;border-radius:50%;object-fit:cover;vertical-align:-5px;margin-right:6px'; td1.insertBefore(fvI, td1.firstChild); }
     var td3 = document.createElement('td'); td3.textContent = '☠ ' + c.morti;
     tr.appendChild(td0); tr.appendChild(td1); tr.appendChild(td3); tab.appendChild(tr);
   });

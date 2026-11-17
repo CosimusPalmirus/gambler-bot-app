@@ -96,7 +96,7 @@ body.pc #hint{display:block}body.pc #ctl{display:none!important}body.pc #pann{di
 #tut .tb{margin-top:10px}#tut button,#fb button{border:none;border-radius:14px;padding:11px 18px;font:800 13px/1 var(--x-disp);color:#fff;cursor:pointer;background:radial-gradient(circle at 35% 30%,#cdc7ff,#8f86f2 45%,#5b51cc)}
 #fb{display:flex;gap:8px;justify-content:center;margin-top:16px}#fb button.sec{background:rgba(255,255,255,.1);border:1px solid var(--x-line)}
 #fine.on{pointer-events:auto}#fs{grid-template-columns:minmax(120px,auto) repeat(5,auto)!important;gap:8px 12px!important;align-items:center}#fs span{font-size:9px;letter-spacing:.08em;text-transform:uppercase}#fs b{text-align:center}
-.fn{display:flex;align-items:center;gap:6px}.fn img{width:24px;height:24px;border-radius:50%}.fn em{color:var(--x-gold);font-style:normal}
+.fn{display:flex;align-items:center;gap:6px}.fn img{width:24px;height:24px;border-radius:50%}/* FOTO_VERE_1711 */.th .fv-foto{width:16px;height:16px;border-radius:50%;object-fit:cover;flex:none;border:1px solid rgba(255,255,255,.55);background:rgba(255,255,255,.1)}.fn img.fv-foto{width:20px;height:20px;object-fit:cover;flex:none;border:1px solid rgba(255,255,255,.55)}@media (orientation:portrait) and (max-width:600px){.th .fv-foto{order:1}.th .fv-foto~.tot{order:2}}.fn em{color:var(--x-gold);font-style:normal}
 #wind.pulsa{animation:pul 1s ease-in-out infinite;border-color:var(--x-gold)}@keyframes pul{50%{box-shadow:0 0 0 6px rgba(245,177,76,.25)}}
 #chi{position:fixed;left:50%;top:calc(146px + var(--top));transform:translateX(-50%);z-index:5;border-radius:999px;padding:6px 14px;font:600 11px/1 var(--x-disp);white-space:nowrap;opacity:0;transition:opacity .3s;pointer-events:none;display:flex;align-items:center;gap:6px;border-color:var(--c)}
 #chi.on{opacity:1}#chi.mio{box-shadow:0 0 0 2px var(--c),0 0 22px var(--c);animation:pul2 1.4s ease-in-out infinite}@keyframes pul2{50%{box-shadow:0 0 0 2px var(--c),0 0 8px var(--c)}}
@@ -401,6 +401,24 @@ body:not(.pc) #top{left:max(10px,calc(var(--sl) + 6px));right:max(10px,calc(var(
 <div id="pronto" class="g"><i></i><span></span></div>
 <div id="load"><div class="ll">SBANCA!</div><div class="lb"><i id="lbi"></i></div><small id="lbt"></small></div>
 <script>
+// FOTO_VERE_1711: la foto vera di un giocatore umano (mai dei bot)
+function fvFoto(uid, prof){
+  var s = String(uid == null ? '' : uid);
+  if (/^bot/.test(s)) return '';
+  var u = String((prof && prof.photo_url) || '');
+  if (/^(https?:|data:image\/|blob:|\/)/.test(u)) return u;
+  if (/^\d{3,15}$/.test(s)) return 'https://62-238-17-24.sslip.io/foto/' + s + '.jpg';
+  return '';
+}
+// FOTO_VERE_1711: le foto che non caricano non si richiedono piu' (l'HUD si ridisegna a ogni colpo)
+var FV_NO = {};
+// FOTO_VERE_1711: la fotina tonda accanto al nome (<img>, mai sfondo CSS: in Discord il guscio riscrive i src)
+function fvImg(s){
+  var u = String((s && !s.bot && s.foto) || '');
+  if (!u || FV_NO[u]) return '';
+  return '<img class="fv-foto" src="' + u.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;') +
+    '" alt="" draggable="false" onerror="try{FV_NO[this.getAttribute(\'src\')]=1}catch(e){}this.remove()">';
+}
 /* SBANCA_PONTE_RT_1711 — la pagina dentro la mini app (?rt=1): niente socket sue.
    La "WebSocket" della pagina diventa un ponte postMessage verso il guscio dell index
    (SBRT, stessa origine), che parla col server real-time vero sulla socket della mini app.
@@ -426,7 +444,7 @@ body:not(.pc) #top{left:max(10px,calc(var(--sl) + 6px));right:max(10px,calc(var(
       if(m.game!=='sbanca'||!m.map)return null;
       var you=(m.spec||m.you==null)?null:String(m.you);
       try{var pr=m.profiles||{},sq=m.map.squadre||{},pid;
-        for(pid in sq){if(String(pid).indexOf('bot:')===0)continue;var n=pr[pid]&&pr[pid].name;if(n&&String(n).indexOf('bot:')!==0){n=String(n).replace(/[\u0000-\u001f<>&"]/g,'').trim().slice(0,22);if(n)sq[pid].nome=n;}}}catch(e){}
+        for(pid in sq){try{sq[pid].foto=(sq[pid]&&sq[pid].bot)?'':fvFoto(pid,pr[pid]);}catch(e){}/* FOTO_VERE_1711 */if(String(pid).indexOf('bot:')===0)continue;var n=pr[pid]&&pr[pid].name;if(n&&String(n).indexOf('bot:')!==0){n=String(n).replace(/[\u0000-\u001f<>&"]/g,'').trim().slice(0,22);if(n)sq[pid].nome=n;}}}catch(e){}
       window.__SBRT_PONTE.start++;finita=false;
       return {t:'start',game:'sbanca',you:you,map:m.map,tick_rate:m.tick_rate||20,modo:'rt',seed:0};
     }
@@ -1201,7 +1219,7 @@ function fineSchermo(e){hostFine(e);const vinto=e.winner===me;const io=me&&MAP.s
   $('fh').textContent=e.k==='pari'?TX.pari:(vinto?TX.hai:(io?TX.persa:TX.vince+': '+nomeSq(e.winner)));
   $('fp').textContent=MAP.nome+' · '+(LANG==='en'?'Round ':'Giro ')+(S?S.giro:'')+' · '+fmt((S&&S.durata)||0);
   let h='<div></div><span>HP</span><span>'+TXM.danni+'</span><span>'+TXM.ko+'</span><span>'+TXM.colpo+'</span><span>'+TXM.colpi+'</span>';
-  for(const pid of Object.keys(MAP.squadre)){const s=MAP.squadre[pid],q=st[pid]||{};h+='<div class="fn"><img src="'+avatarDi(s.sq)+'">'+dotHtml(s)+s.nome+(pid===e.winner?' <em>★</em>':'')+'</div><b>'+(S?S.hp[pid]:0)+'</b><b>'+(q.danni||0)+'</b><b>'+(q.ko||0)+'</b><b>'+(q.colpo_max||0)+'</b><b>'+(q.colpi||0)+'</b>';}
+  for(const pid of Object.keys(MAP.squadre)){const s=MAP.squadre[pid],q=st[pid]||{};h+='<div class="fn"><img src="'+avatarDi(s.sq)+'">'+dotHtml(s)+fvImg(s)/* FOTO_VERE_1711 */+s.nome+(pid===e.winner?' <em>★</em>':'')+'</div><b>'+(S?S.hp[pid]:0)+'</b><b>'+(q.danni||0)+'</b><b>'+(q.ko||0)+'</b><b>'+(q.colpo_max||0)+'</b><b>'+(q.colpi||0)+'</b>';}
   $('fs').innerHTML=h;
   $('fb').innerHTML='<button id="frv">'+TXM.rivincita+'</button><button id="fmn" class="sec">'+TXM.menu+'</button>';
   $('frv').onclick=rivincita;
@@ -1276,7 +1294,7 @@ function hud(){
   if(!S)return;
   const ids=Object.keys(MAP.squadre);
   const team=(pid)=>{const s=MAP.squadre[pid];const uu=S.U.filter(u=>{const i=MAP.unita.find(q=>q.id===u[0]);return i&&i.pid===pid;});
-    return '<div class="team g"><div class="th">'+dotHtml(s)+'<span class="tn">'+s.nome+'</span>'+(S.afk&&S.afk[pid]?' <span class="chi" style="color:#ff8a8a;display:inline">AFK '+S.afk[pid]+'/3</span>':'')+(VIA[pid]?' <span class="chi" style="color:#ff8a8a;display:inline">offline</span>':'')+'<span class="chi">'+(pid===me?(LANG==='en'?'You':'Tu'):(Q.get('modo')==='bot'&&pid==='bot'?'Bot':''))+'</span><span class="tot">'+(S.hp[pid]||0)+'</span></div><div class="bars">'+uu.map(u=>'<div class="bu"><img class="av'+(u[4]&1?'':' morto')+'" data-u="'+u[0]+'" src="'+avatarDi(s.sq)+'"><div class="bar"><i class="tr" style="width:'+Math.min(100,u[3])+'%"></i><i style="position:relative;width:'+Math.min(100,u[3])+'%;background:'+(u[4]&1?s.col:'transparent')+'"></i></div></div>').join('')+'</div></div>';};
+    return '<div class="team g"><div class="th">'+dotHtml(s)+fvImg(s)/* FOTO_VERE_1711 */+'<span class="tn">'+s.nome+'</span>'+(S.afk&&S.afk[pid]?' <span class="chi" style="color:#ff8a8a;display:inline">AFK '+S.afk[pid]+'/3</span>':'')+(VIA[pid]?' <span class="chi" style="color:#ff8a8a;display:inline">offline</span>':'')+'<span class="chi">'+(pid===me?(LANG==='en'?'You':'Tu'):(Q.get('modo')==='bot'&&pid==='bot'?'Bot':''))+'</span><span class="tot">'+(S.hp[pid]||0)+'</span></div><div class="bars">'+uu.map(u=>'<div class="bu"><img class="av'+(u[4]&1?'':' morto')+'" data-u="'+u[0]+'" src="'+avatarDi(s.sq)+'"><div class="bar"><i class="tr" style="width:'+Math.min(100,u[3])+'%"></i><i style="position:relative;width:'+Math.min(100,u[3])+'%;background:'+(u[4]&1?s.col:'transparent')+'"></i></div></div>').join('')+'</div></div>';};
   const k=JSON.stringify([S.hp,S.U.map(u=>u[3]+'|'+(u[4]&1)),S.afk,VIA]);chiTurno();
   if(k!==hudK){hudK=k;$('tA').innerHTML=team(ids[0]);$('tB').innerHTML=ids[1]?team(ids[1]):'';}
   const SNn=SN()||S,stN=SNn.st,ttN=ttVivo();const tnT=stN==='turno'||stN==='ritirata'?String(Math.ceil(ttN)):(stN==='pre'?'':'·');
