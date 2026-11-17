@@ -64,6 +64,16 @@ finale = function (msg) {
   finalePrimaRil(msg);
   const s = $("scheda");
   s.classList.add("fine-ril");
+  // FOTO_VERE_1711: sul podio, sotto il ladro in pixel, la foto profilo vera di chi ce l'ha (stesso ordine di vita.js)
+  try {
+    const ord = msg.extra.gruppi.flat(), chi = [ord[1], ord[0], ord[2]].filter((x) => x !== undefined);
+    s.querySelectorAll(".podio .p").forEach((p, i) => {
+      const sg = chi[i]; if (sg === undefined || !FOTO[sg] || p.querySelector(".podio-foto")) return;
+      const c = tela(56, 56); c.className = "podio-foto"; c.getContext("2d").drawImage(gettone(sg, 56), 0, 0);
+      c.style.cssText = "width:28px!important;height:28px!important;border-radius:50%!important;box-shadow:none!important;image-rendering:auto;margin-top:-2px";
+      const nm = p.querySelector(".nmp"); if (nm) nm.before(c); else p.appendChild(c);
+    });
+  } catch (e) { }
   const sotto = s.querySelector("h2 + p");
   if (sotto && msg.premi && LINGUA === "it") sotto.textContent = sotto.textContent.replace(/(\d)\.(\d\d) €/, "$1,$2 €");
   if (sotto && !msg.premi) sotto.textContent = (msg.extra.gruppi[0].length > 1 ? t_("pari") + " " : "") + (rilSoldi() ? rilQuote() : rilModo());

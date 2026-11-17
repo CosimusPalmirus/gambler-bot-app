@@ -84,6 +84,11 @@ gettone = function (sg, d) {
   else poli(reg(6, 4.4, 0));
   x.fillStyle = "rgba(255,255,255,.55)"; x.fillRect(6, 4, 3, 1); x.fillRect(5, 5, 1, 2);
   const out = tela(d, d), cc = out.getContext("2d"); cc.imageSmoothingEnabled = false; cc.drawImage(sc2, 0, 0, d, d);
+  // FOTO_VERE_1711: chi ha la foto profilo (umano) la mostra dentro l'anello del suo colore; bot e senza foto: la forma
+  if (FOTO[sg]) {
+    cc.save(); cc.imageSmoothingEnabled = true; cc.beginPath(); cc.arc(d / 2, d / 2, d * .34, 0, 7); cc.clip();
+    copri(cc, FOTO[sg], d, d); cc.restore();
+  }
   PIX.cache.set(k, out); return out;
 };
 function nomeCorto(sg, max = 8) { if (V && sg === V.io) return LINGUA === "it" ? "TU" : "YOU"; const s2 = ((INFO && INFO.nomi[sg]) || "#" + (sg + 1)).toUpperCase(); return s2.length > max ? s2.slice(0, max) : s2; }

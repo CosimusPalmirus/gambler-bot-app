@@ -38,6 +38,20 @@ const CODA = [];
 let META = null, INFO = null, V = null, FOTO = [], ws = null, snapT = 0, pronto = false;
 const IMG = {}, SPR = new Map();
 function carica(src) { return new Promise((ok) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = src; }); }
+// FOTO_VERE_1711: la foto profilo vera, in CORS (la tela non si sporca: pixel.js ne legge i pixel); 3 s al massimo, poi colore
+function caricaFoto(src) {
+  return new Promise((ok) => {
+    let fatto = false; const fine = (v) => { if (!fatto) { fatto = true; ok(v); } };
+    if (!/^(https:\/\/|\/)/.test(String(src || ""))) return fine(null);
+    const i = new Image(); i.crossOrigin = "anonymous"; i.referrerPolicy = "no-referrer";
+    i.onload = () => fine(i.naturalWidth ? i : null); i.onerror = () => fine(null); setTimeout(() => fine(null), 3000); i.src = src;
+  });
+}
+// a ogni partita nuova i seggi cambiano persona: via i disegni in cache che contengono una faccia, i gettoni si ridisegnano
+function fotoRinfresca() {
+  try { if (typeof PIX !== "undefined" && PIX.cache) for (const k of [...PIX.cache.keys()]) if (/^(foto|bot|get)\|/.test(k)) PIX.cache.delete(k); } catch (e) {}
+  document.querySelectorAll(".gioc[data-ok]").forEach((el) => { delete el.dataset.ok; });
+}
 async function caricaTutto() {
   META = await (await fetch("asset/meta.json")).json();
   const l = [];
@@ -930,8 +944,10 @@ async function via() {
   ws.onmessage = async (m) => {
     const d = JSON.parse(m.data);
     if (d.t === "info") {
-      FOTO = [];   // 17/11 rilascio: niente foto profilo (regola del proprietario), ogni ladro ha colore e nome
-      INFO = d.info; SPR.clear(); testata();
+      // FOTO_VERE_1711 (regola del proprietario): gli umani con la LORO foto Telegram/Discord (info.foto, dal ponte:
+      // profiles[uid].photo_url dello start), i bot e chi non ha foto col colore del seggio. CORS: getImageData in pixel.js.
+      FOTO = await Promise.all((d.info.foto || []).slice(0, 8).map((u) => (u ? caricaFoto(u) : null)));
+      INFO = d.info; SPR.clear(); fotoRinfresca(); testata();
       for (const s of CODA.splice(0)) applica(s);
     } else if (d.t === "snap") { if (INFO) applica(d.s); else CODA.push(d.s); }
     else if (d.t === "fine") setTimeout(() => finale(d), 2200);
