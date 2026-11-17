@@ -1644,7 +1644,11 @@ const isPC = () => matchMedia('(min-aspect-ratio: 6/5) and (min-width: 860px)').
 function areaLibera() {
   const w = innerWidth, h = innerHeight;
   if (isPC()) return {x0: 236, x1: w - 262, y0: 78, y1: h - 92};
-  return {x0: 2, x1: w - 2, y0: $('top').getBoundingClientRect().bottom + 2, y1: h - (LEZIONE ? ($("lezc").offsetHeight > 40 ? $("lezc").offsetHeight + 96 : (w < 380 ? 330 : 270)) : 74)};
+  // mobile 18/11: il fondo libero arriva fino alla barra dei comandi VERA (piu' alta, sopra la barra di casa), non a 74 px fissi
+  const bb = $('bot'), sb = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sa-bottom')) || 0, lz = $('lezc');
+  const giu = bb && bb.offsetHeight > 20 ? h - bb.offsetTop + 6 : (w < h ? 148 : 84) + sb;   // barra non ancora a schermo: la sua misura tipica
+  if (bb && bb.offsetHeight > 20) document.documentElement.style.setProperty('--bar-h', bb.offsetHeight + 'px');
+  return {x0: 2, x1: w - 2, y0: $('top').getBoundingClientRect().bottom + 2, y1: h - (LEZIONE ? (lz.offsetHeight > 40 ? lz.offsetHeight + giu + 22 : (w < 380 ? 330 : 270) + giu - 74) : giu)};
 }
 function adatta() {
   ROT = !isPC() && innerHeight >= innerWidth * .9; PZ = P * (ROT ? 1.48 : 1.1);   // 17/11 mappa: telefono in orizzontale = campo non ruotato (prima restava in verticale e minuscolo)
@@ -1675,6 +1679,9 @@ function layout() {
   if (!CAMT) { const b = camBase(); CAMV.p.copy(b.p); CAMV.l.copy(b.l); }
 }
 addEventListener('resize', layout);
+// mobile 18/11: la barra dei comandi e la fila delle foto cambiano altezza (bordi di Telegram che arrivano dopo, testo su 2 righe, 6 posti): si rifa' il quadro
+// (e i bordi --sa-* li mette il ponte quando arrivano: spostano la barra senza cambiarle misura, quindi si guarda la posizione)
+setInterval(() => { try { const k = $('bot').offsetTop + ',' + $('bot').offsetHeight + ',' + $('top').getBoundingClientRect().bottom; if (k !== adatta.k) { adatta.k = k; if (!ANTE && !TIT && cam.view && cam.view.enabled) adatta(); } } catch (e) {} }, 400);
 
 /* ---------------- loop ---------------- */
 let prec = performance.now();
