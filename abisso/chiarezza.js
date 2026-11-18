@@ -14,7 +14,7 @@ apriRegole = function () {
     ['<span class="tasti-px">AVANTI<br>TORNA SU</span>', "Prima di ogni carta tutti scelgono <b>in segreto</b>. Le scelte si girano insieme."],
     [icona("forziere.png", 18, 18, 16, 2), "<b>Torna su</b>: l'oro che porti va nel <b>forziere</b> (al sicuro per sempre), più gli avanzi delle tessere divisi con chi torna con te."],
     [icona("calice.png", 0, 12, 16, 2), "<b>Reliquia</b>: la prende solo chi torna su <b>da solo</b>."],
-    ['<span class="tasti-px">5</span>', "Dopo <b>5 spedizioni</b> vince chi ha più oro nel forziere."],
+    ['<span class="tasti-px">5</span>', "Dopo <b>5 spedizioni</b> vince chi ha più oro nel forziere. A pari oro: spedizione di <b>spareggio</b> solo fra i pari."],
   ] : [
     [icona("bot_lavanda.png", 40, 20, 30, 1.4), "<b>Go down together</b> along the path toward the sleeping dragon. Each step reveals a card."],
     [icona("mucchio_m.png", 0, 18, 11, 2), "<b>Gold</b> is split equally among thieves on the path. The remainder <b>stays on the tile</b>."],
@@ -23,7 +23,7 @@ apriRegole = function () {
     ['<span class="tasti-px">GO ON<br>GO BACK</span>', "Before each card everyone chooses <b>in secret</b>. Choices are revealed together."],
     [icona("forziere.png", 18, 18, 16, 2), "<b>Go back</b>: your gold goes into the <b>chest</b> (safe forever), plus the tile leftovers split with whoever goes back with you."],
     [icona("calice.png", 0, 12, 16, 2), "<b>Relic</b>: only a thief going back <b>alone</b> takes it."],
-    ['<span class="tasti-px">5</span>', "After <b>5 expeditions</b> the most gold in the chest wins."],
+    ['<span class="tasti-px">5</span>', "After <b>5 expeditions</b> the most gold in the chest wins. Equal gold: a <b>tiebreak</b> expedition for the tied only."],
   ];
   s.innerHTML = "<h2>" + (it ? "Come si gioca" : "How to play") + '</h2><div class="regole-px">' + righe.map(([i, t]) => '<div class="r-px"><div class="r-ic">' + i + '</div><div class="r-tx">' + t + "</div></div>").join("") +
     '</div><p class="tasti-pc">' + (it ? "Tasti: ↓ S avanti · ↑ W torna su · H regole · Esc chiude" : "Keys: ↓ S go on · ↑ W go back · H rules · Esc closes") + '</p><button class="btn risali" id="b-chiudi">' + (it ? "Ho capito" : "Got it") + "</button>";

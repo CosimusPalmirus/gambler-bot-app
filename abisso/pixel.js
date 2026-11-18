@@ -7,12 +7,12 @@ const FRAME_BOT = (n) => PIX.meta.bot.frame.indexOf(n);
 const COL_SEGGIO = ["lavanda", "mandarino", "menta", "corallo", "cielo", "girasole", "rubino", "perla"];
 
 caricaTutto = async function () {
-  PIX.meta = await (await fetch("pix/pix.json")).json();
+  PIX.meta = await (await fetch("pix/pix.json?v=202611181464")).json();
   META = { pose: [], bot: {}, colori: COL_SEGGIO };                 // compatibilita' con abisso.js
   PIX.pal = Object.values(PIX.meta.pal);
   const nomi = ["drago", "grotta", "parete", "torcia", "moneta", "mucchio_s", "mucchio_m", "mucchio_l", "calice", "forziere", "segni", "campo", "font", "titolo",
     "tessera0", "tessera1", "tessera2", "tessera3", "bot_carbone"].concat(COL_SEGGIO.map((c) => "bot_" + c));
-  await Promise.all(nomi.map(async (n) => { PIX.img[n] = await carica("pix/" + n + ".png"); }));
+  await Promise.all(nomi.map(async (n) => { PIX.img[n] = await carica("pix/" + n + ".png?v=202611181464"); }));
   for (let i = 0; i < 4; i++) IMG["piastra" + i] = PIX.img["tessera" + i];
 };
 function ridimensionaPix() {

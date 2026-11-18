@@ -3,6 +3,19 @@
 // 2.0 inspira (pancia accesa, scintille risucchiate) · 2.5 VAMPATA lungo il sentiero (nucleo/bordo/fumo) · 2.8 colpisce
 // 3.8 i ladri arrostiti scappano tossendo · 5.0 sbuffo, si riaddormenta · 6.6 fine
 "use strict";
+// ALI (17/11 sera): drago_alto.png = gli stessi fotogrammi con 44 righe d'aria sopra, dove si aprono le ali.
+// Se manca (cache vecchia, errore) si ripiega su drago.png: stesso disegno, ali tagliate sopra al fotogramma.
+const DRAGO_ALTO = { img: null };
+carica("pix/drago_alto.png?v=20261117ali").then((i) => { DRAGO_ALTO.img = i; });
+// le ali nel risveglio: carica (si stringono) mentre il collo sale, SCATTO aperte col ruggito, fremito, battito lento
+// durante la vampata, poi a meta', e si ripiegano mentre si riaddormenta
+function fotogrammaAli(fr, e, t) {
+  const D = PIX.meta.drago, c = (n) => D.frame.indexOf(n) >= 0 ? n : fr;
+  if (e >= TW.ruggito && e < TW.inspira) { const er = e - TW.ruggito; return er < .14 ? c("ruggito2s") : c(Math.floor(er * 7) % 2 ? "ruggito2b" : "ruggito2"); }
+  if (e >= TW.fuoco && e < TW.finefuoco) return RM ? fr : c(fr + (Math.floor(t * 5) % 2 ? "b" : ""));
+  if (e >= TW.finefuoco && e < TW.sbuffo) return c(e < TW.finefuoco + .6 ? "dopo0" : "dopo1");
+  return fr;
+}
 const TW = { alza: .7, ruggito: 1.3, inspira: 2.0, fuoco: 2.5, colpo: 2.8, finefuoco: 3.8, sbuffo: 5.0, fine: 6.6 };
 const suonaBase = suona;
 suona = function (tipo, f) { if (tipo === "crollo") return; return suonaBase(tipo, f); };   // il ruggito lo fa la sequenza
@@ -72,23 +85,35 @@ dragoPix = function (g, t) {
     else if (vi.tipo === "ARTIGLIO") fr = ev < .9 ? "artiglio0" : ev < 1.45 ? "artiglio1" : "agita0";
   } else if (t - S.orecchio < .5) fr = "orecchio";
   else if (t - (S.sbircia || -9) < .9) fr = "agita" + resp;      // un'occhiata a fessura: guarda i ladri e l'oro
+  if (e >= 0) fr = fotogrammaAli(fr, e, t);
+  // il primo segno: il drago si agita e l'ala vicina ha un fremito (due scatti brevi)
+  else if (vi && !RM && ((ev > .1 && ev < .22) || (ev > .32 && ev < .42)) && D.frame.indexOf(fr + "_ala") >= 0) fr += "_ala";
   const sc = W >= 440 ? 2 : 1;
   // la testa (che guarda a sinistra) sta a destra del sentiero: il drago guarda il gruppo, il corpo esce dallo schermo a destra
   // scena orizzontale: il drago e' sdraiato in fondo al sentiero, a DESTRA, sullo stesso piano del gruppo, muso a sinistra
   const x = (typeof dragoX === "function" ? dragoX(g) : Math.round(W - D.w * sc + Math.min(20, D.w * sc * .18))) + scuoti, y = zt - D.h * sc + 6 - alza;
+  // ali aperte e poca aria sopra (telefono in orizzontale): stessa sequenza con le ali piu' basse (varianti «_l»), mai sotto l'HUD
+  const AL0 = D.alto;
+  if (AL0 && AL0.cima && D.frame.indexOf(fr + "_l") >= 0) {
+    if (AL0.minimo == null) AL0.minimo = Math.min(...Object.keys(AL0.cima).filter((n) => /^(su\d|ruggito2|inspira2|soffio|dopo|giu)/.test(n) && !/_l$/.test(n)).map((n) => AL0.cima[n]));
+    if (y - (PIX.hudB || 0) < (AL0.su - AL0.minimo) * sc + 2) fr += "_l";
+  }
   PIX.dragoFr = fr;
   PIX.dragoRect = [x, y, D.w * sc, D.h * sc];
   if (window.__audit) PIX.boxDrago = ["drago", x + 6 * sc, y + 22 * sc, Math.min(W, x + D.w * sc) - x - 6 * sc, D.h * sc - 22 * sc];
   if (typeof scenaFondo === "function") scenaFondo(g, t, x, y, sc);
   cx.save(); cx.beginPath(); cx.rect(0, PIX.hudB || 0, W, H); cx.clip();
-  cx.drawImage(img("drago"), D.frame.indexOf(fr) * D.w, 0, D.w, D.h, x, y, D.w * sc, D.h * sc);
+  const AL = D.alto, fi = Math.max(0, D.frame.indexOf(fr));
+  if (AL && DRAGO_ALTO.img) cx.drawImage(DRAGO_ALTO.img, fi * D.w, 0, D.w, AL.h, x, y - AL.su * sc, D.w * sc, AL.h * sc);
+  else cx.drawImage(img("drago"), fi * D.w, 0, D.w, D.h, x, y, D.w * sc, D.h * sc);
   cx.restore();
   const glow = e >= TW.inspira && e < TW.finefuoco ? .55 + .2 * Math.sin(t * 20) : .18 + .08 * resp + seg * .03 + (vi ? .1 : 0);
   cx.globalCompositeOperation = "lighter"; cx.globalAlpha = Math.min(1, glow); const pr = 18 * sc; cx.drawImage(pozza(pr, P.f2), x + D.pancia[0] * sc - pr, y + D.pancia[1] * sc - pr); cx.globalAlpha = 1; cx.globalCompositeOperation = "source-over";
   const nx = x + D.naso[0] * sc, ny = y + D.naso[1] * sc;
-  if (e < 0 && !vi && !RM && t - S.ultimaZ > (seg ? 2.6 : 1.6)) { S.ultimaZ = t; S.zeta.push({ x: nx + 4, y: ny - 8, t0: t }); }
-  if (vi && vi.tipo === "RUSSATA" && Math.floor(ev / .45) !== Math.floor((ev - .02) / .45)) S.zeta.push({ x: nx + 2, y: ny - 10, t0: t, big: true });
-  for (const z of S.zeta) { const ez = t - z.t0, zy = z.y - Math.round(ez * (z.big ? 22 : 12)); if (zy < (PIX.hudB || 0)) continue; cx.globalAlpha = Math.max(0, 1 - ez / 2); pixTesto(cx, "Z", z.x + Math.round(Math.sin(ez * 3) * 3 + ez * (z.big ? 18 : 8)), zy, P.cie, z.big ? 2 : 1, true); }
+  // le «Z» nascono davanti al muso e salgono un po' verso il sentiero: mai sopra la testa e le corna (drago 17/11)
+  if (e < 0 && !vi && !RM && t - S.ultimaZ > (seg ? 2.6 : 1.6)) { S.ultimaZ = t; S.zeta.push({ x: nx - 6 * sc, y: ny - 10 * sc, t0: t }); }
+  if (vi && vi.tipo === "RUSSATA" && Math.floor(ev / .45) !== Math.floor((ev - .02) / .45)) S.zeta.push({ x: nx - 10 * sc, y: ny - 14 * sc, t0: t, big: true });
+  for (const z of S.zeta) { const ez = t - z.t0, zy = z.y - Math.round(ez * (z.big ? 22 : 12)); if (zy < (PIX.hudB || 0)) continue; cx.globalAlpha = Math.max(0, 1 - ez / 2); pixTesto(cx, "Z", z.x + Math.round(Math.sin(ez * 3) * 2 - ez * (z.big ? 8 : 4)), zy, P.cie, z.big ? 2 : 1, true); }
   cx.globalAlpha = 1; S.zeta = S.zeta.filter((z) => t - z.t0 < 2);
   if (!RM && Math.random() < .03 + seg * .04) S.fumi.push({ x: nx, y: ny, t0: t, vx: -6, vy: -14 });
   if (vi && vi.tipo === "STARNUTO" && ev > .8 && ev < .95 && !RM) for (let k = 0; k < 10; k++) S.fumi.push({ x: nx, y: ny, t0: t, vx: -20 - Math.random() * 40, vy: -40 - Math.random() * 60, big: 1 });

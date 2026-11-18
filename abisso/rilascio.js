@@ -20,8 +20,8 @@ function rilModo() { return rilSoldi() ? t_("soldi") : rilBot() ? t_("allen") : 
 Object.assign(TXT.it, { gratis: "Partita gratis" });
 Object.assign(TXT.en, { gratis: "Free game" });
 if (RIL.dc) {
-  Object.assign(TXT.it, { soldi: "Partita gratis", piatto: "", monte: "", pari: "Pari al primo posto: vincete insieme." });
-  Object.assign(TXT.en, { soldi: "Free game", piatto: "", monte: "", pari: "Tie for first: you win together." });
+  Object.assign(TXT.it, { soldi: "Partita gratis", piatto: "", monte: "", pari: "Pari anche dopo gli spareggi: nessun vincitore." });
+  Object.assign(TXT.en, { soldi: "Free game", piatto: "", monte: "", pari: "Still tied after the tiebreaks: no winner." });
 }
 TXT2.it.modo = () => rilModo();
 TXT2.en.modo = () => rilModo();

@@ -104,8 +104,13 @@ evento = function (e, anima) {
   }
   if (e.k === "spareggio_pari") {
     const it = LINGUA === "it";
-    annuncia(it ? "ANCORA PARI: SI RIGIOCA" : "STILL TIED: REPLAYING", it ? "la partita del torneo ricomincia" : "the tournament match starts over", 3600, "oro");
-    log('<b style="color:#ffd27a">' + (it ? "Ancora pari: si rigioca" : "Still tied: replaying") + "</b>");
+    // UN SOLO VINCITORE (17/11 sera): in torneo si rigioca; a soldi le poste tornano; gratis nessun vincitore
+    const tor = !!(INFO && INFO.torneo), sol = !!(INFO && INFO.a_soldi);
+    const tt = tor ? (it ? "ANCORA PARI: SI RIGIOCA" : "STILL TIED: REPLAYING") : (it ? "ANCORA PARI: NESSUN VINCITORE" : "STILL TIED: NO WINNER");
+    const ss = tor ? (it ? "la partita del torneo ricomincia" : "the tournament match starts over")
+      : sol ? (it ? "le poste tornano a tutti" : "everyone gets their stake back") : (it ? "nessuno vince questa partita" : "nobody wins this game");
+    annuncia(tt, ss, 3600, "oro");
+    log('<b style="color:#ffd27a">' + tt + "</b> · " + ss);
   }
 };
 const testaSparPrima = aggiornaTesta;

@@ -37,7 +37,7 @@ disegna = function () {
   if (quieto && SIM > S.prossimoTic) {
     const r = Math.random();
     if (r < .4) { S.orecchio = SIM; suonoDrago("orecchio"); }
-    else if (r < .75 && PIX.dragoRect) { const [x, y, w] = PIX.dragoRect, sc = w / PIX.meta.drago.w; for (let k = 0; k < 5; k++) S.fumi.push({ x: x + 9 * sc, y: y + 41 * sc, t0: SIM + k * .03, vx: -8 - Math.random() * 10, vy: -16 - Math.random() * 10, big: 1 }); }
+    else if (r < .75 && PIX.dragoRect) { const [x, y, w] = PIX.dragoRect, sc = w / PIX.meta.drago.w; for (let k = 0; k < 5; k++) S.fumi.push({ x: x + ((PIX.meta.drago.naso || [9, 41])[0]) * sc, y: y + ((PIX.meta.drago.naso || [9, 41])[1]) * sc, t0: SIM + k * .03, vx: -8 - Math.random() * 10, vy: -16 - Math.random() * 10, big: 1 }); }
     else S.sbircia = SIM;
     S.prossimoTic = SIM + 5 + Math.random() * 4;
   }

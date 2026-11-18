@@ -28,7 +28,8 @@ function miraDx() { const k = Math.max(1, S.cadono.length || nelGruppo().length)
 function lay(g) {
   const D = PIX.meta ? PIX.meta.drago : { w: 112, h: 66 }, W = g.W;
   const zt = PIX.zonaTop || Math.round(g.H * .62);
-  const dx = Math.max(Math.round(W * .45), W - D.w - 3);              // il drago tutto dentro, a destra
+  // il drago tutto dentro, a destra: mai oltre il bordo (D.destra = ultima colonna disegnata, ali e coda comprese) — drago 17/11
+  const dx = Math.min(Math.max(Math.round(W * .45), W - D.w - 3), W - (D.destra || D.w) - 4);
   const lg = largoGruppo(gruppoMax());
   const gap = Math.max(10, Math.min(36, dx - lg - 6));               // lo spazio della vampata
   const XG = Math.round(Math.max(lg / 2 + 3, dx + 2 - gap - lg / 2));

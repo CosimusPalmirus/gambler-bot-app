@@ -18,7 +18,7 @@ const TXT = {
     avviso: (h) => "un altro " + NP(h) + " e si sveglia", primo: "il drago si agita", dis: "IL DRAGO SI SVEGLIA!", persi: "chi è sul sentiero scappa e perde l'oro",
     rel: "RELIQUIA", relsub: "la prende solo chi torna su DA SOLO", solo: "Solo tu! Reliquia", risale: " torna su", risalgono: " tornano su",
     testa: "a testa", inCassa: "in cassaforte", tu: "Tu", fineSp: "Fine spedizione", vinto: "Hai vinto!", finita: "Partita finita",
-    pari: "Pari al primo posto: il premio si divide.", monte: "Montepremi", rigioca: "Rigioca", scegli: "Avanti o torni su? Nessuno vede la tua scelta",
+    pari: "Pari anche dopo gli spareggi: nessun vincitore.", monte: "Montepremi", rigioca: "Rigioca", scegli: "Avanti o torni su? Nessuno vede la tua scelta",
     scelto: "Scelta fatta · si girano tutte insieme", su: "Sei al campo: guardi chi va avanti", tesori: "Oro (tesori)", reliquie: "Reliquie",
     gia: "si è già agitato!", tutteSu: "Tutti al campo.", crollata: "Il drago si è svegliato: chi era sul sentiero ha perso l'oro.", dorme: "Il drago dorme", agita: "Il drago si agita", sveglio: "IL DRAGO È SVEGLIO" },
   en: { logo: "DON'T WAKE THE DRAGON", resta: "Go on", risali: "Go back", disastro: "Wake-up", mazzo: "Public deck", diario: "Log", firma: "Seed hash",
@@ -27,7 +27,7 @@ const TXT = {
     avviso: (h) => "one more " + NP(h) + " and it wakes", primo: "the dragon stirs", dis: "THE DRAGON WAKES!", persi: "everyone on the path flees and drops their gold",
     rel: "RELIC", relsub: "only a thief going back ALONE takes it", solo: "Only you! Relic", risale: " goes back", risalgono: " go back",
     testa: "each", inCassa: "banked", tu: "You", fineSp: "End of expedition", vinto: "You won!", finita: "Game over",
-    pari: "Tie for first: the prize is split.", monte: "Prize pool", rigioca: "Play again", scegli: "Go on or go back? Nobody sees your choice",
+    pari: "Still tied after the tiebreaks: no winner.", monte: "Prize pool", rigioca: "Play again", scegli: "Go on or go back? Nobody sees your choice",
     scelto: "Choice locked · all revealed together", su: "You're at camp: watch who goes on", tesori: "Gold (treasure)", reliquie: "Relics",
     gia: "already stirred!", tutteSu: "Everyone at camp.", crollata: "The dragon woke up: thieves on the path lost their gold.", dorme: "The dragon sleeps", agita: "The dragon stirs", sveglio: "THE DRAGON IS AWAKE" },
 };
@@ -568,7 +568,9 @@ function eventoBase(e, anima) {
       const extra = Object.keys(e.forzieri).length ? " · ★" : "";
       annuncia(su.map(nome).join(", ") + (su.length === 1 ? t_("risale") : t_("risalgono")), t_("inCassa") + " " + su.map((s) => "+" + (e.cassa[s] || 0)).join(" / ") + extra, 2000);
     });
-    log(su.length ? su.map(nomeCol).join(", ") + " ↑ " + t_("inCassa") + " " + su.map((s) => "+" + (e.cassa[s] || 0)).join(" / ") : t_("tutti"));
+    // 17/11 ORO: nel diario la scomposizione di ognuno («Tu +8 (5 portate + 3 dal sentiero)») e «diviso in 2»
+    if (su.length && typeof rigaRitorno === "function") log("↑ " + su.map((s) => rigaRitorno(e, s, true)).join(" · ") + (su.length > 1 && e.a_testa ? " · " + OT("diviso", su.length) : ""));
+    else log(su.length ? su.map(nomeCol).join(", ") + " ↑ " + t_("inCassa") + " " + su.map((s) => "+" + (e.cassa[s] || 0)).join(" / ") : t_("tutti"));
     return;
   }
   if (e.k === "riepilogo" && anima) dopo(.9, () => riepilogo(e));
@@ -722,7 +724,7 @@ function apriRegole() {
     "Prima di ogni carta tutti scelgono in segreto: <b>Resta giù</b> (↓ / S) o <b>Risali</b> (↑ / W). Le scelte si girano insieme.",
     "Chi risale mette in <b>cassaforte</b> le perle che porta (al sicuro per sempre) e divide con chi risale insieme i resti di ogni tessera.",
     "<b>Reliquie</b> (★5 ★5 ★5 ★10 ★10): le prende solo chi risale <b>da solo</b>.",
-    "Vince chi ha più perle in cassaforte dopo 5 spedizioni (pari: più reliquie).",
+    "Vince chi ha più perle in cassaforte dopo 5 spedizioni (pari: più reliquie, poi spedizioni di spareggio fra i pari).",
     "Tasti: ↓ S D resta · ↑ W R risali · H o ? regole · Esc chiude · rotella: scorri il sentiero (Ctrl: zoom) · clic su un giocatore: la sua storia."];
   const en = ["5 expeditions. Each step down the path reveals a card.",
     "<b>Pearls</b> are split equally among divers still down. The <b>remainder</b> stays on the tile.",
@@ -730,7 +732,7 @@ function apriRegole() {
     "Before each card everyone secretly chooses: <b>Stay down</b> (↓ / S) or <b>Rise</b> (↑ / W). Choices are revealed together.",
     "Risers bank the pearls they carry (safe forever) and split the leftovers on every tile with whoever rises with them.",
     "<b>Relics</b> (★5 ★5 ★5 ★10 ★10) go only to a diver who rises <b>alone</b>.",
-    "Most banked pearls after 5 expeditions wins (tie: most relics).",
+    "Most banked pearls after 5 expeditions wins (tie: most relics, then tiebreak expeditions among the tied).",
     "Keys: ↓ S D stay · ↑ W R rise · H or ? rules · Esc closes · wheel: scroll the path (Ctrl: zoom) · click a player: history."];
   s.innerHTML = "<h2>" + IT_EN("Come si gioca", "How to play") + '</h2><ol class="regole">' + (LINGUA === "it" ? it : en).map((x) => "<li>" + x + "</li>").join("") +
     '</ol><button class="btn risali" id="b-chiudi">' + IT_EN("Chiudi (Esc)", "Close (Esc)") + "</button>";
@@ -866,7 +868,7 @@ function aggiornaPolish() {
     const s = $("scheda");
     if (!s.dataset.tavolo) {
       s.dataset.tavolo = 1;
-      s.innerHTML = '<img class="tav-key" src="pix/titolo.png" alt=""><h2>' + t2_("tavolo") + '</h2><p id="tav-sub"></p><div class="tav-gioc"></div><ul class="tav-regole"><li>' + t2_("r1") + "</li><li>" + t2_("r2") + "</li><li>" + t2_("r3") + "</li></ul>";
+      s.innerHTML = '<img class="tav-key" src="pix/titolo.png?v=202611181464" alt=""><h2>' + t2_("tavolo") + '</h2><p id="tav-sub"></p><div class="tav-gioc"></div><ul class="tav-regole"><li>' + t2_("r1") + "</li><li>" + t2_("r2") + "</li><li>" + t2_("r3") + "</li></ul>";
       const box = s.querySelector(".tav-gioc");
       V.giocatori.forEach((p, i) => { const d = document.createElement("div"); d.className = "tav-p"; d.style.animationDelay = i * .08 + "s"; const c = tela(84, 84); c.getContext("2d").drawImage(gettone(p.sg, 84), 0, 0); d.appendChild(c); d.insertAdjacentHTML("beforeend", "<span style=\"color:" + TINTE[p.sg % 8] + "\">" + gl(p.sg) + " " + nome(p.sg) + "</span>"); box.appendChild(d); });
       $("velo").hidden = false;
