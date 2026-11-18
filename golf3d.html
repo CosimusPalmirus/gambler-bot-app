@@ -3386,6 +3386,9 @@ var G3 = window.G3 = window.G3 || {};
     }
     var _v1 = new T.Vector3(), _v2 = new T.Vector3(), _v3 = new T.Vector3();
     var fissata = null;
+    // PC_1811: zoom della rotella (solo PC lo chiama) e finestra larga. Il telefono in verticale resta com'era.
+    var ZOOM = 1;
+    function largo() { return (camera.aspect || 1) > 1.1; }
     function camera_(dt, drag, mio, lui) {
       if (!B) return;
       if (fissata) { var fb = palline && palline.P[io]; var ct = fissata.t || (fb ? _v1.set(G3.X(fb.x), 0, G3.Z(fb.y)) : _v1.set(0, 0, 0)); regia.vai({ t: ct, yaw: fissata.yaw, pitch: fissata.pitch, dist: fissata.dist, k: 50 }); regia.subito(); return; }
@@ -3409,7 +3412,7 @@ var G3 = window.G3 = window.G3 || {};
       if (spd > 0.25) {
         var dh = Math.hypot(foco.x - B.course.hole[0], foco.y - B.course.hole[1]);
         if (dh < 1.7 && spd < 4.5) regia.vai({ t: _v1.set((fx + hx) / 2, 0, (fz + hz) / 2), pitch: 0.9, dist: 4.2, k: 3 });
-        else regia.vai({ t: _v1.set(fx + foco.vx * 0.3, 0, fz + foco.vy * 0.3), pitch: 0.82, dist: 6.2 + Math.min(3, spd * 0.3), k: 3.5 });
+        else regia.vai({ t: _v1.set(fx + foco.vx * 0.3, 0, fz + foco.vy * 0.3), pitch: largo() ? 0.95 : 0.82, dist: (6.2 + Math.min(3, spd * 0.3)) * (largo() ? 1.25 : 1) * ZOOM, k: 3.5 });   // PC_1811
         regia.applica(dt); return;
       }
       if (vista) {
@@ -3421,10 +3424,12 @@ var G3 = window.G3 = window.G3 || {};
       var dx = hx - fx, dz = hz - fz, dl = Math.hypot(dx, dz) || 1;
       var yaw = G3.clamp(Math.atan2(-dx, -dz), -0.55, 0.55);
       var pitch = 0.88;
-      var cen = _v3.set(fx + dx * 0.5, 0, fz + dz * 0.5);
+      // PC_1811: finestra larga = piu' dall'alto, la pallina non sotto la barra della potenza
+      var lnd = largo(); if (lnd) pitch = 1.02;
+      var cen = _v3.set(fx + dx * (lnd ? 0.44 : 0.5), 0, fz + dz * (lnd ? 0.44 : 0.5));
       var pts = [_v1.set(fx, 0, fz), _v2.set(hx, 0.6, hz)];
-      var ff = regia.adatta(pts, yaw, pitch, 0.78, cen);
-      regia.vai({ t: cen, yaw: yaw, pitch: pitch, dist: G3.clamp(ff.dist, 5.2, 16), k: 2.2 });
+      var ff = regia.adatta(pts, yaw, pitch, lnd ? 0.66 : 0.78, cen);
+      regia.vai({ t: cen, yaw: yaw, pitch: pitch, dist: G3.clamp(ff.dist * ZOOM, 5.2, lnd ? 30 : 16), k: 2.2 });   // PC_1811
       regia.applica(dt);
     }
     function puoMirare() {
@@ -3489,6 +3494,7 @@ var G3 = window.G3 = window.G3 || {};
       tiro: tiro,
       puoMirare: puoMirare,
       fissaCamera: function (o) { fissata = o || null; },
+      zoom: function (f) { if (isFinite(f) && f > 0) ZOOM = G3.clamp(ZOOM * f, 0.55, 1.8); return ZOOM; },   // PC_1811: rotella
       tocco: function () { vista = !vista; hud.vista(vista ? 'VISTA CAMPO · tocca per tornare' : ''); },
       ridimensiona: function (w, h) { W0 = w; H0 = h; ren.setSize(w, h, false); camera.aspect = w / h; camera.fov = w < h ? 55 : 45; camera.updateProjectionMatrix(); },
       bordi: function (t, r, b, l) { hud.bordi(t, r, b, l); },
@@ -3585,6 +3591,7 @@ var G3 = window.G3 = window.G3 || {};
     tiro: function (drag) { return C ? C.tiro(drag) : null; },
     puoMirare: function () { return !!(C && C.puoMirare()); },
     tocco: function () { if (C) C.tocco(); },
+    zoom: function (f) { return C && C.zoom ? C.zoom(f) : 1; },   // PC_1811
     sblocca: function () { try { G3.S.sblocca(); } catch (e) { } },
     bordi: function (t, r, b, l) { if (C) C.bordi(t, r, b, l); },
     info: function () { return C ? C.info() : null; },

@@ -314,18 +314,6 @@ body.rm #titolo .lgbox,body.rm #titolo .lgbox>.lgimg,body.rm #titolo .luce,body.
   #orol{grid-area:o}#hint{grid-area:h}#bot #b-abil{grid-area:a;width:100%}#bot #b-pronto{grid-area:p;width:100%}
   #bot #b-abil[style*="none"]~#b-pronto{grid-column:1/-1}
 }
-
-/* 18/11: con cinque o sei partecipanti i quattro cuori superavano la larghezza della foto.
-   Due coppie sotto ogni avatar mantengono cuori interi e separati anche a 320 px. */
-@media (max-width:480px){
-  #top:has(.chip:nth-child(5)) .chip{flex:1 1 0;padding-left:2px;padding-right:2px}
-  #top:has(.chip:nth-child(5)) .chip .av{width:min(32px,100%);height:auto;aspect-ratio:1}
-  #top:has(.chip:nth-child(5)) .chip .cu{display:grid;grid-template-columns:repeat(2,12px);gap:2px;width:26px}
-  #top:has(.chip:nth-child(5)) .chip .cu svg{width:12px;height:12px;flex:none}
-}
-@media (min-aspect-ratio:6/5) and (min-width:860px){
-  #bot{bottom:calc(6px + env(safe-area-inset-bottom))}
-}
 </style>
 <style>/* HOP_RT_1711 */#titolo.nasc .gioca,#titolo.nasc *{pointer-events:none!important}</style>
 </head>
@@ -402,28 +390,54 @@ body.rm #titolo .lgbox,body.rm #titolo .lgbox>.lgimg,body.rm #titolo .luce,body.
   function fvProxy(u){u=String(u||'');if(!/discordsays\.com$/.test(location.hostname))return u;
     var m=/^https:\/\/cdn\.discordapp\.com\/(.+)$/.exec(u);if(m)return '/.proxy/avatar/'+m[1];
     m=/^https:\/\/62-238-17-24\.sslip\.io\/(.+)$/.exec(u);if(m)return '/.proxy/api/'+m[1];return u;}
+  // FOTO_MOSSE_1811 (giro del 18/11, foto di prova e blocco nero dalle partite vere): per ogni seggio umano DUE cose.
+  //   · FOTO[s] per il DOM (chip, classifica): l indirizzo di fvFoto (anche https://t.me/... va bene in un <img>);
+  //   · la TEXTURE (cartello sopra la testa): serve un indirizzo che mandi il CORS, se no il canvas si contamina e la
+  //     texture viene NERA. t.me (la foto di Telegram di chi gioca) NON manda il CORS sul suo 302: si provano in fila
+  //     la foto del profilo del server (gia' risolta sul CDN di Telegram, CORS *), la copia del backend /foto/<uid>.jpg
+  //     (CORS per la mini app), l indirizzo del DOM; la prima che si carica pulita va in __HOP_RT.avatar, che rifa' il
+  //     cartello anche se la rana e' gia' nata. Se __HOP_RT non c e' ancora (pagina che carica), si riprova dopo.
+  var TEX={};
+  function tm(u){return /^https:\/\/(t\.me|telegram\.me)\//i.test(String(u||''));}
+  function texMetti(k){
+    if(!TEX[k])return;
+    try{if(window.__HOP_RT&&window.__HOP_RT.avatar){window.__HOP_RT.avatar(k,TEX[k]);P.foto[k]='texture';return;}}catch(e){}
+    setTimeout(function(){texMetti(k);},500);
+  }
+  function texProva(k,lista,fine){
+    var u=lista.shift();
+    if(!u){P.foto[k]='solo_dom';fine();return;}
+    var im=new Image();
+    try{var o=new URL(u,location.href);if(o.origin!==location.origin&&o.protocol!=='data:')im.crossOrigin='anonymous';}catch(e){im.crossOrigin='anonymous';}
+    im.onload=function(){TEX[k]=im;P.foto[k]='caricata';P.fotoUrl=P.fotoUrl||{};P.fotoUrl[k]=u;texMetti(k);fine();};
+    im.onerror=function(){texProva(k,lista,fine);};
+    im.src=u;
+  }
   function fotoDaStart(m){
-    FOTO={};P.foto={};
-    var mp=m.map||{},pr=m.profiles||{},sg=Array.isArray(mp.seggi)?mp.seggi:[],i;
+    FOTO={};TEX={};P.foto={};P.fotoUrl={};
+    var mp=m.map||{},pr=m.profiles||{},sg=Array.isArray(mp.seggi)?mp.seggi:[],i,code={};
+    var PW=null;try{PW=window.parent;}catch(e){}
+    var bk='';try{bk=String(PW&&PW.BACKEND||'');}catch(e){}
     for(i=0;i<sg.length;i++){
       var x=sg[i]||{},uid=String(x.uid==null?'':x.uid),s=Number(x.sg);
       if(!(s>=0&&s<8)||!uid||uid.indexOf('bot:')===0)continue;
-      // FOTO_VERE_1711 (rilascio nomi e foto): se l index ha `fvFoto` (stessa origine), decide lui come altrove: la mia foto
-      // di Telegram per me, il profilo, la copia del backend, e dentro Discord gli indirizzi /.proxy/avatar|api. Se no: il profilo.
-      var f='';
-      try{var PW=window.parent;if(PW&&typeof PW.fvFoto==='function')f=fotoOk(PW.fvFoto(uid,pr[uid]||null,m.you!=null&&String(m.you)===uid));}catch(e){f='';}
-      if(!f)f=fotoOk(fvProxy((pr[uid]||{}).photo_url));
-      if(!f)continue;
-      FOTO[s]=f;P.foto[s]='attesa';
+      // FOTO_VERE_1711: se l index ha `fvFoto` (stessa origine), decide lui il DOM: la mia foto di Telegram per me, il
+      // profilo, la copia del backend, e dentro Discord gli indirizzi /.proxy/avatar|api. Se no: il profilo.
+      var f='',pu=fotoOk(fvProxy((pr[uid]||{}).photo_url));
+      try{if(PW&&typeof PW.fvFoto==='function')f=fotoOk(PW.fvFoto(uid,pr[uid]||null,m.you!=null&&String(m.you)===uid));}catch(e){f='';}
+      if(!f)f=pu;
+      var tx=[];
+      if(pu&&!tm(pu))tx.push(pu);
+      if(/^\d{3,15}$/.test(uid)&&/^https:\/\//.test(bk))tx.push(fvProxy(bk+'/foto/'+uid+'.jpg'));
+      if(f&&!tm(f)&&tx.indexOf(f)<0)tx.push(f);
+      // t.me NON si prova per la texture: il suo 302 non manda il CORS (fallirebbe sempre, con un errore in console)
+      if(!f&&!tx.length)continue;
+      if(f)FOTO[s]=f;else FOTO[s]=tx[0];
+      P.foto[s]='attesa';code[s]=tx;
     }
-    var ks=Object.keys(FOTO);if(!ks.length){FOTO_ATTESA=0;return;}
+    var ks=Object.keys(code);if(!ks.length){FOTO_ATTESA=0;return;}
     FOTO_ATTESA=performance.now()+3000;var resta=ks.length;
-    ks.forEach(function(k){
-      var im=new Image();im.crossOrigin='anonymous';
-      im.onload=function(){P.foto[k]='texture';try{if(window.__HOP_RT)window.__HOP_RT.avatar(k,im);}catch(e){}if(--resta<=0)FOTO_ATTESA=0;};
-      im.onerror=function(){P.foto[k]='solo_dom';if(--resta<=0)FOTO_ATTESA=0;};
-      im.src=FOTO[k];
-    });
+    ks.forEach(function(k){texProva(k,code[k].slice(),function(){if(--resta<=0)FOTO_ATTESA=0;});});
   }
   window.__hopFoto=function(i){return FOTO[i]||'';};
   try{document.documentElement.classList.add('in-rt');}catch(e){}
@@ -660,6 +674,6 @@ body.rm #titolo .lgbox,body.rm #titolo .lgbox>.lgimg,body.rm #titolo .luce,body.
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/meshopt_decoder.js"></script>
-<script src="stadio.js?v=20261118mob2"></script>
+<script src="stadio.js?v=202611184a9c"></script>
 </body>
 </html>

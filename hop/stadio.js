@@ -806,7 +806,9 @@ function dip(x, y, forza, eco) { const c = CELLE[x] && CELLE[x][y]; if (!c) retu
 
 /* ---------------- BOT costruiti in codice ---------------- */
 const IMGAV = {};
-function carica(src) { return new Promise(r => { const i = new Image(); i.onload = () => r(i); i.onerror = () => r(null); i.src = src; }); }
+// FOTO_MOSSE_1811: un'immagine di un'altra origine si carica con CORS (o non entra): mai una texture contaminata (blocco nero)
+function carica(src) { return new Promise(r => { if (/^https:\/\/(t\.me|telegram\.me)\//i.test(String(src))) return r(null);   // t.me non manda il CORS: subito la faccia del bot (la foto vera la porta il ponte)
+  const i = new Image(); try { const u = new URL(src, location.href); if (u.origin !== location.origin && u.protocol !== 'data:' && u.protocol !== 'blob:') i.crossOrigin = 'anonymous'; } catch (e) {} i.onload = () => r(i); i.onerror = () => r(null); i.src = src; }); }
 function facciaTex(i) {
   const c = tela(256, 256), g = c.getContext('2d'), f = IMGAV[i];
   g.fillStyle = '#140f26'; g.fillRect(0, 0, 256, 256);
@@ -1136,6 +1138,8 @@ function badgeFoto(i) {
     g.fillStyle = '#ffffff'; g.beginPath(); g.roundRect ? g.roundRect(128 - w / 2, 2, w, 54, 27) : g.rect(128 - w / 2, 2, w, 54); g.fill(); g.fillStyle = '#0b1a18'; g.fillText(tx, 128, 31); }
   const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return t;
 }
+// FOTO_MOSSE_1811: la foto vera di un seggio arrivata dopo: si rifa' il cartello sopra la testa di quella rana
+function aggiornaFoto(i) { for (const o of RANE) if (o && o.i === i && o.badge && o.badge.material) { const vecchia = o.badge.material.map; o.badge.material.map = badgeFoto(i); o.badge.material.needsUpdate = true; if (vecchia && vecchia.dispose) vecchia.dispose(); } }
 const TEX_GOCCIA = (() => { const c = tela(64, 64), g = c.getContext('2d'); g.fillStyle = '#e8fffb'; g.beginPath(); g.moveTo(32, 4); g.quadraticCurveTo(54, 36, 32, 58); g.quadraticCurveTo(10, 36, 32, 4); g.fill(); return new THREE.CanvasTexture(c); })();
 function nuovoBot(i, pgArg) {
   const pgB = pgArg || (ST && ST.p && ST.p[i] ? ST.p[i].pg : OPZ.pg), col = new THREE.Color(COL[i]), k = TAGLIA_PG[pgB] || 1;
@@ -2149,7 +2153,7 @@ async function rivela(evs, stato) { const t0r = performance.now();
   ACC = CODA.some(e => e.k === 'turno') ? 1.6 : 1;
   aggiornaCampo(); for (const o of RANE) { o.bordo = false; o.emote = null; }
   $('lezc').classList.add('nasc'); mostraTip(''); HAKO = evs.some(e => e.k === 'ko');
-  const rv = evs.find(e => e.k === 'rivela'); if (rv) for (const [i, sc] of Object.entries(rv.scelte)) { const o = RANE[+i]; if (o && sc[2]) { usaPotere(o); if (ST.p[+i].pg === 'axa') o.bollaOn = true; } }
+  const rv = evs.find(e => e.k === 'rivela'); if (rv) for (const [i, sc] of Object.entries(rv.scelte)) { const o = RANE[+i]; if (o && sc[2]) { usaPotere(o); if (ST.p[+i].pg === 'axa') { o.bollaOn = true; nomeSp(o, 'bolla'); suono('specchio', .6); } } }   // SPECIALI_1811
   const s = evs.find(e => e.k === 'salti');
   { const cat = e => ['spara', 'mina', 'minacce'].includes(e.k) ? 'gadget' : ['loto', 'scudo', 'molla', 'specchio', 'patata', 'jackpot', 'trampolino', 'passa', 'spintone', 'scivola', 'patata_boom', 'trappola'].includes(e.k) ? 'effetti' : e.k === 'scorre' ? 'scorre' : e.k === 'stringe' ? 'crollo' : e.k === 'ko' ? 'ko' : null;
     const L1 = ['salto']; if (evs.some(e => e.k === 'scontro') || (s.rimbalzo || []).length) L1.push('scontri');
@@ -2260,13 +2264,15 @@ async function gadget(blocco) {
   await attendi(.16);
   for (const e of blocco) {
     if (e.k === 'danno') ferita(e.sg, e.n, e.da);
-    else if (e.k === 'parato') { const o = RANE[e.sg]; vola(o, e.con === 'bolla' ? (en ? 'BUBBLE' : 'BOLLA') : (en ? 'BLOCKED' : 'PARATO'), '#ffe38a'); if (e.con === 'scudo') { rompiScudo(o); ST.p[e.sg].scudo = 0; hud(); } }
+    else if (e.k === 'parato') { const o = RANE[e.sg]; if (e.con === 'bolla' && !OPZ.rm) { const v = o.root.position.clone().add(mondo.position); v.y += 1; particelle(v, 18, 0xdff6ff, 2.6, .45, {r: .09}); anello(v, 0xbfefff, 1.8, .35, .1); }   // SPECIALI_1811
+      vola(o, e.con === 'bolla' ? (en ? 'BUBBLE' : 'BOLLA') : (en ? 'BLOCKED' : 'PARATO'), '#ffe38a'); if (e.con === 'scudo') { rompiScudo(o); ST.p[e.sg].scudo = 0; hud(); } }
     else if (e.k === 'gelato') { const o = RANE[e.sg]; o.gelo = true; lu.push(cristalli(o)); fumetto(o, spiegaStato('gelo', 1), COLSTATO.gelo); }
     else if (e.k === 'riflesso') { const o = RANE[e.sg], j = RANE[e.su]; suono('specchio'); momento(3, 'specchio', `${nm(e.sg)} ${en ? 'reflects onto' : 'rimanda il colpo a'} ${nm(e.su)}`); boom(en ? 'BOUNCE BACK!' : 'RIMANDATO!', `${nm(e.sg)} → ${nm(e.su)}`, '#d6def0'); ST.p[e.sg].specchio = 0; hud();
       lu.push(raggioSweep(o.root.position.clone().add(mondo.position), o.root.position.clone().add(mondo.position), j.root.position.clone().add(mondo.position), new THREE.Color('#e8eeff'))); }
   }
   const sp = blocco.filter(e => e.k === 'spinto');
-  if (sp.length) await Promise.all(sp.map(e => scivola(RANE[e.sg], e.a, .28, {bordo: e.fuori})));
+  if (sp.length) await Promise.all(sp.map(e => (LINGUE.some(L => L.a === RANE[e.sg]) && !e.fuori) ? linguaDentro(RANE[e.sg], e.a) : scivola(RANE[e.sg], e.a, .28, {bordo: e.fuori})));   // SPECIALI_1811
+  linguaVia();
   for (const e of blocco.filter(e => e.k === 'cade')) await caduta(e);
   await Promise.all(lu);
   if (combo && !HAKO) await tornaVista(.3);
@@ -2304,6 +2310,55 @@ function scossaElettrica(o) {
   tw(.45, k => { const on = Math.floor(k * 10) % 2 === 0; for (const l of linee) l.material.opacity = on ? 1 - k * .6 : 0; o.matC.emissive.set(on ? 0x3fd8ff : 0x000000).multiplyScalar(on ? .8 : 0); })
     .then(() => { for (const l of linee) via(l); o.matC.emissive.set(COL[o.i]).multiplyScalar(.05); });
 }
+// SPECIALI_1811: i sei poteri delle rane, ognuno col suo effetto (prima riusavano quelli dei gadget)
+const NOMI_SP = {panciata: ['PANCIATA!', 'BELLY FLOP!', '#5fb8ff'], superbalzo: ['SUPERBALZO!', 'SUPER HOP!', '#ffd23f'], bolla: ['BOLLA!', 'BUBBLE!', '#bfefff'],
+  lingua: ['LINGUA!', 'TONGUE!', '#ff7aa8'], nube: ['NUBE!', 'CLOUD!', '#7be35a'], lampo: ['LANTERNA!', 'LANTERN!', '#ffe9a8']};
+function nomeSp(o, t) { const n = NOMI_SP[t]; if (n && o) vola(o, OPZ.lang === 'en' ? n[1] : n[0], n[2], true); }
+function testaDi(o) { const v = o.root.position.clone().add(mondo.position); v.y += Math.max(.6, (o.topY || 1.4) * .72); return v; }
+function tubo(m, A, B) { const d = B.clone().sub(A), L = Math.max(.001, d.length()); m.position.copy(A).addScaledVector(d, .5); m.scale.set(1, L, 1); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()); }
+const LINGUE = [];   // le lingue di Camu agganciate (anche piu' Camu nello stesso turno): {m, punta, da, a} — le tira indietro la spinta che segue
+async function linguaFuori(oc, oj) {
+  const A = testaDi(oc), mat = new THREE.MeshStandardMaterial({color: 0xff5f90, roughness: .3, emissive: 0xff2d6a, emissiveIntensity: .55});
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(.12, .15, 1, 14), mat), punta = new THREE.Mesh(new THREE.SphereGeometry(.24, 16, 12), mat);
+  m.renderOrder = 20; scena.add(m); scena.add(punta); suono('rimbalzo'); oc.posaF = 'clash'; oc.posaT = .6; oc.usa = .9;
+  const B = oj.root.position.clone().add(mondo.position); B.y += (oj.topY || 1.4) * .45;
+  await tw(.22, k => { const P = A.clone().lerp(B, k); tubo(m, A, P); punta.position.copy(P); }, eio);
+  tubo(m, A, B); punta.position.copy(B); suono('plop'); oj.flash = .12; oj.jv = (oj.jv || 0) - 1.2;
+  particelle(B.clone(), 14, 0xff9ab8, 2.2, .35, {r: .1}); anello(B.clone().setY(Math.max(.2, B.y - .3)), 0xff7aa8, 1.1, .3, .08);
+  LINGUE.push({m, punta, da: oc, a: oj}); await attendi(.12);
+}
+async function linguaDentro(oj, a) {   // la spinta della lingua: la rana viaggia agganciata alla punta mentre la lingua rientra
+  const k = LINGUE.findIndex(L => L.a === oj); if (k < 0) return false; const L = LINGUE.splice(k, 1)[0];
+  const segui = () => { const A = testaDi(L.da), B = oj.root.position.clone().add(mondo.position); B.y += (oj.topY || 1.4) * .45; tubo(L.m, A, B); L.punta.position.copy(B); };
+  let fine = false; const giro = () => { if (fine) return; segui(); requestAnimationFrame(giro); }; giro();
+  oj.sbraccia = 1; await scivola(oj, a, .34); oj.sbraccia = 0; fine = true;
+  const A = testaDi(L.da), B0 = L.punta.position.clone();
+  await tw(.16, k => { const P = B0.clone().lerp(A, k); tubo(L.m, A, P); L.punta.position.copy(P); }); suono('plop', .7); via(L.m); via(L.punta); return true;
+}
+function linguaVia() { while (LINGUE.length) { const L = LINGUE.pop(); via(L.m); via(L.punta); } }   // una lingua senza spinta (bersaglio bloccato): rientra e sparisce
+async function panciataFx(oc, v) {
+  oc.posaF = 'clash'; oc.posaT = .7; await tw(.22, k => { oc.alt = Math.sin(k * Math.PI) * 1.4; oc.tiltX = k * .42; });   // mai oltre ~25 gradi (le rotazioni «piatte» del 17/11)
+  oc.alt = 0; oc.tiltX = 0; oc.sq = .55; oc.jv = (oc.jv || 0) - 4; suono('tonfo'); suono('splash', 1); scossa(.55); fermo(.08); vibra(70, true);
+  const w = v.clone(); w.y = .05; anello(w, 0xffffff, 3.6, .5, .22); anello(w, 0x2f9bff, 2.6, .45, .16); setTimeout(() => anello(w, 0x7fd6ff, 3.2, .4, .1), 120);
+  particelle(w.clone().add(new THREE.Vector3(0, .2, 0)), 46, 0xdffff8, 4.2, .75, {su: 3.2, r: .16, g: 9}); getto(w); await attendi(.3);
+}
+async function superbalzoFx(oc, v) {
+  const w = v.clone(); w.y = .06; lampo('#fff2a8', .25); suono('boing'); suono('onda', .7); scossa(.35); oc.sq = .7; oc.festa = .4;
+  anello(w, 0xffd23f, 3.0, .4, .2); anello(w, 0xfff6c0, 1.8, .3, .12);
+  for (let a = 0; a < 12; a++) { const d = new THREE.Vector3(Math.cos(a / 12 * 6.283), 0, Math.sin(a / 12 * 6.283)); particelle(w.clone().addScaledVector(d, .4), 3, 0xffe38a, 3.4, .4, {r: .08, su: .4}); }
+  particelle(w.clone().add(new THREE.Vector3(0, .8, 0)), 22, 0xffd23f, 2.8, .5, {r: .1, g: 3}); await attendi(.35);
+}
+async function nubeFx(oc, v, celle) {
+  mostraAree(celle, '#43c443', false); suono('miccia', .6); oc.posaF = 'clash'; oc.posaT = .5;
+  for (let k = 0; k < 3; k++) setTimeout(() => { particelle(v.clone().add(new THREE.Vector3(0, .35 + k * .2, 0)), 18, [0x4fbf3a, 0x7be35a, 0x2f8f2a][k], 1.2 + k * .5, 1.3, {fumo: true, r: .8, g: -.8, cresce: 1.5}); anello(v.clone().setY(.1), 0x43c443, 1.6 + k * .7, .5, .14); }, k * 140);
+  particelle(v.clone().add(new THREE.Vector3(0, .4, 0)), 16, 0xb8ff8a, .8, 1.2, {r: .07, su: 1.4, g: -2}); await attendi(.6); spegniAree();
+}
+async function lanternaFx(oc, v, celle) {
+  const c = v.clone(); c.y = (oc.topY || 1.4) * .9; oc.braccioSu = 1; suono('gelo'); mostraAree(celle, '#fff6d0', false);
+  lampoLuce.color.set(0xffe9a8); lampoLuce.position.copy(c); lampoLuce.intensity = 14; palla(c, 0xfff3c4, 2.6, .45); palla(c, 0xffd56a, 1.6, .35);
+  for (let a = 0; a < 8; a++) { const d = new THREE.Vector3(Math.cos(a / 8 * 6.283), .15, Math.sin(a / 8 * 6.283)).normalize(); raggioSweep(c, c, c.clone().addScaledVector(d, 2.2), new THREE.Color('#fff0b8')); }
+  lampo('#fff6d8', .55); await tw(.45, k => { lampoLuce.intensity = 14 * (1 - k); }); oc.braccioSu = 0; spegniAree();
+}
 async function effetto(e) {
   const t = e.t, x = e.x, y = e.y, c = new THREE.Color(COLA(t)), o = pos(x, y).add(mondo.position);
   if (e.celle && e.celle.length) lampeggiaCelle(e.celle, COLA(t)); setTimeout(() => scintilleColpiti(e), 200);
@@ -2316,6 +2371,13 @@ async function effetto(e) {
     // 2. il raggio vero e proprio
     suono('getto'); return raggioSweep(o, A, B, c); };
   if (['riga', 'colonna', 'croce', 'diagonali'].includes(t)) { lampo(COLA(t), .14); scossa(.18); }
+  const sp0 = e.copia ? null : RANE[e.sg];   // SPECIALI_1811: il potere della rana (non la ninfea copiata)
+  if (sp0 && NOMI_SP[t]) nomeSp(sp0, t);
+  if (sp0 && t === 'panciata') { await panciataFx(sp0, o); return; }
+  if (sp0 && t === 'superbalzo') { await superbalzoFx(sp0, o); return; }
+  if (sp0 && t === 'nube') { await nubeFx(sp0, o, e.celle || []); return; }
+  if (sp0 && t === 'lampo') { await lanternaFx(sp0, o, e.celle || []); return; }
+  if (sp0 && t === 'lingua') { if (e.presi.length && RANE[e.presi[0]]) await linguaFuori(sp0, RANE[e.presi[0]]); else { suono('plop', .6); await attendi(.2); } return; }
   if (t === 'riga') { await Lz(-0.6, y, W - .4, y); bruc(); }
   else if (t === 'colonna') { await Lz(x, -0.6, x, H - .4); bruc(); }
   else if (t === 'croce') { await Promise.all([Lz(-0.6, y, W - .4, y), Lz(x, -0.6, x, H - .4)]); bruc(); }
@@ -2393,6 +2455,7 @@ async function passo(e) {
       for (const j of e.presi || []) { const r = RANE[j]; if (!r) continue; const v = r.root.position.clone().add(mondo.position); v.y = .05; spruzzo(v, .6); }
       await attendi(.5); break; }
     case 'parato': vola(o, en ? 'BLOCKED' : 'PARATO', '#ffe38a'); if (e.con === 'scudo') { rompiScudo(o); ST.p[e.sg].scudo = 0; hud(); } break;
+    case 'spinto': await scivola(o, e.a, .28, {bordo: e.fuori}); break;   // FOTO_MOSSE_1811: la spinta fuori dal blocco del gadget (dopo una trappola)
     case 'scorre': {
       const P0 = mondo.position.clone(), dirS = pos(0, 0).sub(pos(1, 0)), col0 = CELLE[0].filter(c => c.visible);
       for (const c of col0) { c.userData.trema = .4; const v = c.position.clone().add(mondo.position); detriti(v, 2, 0x4a1020, .4); }
@@ -2501,9 +2564,11 @@ async function koMomento(ko, buchi) {
   await tornaVista(.4); await attendi(.1);
 }
 function applica(s) {
+  try { linguaVia(); } catch (e) {}   // SPECIALI_1811: nessuna lingua resta a mezz'aria a fine rivelazione
   const prima = RANE.map(o => o.gelo), primaQ = ST ? ST.p.map(q => Object.assign({}, q)) : [];
   SCORSI = 0; for (const o of RANE) o.bollaOn = false;
   ST = Object.assign(ST || {}, s); EVENTO = ST.evento; pannelloArrivo();
+  ST.p.forEach((q, i) => { const o = RANE[i]; if (o && q.vivo && !o.ko && (Math.round(o.x) !== q.x || Math.round(o.y) !== q.y) && s.p) window.__hopSalti = (window.__hopSalti || 0) + 1; });   // FOTO_MOSSE_1811: il banco conta i salti a fine rivelazione
   ST.p.forEach((q, i) => { const o = RANE[i]; if (!o) return; o.x = q.x; o.y = q.y; o.alt = 0; o.kx = o.kz = 0; o.spin = 0; o.tiltX = o.tiltZ = 0; o.sq = 1; o.a = q.vivo ? 1 : 0; o.ko = !q.vivo; o.sbraccia = 0; o.paura = 0;
     o.gelo = !!q.gelo; if (prima[i] && !o.gelo) frantuma(o); if (!o.gelo && o.cristalli) frantuma(o); o.stato = 'idle'; });
   ST.p.forEach((q, i) => { const a = primaQ[i], o = RANE[i]; if (!a || !o || !q.vivo) return;
@@ -2874,7 +2939,7 @@ muto(OPZ.muto);
 (async () => {
   const font = ['800 40px "Inter Tight"', 'italic 900 40px "Inter Tight"', 'italic 800 40px "Inter Tight"', '600 30px "Inter"', '400 14px "Inter"', '500 14px "Inter"'];
   await Promise.race([Promise.all(font.map(f => document.fonts.load(f))), sleep(2.5)]).catch(() => {});
-  await Promise.all([0, 1, 2, 3, 4, 5].map(i => carica(avatarURL(i)).then(im => { IMGAV[i] = im; })));
+  await Promise.all([0, 1, 2, 3, 4, 5].map(i => carica(avatarURL(i)).then(im => im || carica(`assets_bot/avatar_${i % 5}.webp`)).then(im => { if (!IMGAV[i]) IMGAV[i] = im; })));   // FOTO_MOSSE_1811: niente foto = faccia del bot; MAI sopra una foto vera gia' arrivata dal ponte
   await caricaBayou(); await caricaGLB();
   layout();
   // riscaldamento sotto la schermata di caricamento: shader e texture nuovi (piastre, fasci, gorgo) compilati e caricati adesso,
@@ -2966,7 +3031,7 @@ function controllaVicini(margine = .1) {
   [IO, NOMI] = salva; return out;
 }
 // HOP_RT_1711 (innesto del pacchetto, costruisci_pagina.py): l aggancio per il ponte del server vero
-window.__HOP_RT = {avatar: (i, im) => { if (im) IMGAV[i] = im; }, nuova: () => Rete.nuova(),
+window.__HOP_RT = {avatar: (i, im) => { if (im) { IMGAV[i] = im; if (typeof aggiornaFoto === 'function') aggiornaFoto(+i); } }, nuova: () => Rete.nuova(),   // FOTO_MOSSE_1811
   stato: () => ({FASE, IO, MOSSE, MIA, turno: ST && ST.turno, nomi: NOMI, p: ST && ST.p}),
   schermo: (x, y) => { const c = CELLE[x] && CELLE[x][y]; if (!c || !c.visible) return null; const v = new THREE.Vector3(); c.getWorldPosition(v); v.y += .12; v.project(cam); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; }};
 window.HCV = {get FASE() { return FASE; }, glb: pg => GLBS[pg], titolo: () => TIT && {log: TIT.log || [], traccia: TIT.traccia || [], d: TIT.d, ox: TIT.ox, oy: TIT.oy, sx: TIT.sx, q: $('titolo').dataset.q, rane: TIT.rane.length, cam: cam.position.toArray().map(x => +x.toFixed(2)), view: !!(cam.view && cam.view.enabled)},
