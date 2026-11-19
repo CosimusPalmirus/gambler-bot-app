@@ -741,7 +741,7 @@ function costruisci() {
   for (let j = 0; j < 2; j++) for (let y = 0; y < H; y++) { const c = nuovaCella(false); c.userData.j = j; c.userData.y = y; ARRIVO.push(c); }
 }
 function tinta(c, t, scuro, luce, liv) {
-  const u = c.userData; u.t = t; const g = TC[t]; u.liv = liv || 0;
+  const u = c.userData; u.t = t; const g = TC[t]; u.liv = liv || 0; if (t !== 'jackpot' && u.top) u.top.rotation.y = 0;   /* VIVO_1911: simbolo dritto */
   const buco = t === 'buco'; u.buco.visible = buco; u.base.visible = !buco; u.peri.visible = !buco; u.cor.visible = !buco;
   if (buco) { u.top.visible = false; u.badge.visible = false; u.fascio.visible = false; u.alza = 0; return; }
   const colT = g ? new THREE.Color(g) : new THREE.Color(0x3fe0b0);
@@ -1206,7 +1206,9 @@ function animaBot(o, dt, tt) {
   const v = o.podio ? o.podio.clone().sub(mondo.position) : pos(o.x, o.y), q = o.podio ? null : ST && ST.p && ST.p[o.i];
   const festaSu = o.festa > 0 && o.stato !== 'volo' ? Math.abs(Math.sin(tt * 7 + o.i)) * .32 * Math.min(1, o.festa) : 0;
   const versoCentro = !o.podio && ROT ? (o.glb ? 0 : o.y <= 0 ? .2 : o.y >= H - 1 ? -.2 : 0) : 0;
-  o.root.position.set(v.x + o.kx + versoCentro, o.alt + (o.y3 || 0) + (o.podio ? o.podio.y : 0) + .06 + festaSu, v.z + o.kz);   // REGIA_V3_1811: + sollevamento della posa
+  o.root.position.set(v.x + o.kx + versoCentro, o.alt + (o.y3 || 0) + (o.podio ? o.podio.y : 0) + .06 + festaSu, v.z + o.kz);
+  if (!o.podio && o.stato !== 'volo' && !o.ko) { const cx = Math.round(o.x), cy = Math.round(o.y), cn = CELLE[cx] && CELLE[cx][cy];   /* VIVO_1911: sulla sua ninfea */
+    if (cn && Math.abs(o.x - cx) < .2 && Math.abs(o.y - cy) < .2) o.root.position.y += cn.userData.corpo.position.y * cn.scale.y; }   // REGIA_V3_1811: + sollevamento della posa
   const wx = v.x + mondo.position.x, wz = v.z + mondo.position.z, dx = cam.position.x - wx, dz = cam.position.z - wz;
   o.root.rotation.y = Math.atan2(dx, dz);
   const elev = Math.atan2(cam.position.y - (o.root.position.y + 1), Math.hypot(dx, dz));
@@ -2312,15 +2314,21 @@ async function gadget(blocco) {
     for (const x of lista) if (!fatti.has(x) && x.sg === e.sg) { if (x.k === 'cade') { fatti.add(x); await caduta(x); } else if (x.k === 'danno' && x.perche === 'spinta') { fatti.add(x); ferita(x.sg, x.n, x.da, x.perche); } }
     if (TRAP[e.sg]) { await trappolaSp(TRAP[e.sg]); for (const x of TRAP[e.sg].dopo) fatti.add(x); fatti.add(TRAP[e.sg].e); } };
   // la scaletta: prima le mine (scoppiano dal turno prima), poi i poteri nell'ordine del motore
-  const passi = mine.concat(spari), rinvio = new Map();   // indice del passo -> spinte rinviate a dopo quel passo
+  const SEQ2 = !!(min && min.seq === 2), GRUPPO = {k: 'ninfee_gruppo'}, padArmi = SEQ2 ? spari.filter(s => s.fase === 'ninfee') : [];   /* VIVO_1911 */
+  const passi = SEQ2 ? mine.concat(padArmi.length ? [GRUPPO] : [], spari.filter(s => s.fase !== 'ninfee')) : mine.concat(spari), rinvio = new Map();   // indice del passo -> spinte rinviate a dopo quel passo
   if (!SEQM) passi.forEach((s, k) => { for (const e of C.di.get(s).spinte) if (e.k === 'spinto') {
     let ultimo = k; passi.forEach((t, m) => { if (m > k && t.k === 'spara' && (((t.presi || []).includes(e.sg)) || (t.celle || []).some(([a, b]) => a === e.a[0] && b === e.a[1]))) ultimo = m; });
     if (ultimo > k) { if (!rinvio.has(ultimo)) rinvio.set(ultimo, []); rinvio.get(ultimo).push([e, s]); e.__rinviata = true; } } });
   for (let k = 0; k < passi.length; k++) {
     const s = passi[k], n = passi.length, mio = C.di.get(s);
+    if (s === GRUPPO) {   /* VIVO_1911: le armi delle ninfee, tutte insieme */
+      contaSeq(0, 0, null); cap(padArmi.map(x => `${NM(x.sg)}: ${NOMEARMA(x.t)}`).join(' · '));
+      await Promise.all(padArmi.map(x => { delete SPI[x.sg]; const fx = effetto(x), cs = C.di.get(x).subito.filter(e => !SALTA.has(e)).map(e => subito(e, x)); return Promise.resolve(fx).then(() => Promise.all(cs)); }));
+      await Promise.all(padArmi.flatMap(x => C.di.get(x).spinte.filter(e => e.k === 'spinto').map(e => spinta(e, x, C.di.get(x).spinte))));
+      linguaVia(); if (k < n - 1) await attendi(.2); continue; }
     if (k >= 1 && n >= 3) ACC = Math.max(ACC, k >= 4 ? 2 : 1.3);
     if (s.k === 'mina') { await esplosione(s.x, s.y, 1.3); await Promise.all(mio.subito.map(e => subito(e, null))); continue; }
-    if (n > 1) contaSeq(k + 1, n, s);
+    if (SEQ2) { const sp = passi.filter(x => x !== GRUPPO && x.k !== 'mina'), ks = sp.indexOf(s); if (sp.length > 1) contaSeq(ks + 1, sp.length, s); } else if (n > 1) contaSeq(k + 1, n, s);
     cap(`${NM(s.sg)}: ${NOMEARMA(s.t)}` + ((s.presi || []).length ? (en ? ` on ${suChi(s.presi)}` : ` su ${suChi(s.presi)}`) : (en ? ', miss' : ' a vuoto')));
     delete SPI[s.sg]; SPCAM = (!s.copia && NOMI_SP[s.t] && RANE[s.sg]) ? {chi: s.sg} : null;
     const combo = (s.presi || []).length >= 2 && !['onda', 'gelo', 'lingua', 'calamita'].includes(s.t), comboCam = combo && !HAKO && !(NOMI_SP[s.t] && !s.copia);
@@ -3069,7 +3077,7 @@ function codaInstalla(o) {
         .replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed = codaP(transformed);')
         // PAVIMENTO (19/11, «la coda compenetra con le pads»): dopo le ossa, nessun punto della coda sotto il piano dei piedi;
         // (forma senza rami: la versione con if/mix faceva cadere Chrome sulla GPU di questo PC)
-        .replace('#include <skinning_vertex>', '#include <skinning_vertex>\ntransformed.y = max(transformed.y, 0.045 * step(0.5, codaTM.y));'); };
+        .replace('#include <skinning_vertex>', '#include <skinning_vertex>\ntransformed.y = max(transformed.y, 0.09 * step(0.5, codaTM.y));'); };
     m.customProgramCacheKey = () => (chiave ? chiave.call(m) : '') + '|coda_luma_1911|' + (m.side === THREE.BackSide ? 'contorno' : 'corpo'); m.needsUpdate = true; }
 }
 function animaCoda(o) {   // ogni fotogramma: la coda ondeggia sempre un poco, la posa la muove davvero
