@@ -1206,7 +1206,7 @@ function animaBot(o, dt, tt) {
   const v = o.podio ? o.podio.clone().sub(mondo.position) : pos(o.x, o.y), q = o.podio ? null : ST && ST.p && ST.p[o.i];
   const festaSu = o.festa > 0 && o.stato !== 'volo' ? Math.abs(Math.sin(tt * 7 + o.i)) * .32 * Math.min(1, o.festa) : 0;
   const versoCentro = !o.podio && ROT ? (o.glb ? 0 : o.y <= 0 ? .2 : o.y >= H - 1 ? -.2 : 0) : 0;
-  o.root.position.set(v.x + o.kx + versoCentro, o.alt + (o.podio ? o.podio.y : 0) + .06 + festaSu, v.z + o.kz);
+  o.root.position.set(v.x + o.kx + versoCentro, o.alt + (o.y3 || 0) + (o.podio ? o.podio.y : 0) + .06 + festaSu, v.z + o.kz);   // REGIA_V3_1811: + sollevamento della posa
   const wx = v.x + mondo.position.x, wz = v.z + mondo.position.z, dx = cam.position.x - wx, dz = cam.position.z - wz;
   o.root.rotation.y = Math.atan2(dx, dz);
   const elev = Math.atan2(cam.position.y - (o.root.position.y + 1), Math.hypot(dx, dz));
@@ -1230,7 +1230,7 @@ function animaBot(o, dt, tt) {
   // schiacciamento e allungamento, respiro, giro «di carta»
   const resp = o.stato === 'idle' && !o.ko ? Math.sin(tt * o.stile.f + o.i) * .028 : 0;
   o.jv = (o.jv || 0) + (-170 * (o.jz || 0) - 10 * (o.jv || 0)) * dt; o.jz = (o.jz || 0) + o.jv * dt; if (OPZ.rm) o.jz = 0;
-  const sq = Math.max(.5, o.sq + resp - o.triste * .06 + o.jz), tremo = o.paura ? Math.sin(tt * 47) * .03 * o.paura : 0;
+  const sq = Math.max(.5, o.sq + (o.sq3 || 0) + resp - o.triste * .06 + o.jz), tremo = o.paura ? Math.sin(tt * 47) * .03 * o.paura : 0;
   const giroCarta = o.glb ? 1 : Math.cos(o.spin), pp = 1 + o.pop * (OPZ.rm ? 0 : 1);   // splash2 17/11: il «giro di carta» schiacciava i modelli 3D fino a farli piatti (la rotazione strana di Tonfo)
   o.anca.scale.set(giroCarta / Math.sqrt(sq) * pp, sq * pp, 1);
   o.anca.rotation.set(-elev * .7 + o.tiltX * .35, 0, o.tiltZ * .8 + tremo + (o.stato === 'idle' && !o.podio ? Math.sin(tt * o.stile.f * .5 + o.i) * o.stile.dondola : 0) + (o.capogiro > 0 ? Math.sin(tt * 9) * .1 : 0) + (o.bordo && o.stato === 'idle' && !o.ko ? Math.sin(tt * 6 + o.i) * .1 : 0));
@@ -1242,8 +1242,11 @@ function animaBot(o, dt, tt) {
   // luce e colore: lampo rosso quando colpito, melma marrone, grigio per chi ha perso
   const u = o.mat.uniforms;
   if (o.flash > 0) { o.flash -= dt; u.emis.value.setRGB(1, .15, .1).multiplyScalar(Math.floor(o.flash * 20) % 2 ? .55 : .05); } else u.emis.value.copy(o.matC.emissive).multiplyScalar(.6);
+  if (o.bianco > 0) { o.bianco -= dt; if (!OPZ.rm) u.emis.value.setRGB(1, .97, .9).multiplyScalar(1.4); }   // VIVO_1911
   if (o.usa > 0) u.emis.value.add(new THREE.Color(COL[o.i]).multiplyScalar(.35 * Math.sin(Math.min(1, o.usa / .9) * Math.PI)));
   u.tinta.value.setRGB(1, 1, 1); if (o.gelo && !o.ko) u.tinta.value.setRGB(.82, .68, .5);
+  if (o.tossisce > 0) { o.tossisce -= dt; u.tinta.value.setRGB(.78, 1.08, .62); }   // REGIA_V3_1811: verde di nube, bianco di lanterna
+  if (o.abbaglia > 0) { o.abbaglia -= dt; u.emis.value.add(new THREE.Color(1, .8, .35).multiplyScalar(Math.min(1, o.abbaglia) * .45)); }
   u.sat.value = o.triste ? .45 : 1;
   // in acqua: spruzzo quando entra, poi sparisce sotto la superficie
   if (o.alt < -.12 && !o.inAcqua) { o.inAcqua = true; const w = o.root.position.clone().add(mondo.position); w.y = 0; spruzzo(w, o.ko ? 1.2 : 1); suono('splash', o.ko ? 1 : .8); }
@@ -1255,7 +1258,7 @@ function animaBot(o, dt, tt) {
   const sc = q && q.scudo && !o.ko && q.vivo; o.scudo.visible = !!sc;
   if (sc) { o.scudo.material.opacity = .22 + .12 * Math.sin(tt * 4 + o.i); o.scudo.rotation.y += dt * .6; TEX_ESAGONI.offset.y = tt * .05; }
   o.crepe.material.opacity = Math.max(0, o.crepe.material.opacity - dt * 1.2);
-  o.bolla.visible = !!(o.bollaOn && !o.ko);
+  o.bolla.visible = !!(o.bollaOn && !o.ko); if (o.bolla.visible && !OPZ.rm && o.bolla.material.color) { const h = (.55 + .09 * Math.sin(tt * 1.7 + o.i)) % 1; o.bolla.material.color.setHSL(h, .9, .7); o.bolla.material.opacity = .42 + .06 * Math.sin(tt * 5 + o.i); if (o.bolla.material.emissive) o.bolla.material.emissive.setHSL((h + .32) % 1, 1, .32); }   // REGIA_V3_1811: iridescente
   if (q) { const k = statiDi(q, o.i).filter(s => s[1] != null).map(s => s.join(':')).join('|'); if (k !== o.statiK) { o.statiK = k; if (k) { o.statiS.material.map = statiTex(statiDi(q, o.i).filter(s => s[1] != null)); o.statiS.material.needsUpdate = true; } } }
   o.statiS.visible = !!o.statiK && !o.ko && FASE !== 'fine' && FASE !== 'rivela';
   o.badge.visible = !o.ko && o.a > .5; { const hb = (o.topY + (o.glb ? (o.podio || ANTE ? .6 : .34) : .42)) * o.sq, th = -o.anca.rotation.x; o.badge.position.set(0, hb * Math.cos(th) + .06, -hb * Math.sin(th)); }
@@ -1324,7 +1327,7 @@ async function caricaGLB() {
     // ogni voce del manifest: "nome" | {nome, da, a} | {file: "tonfo.glb", nome, da?, a?} (una clip presa da un altro file, es. un idle rotto)
     for (const [k, sp] of Object.entries(m.clip || {})) {
       let base = null;
-      if (sp && typeof sp === 'object' && sp.file) { const gx = await prendi(sp.file); const c0 = gx && trovaIn(gx.animations, sp.nome); if (c0) { base = prepara(c0, gx); base.name = '_src_' + k; clips.push(base); } }
+      if (sp && typeof sp === 'object' && sp.file) { const gx = await prendi(sp.file); if (gx && sp.file.startsWith(pg)) correggiClip(pg, gx); const c0 = gx && trovaIn(gx.animations, sp.nome); if (c0) { base = prepara(c0, gx); base.name = '_src_' + k; clips.push(base); } }
       else base = trovaIn(clips, sp && typeof sp === 'object' ? sp.nome : sp);
       if (!base) continue;
       if (sp && typeof sp === 'object' && sp.da != null) { const sub = THREE.AnimationUtils.subclip(base, '_' + k, Math.round(sp.da * FPS), Math.round(sp.a * FPS), FPS); clips.push(sub); nomi[k] = sub.name; }
@@ -1356,7 +1359,7 @@ function ricolora(m, v) {
   m.needsUpdate = true;
 }
 const VER = '20261117pro9';
-const RIPIEGO = {land: ['land', 'ready', 'idle'], ready: ['ready', 'idle'], jump: ['jump', 'idle'], clash: ['clash', 'hit', 'idle'], hit: ['hit', 'idle'], fall: ['fall', 'hit', 'idle'], win: ['win', 'idle'], lose: ['lose', 'idle'], idle: ['idle']};
+const RIPIEGO = {sp: ['sp'], land: ['land', 'ready', 'idle'], ready: ['ready', 'idle'], jump: ['jump', 'idle'], clash: ['clash', 'hit', 'idle'], hit: ['hit', 'idle'], fall: ['fall', 'hit', 'idle'], win: ['win', 'idle'], lose: ['lose', 'idle'], idle: ['idle']};
 const GIRO_CLIP = {idle: true, jump: true, fall: true, win: true, lose: true};
 function contornoMat(col, spess) {
   const m = new THREE.MeshBasicMaterial({color: col, side: THREE.BackSide, skinning: true});
@@ -1388,7 +1391,7 @@ function vestiGLB(o) {
   return true;
 }
 // quanto dura la dissolvenza fra una clip e l'altra: veloce verso i colpi e il salto, morbida verso il riposo e la festa
-const DISSOLVE = {'idle>ready': .08, 'ready>jump': .05, 'jump>land': .04, 'land>idle': .3, 'ready>idle': .22, 'jump>idle': .16, 'hit>idle': .25, 'clash>idle': .25, '*>hit': .05, '*>clash': .07, '*>win': .3, '*>fall': .12, '*>lose': .4};
+const DISSOLVE = {'*>sp': .08, 'sp>idle': .3, 'idle>ready': .08, 'ready>jump': .05, 'jump>land': .04, 'land>idle': .3, 'ready>idle': .22, 'jump>idle': .16, 'hit>idle': .25, 'clash>idle': .25, '*>hit': .05, '*>clash': .07, '*>win': .3, '*>fall': .12, '*>lose': .4};
 const V_A = new THREE.Vector3(), V_B = new THREE.Vector3(), V_C = new THREE.Vector3(), Q_A = new THREE.Quaternion(), Q_B = new THREE.Quaternion(), Q_C = new THREE.Quaternion(), Q_D = new THREE.Quaternion();
 function posaGLB(o, p) {
   const g = o.glb; let nome = p === 'ready' && o.stato === 'atterra' ? 'land' : p;
@@ -1406,9 +1409,9 @@ function animaGLB(o, dt, verso) {
   const g = o.glb; ripristinaGestoSp(g);
   // il modello guarda dove salta; da fermo guarda verso la camera, di tre quarti
   const dx = cam.position.x - (o.root.position.x + mondo.position.x), dz = cam.position.z - (o.root.position.z + mondo.position.z);
-  const voluto = o.miraSp != null ? o.miraSp : o.stato === 'volo' && o.direzione != null ? o.direzione : Math.atan2(dx, dz) + (o.i % 2 ? .35 : -.35);
+  const voluto = o.miraSp != null ? o.miraSp : o.guardaSp != null ? o.guardaSp : o.stato === 'volo' && o.direzione != null ? o.direzione : Math.atan2(dx, dz) + (o.i % 2 ? .35 : -.35);
   if (g.yaw == null) g.yaw = voluto; let d = ((voluto - g.yaw) % 6.2832 + 9.4248) % 6.2832 - 3.1416; g.yaw += d * Math.min(1, dt * 9);
-  o.root.rotation.y = g.yaw;   // splash2 17/11: niente giro «a trottola» (o.spin) sui modelli 3D: inclinati verso la camera, girando sembravano ribaltarsi (Tonfo). La carta dipinta lo usa ancora
+  o.root.rotation.y = g.yaw + (o.ry3 || 0);   // VIVO_1911: + giro della posa · splash2 17/11: niente giro «a trottola» (o.spin) sui modelli 3D: inclinati verso la camera, girando sembravano ribaltarsi (Tonfo). La carta dipinta lo usa ancora
   // vista dall'alto: il modello si inclina un poco verso la camera (come fa la carta), cosi' si vede la faccia e non la testa
   const el = Math.atan2(cam.position.y - (o.root.position.y + mondo.position.y + 1), Math.hypot(dx, dz)); o.anca.rotation.x = -el * .38 + o.tiltX * .5; o.anca.scale.z = o.anca.scale.x = Math.abs(o.anca.scale.x);
   g.mixer.update(dt);
@@ -1422,8 +1425,12 @@ function animaGLB(o, dt, verso) {
     if (t && o.stato !== 'volo' && !o.ko && (FASE === 'scegli' || FASE === 'menu')) { const w = new THREE.Vector3(); o.root.getWorldPosition(w); voluto = Math.atan2(t.x - w.x, t.z - w.z) - o.root.rotation.y; voluto = ((voluto % 6.2832) + 9.4248) % 6.2832 - 3.1416; voluto = Math.max(-.75, Math.min(.75, voluto)); }
     o.testaYaw += (voluto - o.testaYaw) * Math.min(1, dt * 6);
     if (Math.abs(o.testaYaw) > .005) { const qP = new THREE.Quaternion(); g.testa.parent.getWorldQuaternion(qP); const ax = new THREE.Vector3(0, 1, 0).applyQuaternion(qP.invert()).normalize(); g.testa.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(ax, o.testaYaw)); } }
-  animaGestoSp(o, dt);
-  o.anca.rotation.x += (o.panciaSp || 0) * (OPZ.rm ? .35 : 1.3);
+  animaGestoSp(o, dt); animaPosa3(o, dt);   // REGIA_V3_1811
+  o.anca.rotation.x += (o.panciaSp || 0) * (OPZ.rm ? .35 : 1.3) + (o.tx3 || 0); o.anca.rotation.z += (o.tz3 || 0);
+  if (o.rx3 || o.fw3) { const hc = (o.topY || 1.4) * .45, a = o.rx3 || 0, fw = (o.fw3 || 0) - hc * Math.sin(a);   // VIVO_1911
+    o.anca.rotation.x += a; o.root.position.y += hc * (1 - Math.cos(a)); o.root.position.x += Math.sin(g.yaw) * fw; o.root.position.z += Math.cos(g.yaw) * fw; }
+  if (o.gz3) o.anca.scale.multiplyScalar(Math.max(.6, 1 + o.gz3));
+  animaCoda(o);   // VIVO_1911: la coda di Luma
   const u = o.mat.uniforms, op = u.op.value, fl = u.emis.value, tin = u.tinta.value;
   for (const m of g.mats) { if (m.emissive) m.emissive.copy(fl); if (m.color && !m.userData.c0) m.userData.c0 = m.color.clone(); if (m.userData.c0) m.color.copy(m.userData.c0).multiply(tin);
     const tr = op < .99; if (m.transparent !== tr) { m.transparent = tr; m.needsUpdate = true; } m.opacity = op; }
@@ -1711,7 +1718,7 @@ function frame() {
   if (folla.visible) folla.instanceMatrix.needsUpdate = true;
   FARI.forEach((s, k) => { s.target.position.set(Math.sin(tt * .13 + k * 2) * 3, 0, Math.cos(tt * .1 + k) * 2.5); s.intensity = .35 + .25 * CHEER; });
   if (CATENA_I.visible) for (let k = 0; k < NCAT; k++) { const f = (k - tt * 18) % 8; colTmp.setHSL(((k / NCAT) + tt * .05) % 1, .8, f > -1.2 && f < 0 ? .75 : .25); CATENA_I.setColorAt(k, colTmp); } CATENA_I.instanceColor.needsUpdate = true;
-  animaAmbiente(dtr, tt);
+  animaAmbiente(dtr, tt); try { animaFinaleSp(tt); } catch (x) {}   // CHIARO_1811
   for (const r of CELLE) for (const c of r) { const u = c.userData;
     u.dip *= Math.pow(.02, dtr); u.trema = Math.max(0, u.trema - dtr);
     u.corpo.position.y = Math.sin(tt * 1.2 + u.bob) * .05 - u.dip + u.alza - (u.sale || 0);
@@ -1752,9 +1759,9 @@ function vola(o, s, c, big) {
   document.body.appendChild(d); requestAnimationFrame(() => { d.style.transform = 'translate(-50%,-50%) scale(1)'; }); FLOAT.push({d, o, t: 0});
 }
 function posFloat(f, dt) {
-  f.t += dt; const v = f.o.root.position.clone().add(mondo.position); v.y += 2.3 + f.t * 1.2; const p = v.project(cam);
-  f.d.style.left = Math.max(f.d.offsetWidth / 2 + 6, Math.min(innerWidth - f.d.offsetWidth / 2 - 6, (p.x + 1) / 2 * innerWidth)) + 'px'; f.d.style.top = ((1 - p.y) / 2 * innerHeight) + 'px'; f.d.style.opacity = Math.max(0, 1 - f.t / 1.1);
-  if (f.t > 1.1) { f.d.remove(); FLOAT.splice(FLOAT.indexOf(f), 1); }
+  f.t += dt; const v = f.o.root.position.clone().add(mondo.position); v.y += 2.3 + (f.dy || 0) + f.t * (f.vita ? .55 : 1.2); const p = v.project(cam);
+  f.d.style.left = Math.max(f.d.offsetWidth / 2 + 6, Math.min(innerWidth - f.d.offsetWidth / 2 - 6, (p.x + 1) / 2 * innerWidth)) + 'px'; f.d.style.top = ((1 - p.y) / 2 * innerHeight) + 'px'; f.d.style.opacity = Math.max(0, Math.min(1, ((f.vita || 1.1) - f.t) / ((f.vita || 1.1) * .35)));
+  if (f.t > (f.vita || 1.1)) { f.d.remove(); FLOAT.splice(FLOAT.indexOf(f), 1); }
 }
 let BOOMT = 0;
 const k0 = e => getComputedStyle(e).display !== 'none' && +getComputedStyle(e).opacity > .2 && !(isPC() && e.id === 'top');
@@ -1886,6 +1893,8 @@ function inizio(e) {
     if (r < 2 && r > 0 && !MIA && vivo && !AVVISO_FERMO) { AVVISO_FERMO = true; suono('tic'); statoMsg(L0.fermo); }
     if (r <= 0) clearInterval(timer); }, 100);
   tutorial(e.turno || ST.turno);
+  try { if (!ST.finale) { passo.morsoDetto = false; inizio.preMorso = null; } bloccatoSp(vivo); morsoPill(); bottoneLog();   // CHIARO_1811
+    if (ST.finale && ST.finale.morde === (e.turno || ST.turno) && inizio.preMorso !== ST.finale.morde) { inizio.preMorso = ST.finale.morde; bannerVia(OPZ.lang === 'en' ? 'Last turn before the waterfall bites!' : 'Ultimo turno prima che la cascata morda!', 'linear-gradient(90deg,#ff7a1a,#ff4d5e)', 2.2); } } catch (x) {}
 }
 function bottoni() { const b = $('b-abil'); if (!INFO) { b.disabled = true; return; } b.innerHTML = `<canvas width="56" height="56" class="ia"></canvas><span><small style="margin:0;font-size:11.5px">${INFO.puo ? L().pronta : L().tra(INFO.cd)}</small></span>`;
   iconaAbil(b.querySelector('canvas').getContext('2d'), INFO.abil, ABON); b.title = ab(INFO.abil)[1];
@@ -2102,12 +2111,12 @@ async function scivola(o, a, d, opz) {
   (window.__momenti = window.__momenti || []).push(['spinta', performance.now()]); const vic = Q.get('vicino') === '1' && !CAMT; if (vic) primoPiano((o.x + a[0]) / 2, (o.y + a[1]) / 2, 8, .25);
   opz = opz || {}; const x0 = o.x, y0 = o.y, n = Math.max(1, Math.round(Math.max(Math.abs(a[0] - x0), Math.abs(a[1] - y0)))), rm = OPZ.rm;
   const A0 = pos(x0, y0), A1 = pos(a[0], a[1]); o.direzione = Math.atan2(A0.x - A1.x, A0.z - A1.z);   // guarda chi lo ha spinto: vola all'indietro
-  o.stato = 'colpito'; o.posaF = 'hit'; o.posaT = (d || .3) * n + .6; o.jv = (o.jv || 0) - 2.6; o.flash = .15;
+  o.stato = 'colpito'; o.posaF = 'hit'; o.posaT = (d || .3) * n + .6; o.jv = (o.jv || 0) - 2.6; o.flash = .15; if (opz.forte) posa3(o, 'sbalzato'); if (opz.causa) causaMossa(o, x0, y0, a, opz.causa, opz.col, opz.ico);   // CHIARO_1811
   if (!rm) { fermo(.04); await attendi(.06); }
   const dur = Math.max(.22, (d || .3)) * (.75 + .25 * n), trapF = !opz.bordo && ST && ST.campo[a[0]] && FAMIGLIA[ST.campo[a[0]][a[1]]] === 'trap';
   let ultimo = 0; o.sbraccia = .7; suono('splash', .35);
   await tw(dur, k => { const h = eo(k); o.x = x0 + (a[0] - x0) * h; o.y = y0 + (a[1] - y0) * h;
-    const f = k * n, salto = f - Math.floor(f); o.alt = rm ? 0 : Math.abs(Math.sin(salto * Math.PI)) * (.32 - .08 * Math.floor(f)); o.tiltX = .55 * (1 - k * .5); o.tiltZ = Math.sin(k * 30) * .12;
+    const f = k * n, salto = f - Math.floor(f); o.alt = rm ? 0 : Math.abs(Math.sin(salto * Math.PI)) * ((opz.forte && f < 1 ? 1.05 : .32) - .08 * Math.floor(f)); o.tiltX = .55 * (1 - k * .5); o.tiltZ = Math.sin(k * 30) * .12;
     const tocco = Math.floor(f + .5); if (tocco > ultimo && tocco <= n) { ultimo = tocco; const v = pos(o.x, o.y).add(mondo.position); v.y = .05;
       if (!rm) { particelle(v, 8, 0xd8fff4, 1.5, .4, {su: 1, r: .09, g: 7}); anello(v, 0xbff6ea, .9, .3); } suono('plop', .5); dip(Math.round(o.x), Math.round(o.y), .14); } });
   o.alt = 0; o.sbraccia = 0;
@@ -2117,10 +2126,10 @@ async function scivola(o, a, d, opz) {
   else { atterra(o); tw(.42, k => { o.tiltX = .55 * (1 - k) * Math.cos(k * 9); o.tiltZ = Math.sin(k * Math.PI * 3) * .3 * (1 - k); }).then(() => { o.tiltX = 0; o.tiltZ = 0; }); o.capogiro = .8; }
   o.direzione = null; o.tiltZ = opz.bordo || trapF ? o.tiltZ : 0; o.spin = 0; if (vic) await tornaVista(.35);
 }
-function ferita(i, n, da) {
+function ferita(i, n, da, perche) {   // CHIARO_1811: + la causa
   const o = RANE[i], q = ST.p[i]; q.hp -= n; hud(); cuorePerso(i); if (n > 1) setTimeout(() => cuorePerso(i), 120);
   if (da != null) { STAT[da] = STAT[da] || {d: 0, k: 0, g: 0}; STAT[da].d += n; }
-  o.flash = .4; o.capogiro = 1.2; vola(o, '-' + n, '#ff4d5e', n > 1); voceRana(o.pg, 1.1);
+  o.flash = .4; o.capogiro = 1.2; volaDanno(o, n, perche, da); voceRana(o.pg, 1.1);
   const v = o.root.position.clone().add(mondo.position); v.y = 1.4; particelle(v, 4 + n * 3, 0xff5a6e, 2.5, .8, {su: 1.4, r: .3, normale: true});
   let ax = (Math.random() - .5) * .3, az = .2; if (da != null && RANE[da]) { const a1 = pos(o.x, o.y), b1 = pos(RANE[da].x, RANE[da].y); ax = Math.sign(a1.x - b1.x) * .45; az = Math.sign(a1.z - b1.z) * .45; }
   o.stato = 'colpito'; o.jv = (o.jv || 0) - 1.6 - .6 * n;
@@ -2128,13 +2137,7 @@ function ferita(i, n, da) {
   if (i === IO) vibra(n > 1 ? 120 : 60, n > 1);
   if (q.vivo && q.hp === 1) hud();
 }
-function raccoglie(o, t) {
-  // il bot afferra il gadget: il disco sale dalle mani, gira, sparisce
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(.7, .7), new THREE.MeshBasicMaterial({map: discoTex(t), transparent: true, depthWrite: false, side: THREE.DoubleSide}));
-  m.position.copy(o.root.position).add(mondo.position); m.position.y += .6; scena.add(m); o.braccioSu = 1;
-  STAT[o.i] = STAT[o.i] || {d: 0, k: 0, g: 0}; STAT[o.i].g++;
-  return tw(.55, k => { m.position.y = o.root.position.y + .6 + k * 1.6; m.rotation.y = k * 8; m.lookAt(cam.position); m.material.opacity = k < .7 ? 1 : (1 - k) / .3; m.scale.setScalar(.6 + k * .6); }, eo).then(() => { scena.remove(m); o.braccioSu = 0; });
-}
+function raccoglie(o, t) { return raccogliV3(o, t); }   // NINFEE_V3_1811
 
 /* ---------------- ENTRATA IN SCENA ---------------- */
 async function entrata() {
@@ -2151,11 +2154,11 @@ async function entrata() {
 
 /* ---------------- RIVELAZIONE ---------------- */
 const TEMPI = [];
-async function rivela(evs, stato) { const t0r = performance.now();
+async function rivela(evs, stato) { const t0r = performance.now(); ultimoTurnoSp(evs); try { $('bot').classList.remove('ch-bloccato'); } catch (x) {}   // CHIARO_1811
   FASE = 'rivela'; clearInterval(timer); $('bot').classList.add('via'); cap(null); SEGNO.visible = false; spegniAree(); ULTIMO_HOVER = '?'; chiudiTut();
   ACC = CODA.some(e => e.k === 'turno') ? 1.6 : 1;
-  aggiornaCampo(); for (const o of RANE) { o.bordo = false; o.emote = null; o.saltoSp = null; o.spAtterrato = false; o.panciaSp = 0; }
-  for (const e of evs) if (e.k === 'spara' && !e.copia && ['panciata', 'superbalzo'].includes(e.t) && RANE[e.sg]) RANE[e.sg].saltoSp = e.t;
+  aggiornaCampo(); for (const o of RANE) { o.bordo = false; o.emote = null; o.saltoSp = null; o.spAtterrato = false; o.panciaSp = 0; o.posa3 = null; }
+  for (const e of evs) if (e.k === 'spara' && !e.copia && e.t === 'superbalzo' && RANE[e.sg]) RANE[e.sg].saltoSp = e.t;   // REGIA_V3_1811
   $('lezc').classList.add('nasc'); mostraTip(''); HAKO = evs.some(e => e.k === 'ko');
   const rv = evs.find(e => e.k === 'rivela'); if (rv) for (const [i, sc] of Object.entries(rv.scelte)) { const o = RANE[+i]; if (o && sc[2]) { usaPotere(o); if (ST.p[+i].pg === 'axa') { o.bollaOn = true; bollaFx(o); } } }   // SPECIALI_1811 / POTERI_PRO_1811
   const s = evs.find(e => e.k === 'salti');
@@ -2195,8 +2198,8 @@ async function rivela(evs, stato) { const t0r = performance.now();
     // 3. tutti indietro, verso la casella da cui sono partiti; la casella contesa resta vuota e lampeggia
     for (const e of sc) lampeggiaVuota(e.x, e.y);
     const danni = seq.filter(e => e.k === 'danno' && e.perche === 'scontro');
-    await Promise.all([...rimb].map(i => inScontro.has(i) ? sbalzato(RANE[i], s.da[i]).then(() => { for (const d of danni.filter(d => d.sg === i)) ferita(d.sg, d.n, null); }) : torna(RANE[i], s.da[i])));
-    for (const d of danni.filter(d => !inScontro.has(d.sg))) ferita(d.sg, d.n, null);
+    await Promise.all([...rimb].map(i => inScontro.has(i) ? sbalzato(RANE[i], s.da[i]).then(() => { for (const d of danni.filter(d => d.sg === i)) ferita(d.sg, d.n, d.da, d.perche); }) : torna(RANE[i], s.da[i])));
+    for (const d of danni.filter(d => !inScontro.has(d.sg))) ferita(d.sg, d.n, d.da, d.perche);
     if (sc.length) await tornaVista(.5);
     await attendi(.3);
   }
@@ -2209,7 +2212,7 @@ async function rivela(evs, stato) { const t0r = performance.now();
     { const c = ['spara', 'mina', 'minacce'].includes(e.k) ? 'gadget' : ['loto', 'scudo', 'molla', 'specchio', 'patata', 'jackpot', 'trampolino', 'passa', 'spintone', 'scivola', 'patata_boom', 'trappola'].includes(e.k) ? 'effetti' : e.k === 'scorre' ? 'scorre' : e.k === 'stringe' ? 'crollo' : null; if (c) await passoFase(c); }
     if (e.k === 'spintone' || e.k === 'scivola') { const blocco = [seq[k++]]; while (k < seq.length && ((seq[k].k === 'cade' && ['spinta', 'scivolo'].includes(seq[k].perche)) || (seq[k].k === 'danno' && ['spinta', 'scivolo'].includes(seq[k].perche)))) blocco.push(seq[k++]); await (e.k === 'spintone' ? spintone(blocco) : scivolata(blocco)); continue; }
     if (e.k === 'minacce' || e.k === 'mina' || e.k === 'spara') {
-      const blocco = []; while (k < seq.length && ['minacce', 'mina', 'spara', 'danno', 'parato', 'gelato', 'spinto', 'cade', 'copia_vuota', 'riflesso'].includes(seq[k].k) && !(seq[k].k === 'cade' && seq[k].perche !== 'spinta') && !(seq[k].k === 'danno' && ['bordo', 'patata', 'riva'].includes(seq[k].perche))) blocco.push(seq[k++]);
+      const blocco = []; while (k < seq.length && ['minacce', 'mina', 'spara', 'danno', 'parato', 'gelato', 'spinto', 'cade', 'copia_vuota', 'riflesso', 'trappola'].includes(seq[k].k) && !(seq[k].k === 'trappola' && !seq[k].spinto) && !(seq[k].k === 'cade' && seq[k].perche !== 'spinta') && !(seq[k].k === 'danno' && ['bordo', 'patata', 'riva'].includes(seq[k].perche))) blocco.push(seq[k++]);
       await gadget(blocco); continue;
     }
     if (e.k === 'patata_boom') { const blocco = [seq[k++]]; while (k < seq.length && (seq[k].k === 'danno' || seq[k].k === 'parato') && seq[k].perche !== 'bordo') blocco.push(seq[k++]); await patataBoom(blocco); continue; }
@@ -2227,60 +2230,128 @@ async function spintone(b) {
   boom(OPZ.lang === 'en' ? 'SHOVE!' : 'SPINTONE!', null, '#ffb020'); suono('onda'); scossa(.25); fermo(.07); pubblico(.3);
   cap(OPZ.lang === 'en' ? `${NM(e.sg)} lands on ${NM(e.su)} and ${e.fuori ? 'knocks them into the water!' : 'shoves them away'}` : `${NM(e.sg)} atterra su ${NM(e.su)} e lo ${e.fuori ? 'butta in acqua!' : 'spinge via'}`);
   j.stato = 'colpito'; j.capogiro = 1; RANE[e.sg].sfotto = .6;
-  await scivola(j, e.a, .3, {bordo: e.fuori});
-  for (const x of b.slice(1)) { if (x.k === 'cade') await caduta(x); else ferita(x.sg, x.n, x.da); }
+  await scivola(j, e.a, .3, {bordo: e.fuori, causa: causaSpinta('spintone', e.sg), col: COL[e.sg]});
+  for (const x of b.slice(1)) { if (x.k === 'cade') await caduta(x); else ferita(x.sg, x.n, x.da, x.perche); }
 }
 async function scivolata(b) {
   const e = b[0], o = RANE[e.sg];
   cap(OPZ.lang === 'en' ? `${NM(e.sg)} slips!` : `${NM(e.sg)} scivola!`); o.sbraccia = .8;
-  await scivola(o, e.a, .3); o.sbraccia = 0;
-  for (const x of b.slice(1)) { if (x.k === 'cade') await caduta(x); else ferita(x.sg, x.n, x.da); }
+  await scivola(o, e.a, .3, {causa: causaSpinta('scivola', e.sg), col: '#bfe9ff'}); o.sbraccia = 0;
+  for (const x of b.slice(1)) { if (x.k === 'cade') await caduta(x); else ferita(x.sg, x.n, x.da, x.perche); }
 }
 const NOMEARMA = t => (T[t] ? T[t][0] : ab(t) ? ab(t)[0] : t).toLowerCase();
 const LASER = '#8ff3ff';   // il getto d'acqua
 const COLA = t => ['riga', 'colonna', 'croce', 'diagonali'].includes(t) ? LASER : TC[t] || {panciata: '#2f9bff', nube: '#43c443', lampo: '#e6eeff', lingua: '#ff7aa8'}[t] || '#ff5050';
+// SEQ_1811 (proprietario, 18/11 sera: «i poteri uno alla volta, non tutti insieme: non si capisce niente»).
+// Il motore risolve i poteri di un turno TUTTI INSIEME sulle posizioni di partenza (prima i colpi, poi le spinte, in un
+// colpo solo): il risultato non cambia. La pagina adesso li MOSTRA uno alla volta, nell'ordine del motore (getti, vescia,
+// melma, lanterna, ondata, corrente, panciata, superbalzo, risucchio, lingua: prima i colpi, poi chi sposta), ognuno con
+// la sua animazione intera e subito le sue conseguenze (cuori, parate, melma, spinta, trappola), poi il prossimo.
+// Perche' quello che si vede corrisponda al motore: una rana spinta che e' presa anche da un potere che viene DOPO resta
+// ferma finche' quel potere non l'ha colpita (la sua spinta si vede dopo), come nel motore, che colpisce prima di spostare.
+// Contatore «1/3 · Lingua di Camu»; dal secondo potere si va un po' piu' svelti, dal quinto il doppio; un tocco accelera.
+function contaSeq(k, n, e) {
+  cssChiaro(); let d = document.getElementById('ch-seq');
+  if (!d) { d = document.createElement('div'); d.id = 'ch-seq'; d.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);z-index:32;pointer-events:none;padding:6px 14px 6px 8px;border-radius:999px;background:rgba(8,24,30,.9);color:#fff;font:800 14px/1.1 var(--x-tit);white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.45);display:none;align-items:center;gap:8px'; document.body.appendChild(d); }
+  if (!e) { d.style.display = 'none'; return; }
+  const en = OPZ.lang === 'en', ic = icoCausa(e.t), nome = (() => { try { return NOMEARMA(e.t); } catch (x) { return e.t; } })();
+  d.innerHTML = `<span style="background:#2fc9a6;color:#062;border-radius:999px;padding:2px 8px">${k}/${n}</span>${ic ? `<img src="${ic}" alt="" style="width:22px;height:22px;border-radius:50%">` : ''}<span>${escSp(nome.charAt(0).toUpperCase() + nome.slice(1))} ${en ? 'by' : 'di'} <b style="color:${COL[e.sg]}">${escSp(nm(e.sg))}</b></span>${k === 1 && n > 1 ? `<small style="opacity:.7;font-weight:600">${en ? '· tap to speed up' : '· tocca per accelerare'}</small>` : ''}`;
+  d.style.display = 'flex'; try { const m = document.getElementById('ch-morso'); const y0 = areaLibera().y0 + 6 + (m && m.classList.contains('on') ? 34 : 0); d.style.top = y0 + 'px'; } catch (x) {}
+}
+let SEQ_ON = false;
+addEventListener('pointerdown', () => { if (SEQ_ON && FASE === 'rivela') ACC = Math.max(ACC, 2.2); }, true);
+// a quale potere appartiene ogni conseguenza del blocco (stessa regola per la rivelazione e per «Cosa è successo»)
+function consegueSeq(blocco) {
+  const spari = blocco.filter(e => e.k === 'spara'), mine = blocco.filter(e => e.k === 'mina'), di = new Map(), sp = new Map();
+  for (const s of spari.concat(mine)) di.set(s, {subito: [], spinte: []});
+  const trovaSp = (sg, t) => spari.find(s => s.sg === sg && s.t === t) || spari.find(s => s.sg === sg);
+  for (let i = 0; i < blocco.length; i++) { const e = blocco[i]; let s = null, dove = 'subito';
+    if (e.k === 'danno' && e.perche === 'mina') s = mine.find(m => m.da === e.da) || null;
+    else if (e.k === 'danno' && e.perche === 'riflesso') { s = spari.find(x => x.sg === e.sg && (x.presi || []).includes(e.da)) || null; }
+    else if (e.k === 'riflesso') s = spari.find(x => x.sg === e.su && (x.presi || []).includes(e.sg)) || null;
+    else if (e.k === 'danno' && (e.perche === 'spinta' || e.perche === 'fauci')) { s = e.da != null ? trovaSp(e.da, null) : null; dove = 'spinte'; }
+    else if (e.k === 'danno') s = e.da != null ? trovaSp(e.da, e.perche) : null;
+    else if (e.k === 'parato') s = e.da != null ? (spari.find(x => x.sg === e.da && (x.presi || []).includes(e.sg)) || trovaSp(e.da, null)) : null;
+    else if (e.k === 'gelato' && e.perche !== 'pantano') s = spari.find(x => ['gelo', 'lampo'].includes(x.t) && (x.presi || []).includes(e.sg)) || null;
+    else if (e.k === 'spinto') { s = e.da != null ? (spari.find(x => x.sg === e.da && ['onda', 'corrente', 'panciata', 'superbalzo', 'calamita', 'lingua'].includes(x.t)) || trovaSp(e.da, null)) : null; dove = 'spinte'; }
+    else if (e.k === 'cade' || e.k === 'trappola' || (e.k === 'gelato' && e.perche === 'pantano')) { const pr = [...di.entries()].find(([q, v]) => v.spinte.some(x => x.k === 'spinto' && x.sg === e.sg)); s = pr ? pr[0] : null; dove = 'spinte'; }
+    if (s && di.has(s)) { di.get(s)[dove].push(e); sp.set(e, s); } }
+  return {spari, mine, di, sp};
+}
 async function gadget(blocco) {
-  const min = blocco.find(e => e.k === 'minacce'), mine = blocco.filter(e => e.k === 'mina'), spari = blocco.filter(e => e.k === 'spara');
+  const en = OPZ.lang === 'en', min = blocco.find(e => e.k === 'minacce'), C = consegueSeq(blocco), spari = C.spari, mine = C.mine;
   for (const m of mine) mostraAree(m.celle, '#ff2020', true);
-  if (min) for (const a of min.aree) if (a.t !== 'mina') mostraAree(a.celle, COLA(a.t), true);
-  // reazione al pericolo: chi sta nelle aree si spaventa
-  const inPericolo = new Set(); if (min) for (const a of min.aree) for (const [x, y] of a.celle) for (const o of RANE) if (!o.ko && o.x === x && o.y === y && o.i !== a.sg) inPericolo.add(o);
+  const SEQM = !!(min && min.seq);   /* VIVO_1911: motore uno alla volta */
+  if (min && !SEQM) for (const a of min.aree) if (a.t !== 'mina') mostraAree(a.celle, COLA(a.t), true);
+  if (min && !SEQM) for (const a of min.aree) if (!NOMI_SP[a.t] || a.copia) presagioSp(a);   // NINFEE_V3_1811
+  const inPericolo = new Set(); if (min && !SEQM) for (const a of min.aree) for (const [x, y] of a.celle) for (const o of RANE) if (!o.ko && o.x === x && o.y === y && o.i !== a.sg) inPericolo.add(o);
   for (const o of inPericolo) o.paura = 1;
-  const en = OPZ.lang === 'en', frasi = [];
-  const suChi = a => a.map(i => i === IO ? `<span style="color:${COL[i]}">${en ? 'you' : 'di te'}</span>` : NM(i)).join(', ');
-  for (const e of spari) frasi.push(`${NM(e.sg)}: ${NOMEARMA(e.t)}` + (e.presi.length ? (en ? ` on ${suChi(e.presi)}` : ` su ${suChi(e.presi)}`) : (en ? ', miss' : ' a vuoto')));
-  cap(frasi.slice(0, 3).join('<br>') + (frasi.length > 3 ? `<br>+${frasi.length - 3}` : ''));
-  schermo(OPZ.lang === 'en' ? 'POWERS!' : 'POTERI!', null, '#ff6a6a'); suono('carica');
+  schermo(en ? 'POWERS!' : 'POTERI!', spari.length > 1 ? (en ? `${spari.length}, one at a time` : `${spari.length}, uno alla volta`) : null, '#ff6a6a'); suono('carica');
   const cariche = spari.map(e => CELLE[e.x] && CELLE[e.x][e.y]).filter(Boolean);
   await Promise.all([tw(.42, k => { for (const c of cariche) { c.userData.carica = k * 1.2; tinta(c, c.userData.t, false, false); c.userData.trema = .2; } }),
     ...spari.filter(e => TC[e.t]).map(e => raccoglie(RANE[e.sg], e.t))]);
   for (const c of cariche) { c.userData.carica = 0; tinta(c, c.userData.t, false, false); }
   for (const o of inPericolo) o.paura = 0;
   spegniAree();
-  const tot = blocco.filter(e => e.k === 'danno').reduce((a, e) => a + e.n, 0);
-  const combo = spari.filter(e => e.presi.length >= 2 && !['onda', 'gelo', 'lingua', 'calamita'].includes(e.t)).sort((a, b) => b.presi.length - a.presi.length)[0];
-  if (combo && !HAKO) { primoPiano(combo.x, combo.y, 14, .5); rallenta(.4, .1, .3, .3); }
-  const lu = [];
-  for (const m of mine) lu.push(esplosione(m.x, m.y, 1.3));
-  for (const e of spari) lu.push(effetto(e));
-  if (tot) { fermo(.06 + .03 * Math.min(4, tot)); scossa(.25 + .08 * Math.min(5, tot)); pubblico(.2 + .1 * tot); }
-  if (combo) { boom(`COMBO ×${combo.presi.length}`, `${nm(combo.sg)}: ${NOMEARMA(combo.t)}`, COL[combo.sg]); coriandoli(45); lampo('#ffffff', .25); pubblico(.6, true); sigla('combo'); MIGLIORE = {n: combo.presi.length, testo: `${nm(combo.sg)}: ${NOMEARMA(combo.t)} ×${combo.presi.length}`}; momento(3 + combo.presi.length, 'combo', `${OPZ.lang === 'en' ? 'Combo' : 'Combo'} ×${combo.presi.length}: ${nm(combo.sg)} (${NOMEARMA(combo.t)})`); }
-  await attendi(.16);
-  for (const e of blocco) {
-    if (e.k === 'danno') ferita(e.sg, e.n, e.da);
-    else if (e.k === 'parato') { const o = RANE[e.sg]; if (e.con === 'bolla') bollaColpo(o);   // POTERI_PRO_1811: la bolla trema quando para
-      vola(o, e.con === 'bolla' ? (en ? 'BUBBLE' : 'BOLLA') : (en ? 'BLOCKED' : 'PARATO'), '#ffe38a'); if (e.con === 'scudo') { rompiScudo(o); ST.p[e.sg].scudo = 0; hud(); } }
-    else if (e.k === 'gelato') { const o = RANE[e.sg]; o.gelo = true; lu.push(cristalli(o)); fumetto(o, spiegaStato('gelo', 1), COLSTATO.gelo); }
-    else if (e.k === 'riflesso') { const o = RANE[e.sg], j = RANE[e.su]; suono('specchio'); momento(3, 'specchio', `${nm(e.sg)} ${en ? 'reflects onto' : 'rimanda il colpo a'} ${nm(e.su)}`); boom(en ? 'BOUNCE BACK!' : 'RIMANDATO!', `${nm(e.sg)} → ${nm(e.su)}`, '#d6def0'); ST.p[e.sg].specchio = 0; hud();
-      lu.push(raggioSweep(o.root.position.clone().add(mondo.position), o.root.position.clone().add(mondo.position), j.root.position.clone().add(mondo.position), new THREE.Color('#e8eeff'))); }
+  const suChi = a => a.map(i => i === IO ? `<span style="color:${COL[i]}">${en ? 'you' : 'di te'}</span>` : NM(i)).join(', ');
+  const TRAP = {}, SALTA = new Set();   // CHIARO_1811: la trappola e i suoi effetti partono dopo la spinta di quella rana
+  blocco.forEach((e, i) => { if (e.k !== 'trappola') return; const tr = TRAP[e.sg] = {e, dopo: []}; SALTA.add(e);
+    for (let k = i + 1; k < blocco.length; k++) { const x = blocco[k]; if (x.sg !== e.sg) continue; if ((x.k === 'danno' && x.perche === 'fauci') || x.k === 'parato' || (x.k === 'gelato' && x.perche === 'pantano')) { tr.dopo.push(x); SALTA.add(x); } if (x.k === 'danno' || x.k === 'parato') break; } });
+  const fatti = new Set(), lu = [], acc0 = ACC; SEQ_ON = true;
+  // una conseguenza «subito» (all'impatto del suo potere)
+  const subito = (e, s) => { fatti.add(e); const imp = s ? attendiImpatto(s.k === 'mina' ? null : s.sg) : Promise.resolve();
+    if (e.k === 'danno') return imp.then(() => ferita(e.sg, e.n, e.da, e.perche));
+    if (e.k === 'parato') { const o = RANE[e.sg]; return imp.then(() => { if (e.con === 'bolla') bollaColpo(o); vola(o, e.con === 'bolla' ? (en ? 'BUBBLE' : 'BOLLA') : (en ? 'BLOCKED' : 'PARATO'), '#ffe38a'); if (e.con === 'scudo') { rompiScudo(o); ST.p[e.sg].scudo = 0; hud(); } }); }
+    if (e.k === 'gelato') { const o = RANE[e.sg]; o.gelo = true; return imp.then(() => { fumetto(o, spiegaStato('gelo', 1), COLSTATO.gelo); return cristalli(o); }); }
+    if (e.k === 'riflesso') { const o = RANE[e.sg], j = RANE[e.su]; return imp.then(() => { suono('specchio'); momento(3, 'specchio', `${nm(e.sg)} ${en ? 'reflects onto' : 'rimanda il colpo a'} ${nm(e.su)}`); boom(en ? 'BOUNCE BACK!' : 'RIMANDATO!', `${nm(e.sg)} → ${nm(e.su)}`, '#d6def0'); ST.p[e.sg].specchio = 0; hud();
+      return raggioSweep(o.root.position.clone().add(mondo.position), o.root.position.clone().add(mondo.position), j.root.position.clone().add(mondo.position), new THREE.Color('#e8eeff')); }); }
+    return Promise.resolve(); };
+  // una spinta (con la sua caduta in acqua, il -1, la trappola)
+  const spinta = async (e, s, lista) => { fatti.add(e); const sx = SPI[e.da], tS = s ? s.t : null;
+    await ((LINGUE.some(L => L.a === RANE[e.sg]) && !e.fuori) ? linguaDentro(RANE[e.sg], e.a) : scivola(RANE[e.sg], e.a, .28, {bordo: e.fuori, forte: sx && (sx.t === 'panciata' || sx.t === 'superbalzo'), causa: causaSpinta(tS || 'spinta', e.da), col: COL[e.da], ico: tS}));
+    for (const x of lista) if (!fatti.has(x) && x.sg === e.sg) { if (x.k === 'cade') { fatti.add(x); await caduta(x); } else if (x.k === 'danno' && x.perche === 'spinta') { fatti.add(x); ferita(x.sg, x.n, x.da, x.perche); } }
+    if (TRAP[e.sg]) { await trappolaSp(TRAP[e.sg]); for (const x of TRAP[e.sg].dopo) fatti.add(x); fatti.add(TRAP[e.sg].e); } };
+  // la scaletta: prima le mine (scoppiano dal turno prima), poi i poteri nell'ordine del motore
+  const passi = mine.concat(spari), rinvio = new Map();   // indice del passo -> spinte rinviate a dopo quel passo
+  if (!SEQM) passi.forEach((s, k) => { for (const e of C.di.get(s).spinte) if (e.k === 'spinto') {
+    let ultimo = k; passi.forEach((t, m) => { if (m > k && t.k === 'spara' && (((t.presi || []).includes(e.sg)) || (t.celle || []).some(([a, b]) => a === e.a[0] && b === e.a[1]))) ultimo = m; });
+    if (ultimo > k) { if (!rinvio.has(ultimo)) rinvio.set(ultimo, []); rinvio.get(ultimo).push([e, s]); e.__rinviata = true; } } });
+  for (let k = 0; k < passi.length; k++) {
+    const s = passi[k], n = passi.length, mio = C.di.get(s);
+    if (k >= 1 && n >= 3) ACC = Math.max(ACC, k >= 4 ? 2 : 1.3);
+    if (s.k === 'mina') { await esplosione(s.x, s.y, 1.3); await Promise.all(mio.subito.map(e => subito(e, null))); continue; }
+    if (n > 1) contaSeq(k + 1, n, s);
+    cap(`${NM(s.sg)}: ${NOMEARMA(s.t)}` + ((s.presi || []).length ? (en ? ` on ${suChi(s.presi)}` : ` su ${suChi(s.presi)}`) : (en ? ', miss' : ' a vuoto')));
+    delete SPI[s.sg]; SPCAM = (!s.copia && NOMI_SP[s.t] && RANE[s.sg]) ? {chi: s.sg} : null;
+    const combo = (s.presi || []).length >= 2 && !['onda', 'gelo', 'lingua', 'calamita'].includes(s.t), comboCam = combo && !HAKO && !(NOMI_SP[s.t] && !s.copia);
+    if (comboCam) { primoPiano(s.x, s.y, 14, .5); rallenta(.4, .1, .3, .3); }
+    const fx = effetto(s);
+    if (combo) attendiImpatto(s.sg).then(() => attendi(.12)).then(() => { boom(`COMBO ×${s.presi.length}`, `${nm(s.sg)}: ${NOMEARMA(s.t)}`, COL[s.sg]); coriandoli(45); pubblico(.6, true); sigla('combo');
+      if (!MIGLIORE || s.presi.length > MIGLIORE.n) MIGLIORE = {n: s.presi.length, testo: `${nm(s.sg)}: ${NOMEARMA(s.t)} ×${s.presi.length}`}; momento(3 + s.presi.length, 'combo', `Combo ×${s.presi.length}: ${nm(s.sg)} (${NOMEARMA(s.t)})`); });
+    const conseg = mio.subito.filter(e => !SALTA.has(e)).map(e => subito(e, s));
+    await fx; await Promise.all(conseg);
+    // le spinte di questo potere (quelle non rinviate), poi quelle rinviate fino a qui
+    const mie = mio.spinte.filter(e => e.k === 'spinto' && !e.__rinviata);
+    await Promise.all(mie.map(e => spinta(e, s, mio.spinte)));
+    if (rinvio.has(k)) await Promise.all(rinvio.get(k).map(([e, s2]) => spinta(e, s2, C.di.get(s2).spinte)));
+    linguaVia();
+    if (comboCam) await tornaVista(.3);
+    if (k < n - 1) await attendi(.12);
   }
-  const sp = blocco.filter(e => e.k === 'spinto');
-  if (sp.length) await Promise.all(sp.map(e => (LINGUE.some(L => L.a === RANE[e.sg]) && !e.fuori) ? linguaDentro(RANE[e.sg], e.a) : scivola(RANE[e.sg], e.a, .28, {bordo: e.fuori})));   // SPECIALI_1811
-  linguaVia();
-  for (const e of blocco.filter(e => e.k === 'cade')) await caduta(e);
+  contaSeq(0, 0, null);
+  // quel che non appartiene a nessun potere (raro): come prima
+  for (const e of blocco) { if (fatti.has(e) || SALTA.has(e) || ['spara', 'mina', 'minacce', 'copia_vuota'].includes(e.k)) continue;
+    if (e.k === 'spinto') await spinta(e, C.sp.get(e) || null, blocco); else if (e.k === 'cade') { fatti.add(e); await caduta(e); } else lu.push(subito(e, null)); }
   await Promise.all(lu);
-  if (combo && !HAKO) await tornaVista(.3);
+  presagioViaTutti(); SEQ_ON = false; ACC = acc0;
 }
+// «Cosa è successo» nello stesso ordine: ogni potere seguito dalle sue conseguenze
+function ordineSeq(evs) {
+  try { const C = consegueSeq(evs), out = [];
+    for (const e of evs) { if (C.sp.has(e)) continue; out.push(e); const v = C.di.get(e); if (v) out.push(...v.subito.concat(v.spinte).sort((a, b) => evs.indexOf(a) - evs.indexOf(b))); }
+    return out.length === evs.length ? out : evs; } catch (x) { return evs; }
+}
+
 async function esplosione(x, y, forza) {
   const v = pos(x, y).add(mondo.position); v.y = .6; suono('bomba'); vibra(80, true); lampo('#e6c8ff', .3);
   mostraAree([[-1, -1], [0, -1], [1, -1], [-1, 0], [0, 0], [1, 0], [-1, 1], [0, 1], [1, 1]].map(([d, e]) => [x + d, y + e]), '#c25bff', false);
@@ -2382,37 +2453,7 @@ function animaGestoSp(o, dt) {
   }
 }
 
-async function saltoPotereSp(o, a) {
-  const tonfo = o.saltoSp === 'panciata', x0 = o.x, y0 = o.y;
-  const A = pos(x0, y0), B = pos(a[0], a[1]);
-  o.emote = null; o.paura = 0; o.stato = 'carica'; o.posaF = 'ready'; o.posaT = .24;
-  avviaGestoSp(o, o.saltoSp, tonfo ? 1.05 : .9);
-  suono('carica', .55);
-  await tw(tonfo ? .24 : .18, k => { o.sq = 1 - (tonfo ? .3 : .42) * eo(k); o.tiltX = .2 * k; });
-  dip(Math.round(x0), Math.round(y0), tonfo ? .25 : .16);
-  o.stato = 'volo'; o.posaF = 'jump'; o.posaT = .85;
-  o.direzione = Math.atan2(B.x - A.x, B.z - A.z); suono(tonfo ? 'salto' : 'boing');
-  const altezza = OPZ.rm ? 1.5 : tonfo ? 3.1 : 2.65, durata = tonfo ? .7 : .5;
-  let scia = 0;
-  await tw(durata, k => {
-    // Tonfo resta un istante sospeso, quindi abbatte la pancia; Zip scatta rapido.
-    const viaggio = tonfo ? eo(Math.min(1, k / .75)) : eio(k);
-    o.x = x0 + (a[0] - x0) * viaggio; o.y = y0 + (a[1] - y0) * viaggio;
-    o.alt = tonfo ? (k < .65 ? altezza * Math.sin(k / .65 * Math.PI / 2) : altezza * (1 - Math.pow((k - .65) / .35, 2))) : altezza * Math.sin(k * Math.PI);
-    o.sq = tonfo ? 1 + .12 * Math.sin(k * Math.PI) : 1 + .27 * Math.sin(k * Math.PI);
-    o.tiltX = 0; o.panciaSp = tonfo ? Math.min(1, k / .65) : 0;
-    if (!tonfo && !SPL() && k > scia && k < .85) {
-      scia = k + .12;
-      const v = pos(o.x, o.y).add(mondo.position); v.y = o.alt + .3;
-      particelle(v, 3, 0xffdf68, .25, .24, {r:.12, su:0, g:0});
-    }
-  });
-  o.x = a[0]; o.y = a[1]; o.alt = 0; o.spAtterrato = true;
-  // Il rientro evita di tenere la rana piegata mentre vengono risolti altri eventi.
-  tw(.25, k => { o.panciaSp = tonfo ? 1 - k : 0; });
-}
-
-function sbuffoBoccaSp(o) {
+function sbuffoBoccaSpV3(o) {   // VIVO_1911: sostituita dagli sbuffi di gas
   if (OPZ.rm) return;
   const A = testaDi(o), avanti = new THREE.Vector3(Math.sin(o.root.rotation.y), .12, Math.cos(o.root.rotation.y));
   // Tre lobi pieni e morbidi escono dalla maschera, poi si sfaldano nella nube.
@@ -2434,7 +2475,7 @@ function sbuffoBoccaSp(o) {
 const NOMI_SP = {panciata: ['PANCIATA!', 'BELLY FLOP!', '#4fb4ff'], superbalzo: ['SUPERBALZO!', 'SUPER HOP!', '#ffd23f'], bolla: ['BOLLA!', 'BUBBLE!', '#9fe8ff'],
   lingua: ['LINGUA!', 'TONGUE!', '#ff6f9a'], nube: ['NUBE!', 'CLOUD!', '#6fdc4a'], lampo: ['LANTERNA!', 'LANTERN!', '#ffe08a']};
 const SPL = () => OPZ.rm || QUAL.liv >= 1;          // la strada leggera
-function nomeSp(o, t) { const n = NOMI_SP[t]; if (n && o) vola(o, OPZ.lang === 'en' ? n[1] : n[0], n[2], true); }
+function nomeSp(o, t) { bannerSp(o, t); }   // REGIA_V3_1811: la fascia col nome (prima: la scritta che volava sopra la rana)
 function testaDi(o) { if (o.glb && o.glb.testa) { o.root.updateMatrixWorld(true); const v = o.glb.testa.getWorldPosition(new THREE.Vector3()); v.y += (o.topY || 1.4) * .1; return v.add(new THREE.Vector3(Math.sin(o.root.rotation.y), 0, Math.cos(o.root.rotation.y)).multiplyScalar((o.topY || 1.4) * .16)); } const v = o.root.position.clone().add(mondo.position); v.y += Math.max(.6, (o.topY || 1.4) * .72); return v; }
 function corpoDi(o) { const v = o.root.position.clone().add(mondo.position); v.y += (o.topY || 1.4) * .45; return v; }
 function tubo(m, A, B) { const d = B.clone().sub(A), L = Math.max(.001, d.length()); m.position.copy(A).addScaledVector(d, .5); m.scale.set(1, L, 1); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()); }
@@ -2460,162 +2501,1111 @@ function celleAttorno(x, y, r) { const out = []; for (let a = -r; a <= r; a++) f
 async function caricaSp(o, col, d) { o.stato = 'carica'; o.sq = .62; o.flash = 0; const v = o.root.position.clone().add(mondo.position); v.y = .15;
   if (!SPL()) particelle(v.clone().add(new THREE.Vector3(0, .6, 0)), 8, col, .9, .3, {r: .09, su: .4, g: -2}); anello(v, col, .9, d || .2, .1); await attendi(d || .2); }
 
-// ── TONFO · PANCIATA: arco altissimo, schianto di pancia, onde d'urto, corona di spruzzi, ninfee che rimbalzano ──
-async function panciataFx(oc, v) {
-  avviaGestoSp(oc, 'panciata', 1.12);
-  if (!oc.spAtterrato) { suono('carica', .7); await caricaSp(oc, 0x4fb4ff, .2);
-  oc.stato = 'volo'; oc.posaF = 'jump'; oc.posaT = .5; suono('salto');
-  await tw(.36, k => { oc.alt = Math.sin(k * Math.PI * .5) * 3.1; oc.sq = 1 + .25 * Math.sin(k * Math.PI); oc.tiltX = 0; oc.panciaSp = k; }, eo);
-  await tw(.12, k => { oc.alt = 3.1 * (1 - k * k); oc.sq = 1.25 - .2 * k; });
+// NINFEE_V3_1811 (proprietario, 18/11 sera: «stessa qualita' dei poteri anche per raggi, trappole e TUTTE le ninfee»):
+//  1 PRESAGIO: prima che parta, si vede DOVE colpira' (strisce con le frecce che corrono per i getti e la corrente, mirino
+//    per la vescia, gocce di melma per la melma, onde per l'ondata, frecce verso il centro per il risucchio)
+//  2 AZIONE con forma e colore propri per tipo  3 IMPATTO: lampo del suo colore, schizzi, stella, macchia sulla ninfea.
+//  Ferite, spinte e reazioni dei presi arrivano all'impatto (stesso meccanismo dei poteri: preparaImpatto/impattoSp).
+//  Corto (~0,6-1 s), leggibile dall'alto sul telefono; strada leggera (SPL) con meno particelle e senza strisce animate.
+const NINFEE_ARMI = new Set(['riga', 'colonna', 'croce', 'diagonali', 'bomba', 'gelo', 'onda', 'corrente', 'calamita', 'veleno', 'anello']);
+const colT = t => new THREE.Color(TC[t] || COLA(t) || '#ffffff').getHex();
+const TEX_FRECCE = (() => { const c = tela(64, 128), g = c.getContext('2d'); g.strokeStyle = '#fff'; g.lineWidth = 9; g.lineCap = 'round'; g.lineJoin = 'round';
+  for (const y of [40, 104]) { g.beginPath(); g.moveTo(12, y); g.lineTo(32, y - 22); g.lineTo(52, y); g.stroke(); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; })();
+const PRES_SP = {};   // sg -> [mesh...] del presagio
+function presagioVia(sg) { const L = PRES_SP[sg]; if (!L) return; delete PRES_SP[sg]; for (const m of L) { m.userData.via = true; } }
+function presagioViaTutti() { for (const k of Object.keys(PRES_SP)) presagioVia(+k); }
+// una striscia sul campo con le frecce che corrono da A verso B (coordinate di griglia), del colore col
+function strisciaSp(sg, ax, ay, bx, by, col, largo) {
+  const A = pos(ax, ay), B = pos(bx, by), d = B.clone().sub(A); d.y = 0; const L = d.length(); if (L < .2) return;
+  const tex = TEX_FRECCE.clone(); tex.needsUpdate = true; tex.repeat.set(1, L / .9);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(largo || .55, L).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({map: tex, color: col, transparent: true, opacity: 0, depthWrite: false, depthTest: false}));
+  m.position.copy(A.clone().lerp(B, .5)); m.position.y = .3; m.rotation.y = Math.atan2(d.x, d.z) + Math.PI; m.renderOrder = 24; mondo.add(m);
+  (PRES_SP[sg] = PRES_SP[sg] || []).push(m);
+  const bordo = new THREE.Mesh(new THREE.PlaneGeometry((largo || .55) + .18, L).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({color: 0x04161c, transparent: true, opacity: 0, depthWrite: false, depthTest: false}));
+  bordo.position.copy(m.position); bordo.position.y = .29; bordo.rotation.y = m.rotation.y; bordo.renderOrder = 23; mondo.add(bordo); PRES_SP[sg].push(bordo);
+  let t = 0, a = 0;
+  const giro = () => { t += 1 / 60; const via = m.userData.via; a = via ? Math.max(0, a - .12) : Math.min(1, a + .12);
+    tex.offset.y = -t * 2.4; m.material.opacity = .95 * a; bordo.material.opacity = (.3 + .08 * Math.sin(t * 14)) * a;
+    if (via && a <= 0 || t > 6) { mondo.remove(m); mondo.remove(bordo); m.geometry.dispose(); m.material.dispose(); bordo.geometry.dispose(); bordo.material.dispose(); tex.dispose(); return; }
+    requestAnimationFrame(giro); }; giro();
+}
+// un anello/mirino che pulsa sulla ninfea del tiratore (vescia, melma, ondata, risucchio)
+function mirinoSp(sg, x, y, col, r, dentro) {
+  const v = pos(x, y), m = new THREE.Mesh(new THREE.RingGeometry(r - .09, r, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({color: col, transparent: true, opacity: 0, depthWrite: false, depthTest: false, side: THREE.DoubleSide}));
+  m.position.copy(v); m.position.y = .31; m.renderOrder = 24; mondo.add(m); (PRES_SP[sg] = PRES_SP[sg] || []).push(m);
+  let t = 0, a = 0;
+  const giro = () => { t += 1 / 60; const via = m.userData.via; a = via ? Math.max(0, a - .12) : Math.min(1, a + .1);
+    const k = (t * 1.6) % 1; m.scale.setScalar(dentro ? 1.25 - .35 * k : .75 + .35 * k); m.material.opacity = .9 * a * (dentro ? k : 1 - k * .7);
+    if (via && a <= 0 || t > 6) { mondo.remove(m); m.geometry.dispose(); m.material.dispose(); return; } requestAnimationFrame(giro); }; giro();
+}
+function presagioSp(a) {
+  if (OPZ.rm || !a || !RANE[a.sg]) return; const t = a.t, x = a.x, y = a.y, sg = a.sg;
+  if (SPL()) { if (['riga', 'colonna', 'croce', 'corrente'].includes(t) || ['bomba', 'gelo', 'onda', 'calamita'].includes(t)) mirinoSp(sg, x, y, colT(t), 1.2); return; }
+  const cj = colT('riga');
+  if (t === 'riga' || t === 'croce' || t === 'corrente') { const c = t === 'corrente' ? colT('corrente') : cj; strisciaSp(sg, x, y, -0.6, y, c); strisciaSp(sg, x, y, W - .4, y, c); }
+  if (t === 'colonna' || t === 'croce') { strisciaSp(sg, x, y, x, -0.6, cj); strisciaSp(sg, x, y, x, H - .4, cj); }
+  if (t === 'diagonali') for (const [dx, dy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) strisciaSp(sg, x, y, x + dx * 6, y + dy * 6, cj, .45);
+  if (t === 'bomba' || t === 'gelo' || t === 'veleno') { mirinoSp(sg, x, y, colT(t), 1.55); mirinoSp(sg, x, y, colT(t), .7); }
+  if (t === 'onda') { mirinoSp(sg, x, y, colT(t), 1.0); for (const [dx, dy] of OTTO_SP) strisciaSp(sg, x + dx * .45, y + dy * .45, x + dx * 1.45, y + dy * 1.45, colT('onda'), .32); }
+  if (t === 'calamita' || t === 'anello') { mirinoSp(sg, x, y, colT(t), 2.4, true); for (const [dx, dy] of OTTO_SP) strisciaSp(sg, x + dx * 2, y + dy * 2, x + dx * .7, y + dy * .7, colT(t), .32); }
+}
+const OTTO_SP = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+// ---------- i GETTI (riga, colonna, croce, diagonali) ----------
+async function raggioV3(o, x1, y1, x2, y2, e) {
+  const A = pos(x1, y1).add(mondo.position), B = pos(x2, y2).add(mondo.position); A.y = B.y = .78; const c = new THREE.Color(LASER), cx = c.getHex();
+  // 1 carica: la ninfea risucchia l'acqua, una sfera d'acqua cresce e trema
+  suono('sibilo'); const sfera = new THREE.Sprite(new THREE.SpriteMaterial({map: TEX_PUNTO, color: cx, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending})); sfera.position.copy(o).setY(.8); sfera.renderOrder = 22; scena.add(sfera);
+  risucchioSp(o.clone().setY(.8), 0xd8fbff, 10, .24);
+  await tw(.24, k => { const s = .3 + 1.1 * k * k + Math.sin(k * 60) * .05; sfera.scale.set(s, s, 1); });
+  via(sfera);
+  // 2 il getto: il raggio esce dal centro verso le due estremita', con le gocce lungo tutta la linea
+  suono('getto'); lampo(LASER, .12); scossa(.28); fermo(.04);
+  const fatto = raggioSweep(o, A, B, c);
+  const n = SPL() ? 5 : 12; for (let k = 0; k <= n; k++) { const p = A.clone().lerp(B, k / n); p.y = .5; dopoSp(.04 + Math.abs(k / n - .5) * .3, () => { particelle(p, SPL() ? 1 : 3, k % 2 ? 0xffffff : cx, 2.2, .45, {su: 1.6, r: .1, g: 8}); }); }
+  if (!SPL()) { const d = B.clone().sub(A); d.y = 0; const L = d.length(); const scia = new THREE.Mesh(new THREE.PlaneGeometry(.7, L).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({map: TEX_PUNTO, color: cx, transparent: true, opacity: .6, depthWrite: false, blending: THREE.AdditiveBlending}));
+    scia.position.copy(A.clone().lerp(B, .5)).setY(.24); scia.rotation.y = Math.atan2(d.x, d.z); scena.add(scia); tw(1.0, k => { scia.material.opacity = .6 * (1 - k); scia.scale.x = 1 + k; }).then(() => via(scia)); }
+  // 3 l'impatto sui presi quando il getto arriva
+  dopoSp(.16, () => { if (RANE[e.sg]) impattoSp(RANE[e.sg]); for (const j of e.presi || []) { const r = RANE[j]; if (!r) continue; const v = corpoDi(r); stellaSp(v, cx, 1.8, .26); stellaSp(v, 0xffffff, 1, .18); particelle(v, SPL() ? 5 : 14, 0xe6fbff, 3.2, .4, {r: .12}); spruzzo(r.root.position.clone().add(mondo.position).setY(.05), .7); } });
+  return fatto;
+}
+// ---------- VESCIA (bomba): miccia che pulsa, poi il botto viola con crepe e cenere ----------
+async function vesciaV3(e) {
+  const x = e.x, y = e.y, v = pos(x, y).add(mondo.position), C = colT('bomba');
+  const nucleo = new THREE.Mesh(new THREE.SphereGeometry(.4, 18, 12), new THREE.MeshStandardMaterial({color: C, emissive: C, emissiveIntensity: .6, roughness: .4})); nucleo.position.copy(RANE[e.sg] ? testaDi(RANE[e.sg]) : v.clone().setY(.7)); nucleo.position.y += .55; scena.add(nucleo);
+  suono('miccia', .8);
+  await tw(.3, k => { const s = 1 + .45 * k + Math.sin(k * 40) * .12 * k; nucleo.scale.setScalar(s); nucleo.material.emissiveIntensity = .6 + 2 * k; if (!SPL() && Math.random() < .5) particelle(nucleo.position.clone().setY(1.1), 1, 0xffe08a, 1.4, .25, {r: .07, su: 1, g: 3}); });
+  via(nucleo); if (RANE[e.sg]) impattoSp(RANE[e.sg]);
+  fermo(.07); scossa(.6); vibra(90, true); stellaSp(v.clone().setY(.7), 0xffffff, 2.4, .24); stellaSp(v.clone().setY(.6), C, 4, .36); crepeSp(v.clone().setY(.06), C, 3.6);
+  for (let d = -1; d <= 1; d++) for (let f = -1; f <= 1; f++) macchiaSp(x + d, y + f, 0x2a1438, 1.6, .46);
+  await esplosione(x, y, 1.2);
+}
+// ---------- MELMA (gelo): palle di fango lanciate sulle 8 ninfee attorno, splat e pozza marrone ----------
+async function melmaV3(e) {
+  const v = pos(e.x, e.y).add(mondo.position), C = colT('gelo'); suono('getto', .6);
+  const celle = (e.celle || []).slice(0, 8), palle = [];
+  for (const [a, b] of celle) { const m = new THREE.Mesh(new THREE.SphereGeometry(.3, 12, 8), new THREE.MeshStandardMaterial({color: 0x6b4a22, emissive: 0x2a1a08, roughness: .9})); m.position.copy(v).setY(.6); scena.add(m); palle.push([m, pos(a, b).add(mondo.position), a, b]); }
+  await tw(.34, k => { for (const [m, B] of palle) { m.position.lerpVectors(v, B, k); m.position.y = .6 + Math.sin(k * Math.PI) * 1.6; m.scale.set(1 - .3 * k, 1 + .4 * Math.sin(k * Math.PI), 1 - .3 * k); } });
+  if (RANE[e.sg]) impattoSp(RANE[e.sg]); suono('splash', .9); scossa(.3); fermo(.04);
+  for (const [m, B, a, b] of palle) { via(m); macchiaSp(a, b, 0x4a3416, 2.2, .5); particelle(B.clone().setY(.3), SPL() ? 3 : 8, 0x7a5a2e, 2, .5, {su: 1.3, r: .14, g: 8}); anello(B.clone().setY(.1), C, .9, .3, .12); }
+  anello(v.clone().setY(.1), C, 3, .45, .2); await attendi(.2);
+}
+// ---------- ONDATA: un muro d'acqua ad anello che si allarga e spinge via ----------
+async function ondataV3(e) {
+  const v = pos(e.x, e.y).add(mondo.position); suono('onda'); suono('splash', .6); if (RANE[e.sg]) { RANE[e.sg].sq = .7; RANE[e.sg].jv = (RANE[e.sg].jv || 0) - 3; }
+  const muro = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, .7, 40, 1, true), new THREE.MeshBasicMaterial({color: 0x3d8bff, transparent: true, opacity: .55, depthWrite: false, side: THREE.DoubleSide}));
+  muro.position.copy(v).setY(.35); scena.add(muro); getto(v);
+  dopoSp(.12, () => { if (RANE[e.sg]) impattoSp(RANE[e.sg]); });
+  await tw(.45, k => { const r = .4 + 2.6 * eo(k); muro.scale.set(r, 1 + .8 * Math.sin(k * Math.PI), r); muro.material.opacity = .55 * (1 - k);
+    if (!SPL() && Math.random() < .7) { const a = Math.random() * 6.283; particelle(v.clone().add(new THREE.Vector3(Math.cos(a) * r, .6, Math.sin(a) * r)), 1, 0xffffff, 1.2, .35, {r: .1, su: 1.2, g: 6}); } });
+  via(muro); anello(v.clone().setY(.1), 0xffffff, 3.4, .4, .14); scossa(.3);
+  for (const [a, b] of e.celle || []) dip(a, b, .25, true);
+}
+// ---------- CORRENTE: il fiume corre lungo la fila, nelle due direzioni ----------
+async function correnteV3(e) {
+  const y = e.y, v = pos(e.x, y).add(mondo.position), A = pos(-0.6, y).add(mondo.position), B = pos(W - .4, y).add(mondo.position); A.y = B.y = .45;
+  suono('onda'); suono('getto', .8); lampo('#5fb8ff', .12); scossa(.25);
+  if (!SPL()) { strisciaSp(-1 - e.sg, e.x, y, -0.6, y, 0x9fd8ff, .9); strisciaSp(-1 - e.sg, e.x, y, W - .4, y, 0x9fd8ff, .9); dopoSp(.55, () => presagioVia(-1 - e.sg)); }
+  dopoSp(.14, () => { if (RANE[e.sg]) impattoSp(RANE[e.sg]); });
+  await raggioSweep(v, A, B, new THREE.Color('#5fb8ff'));
+  for (const [a, b] of e.celle || []) { const w = pos(a, b).add(mondo.position); w.y = .1; particelle(w, SPL() ? 2 : 6, 0xd8fff4, 1.6, .5, {su: 1.2, r: .1, g: 7}); }
+}
+// ---------- RISUCCHIO (calamita): vortice viola, catene di luce verso i presi, tira dentro ----------
+async function risucchioV3(e) {
+  const v = pos(e.x, e.y).add(mondo.position), C = colT('calamita'); suono('magnete');
+  const vort = []; if (!SPL()) for (let k = 0; k < 3; k++) { const m = new THREE.Mesh(new THREE.RingGeometry(.2, .32, 32, 1, 0, 4.2).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({color: k ? C : 0xffffff, transparent: true, opacity: .8, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide})); m.position.copy(v).setY(.3 + k * .05); scena.add(m); vort.push(m); }
+  const giro = tw(.6, k => { vort.forEach((m, i) => { m.rotation.y = -k * (8 + i * 3); m.scale.setScalar(4 - 3 * k + i * .6); m.material.opacity = .8 * (1 - k * .6); }); });
+  dopoSp(.22, () => { if (RANE[e.sg]) impattoSp(RANE[e.sg]); for (const j of e.presi || []) { const r = RANE[j]; if (r) stellaSp(corpoDi(r), C, 1.4, .24); } });
+  await Promise.all([giro, campoMagnetico(v), ...(e.presi || []).map(j => raggioSweep(v, v, RANE[j].root.position.clone().add(mondo.position), new THREE.Color(TC.calamita)))]);
+  for (const m of vort) via(m);
+}
+// ---------- le TRAPPOLE ----------
+function trappolaV3(o, e) {
+  if (!o) return; const v = o.root.position.clone().add(mondo.position).setY(.3), C = colT(e.t);
+  if (e.t === 'fauci') { posa3(o, 'colpito'); o.jv = (o.jv || 0) - 4; stellaSp(v.clone().setY(.9), C, 2.4, .3); stellaSp(v.clone().setY(.9), 0xffffff, 1.2, .2);
+    // le due fauci che si chiudono sulla rana
+    const fa = []; for (const s of [1, -1]) { const m = new THREE.Mesh(new THREE.CylinderGeometry(.75, .75, .12, 24, 1, false, 0, Math.PI), new THREE.MeshStandardMaterial({color: 0x9a1028, emissive: 0x5a0010, roughness: .5})); m.position.copy(v); m.rotation.y = s > 0 ? 0 : Math.PI; scena.add(m); fa.push([m, s]); }
+    tw(.42, k => { const ch = k < .35 ? k / .35 : 1; for (const [m, s] of fa) { m.rotation.z = s * (1.4 - 1.4 * ebk(ch)); m.position.y = .3 + .25 * Math.sin(ch * Math.PI); m.scale.setScalar(k > .75 ? 1 - (k - .75) * 4 : 1); } }).then(() => { for (const [m] of fa) via(m); });
+    scheggeSp(v.clone().setY(.5), 0xffffff, 6, 2); macchiaSp(Math.round(o.x), Math.round(o.y), C, 1.4, .5); }
+  else { posa3(o, 'colpito'); const C2 = 0x6b4a22; macchiaSp(Math.round(o.x), Math.round(o.y), 0x3a2a12, 2, .55); bollicineSp(v.clone().setY(.15), C2, 8);
+    tw(.8, k => { o.alt = -.32 * Math.sin(Math.min(1, k * 2.2) * Math.PI * .5) * (k > .6 ? 1 - (k - .6) / .4 : 1); }).then(() => { o.alt = 0; });
+    anello(v.clone().setY(.1), C2, 1.4, .5, .18); }
+}
+// ---------- RACCOLTA delle ninfee utili: luccichio, il disco salta su, gira, entra nella rana con un lampo ----------
+function raccogliV3(o, t) {
+  const C = colT(t), base = o.root.position.clone().add(mondo.position);
+  anello(base.clone().setY(.12), C, 1.4, .4, .14); if (!SPL()) particelle(base.clone().setY(.4), 10, C, 1.4, .5, {r: .1, su: 1.2, g: 1});
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(.8, .8), new THREE.MeshBasicMaterial({map: discoTex(t), transparent: true, depthWrite: false, depthTest: false, side: THREE.DoubleSide})); m.renderOrder = 26; scena.add(m);
+  o.braccioSu = 1; STAT[o.i] = STAT[o.i] || {d: 0, k: 0, g: 0}; STAT[o.i].g++; suono('plop', .6);
+  try { etichettaMossa(o, T[t] ? T[t][0] : t, TC[t], t); } catch (x) {}
+  return tw(.62, k => { const su = k < .55 ? ebk(k / .55) : 1, entra = k > .7 ? (k - .7) / .3 : 0;
+    m.position.copy(o.root.position).add(mondo.position); m.position.y += .5 + 1.5 * su - 1.1 * entra * entra; m.lookAt(cam.position); m.rotateZ(k * 9);
+    m.scale.setScalar((.5 + .7 * su) * (1 - .7 * entra)); m.material.opacity = 1 - entra * .6; }).then(() => {
+    via(m); o.braccioSu = 0; o.flash = 0; o.usa = .6; const v = corpoDi(o); stellaSp(v, C, 1.6, .26); anello(v.clone().setY(.15), C, 1.6, .35, .12); o.jv = (o.jv || 0) - 2; });
+}
+// ---------- BALZO LUNARE: luce di luna sulla ninfea e scia di stelline ----------
+function lunaV3(o, e) {
+  const v = pos(e.da[0], e.da[1]).add(mondo.position); anello(v.clone().setY(.12), 0xbfe9ff, 1.8, .45, .2); stellaSp(v.clone().setY(.5), 0xbfe9ff, 1.6, .3);
+  if (!SPL()) for (let k = 0; k < 7; k++) dopoSp(k * .06, () => { const p = o.root.position.clone().add(mondo.position); p.y += .6; particelle(p, 3, k % 2 ? 0xffffff : 0x9fe0ff, .4, .5, {r: .1, su: 0, g: 0}); });
+}
+// ---------- LE NINFEE CHE AFFONDANO: schizzi e cerchi a ogni ninfea che va sotto ----------
+function affondaV3(fila) {
+  fila.forEach((c, j) => dopoSp(.12 + j * .06, () => { const v = c.position.clone().add(mondo.position); v.y = .05; particelle(v.clone().setY(.2), SPL() ? 3 : 9, 0xd8fff4, 1.8, .5, {su: 1.6, r: .12, g: 8}); anello(v, 0xbff6ea, 1.2, .45, .12); }));
+}
+
+// CHIARO_1811 (proprietario, 18/11: «succedono cose che non capisco: mosse e danni senza sapere da dove»):
+//  · ogni cuore perso mostra «-1» con l'ICONA e la CAUSA (panciata di Tonfo, trappola fauci, cascata, caduta in acqua...)
+//  · ogni mossa che non e' il salto della rana: freccia sul campo dal punto di partenza + etichetta della causa
+//  · «Cosa è successo»: l'elenco, in ordine, di tutte le mosse e i danni dell'ultimo turno (dagli eventi del motore)
+//  · finale: fasce grandi all'inizio e al primo morso, conto alla rovescia nel riquadro, il ciglio della cascata che si accende
+//  · bloccato (pantano, melma): niente PRONTO da premere, «Sei bloccato questo turno» con causa e turni, e si passa da soli
+//  · trappola dopo una spinta (lingua, onda, panciata...): scatta SUBITO all'arrivo, con l'icona e «TRAPPOLA!»
+const escSp = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const ICO_CAUSA = {};
+function icoCausa(t) {
+  if (ICO_CAUSA[t] !== undefined) return ICO_CAUSA[t];
+  let u = null;
+  try { if (TC[t]) u = discoTex(t).image.toDataURL(); else if (NOMI_SP[t] || t === 'superbalzo') { const c = tela(96, 96); iconaAbil(c.getContext('2d'), t, true); u = c.toDataURL(); } } catch (e) { u = null; }
+  return (ICO_CAUSA[t] = u);
+}
+function cssChiaro() {
+  if (document.getElementById('ch-css')) return; const s = document.createElement('style'); s.id = 'ch-css';
+  s.textContent = '.ch-dan,.ch-mos{position:fixed;transform:translate(-50%,-50%);pointer-events:none;z-index:6;text-align:center;white-space:nowrap}' +
+    '.ch-dan b{display:block;font:italic 900 34px/1 var(--x-tit);color:#ff4d5e;text-shadow:0 2px 0 rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.55)}' +
+    '.ch-dan span,.ch-mos span{display:inline-flex;align-items:center;gap:5px;margin-top:3px;padding:3px 10px 3px 4px;border-radius:999px;background:rgba(18,12,24,.86);color:#fff;font:700 13px/1.15 var(--x-body);box-shadow:0 2px 8px rgba(0,0,0,.45)}' +
+    '.ch-dan img,.ch-mos img{width:20px;height:20px;border-radius:50%}.ch-dan i,.ch-mos i{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#2f8fd8;font-style:normal;font-weight:900;color:#fff}' +
+    '.ch-mos span{border:2px solid var(--c,#fff);padding-left:8px}' +
+    '#bot.ch-bloccato #b-pronto,#bot.ch-bloccato #b-abil{display:none!important}' +
+    '.ch-blo{display:flex;flex-direction:column;gap:2px;text-align:left}.ch-blo b{font:800 15px/1.15 var(--x-tit);color:#ffcf6a}.ch-blo small{font:600 12px/1.2 var(--x-body);opacity:.9}' +
+    '#ch-morso{position:fixed;left:50%;transform:translateX(-50%);z-index:7;pointer-events:none;padding:6px 14px;border-radius:999px;font:800 13px/1.15 var(--x-tit);color:#fff;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.4);display:none}' +
+    '#ch-morso.on{display:block}#ch-morso.morde{background:linear-gradient(90deg,#b0122c,#ff4d5e);animation:chpul 1s ease-in-out infinite}#ch-morso.attesa{background:linear-gradient(90deg,#0b6b8a,#2fc9a6)}@keyframes chpul{50%{transform:translateX(-50%) scale(1.06)}}' +
+    '#ch-log{position:fixed;z-index:8;padding:7px 12px;border-radius:999px;border:0;font:800 12.5px/1 var(--x-tit);color:#fff;background:rgba(14,40,46,.86);box-shadow:0 3px 12px rgba(0,0,0,.4);cursor:pointer;display:none}#ch-log.on{display:block}' +
+    '#ch-pan{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.45)}#ch-pan.on{display:flex}' +
+    '#ch-pan .box{width:min(430px,calc(100vw - 24px));max-height:72vh;overflow:auto;background:#0e2a2f;color:#fff;border-radius:16px;padding:14px 14px 10px;box-shadow:0 10px 40px rgba(0,0,0,.6);font:500 14px/1.35 var(--x-body)}' +
+    '#ch-pan h3{margin:0 0 8px;font:900 18px/1.1 var(--x-tit)}#ch-pan ol{margin:0;padding:0 0 0 22px}#ch-pan li{margin:5px 0}#ch-pan li.d{color:#ffb3bb}#ch-pan li.m{color:#bfe9ff}#ch-pan li.x{opacity:.85}' +
+    '#ch-pan button{margin-top:10px;width:100%;padding:10px;border:0;border-radius:10px;background:#2fc9a6;color:#062;font:900 14px var(--x-tit);cursor:pointer}';
+  document.head.appendChild(s);
+}
+// ---------- le cause ----------
+function causaDanno(perche, da) {
+  const en = OPZ.lang === 'en', chi = da != null && RANE[da] ? nm(da) : null, acqua = '≈';
+  switch (perche) {
+    case 'scontro': return {t: en ? 'clash on the same pad' : 'scontro sulla stessa ninfea', g: '!'};
+    case 'spinta': return {t: chi ? (en ? `shoved into the water by ${chi}` : `spinto in acqua da ${chi}`) : (en ? 'shoved into the water' : 'spinto in acqua'), g: acqua};
+    case 'scivolo': return {t: en ? 'slipped into the water' : 'scivolato in acqua', g: acqua};
+    case 'bordo': return {t: en ? 'dragged over the waterfall' : 'trascinato giù dalla cascata', g: acqua};
+    case 'riva': return {t: en ? 'the pad sank' : 'la ninfea è affondata', g: acqua};
+    case 'finale': return {t: en ? 'the waterfall bites' : 'la cascata morde', g: acqua};
+    case 'patata': return {t: en ? 'the burr popped' : 'il cardo è scoppiato', ico: 'patata'};
+    case 'fauci': return {t: chi ? (en ? `snapper trap (shoved by ${chi})` : `trappola fauci (spinto da ${chi})`) : (en ? 'snapper trap' : 'trappola fauci'), ico: 'fauci'};
+    case 'veleno_dopo': return {t: chi ? (en ? `poison by ${chi}` : `veleno di ${chi}`) : (en ? 'poison' : 'veleno'), ico: 'veleno'};
+    case 'riflesso': return {t: chi ? (en ? `hit bounced back by ${chi}` : `colpo rimandato da ${chi}`) : (en ? 'hit bounced back' : 'colpo rimandato'), ico: 'specchio'};
+    default: { let nome = perche; try { nome = NOMEARMA(perche); } catch (e) {} return {t: chi ? (en ? `${nome} by ${chi}` : `${nome} di ${chi}`) : String(nome), ico: perche}; }
   }
-  oc.spAtterrato = false; oc.alt = 0; oc.tiltX = 0; oc.panciaSp = 1; oc.stato = 'atterra'; oc.posaF = 'clash'; oc.posaT = .5; oc.sq = .62; oc.jv = (oc.jv || 0) - 5;
-  fermo(.09); scossa(.7); vibra(90, true); pugnoCam(v, .1); suono('tonfo'); suono('splash', 1); suono('crollo', .45);
-  const w = v.clone(); w.y = .06; lampoLuce.color.set(0x8fd0ff); lampoLuce.position.copy(w.clone().setY(1.2)); lampoLuce.intensity = 9;
-  anello(w, 0xffffff, 4.2, .55, .3); anello(w, 0x2f8fff, 3.2, .5, .2); setTimeout(() => anello(w, 0x9fe6ff, 4.6, .55, .12), 110);
-  for (let a = 0; a < (SPL() ? 10 : 22); a++) { const d = new THREE.Vector3(Math.cos(a / (SPL() ? 10 : 22) * 6.283), 0, Math.sin(a / (SPL() ? 10 : 22) * 6.283)); particelle(w.clone().addScaledVector(d, .55).setY(.25), 2, 0xe6fbff, 2.6, .7, {su: 4.6, r: .17, g: 11}); }   // la corona
-  getto(w); anelloSchermo(w, '#4fb4ff', 260);
-  const x0 = Math.round(oc.x), y0 = Math.round(oc.y);
-  for (const [a, b] of celleAttorno(x0, y0, 1)) { dip(a, b, .45); macchia(a, b, 0x3aa0ff, .9, .42); }
-  setTimeout(() => { for (const [a, b] of celleAttorno(x0, y0, 2)) if (Math.max(Math.abs(a - x0), Math.abs(b - y0)) === 2) dip(a, b, .22); }, 120);
-  await tw(.4, k => { lampoLuce.intensity = 9 * (1 - k); oc.panciaSp = 1 - eio(k); oc.sq = .62 + .38 * k; }); oc.stato = 'idle';
 }
-// ── ZIP · SUPERBALZO: carica a molla, lancio con le linee di velocita', in aria senza giravolte, atterraggio scintillante ──
+function causaSpinta(t, da) {
+  const en = OPZ.lang === 'en', chi = da != null && RANE[da] ? nm(da) : '?';
+  let nome = t; if (t === 'spintone') nome = en ? 'shove' : 'spintone'; else if (t === 'scivola') nome = en ? 'slip' : 'scivolone'; else { try { nome = NOMEARMA(t); } catch (e) {} }
+  return t === 'scivola' ? (en ? 'slippery pond: slides on' : 'stagno scivoloso: scivola avanti') : (en ? `${nome} by ${chi}` : `${nome} di ${chi}`);
+}
+function pillola(o, cls, html, col, vita) { cssChiaro(); const d = document.createElement('div'); d.className = cls; d.innerHTML = html; if (col) d.style.setProperty('--c', col); document.body.appendChild(d); FLOAT.push({d, o, t: 0, vita: vita || 2, dy: cls === 'ch-mos' ? -1.2 : 0}); return d; }
+function volaDanno(o, n, perche, da) {
+  if (!o) return; const c = causaDanno(perche, da), ic = c.ico ? icoCausa(c.ico) : null;
+  pillola(o, 'ch-dan', `<b>-${n}</b><span>${ic ? `<img src="${ic}" alt="">` : `<i>${c.g || '!'}</i>`}${escSp(c.t)}</span>`, null, 2.2);
+}
+function etichettaMossa(o, testo, col, ico) { if (!o) return; const ic = ico ? icoCausa(ico) : null; pillola(o, 'ch-mos', `<span>${ic ? `<img src="${ic}" alt="">` : '→'} ${escSp(testo)}</span>`, col || '#ffffff', 1.9); }
+// la freccia sul campo, dalla casella di partenza a quella d'arrivo, col colore di chi l'ha causata
+function frecciaMossa(x0, y0, a, col) {
+  try { const A = pos(x0, y0), B = pos(a[0], a[1]); const d = B.clone().sub(A); d.y = 0; const L = d.length(); if (L < .3) return;
+    const m = new THREE.MeshBasicMaterial({color: new THREE.Color(col || '#ffffff'), transparent: true, opacity: 0, depthWrite: false, depthTest: false, side: THREE.DoubleSide});
+    const sh = new THREE.Shape(); const w = .1, hw = .28, hl = .42, l = Math.max(.1, L - .25);
+    sh.moveTo(-w, 0); sh.lineTo(w, 0); sh.lineTo(w, l - hl); sh.lineTo(hw, l - hl); sh.lineTo(0, l); sh.lineTo(-hw, l - hl); sh.lineTo(-w, l - hl); sh.closePath();
+    const f = new THREE.Mesh(new THREE.ShapeGeometry(sh).rotateX(Math.PI / 2), m); f.renderOrder = 26;
+    f.position.set(A.x, .34, A.z); f.rotation.y = Math.atan2(d.x, d.z); mondo.add(f);
+    tw(1.7, k => { m.opacity = k < .1 ? k * 9 : k > .7 ? .9 * (1 - (k - .7) / .3) : .9; }).then(() => { mondo.remove(f); f.geometry.dispose(); m.dispose(); });
+  } catch (e) {}
+}
+function causaMossa(o, x0, y0, a, testo, col, ico) { frecciaMossa(x0, y0, a, col); etichettaMossa(o, testo, col, ico); }
+// ---------- «Cosa è successo» ----------
+let ULTIMO_TURNO = null; const CAUSA_GELO = {};
+const K_MOSSE = new Set(['salti', 'spinto', 'spintone', 'scivola', 'trampolino', 'scambio', 'cade', 'scorre']);
+function riassuntoTurno(evs) {
+  const en = OPZ.lang === 'en', N = i => NM(i), righe = [], coperti = new Set(), spari = evs.filter(e => e.k === 'spara');
+  const r = (h, c, e) => { righe.push({h, c}); if (e) coperti.add(e); };
+  const arma = t => { try { return NOMEARMA(t); } catch (e) { return t; } };
+  for (const e of ordineSeq(evs)) {   // SEQ_1811: ogni potere seguito dalle sue conseguenze
+    switch (e.k) {
+      case 'salti': { const mossi = Object.keys(e.a || {}).filter(i => e.a[i][0] !== e.da[i][0] || e.a[i][1] !== e.da[i][1]).map(Number), fermi = Object.keys(e.a || {}).map(Number).filter(i => !mossi.includes(i));
+        r(mossi.length ? (en ? `Jumps: ${mossi.map(N).join(', ')}` : `Saltano: ${mossi.map(N).join(', ')}`) + (fermi.length ? (en ? ` · stay put: ${fermi.map(N).join(', ')}` : ` · restano fermi: ${fermi.map(N).join(', ')}`) : '') : (en ? 'Nobody jumps' : 'Nessuno salta'), 'm', e);
+        if ((e.rimbalzo || []).length) r(en ? `Bounced back to their pad: ${e.rimbalzo.map(N).join(', ')}` : `Rimbalzano sulla ninfea di partenza: ${e.rimbalzo.map(N).join(', ')}`, 'm'); break; }
+      case 'scontro': r(en ? `${e.chi.map(N).join(' and ')}: same pad, clash` : `${e.chi.map(N).join(' e ')}: stessa ninfea, scontro`, 'x', e); break;
+      case 'spintone': r(en ? `${N(e.sg)} lands on ${N(e.su)} and shoves them${e.fuori ? ' into the water' : ''}` : `${N(e.sg)} atterra su ${N(e.su)} e lo spinge${e.fuori ? ' in acqua' : ''}`, 'm', e); break;
+      case 'trampolino': r(en ? `${N(e.sg)}: moon leap, 2 more tiles` : `${N(e.sg)}: balzo lunare, altre 2 caselle`, 'm', e); break;
+      case 'scivola': r(en ? `${N(e.sg)} slips on (slippery pond)${e.fuori ? ' into the water' : ''}` : `${N(e.sg)} scivola avanti (stagno scivoloso)${e.fuori ? ' in acqua' : ''}`, 'm', e); break;
+      case 'scambio': r(en ? `${N(e.sg)} swaps places with ${N(e.con)}` : `${N(e.sg)} si scambia di posto con ${N(e.con)}`, 'm', e); break;
+      case 'scorre': r(en ? 'The pads drift: everyone moves 1 tile toward the waterfall' : 'Le ninfee scorrono: tutti avanzano di 1 verso la cascata', 'm', e); break;
+      case 'stringe': r(en ? 'A row of pads sinks' : 'Una fila di ninfee affonda', 'x', e); break;
+      case 'spara': r(`${N(e.sg)}: ${escSp(arma(e.t))}` + ((e.presi || []).length ? (en ? ` on ${e.presi.map(N).join(', ')}` : ` su ${e.presi.map(N).join(', ')}`) : (en ? ', miss' : ', a vuoto')), 'x', e); break;
+      case 'mina': r(en ? `${N(e.da)}'s mine goes off` + ((e.presi || []).length ? `: ${e.presi.map(N).join(', ')}` : '') : `Scoppia la mina di ${N(e.da)}` + ((e.presi || []).length ? `: ${e.presi.map(N).join(', ')}` : ''), 'x', e); break;
+      case 'spinto': { const s = spari.find(x => x.sg === e.da); const c = s ? causaSpinta(s.t, e.da) : causaSpinta('spinta', e.da);
+        r(en ? `${N(e.sg)} moved: ${escSp(c)}${e.fuori ? ' (into the water)' : ''}` : `${N(e.sg)} spostato: ${escSp(c)}${e.fuori ? ' (in acqua)' : ''}`, 'm', e); break; }
+      case 'cade': { const c = causaDanno(e.perche, null).t; r(en ? `${N(e.sg)} falls into the water (${escSp(c)}) and climbs onto another pad` : `${N(e.sg)} cade in acqua (${escSp(c)}) e risale su un'altra ninfea`, 'm', e); break; }
+      case 'danno': r(`${N(e.sg)} −${e.n}: ${escSp(causaDanno(e.perche, e.da).t)}`, 'd', e); break;
+      case 'parato': r(en ? `${N(e.sg)} blocks with the ${e.con === 'bolla' ? 'bubble' : 'shell'}` : `${N(e.sg)} para con ${e.con === 'bolla' ? 'la bolla' : 'la conchiglia'}`, 'x', e); break;
+      case 'riflesso': r(en ? `${N(e.sg)} bounces the hit back to ${N(e.su)}` : `${N(e.sg)} rimanda il colpo a ${N(e.su)}`, 'x', e); break;
+      case 'gelato': r(en ? `${N(e.sg)} is stuck next turn (${e.perche === 'pantano' ? 'bog' : 'mud'})` : `${N(e.sg)} resta bloccato il prossimo turno (${e.perche === 'pantano' ? 'pantano' : 'melma'})`, 'x', e); break;
+      case 'trappola': r(en ? `${N(e.sg)} ends up on a trap: ${escSp(arma(e.t))}${e.da != null && e.da !== e.sg ? ` (shoved by ${N(e.da)})` : ''}` : `${N(e.sg)} finisce su una trappola: ${escSp(arma(e.t))}${e.da != null && e.da !== e.sg ? ` (spinto da ${N(e.da)})` : ''}`, 'x', e); break;
+      case 'loto': case 'scudo': case 'molla': case 'specchio': case 'patata': case 'jackpot': r(`${N(e.sg)}: ${escSp(arma(e.k))}`, 'x', e); break;
+      case 'passa': r(en ? `${N(e.sg)} passes the burr to ${N(e.a)}` : `${N(e.sg)} passa il cardo a ${N(e.a)}`, 'x', e); break;
+      case 'patata_boom': r(en ? `The burr pops on ${N(e.sg)}` : `Il cardo scoppia addosso a ${N(e.sg)}`, 'x', e); break;
+      case 'finale': r(en ? `FINALE: the waterfall bites in ${e.morde - e.turno + 1} turns` : `FINALE: la cascata morde fra ${e.morde - e.turno + 1} turni`, 'x', e); break;
+      case 'cascata_finale': r(en ? 'The waterfall bites: −1 to everyone' : 'La cascata morde: −1 a tutti', 'x', e); break;
+      case 'ko': r(en ? `${N(e.sg)} is out` : `${N(e.sg)} è fuori`, 'x', e); break;
+      case 'buco': case 'rivela': case 'minacce': case 'copia_vuota': case 'lezione_esito': break;
+      default: break;
+    }
+  }
+  return {righe, coperti};
+}
+function ultimoTurnoSp(evs) {
+  try { ULTIMO_TURNO = {turno: ST && ST.turno, evs: evs.slice()};
+    const spari = evs.filter(e => e.k === 'spara');
+    for (const e of evs) if (e.k === 'gelato') { const s = spari.find(x => ['gelo', 'lampo'].includes(x.t) && (x.presi || []).includes(e.sg));
+      CAUSA_GELO[e.sg] = e.perche === 'pantano' ? {t: 'pantano'} : s ? {t: s.t, da: s.sg} : {t: 'gelo'}; }
+  } catch (e) {}
+}
+function bottoneLog() {
+  cssChiaro(); let b = document.getElementById('ch-log');
+  if (!b) { b = document.createElement('button'); b.id = 'ch-log'; b.type = 'button'; b.onclick = ev => { ev.stopPropagation(); apriRiassunto(); }; document.body.appendChild(b); }
+  b.textContent = OPZ.lang === 'en' ? 'What happened?' : 'Cosa è successo?';
+  const vis = !!(ULTIMO_TURNO && ST && !ANTE && !TIT && FASE !== 'menu'); b.classList.toggle('on', vis); if (!vis) return;
+  try { const a = $('aiuto').getBoundingClientRect(); b.style.top = (a.bottom + 8) + 'px'; b.style.right = Math.max(6, innerWidth - a.right) + 'px'; b.style.left = 'auto'; } catch (e) {}
+}
+function apriRiassunto() {
+  cssChiaro(); let p = document.getElementById('ch-pan');
+  if (!p) { p = document.createElement('div'); p.id = 'ch-pan'; p.onclick = ev => { if (ev.target === p) p.classList.remove('on'); }; document.body.appendChild(p); }
+  const en = OPZ.lang === 'en', R = ULTIMO_TURNO ? riassuntoTurno(ULTIMO_TURNO.evs) : {righe: []};
+  p.innerHTML = `<div class="box"><h3>${en ? 'What happened' : 'Cosa è successo'}${ULTIMO_TURNO && ULTIMO_TURNO.turno ? ` · ${L().turno(ULTIMO_TURNO.turno)}` : ''}</h3><ol>${R.righe.map(x => `<li class="${x.c}">${x.h}</li>`).join('') || `<li>${en ? 'Nothing yet' : 'Ancora niente'}</li>`}</ol><button type="button">${L().ok}</button></div>`;
+  p.querySelector('button').onclick = () => p.classList.remove('on'); p.classList.add('on');
+}
+// ---------- il finale: conto alla rovescia, fasce, ciglio della cascata ----------
+function morsoPill() {
+  cssChiaro(); let d = document.getElementById('ch-morso'); if (!d) { d = document.createElement('div'); d.id = 'ch-morso'; document.body.appendChild(d); }
+  const f = ST && ST.finale, en = OPZ.lang === 'en';
+  if (!f || FASE === 'fine' || SPAR || ANTE || TIT) { d.className = ''; return; }
+  const resta = f.morde - (ST.turno || 0) + 1;
+  d.className = 'on ' + (resta <= 1 ? 'morde' : 'attesa');
+  d.textContent = resta > 1 ? (en ? `FINALE · the waterfall bites in ${resta} turns` : `FINALE · la cascata morde fra ${resta} turni`)
+    : resta === 1 ? (en ? 'The waterfall bites at the end of this turn: −1 to everyone' : 'A fine turno la cascata morde: −1 cuore a tutti')
+    : (en ? 'The waterfall bites every turn: −1 to everyone' : 'La cascata morde a ogni turno: −1 cuore a tutti');
+  try { d.style.top = (areaLibera().y0 + 6) + 'px'; } catch (e) {}
+}
+let CIGLIO_SP = null;
+function animaFinaleSp(tt) {
+  const f = ST && ST.finale; if (!f || FASE === 'fine' || SPAR) { if (CIGLIO_SP) CIGLIO_SP.visible = false; return; }
+  if (!CIGLIO_SP) { CIGLIO_SP = new THREE.Mesh(schiuma.geometry, new THREE.MeshBasicMaterial({color: 0xff3048, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending})); CIGLIO_SP.renderOrder = 1; scena.add(CIGLIO_SP); }
+  CIGLIO_SP.visible = true; CIGLIO_SP.position.copy(schiuma.position); CIGLIO_SP.quaternion.copy(schiuma.quaternion); CIGLIO_SP.scale.copy(schiuma.scale); CIGLIO_SP.position.y = .03;
+  const morde = (ST.turno || 0) >= f.morde; CIGLIO_SP.material.color.set(morde ? 0xff2040 : 0xff8a30);
+  CIGLIO_SP.material.opacity = (morde ? .5 : .22) + (morde ? .3 : .14) * Math.sin(tt * (morde ? 6 : 3));
+}
+// ---------- bloccato: niente PRONTO, si passa da soli ----------
+function bloccatoSp(vivo) {
+  const b = $('bot'), q = ST && ST.p && IO >= 0 ? ST.p[IO] : null, blo = !!(vivo && q && q.gelo > 0 && !LEZIONE);
+  cssChiaro(); b.classList.toggle('ch-bloccato', blo); if (!blo) return;
+  const en = OPZ.lang === 'en', c = CAUSA_GELO[IO] || {t: 'gelo'};
+  const perche = c.t === 'pantano' ? (en ? 'you are in the bog' : 'sei nel pantano') : c.t === 'lampo' ? (en ? `dazzled by ${c.da != null ? nm(c.da) : 'the lantern'}` : `abbagliato dalla lanterna${c.da != null ? ' di ' + nm(c.da) : ''}`)
+    : (en ? `stuck in the mud${c.da != null ? ' (' + nm(c.da) + ')' : ''}` : `nella melma${c.da != null ? ' (' + nm(c.da) + ')' : ''}`);
+  const piu = q.gelo > 1 ? (en ? ` · ${q.gelo} turns left` : ` · ancora ${q.gelo} turni`) : (en ? ' · free again next turn' : ' · dal prossimo turno salti di nuovo');
+  statoMsg(`<span class="ch-blo"><b>${en ? 'You are stuck this turn' : 'Sei bloccato questo turno'}</b><small>${escSp(perche)}${piu} · ${en ? 'skipping automatically' : 'si passa da solo'}</small></span>`);
+  clearTimeout(bloccatoSp.t); bloccatoSp.t = setTimeout(() => { try { if (FASE === 'scegli' && ST.p[IO] && ST.p[IO].gelo > 0) Rete.az({act: 'pronto'}); } catch (e) {} }, 700);
+}
+// ---------- trappola dopo una spinta: subito all'arrivo ----------
+async function trappolaSp(tr) {
+  await passo(tr.e);
+  for (const x of tr.dopo) { if (x.k === 'danno') ferita(x.sg, x.n, x.da, x.perche); else if (x.k === 'parato') { vola(RANE[x.sg], OPZ.lang === 'en' ? 'BLOCKED' : 'PARATO', '#ffe38a'); if (x.con === 'scudo') { rompiScudo(RANE[x.sg]); ST.p[x.sg].scudo = 0; hud(); } } }
+}
+
+// REGIA_V3_1811 («piu' spettacolari», 18/11 pomeriggio): ogni potere ha un'animazione VERA del corpo, a fotogrammi chiave
+// sullo scheletro di ogni rana (anticipazione grande, sorpasso, seguito, schiaccia-e-allunga), una posa tutta sua per
+// personaggio, un momento di camera (rallentatore breve + avvicinamento sulla rana per ~0,3 s, poi torna di scatto),
+// effetti piu' grandi e colorati a strati, la REAZIONE di chi viene preso e una fascia col nome del potere.
+// Al piu' ~1,5 s; si legge dall'alto sul telefono; strada LEGGERA (SPL) per i telefoni lenti; «meno movimento» = niente
+// camera ne' rallentatore e pose a meta'. Solo aspetto: il motore e le regole non cambiano.
+
+// ---------- POSE A FOTOGRAMMI CHIAVE ----------
+// Ogni chiave: t (s) e i canali. Scalari (radianti, nello spazio del corpo): sp busto in avanti, st torsione, sr fianco,
+// hp testa in giu', hy testa a sinistra, hr testa di lato; q schiaccia(-)/allunga(+), tx inclina avanti, tz rollio,
+// y sollevamento, tr tremito. Vettori [fuori, su, avanti] (direzione nel corpo; «fuori» vale per entrambi i lati):
+// a braccio, f avambraccio, l coscia, k stinco (le gambe solo in aria); aL/aR, fL/fR un lato solo.
+// e = curva verso la chiave: s morbida, o scatto (esce veloce), i caduta (entra veloce), l lineare. stop = sosta finche' lasciaPosa3.
+const P3 = {
+  // TONFO, panciata: accucciato con le braccia dietro, decollo a braccia al cielo, a stella all'apice, schianto piatto, pancia che balla, muscoli
+  panciata: [{t: 0},
+    {t: .2, e: 'o', q: -.34, sp: .4, hp: -.25, a: [.35, .1, -.95], f: [.3, .5, -.8], tr: .03},
+    {t: .3, e: 'o', q: .3, sp: -.25, hp: -.35, a: [.3, .95, .1], f: [.15, 1, .1]},
+    {t: .58, e: 's', q: .12, sp: .15, hp: .1, a: [1, .3, .05], f: [1, .45, -.1], l: [.55, -.35, -.6], k: [.4, -.6, -.7]},
+    {t: .66, e: 'i', q: .25, sp: .3, hp: .3, a: [.9, .55, .3], f: [.8, .6, .3], l: [.5, -.3, -.75], k: [.4, -.4, -.8]},
+    {t: .7, e: 'o', q: -.44, sp: .25, hp: .15, a: [1, -.2, .15], f: [1, -.1, .3]},
+    {t: .8, e: 'o', q: .15, sp: .1, a: [.95, 0, .1], f: [.9, .2, .1]},
+    {t: .88, e: 's', q: -.08, sp: .05},
+    {t: .98, e: 'o', q: .06, sp: -.12, hp: -.15, a: [.95, .4, 0], f: [.05, 1, .15]},
+    {t: 1.1, e: 's', q: 0, sp: -.06, hp: -.1, a: [.95, .38, 0], f: [.05, 1, .15]},
+    {t: 1.22}],
+  // ZIP nel salto lungo: molla carica, decollo a braccia indietro (da velocista), gambe raccolte, atterraggio
+  zipvolo: [{t: 0},
+    {t: .18, e: 'o', q: -.4, sp: .45, hp: -.25, a: [.45, -.1, -.9], f: [.3, .3, -.8], tr: .04},
+    {t: .26, e: 'o', q: .35, sp: -.25, hp: -.3, a: [.3, .1, -1], f: [.2, .2, -1]},
+    {t: .5, e: 's', sp: .3, hp: -.1, a: [.35, .2, -.95], f: [.25, .3, -.9], l: [.3, .25, .9], k: [.2, -.9, -.3]},
+    {t: .66, e: 's', q: -.15, sp: .2, a: [.8, .2, .3], f: [.5, .5, .5]},
+    {t: .82}],
+  // ZIP, superbalzo: molla, pugno al cielo, raccolto in aria, ATTERRAGGIO DA SUPEREROE col pugno a terra, testa che scatta su, posa sbruffona
+  superbalzo: [{t: 0},
+    {t: .16, e: 'o', q: -.4, sp: .3, hp: -.3, a: [.45, -.2, -.85], f: [.3, .3, -.8], tr: .05},
+    {t: .24, e: 'o', q: .38, sp: -.2, hp: -.25, aL: [.3, 1, .15], fL: [.1, 1, .2], aR: [.5, .3, -.8], fR: [.3, .5, -.8]},
+    {t: .4, e: 's', q: .15, sp: .2, aL: [.25, .95, .2], fL: [.1, 1, .25], aR: [.6, .2, -.6], fR: [.4, .4, -.6], l: [.3, .2, .85], k: [.2, -.9, -.2]},
+    {t: .48, e: 'i', q: -.4, sp: .42, hp: .3, aR: [.25, -1, .35], fR: [.1, -1, .3], aL: [.5, .45, -.75], fL: [.4, .6, -.6]},
+    {t: .62, e: 's', q: -.34, sp: .38, hp: .22, aR: [.25, -1, .35], fR: [.1, -1, .3], aL: [.5, .45, -.75], fL: [.4, .6, -.6]},
+    {t: .72, e: 'o', q: .1, sp: -.15, hp: -.35, aR: [.8, .5, .3], fR: [.2, 1, .2], aL: [.9, .1, .1], fL: [.3, .2, .9]},
+    {t: .86, e: 's', q: 0, sp: -.05, hp: -.15, hy: .25, aR: [.7, .6, .3], fR: [.1, 1, .3]},
+    {t: 1}],
+  // AXA, bolla: mani giunte al petto, si apre di colpo, una mano al cielo e la testa piegata, civettuola
+  bolla: [{t: 0},
+    {t: .17, e: 'o', q: -.18, sp: .25, hp: .25, a: [.15, -.25, .7], f: [-.75, .3, .55]},
+    {t: .26, e: 'o', q: .14, sp: -.18, hp: -.2, a: [1, .35, .15], f: [1, .55, 0]},
+    {t: .42, e: 's', q: .08, sp: -.1, hp: -.1, hr: .22, aL: [.45, .95, .1], fL: [.2, 1, .2], aR: [1, .2, .25], fR: [.8, .5, .4]},
+    {t: .62, e: 's', q: .04, sp: -.05, hr: .18, aL: [.4, .95, .1], fL: [.15, 1, .25], aR: [.9, .15, .3], fR: [.6, .6, .5]},
+    {t: .86}],
+  // AXA quando la bolla para: braccia incrociate, si piega e indietreggia, poi «ah!»
+  parata: [{t: 0},
+    {t: .06, e: 'o', q: -.2, sp: .3, hp: .35, a: [-.25, .25, 1], f: [-.6, .7, .4], tx: -.25},
+    {t: .22, e: 's', q: -.1, sp: .2, hp: .2, a: [-.2, .2, 1], f: [-.6, .7, .4], tx: -.12},
+    {t: .36, e: 'o', q: .08, sp: -.1, hp: -.15, a: [.7, .3, .4], f: [.6, .7, .2]},
+    {t: .56}],
+  // CAMU, lingua: si tira indietro e si gonfia, frustata in avanti (braccia indietro), poi tira come alla fune, due strattoni
+  lingua: [{t: 0},
+    {t: .2, e: 'o', q: -.16, sp: -.32, hp: -.38, st: .2, a: [.45, -.55, -.25], f: [.2, .2, .9]},
+    {t: .28, e: 'o', q: .18, sp: .48, hp: .25, st: -.1, a: [.45, .25, -1], f: [.3, .4, -.8]},
+    {t: .44, e: 's', q: .06, sp: .3, hp: .15, a: [.45, .15, -.9], f: [.3, .4, -.8], stop: true},
+    {t: .58, e: 'o', q: -.05, sp: -.3, hp: -.1, a: [.25, .05, 1], f: [.1, .3, 1]},
+    {t: .72, e: 's', sp: -.38, hp: -.15, a: [.25, 0, 1], f: [.1, .4, .95], tz: .06},
+    {t: .86, e: 'o', q: -.06, sp: -.5, hp: -.2, a: [.3, .1, .95], f: [.1, .5, .9], tz: -.06},
+    {t: 1.0, e: 'o', q: .12, sp: .1, hp: .1},
+    {t: 1.08, e: 's', q: -.06},
+    {t: 1.2}],
+  // GRUMO, nube: inspira gonfiando il petto a braccia larghe, SOFFIA piegato in avanti (tre sussulti), poi sventola l'aria
+  nube: [{t: 0},
+    {t: .24, e: 'o', q: .16, sp: -.35, hp: -.35, a: [.85, .45, -.25], f: [.5, .8, -.1]},
+    {t: .32, e: 'o', q: -.22, sp: .5, hp: .3, a: [.35, -.55, .75], f: [.2, -.7, .6]},
+    {t: .42, e: 's', q: -.12, sp: .38, hp: .2, a: [.35, -.5, .75], f: [.2, -.7, .6]},
+    {t: .47, e: 'o', q: -.2, sp: .5, hp: .3, a: [.35, -.55, .75], f: [.2, -.7, .6]},
+    {t: .57, e: 's', q: -.1, sp: .36, hp: .18, a: [.35, -.5, .75], f: [.2, -.7, .6]},
+    {t: .62, e: 'o', q: -.18, sp: .48, hp: .28, a: [.35, -.55, .75], f: [.2, -.7, .6]},
+    {t: .78, e: 's', sp: .05, hp: -.05, hy: .3, aR: [.35, .2, .9], fR: [-.5, .6, .5]},
+    {t: .88, e: 's', hy: -.2, aR: [.35, .25, .9], fR: [-.1, .6, .8]},
+    {t: .98, e: 's', hy: .2, aR: [.35, .2, .9], fR: [-.5, .6, .5]},
+    {t: 1.12}],
+  // LUMA, lanterna: si raccoglie su se stessa (braccia incrociate), ESPLODE a braccia a V inarcata, levita nella luce, scende
+  lampo: [{t: 0},
+    {t: .24, e: 'o', q: -.24, sp: .35, hp: .45, a: [-.15, -.1, .9], f: [-.75, .4, .4], tr: .025},
+    {t: .32, e: 'o', q: .26, sp: -.42, hp: -.5, a: [.8, .75, .15], f: [.5, 1, .1]},
+    {t: .6, e: 's', q: .12, sp: -.3, hp: -.35, a: [.85, .7, .2], f: [.55, 1, .15], y: .38},
+    {t: .78, e: 's', sp: -.1, hp: -.1, a: [.9, .3, .3], f: [.7, .5, .4], y: .22},
+    {t: .9, e: 'o', q: -.12, sp: .2, hp: .2, a: [.5, -.4, .6], f: [.2, -.5, .7], y: 0},
+    {t: 1.08}],
+  // CHI VIENE PRESO
+  colpito: [{t: 0}, {t: .06, e: 'o', q: -.18, sp: -.45, hp: -.55, a: [.95, .55, -.2], f: [.8, .9, -.2], tx: -.35},
+    {t: .22, e: 's', q: .1, sp: -.2, hp: -.2, a: [.8, .7, -.1], f: [.5, 1, 0], tx: -.15}, {t: .36, e: 'o', q: -.05, sp: .22, hp: .25, a: [.4, -.4, .4], tx: .1}, {t: .6}],
+  sbalzato: [{t: 0}, {t: .05, e: 'o', q: -.25, sp: -.5, hp: -.6, a: [.9, .7, -.3], f: [.7, 1, -.3], l: [.4, -.2, .8], k: [.3, -.8, .4]},
+    {t: .35, e: 's', sp: -.35, hp: -.35, a: [.9, .8, -.1], f: [.4, 1, 0], l: [.3, -.4, .7], k: [.3, -.9, .2]}, {t: .6, e: 's', q: -.1, sp: .15, hp: .1}, {t: .8}],
+  tosse: [{t: 0}, {t: .1, e: 'o', q: -.12, sp: .45, hp: .4, a: [.25, .1, .85], f: [-.4, .9, .3]}, {t: .2, e: 'o', sp: .25, hp: .15, a: [.25, .1, .85], f: [-.4, .9, .3]},
+    {t: .3, e: 'o', sp: .5, hp: .45, a: [.25, .1, .85], f: [-.4, .9, .3]}, {t: .42, e: 'o', sp: .25, hp: .15, a: [.25, .1, .85], f: [-.4, .9, .3]},
+    {t: .54, e: 'o', sp: .48, hp: .42, a: [.25, .1, .85], f: [-.4, .9, .3]}, {t: .8, e: 's', sp: .1}, {t: .95}],
+  abbagliato: [{t: 0}, {t: .07, e: 'o', q: -.15, sp: -.35, hp: -.25, hy: .5, a: [.3, .5, .85], f: [-.5, .8, .4], tx: -.25},
+    {t: .4, e: 's', sp: -.25, hp: -.2, hy: .45, a: [.3, .55, .85], f: [-.5, .8, .4], tx: -.15}, {t: .55, e: 's', hy: -.35, sp: -.1}, {t: .7, e: 's', hy: .3}, {t: .9}],
+  tirato: [{t: 0}, {t: .05, e: 'o', q: .2, sp: .35, hp: -.2, a: [.5, .4, .9], f: [.4, .6, .8], l: [.35, -.5, -.6], k: [.3, -.8, -.4]},
+    {t: .32, e: 's', sp: .3, a: [.6, .5, .8], f: [.6, .8, .3], l: [.35, -.5, -.6], k: [.3, -.8, -.4]}, {t: .5, e: 's', q: -.2, sp: .1}, {t: .66}]
+};
+const P3_E = {s: x => x * x * (3 - 2 * x), o: x => 1 - Math.pow(1 - x, 3), i: x => x * x * x, l: x => x};
+// VIVO_1911 («corpo piu' vivo, piu' impatto», 19/11): sopra REGIA_V3 le pose muovono TUTTO il corpo, non solo braccia e busto.
+// Canali nuovi delle chiavi: rx salto mortale (radianti, in avanti), ry giro su se stesso, fw slancio avanti(+)/indietro(-)
+// nel verso del corpo, gz gonfia(+)/sgonfia(-). rx/ry si spengono con «meno movimento»; un giro intero finisce a 2π
+// (= 0) e si tiene fino all'ultima chiave, cosi' la rana non «si svita» alla fine. Chi viene preso: sbalzo indietro,
+// saltello, lampo bianco sul corpo; panciata = schiacciato e poi su girando; lingua = vola ruotando. Solo aspetto.
+const G1 = 6.283, G2 = 12.566;
+Object.assign(P3, {
+  // TONFO: accucciato, decollo, SALTO MORTALE raccolto, a stella, panciata, pancia che balla, muscoli
+  panciata: [{t: 0},
+    {t: .2, e: 'o', q: -.44, sp: .45, hp: -.25, a: [.35, .1, -.95], f: [.3, .5, -.8], tr: .045, gz: .08},
+    {t: .3, e: 'o', q: .4, sp: -.3, hp: -.35, a: [.3, .95, .1], f: [.15, 1, .1], rx: .5},
+    {t: .5, e: 's', q: .05, sp: .4, hp: .25, a: [.9, .5, .35], f: [.6, .6, .45], l: [.5, .3, .9], k: [.3, -.9, -.3], rx: 4.4},
+    {t: .6, e: 's', q: .22, sp: .25, hp: .3, a: [1, .3, .05], f: [1, .45, -.1], l: [.55, -.35, -.6], k: [.4, -.6, -.7], rx: G1},
+    {t: .66, e: 'i', q: .25, sp: .3, hp: .3, a: [.9, .55, .3], f: [.8, .6, .3], l: [.5, -.3, -.75], k: [.4, -.4, -.8], rx: G1},
+    {t: .7, e: 'o', q: -.58, sp: .25, hp: .15, a: [1, -.2, .15], f: [1, -.1, .3], gz: .2, rx: G1},
+    {t: .8, e: 'o', q: .24, sp: .1, a: [.95, 0, .1], f: [.9, .2, .1], gz: -.05, rx: G1},
+    {t: .88, e: 's', q: -.13, sp: .05, gz: .07, rx: G1},
+    {t: .96, e: 's', q: .07, gz: -.02, rx: G1},
+    {t: 1.04, e: 'o', q: .06, sp: -.12, hp: -.15, a: [.95, .4, 0], f: [.05, 1, .15], rx: G1},
+    {t: 1.16, e: 's', q: 0, sp: -.06, hp: -.1, a: [.95, .38, 0], f: [.05, 1, .15], rx: G1},
+    {t: 1.28, rx: G1}],
+  // ZIP: molla, pugno al cielo e AVVITAMENTO di due giri, picchiata, atterraggio da supereroe
+  superbalzo: [{t: 0},
+    {t: .16, e: 'o', q: -.5, sp: .35, hp: -.3, a: [.45, -.2, -.85], f: [.3, .3, -.8], tr: .06},
+    {t: .24, e: 'o', q: .46, sp: -.2, hp: -.25, aL: [.3, 1, .15], fL: [.1, 1, .2], aR: [.5, .3, -.8], fR: [.3, .5, -.8], ry: 2},
+    {t: .4, e: 's', q: .18, sp: .2, aL: [.25, .95, .2], fL: [.1, 1, .25], aR: [.6, .2, -.6], fR: [.4, .4, -.6], l: [.3, .2, .85], k: [.2, -.9, -.2], ry: G2},
+    {t: .48, e: 'i', q: -.52, sp: .45, hp: .3, aR: [.25, -1, .35], fR: [.1, -1, .3], aL: [.5, .45, -.75], fL: [.4, .6, -.6], gz: .1, ry: G2},
+    {t: .62, e: 's', q: -.36, sp: .4, hp: .22, aR: [.25, -1, .35], fR: [.1, -1, .3], aL: [.5, .45, -.75], fL: [.4, .6, -.6], ry: G2},
+    {t: .72, e: 'o', q: .14, sp: -.15, hp: -.35, aR: [.8, .5, .3], fR: [.2, 1, .2], aL: [.9, .1, .1], fL: [.3, .2, .9], ry: G2},
+    {t: .86, e: 's', q: 0, sp: -.05, hp: -.15, hy: .25, aR: [.7, .6, .3], fR: [.1, 1, .3], ry: G2},
+    {t: 1, ry: G2}],
+  // AXA: mani al petto, si apre con una PIROETTA in punta di piedi (saltello, gamba indietro), atterra civettuola
+  bolla: [{t: 0},
+    {t: .17, e: 'o', q: -.22, sp: .3, hp: .25, a: [.15, -.25, .7], f: [-.75, .3, .55]},
+    {t: .26, e: 'o', q: .2, sp: -.18, hp: -.2, a: [1, .35, .15], f: [1, .55, 0], y: .4, ry: 2.4},
+    {t: .42, e: 's', q: .1, sp: -.1, hp: -.1, hr: .22, aL: [.45, .95, .1], fL: [.2, 1, .2], aR: [1, .2, .25], fR: [.8, .5, .4], y: .5, lR: [.1, -.2, -.9], kR: [.1, .6, -.8], ry: G1},
+    {t: .54, e: 'i', q: -.14, hr: .2, aL: [.4, .95, .1], fL: [.15, 1, .25], aR: [.9, .15, .3], fR: [.6, .6, .5], y: 0, ry: G1},
+    {t: .64, e: 'o', q: .07, hr: .18, aL: [.4, .95, .1], fL: [.15, 1, .25], ry: G1},
+    {t: .86, ry: G1}],
+  parata: [{t: 0},
+    {t: .06, e: 'o', q: -.24, sp: .3, hp: .35, a: [-.25, .25, 1], f: [-.6, .7, .4], tx: -.3, fw: -.32},
+    {t: .22, e: 's', q: -.1, sp: .2, hp: .2, a: [-.2, .2, 1], f: [-.6, .7, .4], tx: -.12, fw: -.18},
+    {t: .36, e: 'o', q: .1, sp: -.1, hp: -.15, a: [.7, .3, .4], f: [.6, .7, .2], fw: 0},
+    {t: .56}],
+  // CAMU: si gonfia tirandosi indietro, SI SLANCIA in avanti con la frustata, tira alla fune indietreggiando, deglutisce
+  lingua: [{t: 0},
+    {t: .2, e: 'o', q: -.2, sp: -.36, hp: -.4, st: .25, a: [.45, -.55, -.25], f: [.2, .2, .9], gz: .14, fw: -.16},
+    {t: .28, e: 'o', q: .26, sp: .56, hp: .3, st: -.15, a: [.45, .25, -1], f: [.3, .4, -.8], gz: -.04, fw: .46},
+    {t: .44, e: 's', q: .06, sp: .32, hp: .15, a: [.45, .15, -.9], f: [.3, .4, -.8], fw: .3, stop: true},
+    {t: .58, e: 'o', q: -.08, sp: -.35, hp: -.1, a: [.25, .05, 1], f: [.1, .3, 1], fw: -.08},
+    {t: .72, e: 's', sp: -.42, hp: -.15, a: [.25, 0, 1], f: [.1, .4, .95], tz: .1, fw: -.2},
+    {t: .86, e: 'o', q: -.08, sp: -.56, hp: -.2, a: [.3, .1, .95], f: [.1, .5, .9], tz: -.1, fw: -.26},
+    {t: 1.0, e: 'o', q: .2, sp: .15, hp: .15, gz: .14},
+    {t: 1.08, e: 's', q: -.08, gz: -.03},
+    {t: 1.2}],
+  // GRUMO: inspira GONFIANDOSI (si alza in punta), ogni sbuffo lo spinge indietro, poi sventola l'aria
+  nube: [{t: 0},
+    {t: .24, e: 'o', q: .2, sp: -.4, hp: -.4, a: [.85, .45, -.25], f: [.5, .8, -.1], gz: .28, y: .1},
+    {t: .32, e: 'o', q: -.26, sp: .55, hp: .32, a: [.35, -.55, .75], f: [.2, -.7, .6], gz: -.06, fw: -.2},
+    {t: .42, e: 's', q: -.12, sp: .38, hp: .2, a: [.35, -.5, .75], f: [.2, -.7, .6], gz: .1, fw: -.1},
+    {t: .47, e: 'o', q: -.24, sp: .55, hp: .3, a: [.35, -.55, .75], f: [.2, -.7, .6], gz: -.05, fw: -.25},
+    {t: .57, e: 's', q: -.1, sp: .36, hp: .18, a: [.35, -.5, .75], f: [.2, -.7, .6], gz: .06, fw: -.15},
+    {t: .62, e: 'o', q: -.22, sp: .55, hp: .3, a: [.35, -.55, .75], f: [.2, -.7, .6], gz: -.06, fw: -.32},
+    {t: .78, e: 's', sp: .05, hp: -.05, hy: .3, aR: [.35, .2, .9], fR: [-.5, .6, .5], fw: -.2},
+    {t: .88, e: 's', hy: -.2, aR: [.35, .25, .9], fR: [-.1, .6, .8], fw: -.1},
+    {t: .98, e: 's', hy: .2, aR: [.35, .2, .9], fR: [-.5, .6, .5]},
+    {t: 1.12}],
+  // LUMA (coda 19/11): avvicina la lanterna della coda, poi la CODA FRUSTA IN ALTO allungandosi e fa girare la lanterna
+  // sopra la testa come un lazo (la luce parte dalla lanterna), torna giu' a molla. ca alza la coda, cs allunga, cy gira, cw onda
+  lampo: [{t: 0},
+    {t: .24, e: 'o', q: -.2, sp: .18, hp: -.2, hy: .5, a: [-.15, -.1, .9], f: [-.75, .4, .4], tr: .03, gz: -.04, ca: .15, cy: .9, cs: .15},   // guarda la lanterna che si avvicina (niente testa china: dall'alto restava solo il cappuccio)
+    {t: .32, e: 'o', q: .32, sp: -.45, hp: -.6, a: [.8, .75, .15], f: [.5, 1, .1], y: .2, gz: .12, ca: -.25, cy: .2, cs: 1.4, cw: .25},
+    {t: .6, e: 's', q: .1, sp: -.3, hp: -.5, a: [.85, .7, .2], f: [.55, 1, .15], y: .4, ca: -.1, cy: 3.4, cs: 1.5, cw: .15, l: [.2, -.3, .4], k: [.1, -.8, -.4]},
+    {t: .82, e: 's', sp: -.15, hp: -.25, a: [.9, .3, .3], f: [.7, .5, .4], y: .25, ca: -.15, cy: 6.48, cs: 1.3, cw: .1},
+    {t: .94, e: 'i', q: -.2, sp: .2, hp: .15, a: [.5, -.4, .6], f: [.2, -.5, .7], y: 0, ca: .1, cy: G1, cs: 0, cw: .35},
+    {t: 1.04, e: 'o', q: .07, ca: -.06, cy: G1, cw: .2},
+    {t: 1.2, cy: G1}],
+  // CHI VIENE PRESO
+  colpito: [{t: 0}, {t: .06, e: 'o', q: -.22, sp: -.5, hp: -.6, a: [.95, .55, -.2], f: [.8, .9, -.2], tx: -.4, fw: -.45, y: .18},
+    {t: .22, e: 's', q: .12, sp: -.22, hp: -.2, a: [.8, .7, -.1], f: [.5, 1, 0], tx: -.15, fw: -.3, y: 0}, {t: .36, e: 'o', q: -.06, sp: .22, hp: .25, a: [.4, -.4, .4], tx: .1, fw: -.1}, {t: .6}],
+  schiacciato: [{t: 0}, {t: .04, e: 'o', q: -.6, tx: -.2, gz: .16, a: [1, -.1, 0], f: [1, 0, .2]},
+    {t: .1, e: 's', q: -.5, gz: .12, a: [1, -.1, 0], f: [1, 0, .2]},
+    {t: .26, e: 'o', q: .36, y: .6, sp: -.4, hp: -.4, a: [.9, .8, -.2], f: [.6, 1, -.2], l: [.5, -.3, .4], k: [.3, -.8, .3], ry: 3.14, fw: -.3},
+    {t: .42, e: 'i', q: -.26, y: 0, ry: G1, fw: -.2}, {t: .52, e: 'o', q: .1, ry: G1, fw: -.08}, {t: .68, ry: G1}],
+  sbalzato: [{t: 0}, {t: .05, e: 'o', q: -.28, sp: -.5, hp: -.6, a: [.9, .7, -.3], f: [.7, 1, -.3], l: [.4, -.2, .8], k: [.3, -.8, .4], y: .45, fw: -.25},
+    {t: .35, e: 's', sp: -.35, hp: -.35, a: [.9, .8, -.1], f: [.4, 1, 0], l: [.3, -.4, .7], k: [.3, -.9, .2], y: .15, fw: -.12}, {t: .5, e: 'i', q: -.2, y: 0}, {t: .62, e: 's', q: .08, sp: .15, hp: .1}, {t: .8}],
+  tosse: [{t: 0}, {t: .1, e: 'o', q: -.14, sp: .48, hp: .42, a: [.25, .1, .85], f: [-.4, .9, .3], fw: -.12}, {t: .2, e: 'o', sp: .25, hp: .15, a: [.25, .1, .85], f: [-.4, .9, .3], gz: .05},
+    {t: .3, e: 'o', q: -.1, sp: .52, hp: .45, a: [.25, .1, .85], f: [-.4, .9, .3], fw: -.18}, {t: .42, e: 'o', sp: .25, hp: .15, a: [.25, .1, .85], f: [-.4, .9, .3], gz: .05},
+    {t: .54, e: 'o', q: -.1, sp: .5, hp: .42, a: [.25, .1, .85], f: [-.4, .9, .3], fw: -.22}, {t: .8, e: 's', sp: .1, fw: -.1}, {t: .95}],
+  abbagliato: [{t: 0}, {t: .07, e: 'o', q: -.18, sp: -.4, hp: -.3, hy: .5, a: [.3, .5, .85], f: [-.5, .8, .4], tx: -.3, fw: -.35, y: .12},
+    {t: .4, e: 's', sp: -.25, hp: -.2, hy: .45, a: [.3, .55, .85], f: [-.5, .8, .4], tx: -.15, fw: -.25, y: 0}, {t: .55, e: 's', hy: -.35, sp: -.1, tz: .12, fw: -.15}, {t: .7, e: 's', hy: .3, tz: -.12}, {t: .9}],
+  tirato: [{t: 0}, {t: .05, e: 'o', q: .24, sp: .38, hp: -.2, a: [.5, .4, .9], f: [.4, .6, .8], l: [.35, -.5, -.6], k: [.3, -.8, -.4], y: .3},
+    {t: .32, e: 'l', sp: .3, a: [.6, .5, .8], f: [.6, .8, .3], l: [.35, -.5, -.6], k: [.3, -.8, -.4], y: .35, ry: G1}, {t: .44, e: 'i', q: -.24, sp: .1, y: 0, ry: G1}, {t: .54, e: 'o', q: .08, ry: G1}, {t: .7, ry: G1}]
+});
+// il FOTOGRAMMA D'IMPATTO da fumetto: un attimo chiaro e un attimo scuro sopra il fermo-immagine. Al piu' uno ogni 0,45 s;
+// mai con «meno movimento» ne' sulla strada leggera.
+function fotoImpatto(col) {
+  if (OPZ.rm || SPL() || performance.now() - (fotoImpatto.t || 0) < 450) return; fotoImpatto.t = performance.now();
+  try { const d = document.createElement('div'); d.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:28;mix-blend-mode:screen;opacity:.5;background:radial-gradient(circle at 50% 50%,#fff 0,' + (col || '#fff') + ' 70%)';
+    document.body.appendChild(d); (window.__momenti = window.__momenti || []).push(['sp_fotogramma', performance.now()]);
+    setTimeout(() => { d.style.mixBlendMode = 'multiply'; d.style.background = '#1a1030'; d.style.opacity = '.3'; }, 50); setTimeout(() => d.remove(), 105); } catch (e) {}
+}
+
+// LA CODA DI LUMA: il modello non ha ossa nella coda (pesa tutta su Hips), quindi la si piega nel vertex shader, nello spazio
+// del modello a riposo: la coda sta dietro (z ~ -0,19) e a destra della rana (x < -0,04); perno alla radice R, lanterna in B.
+// Allungare = spostare lungo R->B (la sezione e la palla non si gonfiano); poi alza (attorno a z), onda, giro (attorno a y).
+const CODA_R = new THREE.Vector3(-0.08, 0.08, -0.19), CODA_B = new THREE.Vector3(-0.33, 0.43, -0.2);
+// t = posizione lungo la LINEA CENTRALE della coda (0 radice, 1 palla), uguale per tutta la sezione: niente «telo» quando si allunga.
+// Il modello e' fatto di 87 isole staccate (cuciture): t si calcola una volta per vertice e va in un attributo.
+const CODA_LINEA = [[-0.04, 0.10], [-0.10, 0.13], [-0.15, 0.20], [-0.17, 0.30], [-0.17, 0.42], [-0.20, 0.53], [-0.27, 0.56]];
+const CODA_GLSL = `
+attribute vec2 codaTM;
+uniform vec4 uCoda; uniform float uCodaT;
+vec3 codaRot(vec3 d, float th, float ph) { float c = cos(th), s = sin(th); d.xy = vec2(c * d.x - s * d.y, s * d.x + c * d.y); c = cos(ph); s = sin(ph); d.xz = vec2(c * d.x + s * d.z, -s * d.x + c * d.z); return d; }
+float codaTh(float t) { return (uCoda.x + uCoda.w * sin(t * 5.0 - uCodaT * 8.0)) * t; }
+vec3 codaP(vec3 p) { float m = codaTM.y; if (m <= 0.0) return p; float t = codaTM.x; vec3 R = vec3(-0.08, 0.08, -0.19);
+  vec3 d = p - R + (vec3(-0.33, 0.43, -0.2) - R) * uCoda.y * t; return mix(p, R + codaRot(d, codaTh(t), uCoda.z * t), m); }
+vec3 codaN(vec3 n) { float m = codaTM.y; if (m <= 0.0) return n; float t = codaTM.x; return normalize(mix(n, codaRot(n, codaTh(t), uCoda.z * t), m)); }
+`;
+function codaAttributo(geo) {
+  const P = geo.attributes.position, A = new Float32Array(P.count * 2), C = CODA_LINEA, L = [0];
+  for (let k = 1; k < C.length; k++) L.push(L[k - 1] + Math.hypot(C[k][0] - C[k - 1][0], C[k][1] - C[k - 1][1]));
+  const ss = (a, b, x) => { const u = Math.max(0, Math.min(1, (x - a) / (b - a))); return u * u * (3 - 2 * u); };
+  for (let i = 0; i < P.count; i++) { const x = P.getX(i), y = P.getY(i), z = P.getZ(i), wp = 1 - ss(0.13, 0.17, Math.hypot(x + 0.325, y - 0.42, z + 0.205)), m = Math.max(wp, ss(-0.03, -0.06, x) * ss(-0.04, -0.08, z)); if (m <= 0) continue;
+    let t = 1;   // la palla resta rigida (t = 1) e sfuma nella coda in 4 cm: niente strappi ne' teli
+    if (wp < 1) { let e0 = 9; for (let k = 0; k < C.length - 1; k++) { const ax = C[k][0], ay = C[k][1], dx = C[k + 1][0] - ax, dy = C[k + 1][1] - ay, dd = dx * dx + dy * dy;
+        const u = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / dd)), e = Math.hypot(x - ax - u * dx, y - ay - u * dy); if (e < e0) { e0 = e; t = (L[k] + u * Math.sqrt(dd)) / L[L.length - 1]; } } t = t + (1 - t) * wp; }
+    A[i * 2] = t; A[i * 2 + 1] = m; }
+  geo.setAttribute('codaTM', new THREE.BufferAttribute(A, 2));
+}
+function codaInstalla(o) {
+  const g = o.glb; if (!g || g.coda !== undefined) return; g.coda = null;
+  let sk = null; g.sc.traverse(n => { if (n.isSkinnedMesh && !sk) sk = n; }); if (!sk) return;
+  const bi = sk.skeleton.bones.findIndex(b => b.name.endsWith('Hips')); if (bi < 0) return;
+  const U = {v: {value: new THREE.Vector4()}, T: {value: 0}}; g.coda = U; g.codaSk = {mesh: sk, bone: sk.skeleton.bones[bi], inv: sk.skeleton.boneInverses[bi]};
+  const mats = []; g.sc.traverse(n => { if (n.isSkinnedMesh) { if (!n.geometry.attributes.codaTM) codaAttributo(n.geometry); for (const m of [].concat(n.material)) if (!mats.includes(m)) mats.push(m); } });
+  // in CATENA con le modifiche gia' presenti (contorno gonfiato, ricolora delle varianti): prima quelle, poi la coda
+  for (const m of mats) { const prima = m.onBeforeCompile, chiave = m.customProgramCacheKey; m.onBeforeCompile = (sh, rd) => { if (prima) prima.call(m, sh, rd); sh.uniforms.uCoda = U.v; sh.uniforms.uCodaT = U.T;
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\n' + CODA_GLSL)
+        .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\nobjectNormal = codaN(objectNormal);')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed = codaP(transformed);')
+        // PAVIMENTO (19/11, «la coda compenetra con le pads»): dopo le ossa, nessun punto della coda sotto il piano dei piedi;
+        // (forma senza rami: la versione con if/mix faceva cadere Chrome sulla GPU di questo PC)
+        .replace('#include <skinning_vertex>', '#include <skinning_vertex>\ntransformed.y = max(transformed.y, 0.045 * step(0.5, codaTM.y));'); };
+    m.customProgramCacheKey = () => (chiave ? chiave.call(m) : '') + '|coda_luma_1911|' + (m.side === THREE.BackSide ? 'contorno' : 'corpo'); m.needsUpdate = true; }
+}
+function animaCoda(o) {   // ogni fotogramma: la coda ondeggia sempre un poco, la posa la muove davvero
+  if (o.pg !== 'luma') return; codaInstalla(o); const U = o.glb && o.glb.coda; if (!U) return;
+  const tt = performance.now() / 1000, vivo = OPZ.rm ? 0 : 1; U.T.value = tt;
+  U.v.value.set((o.ca3 || 0) + .07 * Math.sin(tt * 1.4 + o.i) * vivo, o.cs3 || 0, o.cy3 || 0, (o.cw3 || 0) + .05 * vivo);
+}
+function lanternaCoda(o) {   // la lanterna in coordinate del mondo, con la stessa piega dello shader (per luce, raggi, nucleo)
+  const g = o && o.glb, U = g && g.coda, S = g && g.codaSk; if (!U || !S) return null;
+  const c = U.v.value, th = c.x + c.w * Math.sin(5 - U.T.value * 8), ph = c.z;
+  const d = CODA_B.clone().sub(CODA_R).multiplyScalar(1 + c.y);
+  let x = Math.cos(th) * d.x - Math.sin(th) * d.y, y = Math.sin(th) * d.x + Math.cos(th) * d.y, z = d.z; const x2 = Math.cos(ph) * x + Math.sin(ph) * z; z = -Math.sin(ph) * x + Math.cos(ph) * z;
+  o.root.updateMatrixWorld(true); const v = new THREE.Vector3(x2, y, z).add(CODA_R), M = S.mesh;
+  return v.applyMatrix4(M.bindMatrix).applyMatrix4(new THREE.Matrix4().multiplyMatrices(S.bone.matrixWorld, S.inv)).applyMatrix4(M.bindMatrixInverse).applyMatrix4(M.matrixWorld);
+}
+
+// VIVO_1911 b (19/11 sera, richieste del proprietario): LUMA «frustata di luce» e GRUMO «gas morbido» al posto delle sfere.
+
+// LUMA: carica girando il busto con la coda dietro, poi GIRA su se stessa con la coda tesa e la lanterna disegna un cerchio
+// di luce sopra chi le sta attorno; atterra con una mano sul fianco e l'altra in alto
+P3.lampo = [{t: 0},
+  {t: .26, e: 'o', q: -.22, sp: .22, st: .5, hp: -.1, hy: -.3, a: [.55, .15, -.7], f: [.4, .3, -.6], gz: -.03, tr: .02, ca: .3, cy: -1.3, cs: .25, cw: .05},
+  {t: .34, e: 'o', q: .18, sp: -.08, st: -.25, a: [1, .2, 0], f: [1, .25, 0], y: .12, ry: .9, ca: .35, cy: .2, cs: 1.5, cw: .12},
+  {t: .68, e: 'l', q: .1, sp: -.05, st: -.15, a: [1, .25, 0], f: [1, .3, 0], y: .18, ry: 6.0, ca: .35, cy: .2, cs: 1.5, cw: .12},
+  {t: .8, e: 'o', q: .04, a: [.95, .2, .05], f: [.9, .3, .05], y: .1, ry: G1, ca: .3, cy: .15, cs: 1.3, cw: .2},
+  {t: .9, e: 'i', q: -.16, sp: .12, hy: .2, aL: [.8, -.5, .1], fL: [-.3, -.6, .4], aR: [.3, 1, .2], fR: [.1, 1, .2], y: 0, ry: G1, ca: .05, cy: 0, cs: .05, cw: .35},
+  {t: 1.0, e: 'o', q: .05, hy: .15, aL: [.8, -.5, .1], fL: [-.3, -.6, .4], aR: [.3, 1, .2], fR: [.1, 1, .2], ry: G1, cw: .2},
+  {t: 1.25, ry: G1}];
+
+// con la clip vera: solo la coda (il corpo gira da solo e la lanterna, legata all'anca, fa il cerchio); tempi della clip a 1,2 s
+P3.lampoCoda = [{t: 0},
+  {t: .36, e: 's', ca: .3, cy: -1.2, cs: .25, cw: .05},
+  {t: .46, e: 'o', ca: .35, cy: .2, cs: 1.5, cw: .14},
+  {t: .8, e: 's', ca: .35, cy: .2, cs: 1.5, cw: .12},
+  {t: .95, e: 'i', ca: .05, cy: 0, cs: .05, cw: .35},
+  {t: 1.05, e: 'o', ca: -.05, cw: .2},
+  {t: 1.25}];
+
+// la scia: un nastro piatto (si vede dall'alto) dietro la lanterna, piu' largo e chiaro in testa, che si spegne in ~0,34 s
+function nastroLuceSp(col) {
+  const m = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, side: THREE.DoubleSide}));
+  m.renderOrder = 24; m.frustumCulled = false; scena.add(m); const P = [], cb = new THREE.Color(col), cw = new THREE.Color(0xfff6d8), VITA = .45;
+  return {m, P, metti(p, t) { P.push({p: p.clone(), t}); },
+    rifai(t) { while (P.length && t - P[0].t > VITA) P.shift(); const n = P.length; if (n < 2) { m.visible = false; return; } m.visible = true;
+      const pos = new Float32Array(n * 9), colr = new Float32Array(n * 9), idx = [];
+      for (let i = 0; i < n; i++) { const a = P[Math.max(0, i - 1)].p, b = P[Math.min(n - 1, i + 1)].p, tx = b.x - a.x, tz = b.z - a.z, l = Math.hypot(tx, tz) || 1, sx = -tz / l, sz = tx / l;
+        const f = Math.max(0, 1 - (t - P[i].t) / VITA), w = .46 * (.35 + .65 * f), q = P[i].p;
+        const v3 = [[q.x + sx * w, q.y, q.z + sz * w], [q.x, q.y + .02, q.z], [q.x - sx * w, q.y, q.z - sz * w]];
+        for (let k = 0; k < 3; k++) { pos.set(v3[k], i * 9 + k * 3); const c = k === 1 ? cw : cb, g = (k === 1 ? 1.5 : .95) * f * Math.sqrt(f); colr.set([c.r * g, c.g * g, c.b * g], i * 9 + k * 3); }
+        if (i) for (const [x, y, z] of [[0, 3, 1], [1, 3, 4], [1, 4, 2], [2, 4, 5]]) idx.push((i - 1) * 3 + x, (i - 1) * 3 + y, (i - 1) * 3 + z); }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(colr, 3)); g.setIndex(idx);
+      m.geometry.dispose(); m.geometry = g; }};
+}
+async function lanternaFx(oc, v, celle) {
+  if (OPZ.rm || !lanternaCoda(oc)) return lanternaFxV3(oc, v, celle);   // «meno movimento»: niente giro, il lampo di prima
+  const C = PAL_SP.lampo, S = SPI[oc.i], presi = S ? S.presi.slice() : [], fatti = new Set(); if (S) S.presi = [];   // le reazioni arrivano una per una, quando passa la luce
+  // CLIP VERA 19/11 (Tripo «Spinning Pose»: si accuccia e carica, gira, posa): se c'e', il corpo lo fa la clip e la posa muove solo la coda
+  const clip = !!(oc.glb && oc.glb.az && oc.glb.az.sp), T1 = clip ? .4 : .26, T2 = clip ? .4 : .54, T3 = clip ? .4 : .35;
+  if (clip) { posa3(oc, 'lampoCoda'); oc.posaF = 'sp'; oc.posaT = 1.3; } else { posa3(oc, 'lampo'); oc.posaF = 'ready'; oc.posaT = .35; } suono('carica', .6);
+  const nucleo = new THREE.Sprite(new THREE.SpriteMaterial({map: TEX_PUNTO, color: 0xfff1b8, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending})); nucleo.renderOrder = 23; scena.add(nucleo);
+  lampoLuce.color.set(C[0]);
+  const segui = () => { const c = lanternaCoda(oc) || puntoLanternaSp(oc); nucleo.position.copy(c); lampoLuce.position.copy(c); return c; };
+  // 1 CARICA: il busto si gira, la coda va dietro, la lanterna si accende sempre di piu'
+  await tw(T1, k => { segui(); const s = .25 + .75 * k * k; nucleo.scale.set(s, s, 1); lampoLuce.intensity = 2.5 * k;
+    if (!SPL() && Math.random() < .5) particelle(nucleo.position.clone(), 1, C[0], .4, .4, {r: .08, su: .3, g: 0}); });
+  momentoSp(oc, C[0]); mostraAree(celle, '#ffc93c', false); suono('sibilo', .8); suono('specchio', .5);
+  // 2 IL GIRO: la lanterna disegna il cerchio; ogni rana attorno e' abbagliata nell'istante in cui la luce le passa sopra
+  const c0 = corpoDi(oc), N = nastroLuceSp(C[3]); let primo = true, ts = 0; window.__nastro = N;
+  const colpisci = j => { fatti.add(j); const oj = RANE[j]; if (!oj) return; const vj = corpoDi(oj);
+    if (primo) { primo = false; fotoImpatto('#ffe08a'); impattoSp(oc); }
+    reagisciSp(oj, oc, 'lampo'); fermo(.05); scossa(.22); vibra(40); suono('specchio', .6); suono('gelo', .35);
+    stellaSp(vj, 0xffffff, 1.4, .22); stellaSp(vj, C[3], 2.2, .3); if (!SPL()) scheggeSp(vj, C[2], 6, 2); };
+  await tw(T2, k => { ts = k * T2; const c = segui(); nucleo.scale.set(1.1, 1.1, 1); lampoLuce.intensity = 1.8;   /* la lanterna passa bassa: piu' forte sbiancava tutte le ninfee */ if (k < .97) N.metti(c, ts); N.rifai(ts);
+    const al = Math.atan2(c.x - c0.x, c.z - c0.z);
+    for (const j of presi) if (!fatti.has(j) && RANE[j]) { const q = corpoDi(RANE[j]), aj = Math.atan2(q.x - c0.x, q.z - c0.z), d = Math.abs(((al - aj) % 6.2832 + 9.4248) % 6.2832 - 3.1416); if (d < .32) colpisci(j); }
+    if (!SPL() && Math.random() < .6) particelle(c.clone(), 1, Math.random() < .5 ? C[0] : C[3], .5, .45, {r: .1, su: .2, g: 1}); });
+  for (const j of presi) if (!fatti.has(j)) colpisci(j);
+  if (primo) { primo = false; impattoSp(oc); }
+  // 3 il cerchio si chiude: anelli d'oro sulle ninfee, lei atterra in posa
+  const w = v.clone().setY(.08); anello(w, C[0], 3.6, .5, .22); dopoSp(.06, () => anello(w, C[2], 4.4, .55, .12)); anelloSchermo(w, '#ffe08a', 220);
+  for (const [a, b] of celle) macchiaSp(a, b, 0xffe7a0, 1.1, .44);
+  await tw(T3, k => { ts = T2 + k * T3; segui(); N.rifai(ts); lampoLuce.intensity = 1.8 * (1 - k); nucleo.material.opacity = 1 - k; });
+  via(N.m); via(nucleo); spegniAree(); impattoSp(oc);
+}
+
+// ---------- GRUMO · GAS MORBIDO (al posto delle sfere) ----------
+// tre texture di sbuffo disegnate (lobi morbidi, chiaro sopra e ombra sotto): sprite normali, non additivi, che rotolano e si allargano
+const TEX_GAS = [0, 1, 2].map(seme => { const c = tela(256, 256), g = c.getContext('2d'); let s = seme * 977 + 13; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  for (let k = 0; k < 14; k++) { const a = rnd() * 6.283, r = rnd() * 58, x = 128 + Math.cos(a) * r, y = 136 + Math.sin(a) * r * .75, R = 44 + rnd() * 38;
+    const gr = g.createRadialGradient(x, y - R * .25, R * .1, x, y, R); gr.addColorStop(0, 'rgba(255,255,255,.55)'); gr.addColorStop(.55, 'rgba(236,236,236,.33)'); gr.addColorStop(1, 'rgba(210,210,210,0)');
+    g.fillStyle = gr; g.beginPath(); g.arc(x, y, R, 0, 6.283); g.fill(); }
+  g.globalCompositeOperation = 'source-atop'; const sh = g.createLinearGradient(0, 50, 0, 230); sh.addColorStop(0, 'rgba(255,255,255,0)'); sh.addColorStop(1, 'rgba(18,34,16,.72)'); g.fillStyle = sh; g.fillRect(0, 0, 256, 256);
+  return new THREE.CanvasTexture(c); });
+function sbuffoGas(v, col, o) {
+  o = o || {}; const m = new THREE.Sprite(new THREE.SpriteMaterial({map: TEX_GAS[(Math.random() * 3) | 0], color: col, transparent: true, depthWrite: false, opacity: 0}));
+  m.position.copy(v); m.renderOrder = o.ro || 19; m.material.rotation = Math.random() * 6.283; scena.add(m);
+  const vel = o.vel || new THREE.Vector3(), s0 = o.s0 || .3, s1 = o.s1 || 1.6, vita = o.vita || 1.6, op = o.op || .8, rv = (Math.random() - .5) * (o.giro || 1.2), su = o.su == null ? .25 : o.su;
+  return tw(vita, k => { const e = 1 - Math.pow(1 - k, 2.2); m.position.copy(v).addScaledVector(vel, e * vita * .6); m.position.y += su * k; const z = s0 + (s1 - s0) * eo(Math.min(1, k * 1.6));
+    m.scale.set(z, z * .86, 1); m.material.rotation += rv * .016; m.material.opacity = op * Math.min(1, k * 6) * (k > .55 ? 1 - (k - .55) / .45 : 1); }).then(() => via(m));
+}
+const GAS_V = [0x3fae2c, 0x2f8f22, 0x69d13f], GAS_VIOLA = 0x8a4ad0, GAS_CHIARO = 0xc9ff8f;
+function gasCelleSp(celle, oc) {   // la nube sulle caselle prese, a ondate dal centro: corpo verde, bordo viola, riccioli chiari che salgono
+  const c0 = [Math.round(oc.x), Math.round(oc.y)], g0 = pos(c0[0], c0[1]).add(mondo.position), L = SPL();
+  celle.slice().sort((a, b) => Math.hypot(a[0] - c0[0], a[1] - c0[1]) - Math.hypot(b[0] - c0[0], b[1] - c0[1])).forEach(([a, b]) => {
+    const v = pos(a, b).add(mondo.position), d = Math.hypot(a - c0[0], b - c0[1]), dir = v.clone().sub(g0).setY(0); if (dir.lengthSq() > 1e-4) dir.normalize();
+    dopoSp(.03 + d * .08, () => {
+      for (let q = 0; q < (L ? 2 : 4); q++) sbuffoGas(v.clone().add(new THREE.Vector3((Math.random() - .5) * .7, .25 + Math.random() * .35, (Math.random() - .5) * .7)), GAS_V[q % 3],
+        {vel: dir.clone().multiplyScalar(.5).add(new THREE.Vector3((Math.random() - .5) * .4, 0, (Math.random() - .5) * .4)), s0: .4, s1: 1.8 + Math.random() * .6, vita: 1.8 + Math.random() * .4, op: .9});
+      if (!L) for (let q = 0; q < 2; q++) sbuffoGas(v.clone().add(new THREE.Vector3((Math.random() - .5) * .9, .15, (Math.random() - .5) * .9)), GAS_VIOLA,
+        {vel: dir.clone().multiplyScalar(.7), s0: .45, s1: 2.2, vita: 1.9, op: .62, ro: 18});
+      if (!L) for (let q = 0; q < 2; q++) dopoSp(.15 + q * .2, () => sbuffoGas(v.clone().add(new THREE.Vector3((Math.random() - .5) * .6, .5, (Math.random() - .5) * .6)), GAS_CHIARO,
+        {s0: .15, s1: .6, vita: 1.2, op: .6, su: 1.2, giro: 3, ro: 20})); }); });
+}
+function gasAnelloSp(w, col, r) {   // uno sbuffo: un anello di gas che parte da Grumo e corre verso fuori
+  const n = SPL() ? 4 : 8;
+  for (let k = 0; k < n; k++) { const a = k / n * 6.283 + Math.random() * .3, d = new THREE.Vector3(Math.cos(a), 0, Math.sin(a));
+    sbuffoGas(w.clone().addScaledVector(d, .3).setY(.3 + Math.random() * .2), k % 3 ? col : GAS_VIOLA, {vel: d.multiplyScalar(2.2 * r), s0: .4, s1: 1.3 + .3 * r, vita: 1.1, op: k % 3 ? .72 : .45}); }
+}
+function gasRiccioli(w, n) { if (SPL()) n = Math.ceil(n / 2); for (let k = 0; k < n; k++) dopoSp(k * .08, () => sbuffoGas(w.clone().add(new THREE.Vector3((Math.random() - .5) * .8, .4, (Math.random() - .5) * .8)), GAS_CHIARO, {s0: .2, s1: .8, vita: 1.4, op: .55, su: 1.5, giro: 3, ro: 20})); }
+function sbuffoBoccaSp(o) {   // il getto dalla maschera: sbuffi che escono veloci in avanti e si aprono
+  if (OPZ.rm) return; const A = testaDi(o), av = new THREE.Vector3(Math.sin(o.root.rotation.y), .1, Math.cos(o.root.rotation.y));
+  for (let j = 0; j < (SPL() ? 4 : 9); j++) dopoSp(j * .025, () => sbuffoGas(A.clone().addScaledVector(av, .15), j % 3 ? 0x6fd84a : 0x9be86a, {vel: av.clone().multiplyScalar(3 + Math.random()), s0: .15, s1: .9, vita: .7, op: .8, su: .2, giro: 3, ro: 21}));
+}
+
+const OSSA3 = ['Spine', 'Spine1', 'Spine2', 'Head', 'LeftArm', 'RightArm', 'LeftForeArm', 'RightForeArm', 'LeftHand', 'RightHand', 'LeftUpLeg', 'RightUpLeg', 'LeftLeg', 'RightLeg', 'LeftFoot', 'RightFoot'];
+const P3_X = new THREE.Vector3(1, 0, 0), P3_Y = new THREE.Vector3(0, 1, 0), P3_Z = new THREE.Vector3(0, 0, 1);
+const P3_QB = new THREE.Quaternion(), P3_QP = new THREE.Quaternion(), P3_QR = new THREE.Quaternion(), P3_QS = new THREE.Quaternion(), P3_QI = new THREE.Quaternion();
+const P3_V1 = new THREE.Vector3(), P3_V2 = new THREE.Vector3(), P3_V3 = new THREE.Vector3(), P3_V4 = new THREE.Vector3();
+function posa3(o, nome, k) { const P = P3[nome]; if (!o || !o.glb || !P) return; o.posa3 = {P, nome, t: 0, dur: P[P.length - 1].t, k: k || 1, via: false, ferma: 0}; }
+function lasciaPosa3(o) { if (o && o.posa3) o.posa3.via = true; }
+function salva3(g, b) { if (!g.baseSp) g.baseSp = []; if (!g.baseSp.some(e => e[0] === b)) g.baseSp.push([b, b.quaternion.clone()]); }
+function animaPosa3(o, dt) {
+  o.sq3 = o.tx3 = o.tz3 = o.y3 = o.rx3 = o.ry3 = o.fw3 = o.gz3 = o.ca3 = o.cs3 = o.cy3 = o.cw3 = 0;   // VIVO_1911
+  const s = o.posa3, g = o.glb; if (!s || !g) return; if (o.ko) { o.posa3 = null; return; }
+  const ks = s.P.find(K => K.stop && K.t >= s.t - 1e-6);
+  if (ks && !s.via && s.t + dt >= ks.t && s.ferma < 2.5) { s.t = ks.t; s.ferma += dt; } else s.t += dt;
+  if (s.t >= s.dur) { o.posa3 = null; return; }
+  if (!g.ossa3) { g.ossa3 = {}; g.sc.traverse(n => { if (n.isBone) for (const k of OSSA3) if (n.name.endsWith(k)) g.ossa3[k] = n; }); }
+  const P = s.P; let i = 0; while (i < P.length - 2 && P[i + 1].t <= s.t) i++;
+  const A = P[i], B = P[i + 1], u = Math.max(0, Math.min(1, (s.t - A.t) / Math.max(1e-4, B.t - A.t))), e = P3_E[B.e || 's'](u);
+  const W = s.k * (OPZ.rm ? .5 : 1);
+  const sc = c => ((A[c] || 0) + ((B[c] || 0) - (A[c] || 0)) * e) * W;
+  const vk = (K, c, lato) => K[c + lato] || K[c];
+  const vec = (c, lato) => { const a = vk(A, c, lato), b = vk(B, c, lato); if (!a && !b) return null; if (!a) return [b, e * W]; if (!b) return [a, (1 - e) * W];
+    return [[a[0] + (b[0] - a[0]) * e, a[1] + (b[1] - a[1]) * e, a[2] + (b[2] - a[2]) * e], W]; };
+  const tr = sc('tr'), jit = tr ? Math.sin(s.t * 70) * tr : 0;
+  o.sq3 = sc('q') + jit * .6; o.tx3 = sc('tx'); o.tz3 = sc('tz'); o.y3 = Math.max(0, sc('y'));
+  { const gi = c => OPZ.rm ? 0 : (A[c] || 0) + ((B[c] || 0) - (A[c] || 0)) * e; o.rx3 = gi('rx'); o.ry3 = gi('ry'); o.fw3 = sc('fw'); o.gz3 = sc('gz'); o.ca3 = sc('ca'); o.cs3 = sc('cs'); o.cw3 = sc('cw'); o.cy3 = gi('cy'); }   // VIVO_1911
+  g.cont.getWorldQuaternion(P3_QB);
+  const ruota = (b, ax, ang) => { if (!b || Math.abs(ang) < 1e-4) return; salva3(g, b);
+    b.parent.getWorldQuaternion(P3_QP).invert(); P3_V1.copy(ax).applyQuaternion(P3_QB).applyQuaternion(P3_QP).normalize();
+    b.quaternion.premultiply(P3_QR.setFromAxisAngle(P3_V1, ang)); };
+  const O = g.ossa3, sp = sc('sp') + jit, st = sc('st'), sr = sc('sr');
+  for (const [nome, f] of [['Spine', .3], ['Spine1', .35], ['Spine2', .35]]) { ruota(O[nome], P3_X, sp * f); ruota(O[nome], P3_Y, st * f); ruota(O[nome], P3_Z, sr * f); }
+  ruota(O.Head, P3_X, sc('hp')); ruota(O.Head, P3_Y, sc('hy')); ruota(O.Head, P3_Z, sc('hr'));
+  const punta = (nb, nf, d, w, specchio) => { const b = O[nb], f = O[nf]; if (!b || !f || w <= 1e-3) return; salva3(g, b);
+    const da = f.getWorldPosition(P3_V3).sub(b.getWorldPosition(P3_V2)).normalize();
+    const dir = P3_V4.set(specchio ? -d[0] : d[0], d[1], d[2]).normalize().applyQuaternion(P3_QB);
+    const qw = P3_QR.setFromUnitVectors(da, dir), qp = b.parent.getWorldQuaternion(P3_QP);
+    const ql = P3_QS.copy(qp).invert().multiply(qw).multiply(qp);
+    b.quaternion.premultiply(P3_QI.identity().slerp(ql, Math.min(1, w))); };
+  const inAria = Math.max(0, Math.min(1, ((o.alt || 0) + o.y3 - .2) / .5));
+  for (const [lato, nome, sp2] of [['L', 'Left', false], ['R', 'Right', true]]) {
+    const a = vec('a', lato), f = vec('f', lato); if (a) punta(nome + 'Arm', nome + 'ForeArm', a[0], a[1], sp2); if (f) punta(nome + 'ForeArm', nome + 'Hand', f[0], f[1], sp2);
+    if (inAria > 0) { const l = vec('l', lato), k = vec('k', lato); if (l) punta(nome + 'UpLeg', nome + 'Leg', l[0], l[1] * inAria, sp2); if (k) punta(nome + 'Leg', nome + 'Foot', k[0], k[1] * inAria, sp2); }
+  }
+}
+
+// ---------- tavolozze, impatto sincronizzato, reazioni ----------
+const PAL_SP = {panciata: [0x2f8fff, 0x8fd0ff, 0xffffff, 0x14d6ff], superbalzo: [0xffd23f, 0xff8a1f, 0xfff6c0, 0xff4f2f], bolla: [0x9fe8ff, 0xff9fe0, 0xffffff, 0xb08cff],
+  lingua: [0xff5f92, 0xffb3cb, 0xffffff, 0xb040ff], nube: [0x6fdc4a, 0x3faa32, 0xd6ff4a, 0x9a4ad8], lampo: [0xffe08a, 0xfff6d8, 0x7fd8ff, 0xffb02e]};
+const hexSp = c => '#' + new THREE.Color(c).getHexString();
+// l'impatto di ogni potere: le ferite, le spinte, la parata della bolla e la reazione di chi e' preso arrivano QUANDO colpisce,
+// non quando parte (prima i -1 comparivano durante l'anticipazione). Rete di sicurezza: dopo 2,6 s si risolve da solo.
+const SPI = {};
+let SPCAM = null;   // la rana che ha diritto al momento di camera in questo blocco di poteri
+function preparaImpatto(i, t, presi) { let r; const p = new Promise(x => { r = x; }); SPI[i] = {p, r, t, presi: presi || [], fatto: false}; setTimeout(() => r(), 2600); return SPI[i]; }
+function impattoSp(o) { const s = o && SPI[o.i]; if (!s || s.fatto) return; s.fatto = true; (window.__momenti = window.__momenti || []).push(['sp_impatto', performance.now(), s.t]); for (const j of s.presi) reagisciSp(RANE[j], o, s.t); s.r(); }
+const attendiImpatto = i => (i != null && SPI[i] ? SPI[i].p : Promise.resolve());
+const dopoSp = (s, f) => attendi(s).then(f);
+function reagisciSp(oj, oc, tipo) {
+  if (!oj || oj === oc || oj.ko || oj.bollaOn) return;
+  const C = PAL_SP[tipo] || PAL_SP.panciata, v = corpoDi(oj);
+  posa3(oj, {nube: 'tosse', lampo: 'abbagliato', lingua: 'tirato', panciata: 'schiacciato', superbalzo: 'sbalzato'}[tipo] || 'colpito'); oj.bianco = .09;   // VIVO_1911
+  oj.guardaSp = Math.atan2(oc.root.position.x - oj.root.position.x, oc.root.position.z - oj.root.position.z);
+  clearTimeout(oj.guardaT); oj.guardaT = setTimeout(() => { oj.guardaSp = null; }, 950);
+  oj.jv = (oj.jv || 0) - 3; stellaSp(v, C[0], 1.5, .28); stellaSp(v, 0xffffff, .9, .2);
+  particelle(v, SPL() ? 5 : 12, C[2], 3.2, .4, {r: .12}); if (!SPL()) particelle(v, 8, C[0], 2.2, .5, {r: .16});
+  if (tipo === 'nube') { oj.tossisce = 1.1; for (const t of [.1, .3, .54]) dopoSp(t, () => { const h = testaDi(oj); particelle(h, SPL() ? 3 : 7, 0x8ee05a, .9, .7, {fumo: true, r: .35, su: .6, g: -.4, cresce: 1.2}); suono('plop', .35); }); }
+  if (tipo === 'lampo') { oj.abbaglia = .6; if (!SPL()) stelline(testaDi(oj)); }
+  if (tipo === 'lingua') { oj.flash = .14; }
+}
+
+// ---------- primitive degli effetti ----------
+// una macchia del colore del potere sulla ninfea, che sbiadisce (normale, non additiva: non sbianca il campo)
+function macchiaSp(x, y, col, dur, r) {
+  if (!CELLE[x] || !CELLE[x][y]) return; const v = pos(x, y).add(mondo.position);
+  const m = new THREE.Mesh(new THREE.CircleGeometry(r || .5, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({map: TEX_PUNTO, color: col, transparent: true, opacity: .7, depthWrite: false}));
+  m.position.copy(v); m.position.y = .21; m.renderOrder = 8; scena.add(m);
+  tw(dur || 1.2, k => { m.material.opacity = .7 * (1 - k * k); m.scale.setScalar(.6 + .9 * eo(Math.min(1, k * 3))); }).then(() => via(m));
+}
+const TEX_STELLA = (() => { const c = tela(128, 128), g = c.getContext('2d'); g.translate(64, 64);
+  const rg = g.createRadialGradient(0, 0, 2, 0, 0, 62); rg.addColorStop(0, 'rgba(255,255,255,1)'); rg.addColorStop(.4, 'rgba(255,255,255,.85)'); rg.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = rg; g.beginPath(); for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2, r = k % 2 ? 16 : (k % 4 ? 46 : 62); g.lineTo(Math.cos(a) * r, Math.sin(a) * r); } g.closePath(); g.fill();
+  return new THREE.CanvasTexture(c); })();
+const TEX_CREPE3 = (() => { const c = tela(256, 256), g = c.getContext('2d'); g.translate(128, 128); g.lineCap = 'round';
+  for (let k = 0; k < 11; k++) { let a = k / 11 * 6.283 + Math.random() * .3, r = 18, x = Math.cos(a) * r, y = Math.sin(a) * r; g.beginPath(); g.moveTo(x, y);
+    while (r < 120) { r += 12 + Math.random() * 16; a += (Math.random() - .5) * .5; x = Math.cos(a) * r; y = Math.sin(a) * r; g.lineTo(x, y); }
+    g.lineWidth = 7; g.strokeStyle = 'rgba(255,255,255,.95)'; g.stroke(); }
+  const rg = g.createRadialGradient(0, 0, 0, 0, 0, 60); rg.addColorStop(0, 'rgba(255,255,255,.9)'); rg.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = rg; g.fillRect(-128, -128, 256, 256);
+  return new THREE.CanvasTexture(c); })();
+function stellaSp(v, col, r, dur) {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({map: TEX_STELLA, color: col, transparent: true, depthWrite: false, depthTest: false}));
+  s.position.copy(v); s.renderOrder = 25; scena.add(s); const a0 = Math.random() * 6.28;
+  return tw(dur || .32, k => { const e = k < .3 ? ebk(k / .3) : 1, z = (r || 1.4) * Math.max(.05, e) * (1 + .15 * k); s.scale.set(z, z, 1); s.material.rotation = a0 + k * .7; s.material.opacity = 1 - k * k; }).then(() => via(s));
+}
+function colonnaSp(v, col, h, dur, r) {
+  if (SPL()) return; const m = new THREE.Mesh(new THREE.CylinderGeometry(r || .55, (r || .55) * 1.3, h, 24, 1, true), new THREE.MeshBasicMaterial({color: col, transparent: true, opacity: .55, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide}));
+  m.position.set(v.x, .1 + h / 2, v.z); m.renderOrder = 21; scena.add(m);
+  return tw(dur || .4, k => { m.scale.set(1 + k * .9, .3 + .7 * eo(Math.min(1, k * 2.5)), 1 + k * .9); m.position.y = .1 + h / 2 * m.scale.y; m.material.opacity = .55 * (1 - k); }).then(() => via(m));
+}
+function crepeSp(v, col, r) {
+  if (SPL()) return; const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({map: TEX_CREPE3, color: col, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending}));
+  m.position.set(v.x, .23, v.z); m.rotation.y = Math.random() * 6.28; m.renderOrder = 9; scena.add(m);
+  tw(1.1, k => { const z = (r || 3.4) * (k < .12 ? eo(k / .12) : 1); m.scale.set(z, 1, z); m.material.opacity = k < .5 ? 1 : 1 - (k - .5) / .5; }).then(() => via(m));
+}
+function risucchioSp(v, col, n, dur) {
+  if (OPZ.rm) return attendi(dur); if (SPL()) n = Math.ceil(n / 2); const ss = [];
+  for (let k = 0; k < n; k++) { const s = new THREE.Sprite(new THREE.SpriteMaterial({map: TEX_PUNTO, color: col, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending}));
+    const a = Math.random() * 6.28, b = Math.random() * 1.1 - .2, R = 1.3 + Math.random() * .9; s.userData.da = new THREE.Vector3(Math.cos(a) * Math.cos(b) * R, Math.sin(b) * R + .2, Math.sin(a) * Math.cos(b) * R);
+    s.scale.setScalar(.14 + Math.random() * .12); s.position.copy(v).add(s.userData.da); s.material.opacity = 0; scena.add(s); ss.push(s); }
+  return tw(dur, k => { const e = k * k; for (const s of ss) { s.position.copy(v).addScaledVector(s.userData.da, 1 - e); s.material.opacity = Math.min(1, k * 3); } }).then(() => { for (const s of ss) via(s); });
+}
+// scintille elettriche attorno al corpo (la molla di Zip si carica)
+function fulminiSp(o, col, dur) {
+  if (OPZ.rm) return; const linee = [], n = SPL() ? 2 : 4, c = corpoDi(o);
+  for (let k = 0; k < n; k++) { const l = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({color: col, transparent: true, depthTest: false})); l.renderOrder = 23; scena.add(l); linee.push(l); }
+  tw(dur, k => { for (const l of linee) { const pts = [], a = Math.random() * 6.28, R = .45 + Math.random() * .25; for (let j = 0; j < 6; j++) { const b = a + j * .35; pts.push(new THREE.Vector3(c.x + Math.cos(b) * R, c.y - .6 + j * .22 + (Math.random() - .5) * .2, c.z + Math.sin(b) * R)); }
+    l.geometry.dispose(); l.geometry = new THREE.BufferGeometry().setFromPoints(pts); l.material.opacity = Math.random() > .3 ? 1 : .2; } }).then(() => { for (const l of linee) via(l); });
+}
+function scheggeSp(v, col, n, h) {   // schegge che saltano (ghiaccio, scintille d'oro)
+  if (SPL()) n = Math.ceil(n / 2);
+  for (let k = 0; k < n; k++) { const m = new THREE.Mesh(GEO_SCHEGGIA, new THREE.MeshBasicMaterial({color: k % 3 ? col : 0xffffff, transparent: true})); m.position.copy(v); scena.add(m);
+    const a = Math.random() * 6.28, sp = 1.2 + Math.random() * 2.2; PART.push({s: m, v: new THREE.Vector3(Math.cos(a) * sp, (h || 3) + Math.random() * 2.5, Math.sin(a) * sp), t: 0, vita: .9, g: 12, mesh: true, rv: 6 + Math.random() * 8}); }
+}
+const GEO_SCHEGGIA = new THREE.OctahedronGeometry(.11, 0); CONDIVISE.add(GEO_SCHEGGIA);
+function bollicineSp(v, col, n) {   // bolle tossiche che salgono e scoppiano (Grumo)
+  if (SPL()) n = Math.ceil(n / 2);
+  for (let k = 0; k < n; k++) { const m = new THREE.Mesh(new THREE.SphereGeometry(.09 + Math.random() * .1, 10, 8), new THREE.MeshStandardMaterial({color: col, emissive: col, emissiveIntensity: .5, roughness: .2, transparent: true, opacity: .85}));
+    const d = new THREE.Vector3((Math.random() - .5) * 1.6, 0, (Math.random() - .5) * 1.6); m.position.copy(v).add(d); scena.add(m); const t0 = Math.random() * .25, s0 = .4 + Math.random() * .8;
+    tw(.75, k2 => { const k3 = Math.max(0, (k2 - t0 * 1.3) / (1 - t0 * 1.3)); m.position.y = v.y + .2 + k3 * 1.4 * s0; m.scale.setScalar(k3 > .9 ? 1.6 : .5 + k3); m.material.opacity = k3 > .9 ? .3 : .85; }).then(() => { particelle(m.position.clone(), 2, col, .8, .25, {r: .08, su: .5, g: 0}); via(m); }); }
+}
+// le linee di velocita' da fumetto sullo SCHERMO, centrate sulla rana, mentre la camera si avvicina
+function lineeSchermo(v, col, ms) {
+  if (SPL()) return; try { const p = v.clone().project(cam), x = ((p.x + 1) / 2 * 100).toFixed(1), y = ((1 - p.y) / 2 * 100).toFixed(1), d = document.createElement('div'), c = hexSp(col);
+    d.style.cssText = `position:fixed;inset:0;pointer-events:none;z-index:29;opacity:0;transition:opacity .07s;` +
+      `background:repeating-conic-gradient(from 3deg at ${x}% ${y}%,rgba(255,255,255,0) 0deg 5deg,rgba(255,255,255,.55) 5.5deg 6.3deg,rgba(255,255,255,0) 6.8deg 11deg),repeating-conic-gradient(from 0deg at ${x}% ${y}%,rgba(0,0,0,0) 0deg 7deg,${c}88 7.5deg 8.6deg,rgba(0,0,0,0) 9deg 17deg);` +
+      `-webkit-mask-image:radial-gradient(circle at ${x}% ${y}%,transparent 0 16%,#000 62%);mask-image:radial-gradient(circle at ${x}% ${y}%,transparent 0 16%,#000 62%)`;
+    document.body.appendChild(d); requestAnimationFrame(() => { d.style.opacity = '1'; }); setTimeout(() => { d.style.transition = 'opacity .16s'; d.style.opacity = '0'; }, ms || 320); setTimeout(() => d.remove(), (ms || 320) + 260); } catch (e) {}
+}
+// IL MOMENTO DI CAMERA: avvicinamento sulla rana + rallentatore per ~0,3 s (tempo vero), poi torna di scatto.
+// Uno solo per blocco di poteri (SPCAM: la tua rana se ne usi uno, se no chi colpisce te, se no il primo); mai con «meno movimento»,
+// mai durante un primo piano (combo), mai mentre la rivelazione accelera.
+function momentoSp(o, col) {
+  if (!SPCAM || SPCAM.chi !== o.i || OPZ.rm || ACC > 1.5 || CAMT) { if (SPCAM && SPCAM.chi === o.i) SPCAM = null; return; } SPCAM = null;
+  const b = camBase(), dir = b.p.clone().sub(b.l), dist = dir.length(); dir.normalize();
+  const c = corpoDi(o), l1 = b.l.clone().lerp(c, .6), p1 = l1.clone().addScaledVector(dir, dist * .6), p0 = CAMV.p.clone(), l0 = CAMV.l.clone();
+  CAMT = 'sp'; const t0 = performance.now(), IN = 120, FERMA = 300, OUT = 150; lineeSchermo(c, col || 0xffffff, IN + FERMA);
+  (window.__momenti = window.__momenti || []).push(['camera_sp', performance.now(), o.pg]);
+  const giro = () => { if (CAMT !== 'sp') { SCALA = 1; return; } const t = performance.now() - t0;
+    if (t < IN) { const k = eo(t / IN); CAMV.p.lerpVectors(p0, p1, k); CAMV.l.lerpVectors(l0, l1, k); SCALA = 1 - .72 * k; }
+    else if (t < IN + FERMA) { const k = (t - IN) / FERMA; CAMV.p.copy(p1).lerp(c, .05 * k); CAMV.l.copy(l1); SCALA = .28; }
+    else if (t < IN + FERMA + OUT) { const k = eio((t - IN - FERMA) / OUT), b2 = camBase(); CAMV.p.lerpVectors(p1, b2.p, k); CAMV.l.lerpVectors(l1, b2.l, k); SCALA = .28 + .72 * k; }
+    else { SCALA = 1; CAMT = null; return; }
+    requestAnimationFrame(giro); };
+  giro();
+}
+// LA FASCIA COL NOME: entra da sinistra inclinata, col colore della rana e le righe che scorrono, esce a destra (~1,1 s).
+// Piu' poteri nello stesso momento: le fasce si impilano.
+const BAN_SP = [];
+function bannerSp(o, t) {
+  const n = NOMI_SP[t]; if (!n || !o) return;
+  try { if (!document.getElementById('sp3-css')) { const s = document.createElement('style'); s.id = 'sp3-css';
+      s.textContent = '.sp-ban{position:fixed;left:-24px;z-index:31;pointer-events:none;padding:7px 34px 8px 40px;transform:translateX(-110%) skewX(-14deg);background:linear-gradient(100deg,var(--c2) 0%,var(--c) 48%,var(--c3) 100%);border-top:3px solid rgba(255,255,255,.85);border-bottom:4px solid rgba(0,0,0,.28);box-shadow:0 6px 0 rgba(0,0,0,.28),0 12px 34px rgba(0,0,0,.45);overflow:hidden;animation:spban 1.12s cubic-bezier(.2,.9,.25,1) forwards}' +
+        '.sp-ban::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,rgba(255,255,255,0) 0 22px,rgba(255,255,255,.22) 22px 27px);animation:spbanl .35s linear infinite}' +
+        '.sp-ban i{position:relative;z-index:1;display:block;transform:skewX(14deg);font:900 clamp(11px,3.1vw,14px)/1 var(--x-tit);font-style:normal;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.95);text-shadow:0 1px 0 rgba(0,0,0,.45);margin:0 0 2px 2px;white-space:nowrap}' +
+        '.sp-ban b{position:relative;z-index:1;display:block;transform:skewX(14deg);font:italic 900 clamp(28px,8.6vw,48px)/1 var(--x-tit);letter-spacing:-.015em;color:#fff;-webkit-text-stroke:2.5px rgba(10,10,30,.55);paint-order:stroke fill;text-shadow:0 4px 0 rgba(0,0,0,.35);white-space:nowrap}' +
+        '@keyframes spban{0%{transform:translateX(-110%) skewX(-14deg)}13%{transform:translateX(5%) skewX(-14deg)}21%{transform:translateX(0) skewX(-14deg)}80%{transform:translateX(0) skewX(-14deg);opacity:1}100%{transform:translateX(115vw) skewX(-14deg);opacity:.9}}' +
+        '@keyframes spbanl{to{background-position:54px 0}}' +
+        '.sp-ban.rm{animation:spbanrm 1.1s linear forwards;transform:skewX(-14deg)}.sp-ban.rm::after{animation:none}@keyframes spbanrm{0%{opacity:0}12%{opacity:1}82%{opacity:1}100%{opacity:0}}';
+      document.head.appendChild(s); }
+    const c = new THREE.Color(n[2]), d = document.createElement('div'), A = areaLibera(); let k = 0; while (BAN_SP.includes(k)) k++; BAN_SP.push(k);
+    d.className = 'sp-ban' + (OPZ.rm ? ' rm' : '');
+    d.style.setProperty('--c', n[2]); d.style.setProperty('--c2', '#' + c.clone().multiplyScalar(.5).getHexString()); d.style.setProperty('--c3', '#' + c.clone().lerp(new THREE.Color(1, 1, 1), .45).getHexString());
+    d.style.top = (A.y0 + 10 + k * (innerWidth < 500 ? 62 : 72)) + 'px';
+    if (isPC()) d.style.left = (A.x0 - 30) + 'px';   // sul PC dopo la colonna dei giocatori
+    const chi = String(nm(o.i) || '').replace(/</g, '&lt;');
+    d.innerHTML = `<i>${chi}</i><b>${OPZ.lang === 'en' ? n[1] : n[0]}</b>`; document.body.appendChild(d);
+    (window.__momenti = window.__momenti || []).push(['sp_fascia', performance.now(), t]);
+    setTimeout(() => { d.remove(); BAN_SP.splice(BAN_SP.indexOf(k), 1); }, 1150); } catch (e) {}
+}
+
+// ---------- TONFO · PANCIATA ----------
+async function panciataFx(oc, v) {
+  const C = PAL_SP.panciata, w = v.clone().setY(.06), x0 = Math.round(oc.x), y0 = Math.round(oc.y);
+  oc.emote = null; oc.spAtterrato = false; oc.alt = 0; oc.tiltX = 0; posa3(oc, 'panciata');
+  // 1 ANTICIPAZIONE: si accuccia, l'aria viene risucchiata verso di lui, la ninfea cede
+  oc.stato = 'carica'; oc.posaF = 'ready'; oc.posaT = .22; suono('carica', .75); dip(x0, y0, .25);
+  risucchioSp(corpoDi(oc), C[1], 14, .2); anello(w, C[0], .7, .2, .1);
+  await attendi(.2);
+  // 2 AZIONE: decollo altissimo; all'apice camera vicina al rallentatore; picchiata di pancia
+  oc.stato = 'volo'; oc.posaF = 'jump'; oc.posaT = .6; suono('salto'); spruzzo(w, .8); colonnaSp(w, C[1], 3, .35, .5);
+  await tw(.1, k => { oc.alt = 1.7 * eo(k); });
+  momentoSp(oc, C[0]);
+  await tw(.24, k => { oc.alt = 1.7 + 1.5 * Math.sin(k * Math.PI * .5); oc.panciaSp = .2 + .55 * eio(k); });
+  await tw(.09, k => { oc.alt = 3.2 * (1 - k * k); oc.panciaSp = .75 + .25 * k; });
+  // 3 IMPATTO: fermo-immagine, scossa forte, stella, onde d'urto a cascata, corona d'acqua, crepe di luce, ninfee che saltano
+  oc.alt = 0; oc.panciaSp = 1; oc.stato = 'atterra'; oc.posaF = 'clash'; oc.posaT = .5; oc.jv = (oc.jv || 0) - 6; impattoSp(oc);
+  fermo(.16); fotoImpatto('#9fd4ff'); scossa(.95); vibra(110, true); pugnoCam(v, .14); lampo('#9fd4ff', .2); suono('tonfo'); suono('splash', 1); suono('crollo', .5);
+  lampoLuce.color.set(C[1]); lampoLuce.position.copy(w.clone().setY(1.3)); lampoLuce.intensity = 5;
+  stellaSp(w.clone().setY(.7), 0xffffff, 2.2, .24); stellaSp(w.clone().setY(.6), C[0], 4.4, .38);
+  anello(w, 0xffffff, 4.6, .5, .32); anello(w, C[0], 3.4, .45, .22); dopoSp(.09, () => anello(w, C[3], 5.2, .55, .14)); dopoSp(.19, () => anello(w, C[1], 6.2, .6, .08));
+  palla(w, C[0], 2.6, .28);
+  const nc = SPL() ? 10 : 24; for (let a = 0; a < nc; a++) { const d = new THREE.Vector3(Math.cos(a / nc * 6.283), 0, Math.sin(a / nc * 6.283)); particelle(w.clone().addScaledVector(d, .6).setY(.25), 2, a % 3 ? 0xe6fbff : C[3], 2.8, .75, {su: 5, r: .18, g: 11}); }
+  if (!SPL()) { particelle(w.clone().setY(.4), 16, 0xffffff, 6, .35, {su: .2, r: .12, g: 2}); getto(w); crepeSp(w, C[3], 3.6); }
+  anelloSchermo(w, '#4fb4ff', 300);
+  for (const [a, b] of celleAttorno(x0, y0, 1)) { dip(a, b, .3); macchiaSp(a, b, C[0], .9, .44); }
+  dopoSp(.11, () => { for (const [a, b] of celleAttorno(x0, y0, 2)) if (Math.max(Math.abs(a - x0), Math.abs(b - y0)) === 2) dip(a, b, .18, true); });
+  // il recupero: la pancia ballonzola, si rialza e mostra i muscoli (tutto nella posa)
+  await tw(.36, k => { lampoLuce.intensity = 5 * (1 - k); oc.panciaSp = 1 - eio(Math.min(1, k * 1.4)); });
+  oc.panciaSp = 0; oc.stato = 'idle'; impattoSp(oc);
+}
+// ---------- ZIP · SUPERBALZO: il salto lungo (nella fase dei salti) e l'onda d'urto dell'atterraggio da supereroe ----------
+function sciaZipSp(v, ang, col) {
+  const m = new THREE.Mesh(new THREE.ConeGeometry(.09, .9, 6), new THREE.MeshBasicMaterial({color: col, transparent: true, opacity: .75, depthWrite: false, blending: THREE.AdditiveBlending}));
+  m.position.copy(v); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(-Math.sin(ang), .15, -Math.cos(ang)).normalize()); scena.add(m);
+  tw(.24, k => { m.material.opacity = .75 * (1 - k); m.scale.set(1 - k * .5, 1 + k, 1 - k * .5); }).then(() => via(m));
+}
+async function saltoPotereSp(o, a) {
+  const x0 = o.x, y0 = o.y, A = pos(x0, y0), B = pos(a[0], a[1]), C = PAL_SP.superbalzo;
+  o.emote = null; o.paura = 0; o.stato = 'carica'; o.posaF = 'ready'; o.posaT = .2; posa3(o, 'zipvolo');
+  suono('carica', .55); fulminiSp(o, C[2], .18);
+  await tw(.18, k => { o.sq = 1 - .22 * eo(k); });
+  dip(Math.round(x0), Math.round(y0), .22); o.sq = 1;
+  o.stato = 'volo'; o.posaF = 'jump'; o.posaT = .6; o.direzione = Math.atan2(B.x - A.x, B.z - A.z); suono('boing'); suono('sibilo', .4);
+  const w0 = A.clone().add(mondo.position).setY(.06); anello(w0, C[0], 1.4, .3, .12); if (!SPL()) particelle(w0.clone().setY(.3), 10, C[2], 2.2, .35, {su: .3, r: .1, g: 2});
+  const h = OPZ.rm ? 1.4 : 2.7; let scia = 0;
+  await tw(.5, k => { const viaggio = eio(k); o.x = x0 + (a[0] - x0) * viaggio; o.y = y0 + (a[1] - y0) * viaggio; o.alt = h * Math.sin(k * Math.PI); o.sq = 1 + .2 * Math.sin(k * Math.PI);
+    if (!OPZ.rm && k > scia && k < .9) { scia = k + (SPL() ? .16 : .07); const p = pos(o.x, o.y).add(mondo.position); p.y = o.alt + .55; sciaZipSp(p, o.direzione, k * 14 % 2 < 1 ? C[0] : C[1]); if (!SPL()) particelle(p, 2, C[2], .3, .3, {r: .14, su: 0, g: 0}); } });
+  o.x = a[0]; o.y = a[1]; o.alt = 0; o.sq = 1; o.spAtterrato = true;
+}
 async function superbalzoFx(oc, v) {
-  avviaGestoSp(oc, 'superbalzo', 0.9);
-  const giaSaltato = oc.spAtterrato; oc.spAtterrato = false;
-  if (!giaSaltato) { suono('carica', .6); await caricaSp(oc, 0xffd23f, .22); }
-  oc.stato = 'volo'; oc.posaF = 'jump'; oc.posaT = .4; oc.sq = 1.35; suono('boing'); suono('sibilo', .6);
-  const w = v.clone(), linee = []; w.y = .06;
-  if (!giaSaltato && !SPL()) for (let k = 0; k < 7; k++) { const a = k / 7 * 6.283, r = .35 + Math.random() * .2;
-    const l = new THREE.Mesh(new THREE.PlaneGeometry(.06, 1.4), new THREE.MeshBasicMaterial({color: 0xfff2a0, transparent: true, opacity: .9, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide}));
+  const C = PAL_SP.superbalzo, w = v.clone().setY(.06), x0 = Math.round(oc.x), y0 = Math.round(oc.y);
+  oc.spAtterrato = false; oc.alt = 0; posa3(oc, 'superbalzo');
+  // 1 la molla si carica: schiacciato, scintille elettriche
+  oc.stato = 'carica'; oc.posaF = 'ready'; oc.posaT = .18; suono('carica', .6); fulminiSp(oc, C[2], .16); anello(w, C[0], .8, .16, .1);
+  await attendi(.16);
+  // 2 su col pugno al cielo, raccolto in aria (rallentatore), giu' di colpo
+  oc.stato = 'volo'; oc.posaF = 'jump'; oc.posaT = .4; suono('boing'); suono('sibilo', .6); colonnaSp(w, C[0], 2.6, .3, .35);
+  const linee = [];
+  if (!SPL()) for (let k = 0; k < 8; k++) { const a = k / 8 * 6.283, r = .35 + Math.random() * .2;
+    const l = new THREE.Mesh(new THREE.PlaneGeometry(.07, 1.5), new THREE.MeshBasicMaterial({color: k % 2 ? C[2] : C[1], transparent: true, opacity: .9, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide}));
     l.position.set(w.x + Math.cos(a) * r, 1, w.z + Math.sin(a) * r); l.lookAt(cam.position.x, 1, cam.position.z); scena.add(l); linee.push(l); }
-  if (!giaSaltato) await tw(.24, k => { oc.alt = Math.sin(k * Math.PI) * 1.6; oc.sq = 1.35 - .35 * k; for (const l of linee) { l.position.y = 1 + k * 2.2; l.material.opacity = .9 * (1 - k); } });
+  await tw(.24, k => { oc.alt = 1.6 * Math.sin(k * Math.PI * .5); for (const l of linee) { l.position.y = 1 + k * 2.4; l.material.opacity = .9 * (1 - k); } });
   for (const l of linee) via(l);
-  oc.alt = 0; oc.stato = 'atterra'; oc.sq = .7; oc.posaF = 'clash'; oc.posaT = .35; fermo(.06); scossa(.35); pugnoCam(v, .07); suono('atterra'); suono('specchio', .5);
-  lampo('#fff3b0', .22); anello(w, 0xffd23f, 3.2, .42, .22); anello(w, 0xffffff, 1.9, .3, .12); anelloSchermo(w, '#ffd23f', 200);
-  for (let a = 0; a < 12; a++) { const d = new THREE.Vector3(Math.cos(a / 12 * 6.283), 0, Math.sin(a / 12 * 6.283)); particelle(w.clone().addScaledVector(d, .35).setY(.2), SPL() ? 1 : 3, a % 2 ? 0xffe38a : 0xffffff, 3.6, .45, {r: .09, su: .5, g: 2}); }
-  if (!SPL()) particelle(w.clone().add(new THREE.Vector3(0, .9, 0)), 18, 0xfff6c0, 2.2, .55, {r: .07, g: 4});
-  for (const [a, b] of celleAttorno(Math.round(oc.x), Math.round(oc.y), 1)) { dip(a, b, .22); macchia(a, b, 0xffd23f, .7, .36); }
-  await attendi(.25); oc.stato = 'idle';
+  momentoSp(oc, C[0]);
+  await tw(.08, k => { oc.alt = 1.6 * (1 - k * k); });
+  // 3 ATTERRAGGIO DA SUPEREROE: pugno a terra, crepe di fulmine, onde gialle e arancio, stella, scintille radenti
+  oc.alt = 0; oc.stato = 'atterra'; oc.posaF = 'land'; oc.posaT = .5; oc.jv = (oc.jv || 0) - 4; impattoSp(oc);
+  fermo(.13); fotoImpatto('#ffd23f'); scossa(.65); vibra(80, true); pugnoCam(v, .11); lampo('#fff3b0', .28); suono('atterra'); suono('specchio', .5); suono('tonfo', .45);
+  lampoLuce.color.set(C[0]); lampoLuce.position.copy(w.clone().setY(1)); lampoLuce.intensity = 4;
+  stellaSp(w.clone().setY(.5), 0xffffff, 2.2, .24); stellaSp(w.clone().setY(.45), C[0], 3.4, .34);
+  anello(w, C[0], 3.4, .42, .24); anello(w, 0xffffff, 2, .3, .14); dopoSp(.08, () => anello(w, C[1], 4.4, .5, .12)); anelloSchermo(w, '#ffd23f', 230);
+  crepeSp(w, C[0], 3); palla(w, C[2], 1.8, .25);
+  for (let a = 0; a < 14; a++) { const d = new THREE.Vector3(Math.cos(a / 14 * 6.283), 0, Math.sin(a / 14 * 6.283)); particelle(w.clone().addScaledVector(d, .35).setY(.2), SPL() ? 1 : 3, a % 2 ? C[1] : C[2], 4.2, .45, {r: .1, su: .35, g: 2}); }
+  if (!SPL()) { particelle(w.clone().add(new THREE.Vector3(0, .9, 0)), 18, C[2], 2.4, .55, {r: .08, g: 4}); scheggeSp(w.clone().setY(.3), C[0], 8, 2.5); }
+  for (const [a, b] of celleAttorno(x0, y0, 1)) { dip(a, b, .22); macchiaSp(a, b, C[0], .75, .38); }
+  await tw(.5, k => { lampoLuce.intensity = 4 * (1 - k); }); oc.stato = 'idle'; impattoSp(oc);
 }
-// ── AXA · BOLLA: si forma attorno a lei, lucida e iridescente; trema quando para un colpo; scoppia in goccioline ──
+// ---------- AXA · BOLLA ----------
 function bollaFx(o) {
-  if (!o || !o.bolla) return; avviaGestoSp(o, 'bolla', .64); nomeSp(o, 'bolla'); suono('specchio', .7); o.posaF = 'ready'; o.posaT = .3; o.sq = .8;
-  const b = o.bolla, s0 = b.userData.s0 || b.scale.x || 1; b.userData.s0 = s0;
-  tw(.42, k => { const e = k < .6 ? k / .6 * 1.18 : 1.18 - (k - .6) / .4 * .18; b.scale.set(s0 * e * (1 + .08 * Math.sin(k * 20)), s0 * e * (1 - .08 * Math.sin(k * 20)), s0 * e); }).then(() => b.scale.setScalar(s0));
-  const v = corpoDi(o); anello(v.clone().setY(.1), 0x9fe8ff, 1.6, .4, .1); if (!SPL()) { particelle(v, 12, 0xdff8ff, 1.2, .5, {r: .07, su: .6, g: -1}); anelloSchermo(v, '#9fe8ff', 170); }
+  if (!o || !o.bolla) return; const C = PAL_SP.bolla; posa3(o, 'bolla'); nomeSp(o, 'bolla'); suono('specchio', .7); o.posaF = 'ready'; o.posaT = .3;
+  const b = o.bolla, s0 = b.userData.s0 || b.scale.x || 1, tok = b.userData.tok = (b.userData.tok || 0) + 1; b.userData.s0 = s0;
+  const v = corpoDi(o); risucchioSp(v, C[0], 10, .17); b.scale.setScalar(s0 * .05);
+  tw(.62, k => { if (tok !== b.userData.tok) return; const u = Math.max(0, (k - .27) / .73), r = u <= 0 ? .05 : 1 - Math.exp(-6 * u) * Math.cos(u * 13); const wob = Math.sin(k * 24) * .07 * (1 - k);
+    b.scale.set(s0 * r * (1 + wob), s0 * r * (1 - wob), s0 * r); }).then(() => { if (tok === b.userData.tok) b.scale.setScalar(s0); });
+  dopoSp(.17, () => { const w = corpoDi(o); suono('plop', .7); stellaSp(w, 0xffffff, 1.8, .26); stellaSp(w, C[1], 2.4, .34); anello(w.clone().setY(.1), C[0], 2.4, .42, .14); anello(w.clone().setY(.1), C[1], 1.6, .34, .1);
+    colonnaSp(w.clone().setY(0), C[0], 2.2, .4, .7); if (!SPL()) { anelloSchermo(w, '#9fe8ff', 190); for (let k = 0; k < 14; k++) dopoSp(k * .02, () => particelle(corpoDi(o).add(new THREE.Vector3(Math.cos(k * .9) * .9, (k % 5) * .2 - .3, Math.sin(k * .9) * .9)), 1, k % 2 ? C[1] : C[0], .6, .5, {r: .12, su: 1, g: -1.5})); }
+    else particelle(w, 8, C[0], 1.2, .4, {r: .1, su: .6, g: -1}); });
 }
 function bollaColpo(o) {
-  if (!o || !o.bolla) return; avviaGestoSp(o, 'parata', .46); const b = o.bolla, s0 = b.userData.s0 || b.scale.x || 1, v = corpoDi(o); suono('rimbalzo', .7); fermo(.05);
-  tw(.35, k => { const w = Math.sin(k * 26) * (1 - k) * .22; b.scale.set(s0 * (1 + w), s0 * (1 - w), s0 * (1 + w * .5)); }).then(() => b.scale.setScalar(s0));
-  particelle(v, SPL() ? 6 : 18, 0xdff6ff, 2.6, .45, {r: .09}); anello(v, 0xbfefff, 1.8, .35, .1);
+  if (!o || !o.bolla) return; const C = PAL_SP.bolla; posa3(o, 'parata'); const b = o.bolla, s0 = b.userData.s0 || b.scale.x || 1, tok = b.userData.tok = (b.userData.tok || 0) + 1, v = corpoDi(o);
+  suono('rimbalzo', .75); suono('specchio', .4); fermo(.06); scossa(.2);
+  tw(.42, k => { if (tok !== b.userData.tok) return; const q = Math.exp(-5 * k) * Math.sin(k * 24 + .6) * .26; b.scale.set(s0 * (1 + q), s0 * (1 - q), s0 * (1 + q * .5)); }).then(() => { if (tok === b.userData.tok) b.scale.setScalar(s0); });
+  stellaSp(v, 0xffffff, 1.6, .22); particelle(v, SPL() ? 6 : 16, C[2], 2.8, .4, {r: .09}); if (!SPL()) particelle(v, 10, C[1], 2, .45, {r: .12});
+  anello(v.clone().setY(.15), C[0], 2, .35, .12); anello(v.clone().setY(.15), C[3], 1.3, .28, .08);
 }
 function bollaScoppia(o) {
-  if (!o || OPZ.rm) return; const v = corpoDi(o); suono('plop'); particelle(v, SPL() ? 8 : 22, 0xe6fbff, 3.2, .5, {r: .08, su: 1.2, g: 8}); anello(v, 0xbfefff, 1.3, .25, .08);
+  if (!o || OPZ.rm) return; const C = PAL_SP.bolla, v = corpoDi(o); suono('plop'); stellaSp(v, C[0], 1.4, .22);
+  particelle(v, SPL() ? 8 : 22, 0xe6fbff, 3.2, .5, {r: .08, su: 1.2, g: 8}); if (!SPL()) particelle(v, 8, C[1], 2.4, .4, {r: .1, su: 1, g: 6}); anello(v, C[0], 1.5, .25, .08);
 }
-// ── CAMU · LINGUA: guance che si gonfiano, lingua elastica GROSSA e curva con la punta tonda appiccicosa, si attacca con uno
-//    schizzo e tira: la rana presa si allunga e si schiaccia agganciata alla punta finche' la lingua rientra ──
-const LINGUE = [];   // le lingue agganciate (anche piu' Camu nello stesso turno): {m, punta, ventosa, da, a, t0}
+// ---------- CAMU · LINGUA ----------
+const LINGUE = [];   // le lingue agganciate (anche piu' Camu nello stesso turno): {m, punta, ventosa, da, a}
 function curvaLingua(L, A, B, t) {
   const d = B.clone().sub(A), len = d.length(), side = new THREE.Vector3(-d.z, 0, d.x).normalize(), pts = [];
   for (let k = 0; k <= 12; k++) { const u = k / 12, p = A.clone().lerp(B, u), env = Math.sin(u * Math.PI);
-    p.addScaledVector(side, Math.sin(u * Math.PI * 2.2 + t * 13) * .16 * env * Math.min(1, len / 2.2)); p.y += env * .38 * Math.min(1, len / 3); pts.push(p); }
-  const g = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), SPL() ? 14 : 26, .15, SPL() ? 6 : 10, false);
+    p.addScaledVector(side, Math.sin(u * Math.PI * 2.2 + t * 13) * .17 * env * Math.min(1, len / 2.2)); p.y += env * .4 * Math.min(1, len / 3); pts.push(p); }
+  const g = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), SPL() ? 14 : 26, .17, SPL() ? 6 : 10, false);
   if (L.m.geometry) L.m.geometry.dispose(); L.m.geometry = g; L.punta.position.copy(B); L.ventosa.position.copy(B);
 }
 async function linguaFuori(oc, oj) {
-  avviaGestoSp(oc, 'lingua', 1.3); oc.miraSp = Math.atan2(oj.root.position.x - oc.root.position.x, oj.root.position.z - oc.root.position.z);
-  const mat = new THREE.MeshStandardMaterial({color: 0xff5f92, roughness: .25, metalness: 0, emissive: 0xff2d6a, emissiveIntensity: .5});
-  const L = {m: new THREE.Mesh(new THREE.BufferGeometry(), mat), punta: new THREE.Mesh(new THREE.SphereGeometry(.3, 18, 14), mat),
-    ventosa: new THREE.Mesh(new THREE.SphereGeometry(.2, 14, 10), new THREE.MeshStandardMaterial({color: 0xffb3cb, roughness: .15, emissive: 0xff7aa8, emissiveIntensity: .35})), da: oc, a: oj, t0: performance.now()};
-  L.m.renderOrder = L.punta.renderOrder = L.ventosa.renderOrder = 20; scena.add(L.m); scena.add(L.punta); scena.add(L.ventosa);
-  // 1 le guance: Camu si gonfia (schiacciato in largo) e si piega in avanti
-  oc.posaF = 'ready'; oc.posaT = .25; suono('carica', .5); await tw(.18, k => { oc.sq = 1 - .3 * Math.sin(k * Math.PI * .5); });
-  // 2 la lingua esce elastica (va oltre e torna), curva e ondeggiante
-  oc.posaF = 'clash'; oc.posaT = .7; oc.sq = 1.15; suono('sibilo', .7);
+  const C = PAL_SP.lingua; posa3(oc, 'lingua'); oc.miraSp = Math.atan2(oj.root.position.x - oc.root.position.x, oj.root.position.z - oc.root.position.z);
+  const mat = new THREE.MeshStandardMaterial({color: 0xff5f92, roughness: .16, metalness: .05, emissive: 0xff2d6a, emissiveIntensity: .45});
+  const L = {m: new THREE.Mesh(new THREE.BufferGeometry(), mat), punta: new THREE.Mesh(new THREE.SphereGeometry(.34, 18, 14), mat),
+    ventosa: new THREE.Mesh(new THREE.SphereGeometry(.22, 14, 10), new THREE.MeshStandardMaterial({color: 0xffb3cb, roughness: .1, emissive: 0xff7aa8, emissiveIntensity: .4})), da: oc, a: oj};
+  L.m.renderOrder = L.punta.renderOrder = L.ventosa.renderOrder = 20;
+  // 1 si tira indietro e si gonfia: l'aria entra
+  oc.posaF = 'ready'; oc.posaT = .25; suono('carica', .5); risucchioSp(testaDi(oc), C[1], 10, .2);
+  await attendi(.2);
+  // 2 la frustata: la lingua parte al rallentatore, va oltre il bersaglio e torna, curva e ondeggiante
+  momentoSp(oc, C[0]); scena.add(L.m); scena.add(L.punta); scena.add(L.ventosa);
+  oc.posaF = 'clash'; oc.posaT = .7; suono('sibilo', .8);
   const A = testaDi(oc), B = corpoDi(oj), back = k => 1 + 2.4 * Math.pow(k - 1, 3) + 1.4 * Math.pow(k - 1, 2);
-  await tw(.24, k => { const P = A.clone().lerp(B, back(k)); curvaLingua(L, testaDi(oc), P, k); L.punta.scale.setScalar(.8 + .2 * k); });
-  // 3 si attacca: schizzo, la punta si spiaccica, la rana presa sussulta
-  curvaLingua(L, testaDi(oc), corpoDi(oj), 1); suono('plop'); suono('morso', .45); fermo(.07); scossa(.25); oj.flash = .14; oj.posaF = 'hit'; oj.posaT = .6; oj.sq = .7;
-  L.punta.scale.set(1.25, .8, 1.25); particelle(corpoDi(oj), SPL() ? 6 : 16, 0xff9ab8, 2.4, .4, {r: .1}); anello(corpoDi(oj).setY(.15), 0xff6f9a, 1.2, .3, .1); anelloSchermo(corpoDi(oj), '#ff6f9a', 150);
-  LINGUE.push(L); await attendi(.1);
+  await tw(.22, k => { const P = A.clone().lerp(B, back(k)); curvaLingua(L, testaDi(oc), P, k); L.punta.scale.setScalar(.7 + .3 * k); });
+  // 3 si attacca: schizzo rosa, la punta si spiaccica, fermo-immagine, chi e' preso sussulta
+  curvaLingua(L, testaDi(oc), corpoDi(oj), 1); impattoSp(oc); suono('plop'); suono('morso', .5); fermo(.11); fotoImpatto('#ff6f9a'); scossa(.36); pugnoCam(corpoDi(oj), .08);
+  oj.posaF = 'hit'; oj.posaT = .6; oj.sq = .7; L.punta.scale.set(1.35, .75, 1.35);
+  const vj = corpoDi(oj); stellaSp(vj, C[0], 2, .3); stellaSp(vj, 0xffffff, 1.1, .2); particelle(vj, SPL() ? 6 : 16, C[1], 2.6, .4, {r: .1}); if (!SPL()) particelle(vj, 8, C[3], 1.8, .45, {r: .14});
+  anello(vj.clone().setY(.15), C[0], 1.6, .32, .12); anelloSchermo(vj, '#ff6f9a', 160); macchiaSp(Math.round(oj.x), Math.round(oj.y), C[0], .8, .4);
+  LINGUE.push(L); await attendi(.1); impattoSp(oc);
 }
-async function linguaDentro(oj, a) {   // la spinta della lingua: la rana viaggia agganciata alla punta mentre la lingua rientra
+async function linguaDentro(oj, a) {   // la tirata: la rana presa vola agganciata alla punta mentre la lingua rientra; Camu tira alla fune
   const k0 = LINGUE.findIndex(L => L.a === oj); if (k0 < 0) return false; const L = LINGUE.splice(k0, 1)[0];
+  lasciaPosa3(L.da); posa3(oj, 'tirato');
   let fine = false; const t0 = performance.now();
   const giro = () => { if (fine) return; const t = (performance.now() - t0) / 1000; curvaLingua(L, testaDi(L.da), corpoDi(oj), 1 + t); requestAnimationFrame(giro); }; giro();
   suono('magnete', .5); oj.sbraccia = 1; oj.posaF = 'hit'; oj.posaT = .5;
-  const stira = tw(.34, k => { oj.sq = 1 + .35 * Math.sin(k * Math.PI); });          // allungata dalla tirata
-  await scivola(oj, a, .34); await stira; oj.sbraccia = 0; fine = true;
-  oj.sq = .65; oj.jv = (oj.jv || 0) - 2; suono('plop', .8); scossa(.2);        // schiacciata all'arrivo
+  const stira = tw(.36, k => { oj.sq = 1 + .4 * Math.sin(k * Math.PI); });
+  await scivola(oj, a, .34, {causa: causaSpinta('lingua', L.da.i), col: COL[L.da.i], ico: 'lingua'}); await stira; oj.sbraccia = 0; fine = true;
+  oj.sq = .55; oj.jv = (oj.jv || 0) - 3.5; oj.bianco = .07; suono('plop', .8); scossa(.28); fermo(.05);   // VIVO_1911
   const P0 = L.punta.position.clone();
-  await tw(.16, k => { const A = testaDi(L.da), P = P0.clone().lerp(A, k * k); curvaLingua(L, A, P, 2 + k); L.punta.scale.setScalar(1 - .5 * k); });
-  L.da.sq = 1.2; L.da.miraSp = null; via(L.m); via(L.punta); via(L.ventosa); return true;
+  await tw(.14, k => { const A = testaDi(L.da), P = P0.clone().lerp(A, k * k); curvaLingua(L, A, P, 2 + k); L.punta.scale.setScalar(1 - .5 * k); });
+  suono('morso', .35); L.da.sq = 1.25; L.da.miraSp = null; if (!SPL()) particelle(testaDi(L.da), 6, PAL_SP.lingua[1], 1.2, .35, {r: .1, su: .8, g: 2});
+  via(L.m); via(L.punta); via(L.ventosa); return true;
 }
-function linguaVia() { while (LINGUE.length) { const L = LINGUE.pop(); L.da.miraSp = null; via(L.m); via(L.punta); via(L.ventosa); } }   // una lingua senza spinta (bersaglio bloccato): sparisce
-// ── GRUMO · NUBE: la maschera antigas sbuffa, tre sbuffi di nuvola tossica che si gonfiano, filamenti che restano sulle ninfee ──
+function linguaVia() { while (LINGUE.length) { const L = LINGUE.pop(); L.da.miraSp = null; lasciaPosa3(L.da); via(L.m); via(L.punta); via(L.ventosa); } }   // una lingua senza spinta (bersaglio bloccato): sparisce
+// ---------- GRUMO · NUBE ----------
 async function nubeFx(oc, v, celle) {
-  avviaGestoSp(oc, 'nube', 0.95);
-  oc.posaF = 'ready'; oc.posaT = .3; await tw(.18, k => { oc.sq = 1 + .2 * Math.sin(k * Math.PI); }); suono('miccia', .7);
-  oc.posaF = 'clash'; oc.posaT = .6; sbuffoBoccaSp(oc); mostraAree(celle, '#43c443', false);
-  const cols = [0x3faa32, 0x6fdc4a, 0x2a7f24];
-  for (let k = 0; k < 3; k++) setTimeout(() => { oc.sq = .8; suono('getto', .35);
-    particelle(v.clone().add(new THREE.Vector3(0, .35 + k * .18, 0)), SPL() ? 8 : 22, cols[k], 1.3 + k * .6, 1.4, {fumo: true, r: .95 + k * .15, g: -.7, cresce: 1.8});
-    anello(v.clone().setY(.1), 0x43c443, 1.6 + k * .9, .55, .16); if (k === 2) { fermo(.05); scossa(.25); anelloSchermo(v, '#6fdc4a', 230); } }, k * 150);
-  if (!SPL()) particelle(v.clone().add(new THREE.Vector3(0, .4, 0)), 14, 0xc8ff9a, .7, 1.3, {r: .06, su: 1.4, g: -2});
-  await attendi(.62);
-  for (const [a, b] of celle) { macchia(a, b, 0x3fbf3a, 1.6, .45); if (!SPL()) { const w = pos(a, b).add(mondo.position); w.y = .3; particelle(w, 2, 0x7be35a, .25, 1.6, {fumo: true, r: .5, g: -.25, cresce: 1.3}); } }
-  spegniAree(); oc.sq = 1;
+  const C = PAL_SP.nube, w = v.clone().setY(.1), clipN = !!(oc.glb && oc.glb.az && oc.glb.az.sp);   // VIVO_1911
+  if (clipN) { oc.posaF = 'sp'; oc.posaT = 1.35; } else posa3(oc, 'nube');
+  // 1 INSPIRA: il petto si gonfia, l'aria corre dentro la maschera
+  if (!clipN) { oc.posaF = 'ready'; oc.posaT = .3; } suono('miccia', .7); risucchioSp(testaDi(oc), C[2], 16, clipN ? .36 : .24);
+  await attendi(clipN ? .36 : .24);
+  momentoSp(oc, C[0]);
+  await attendi(.08);
+  // 2 SOFFIA: tre sbuffi col corpo che sussulta, nubi verdi e viola che si gonfiano, bolle tossiche
+  impattoSp(oc); if (!clipN) { oc.posaF = 'clash'; oc.posaT = .7; } sbuffoBoccaSp(oc); mostraAree(celle, '#43c443', false);
+  fermo(.09); fotoImpatto('#9aff6a'); scossa(.4); pugnoCam(v, .07); lampo('#b6ff8a', .18); suono('getto', .6);
+  const h = testaDi(oc); stellaSp(h, C[2], 1.8, .26); lampoLuce.color.set(C[0]); lampoLuce.position.copy(w.clone().setY(1.2)); lampoLuce.intensity = 3;
+  const cols = [C[0], C[3], C[1]];
+  for (let k = 0; k < 3; k++) dopoSp(k * .15, () => { oc.sq = .82; suono('getto', .35); if (k) sbuffoBoccaSp(oc);
+    gasAnelloSp(w, cols[k], 1 + k * .8);
+    anello(w, k === 1 ? C[3] : C[0], 1.8 + k * 1, .55, .18); if (k === 2) { scossa(.25); anelloSchermo(v, '#6fdc4a', 240); } });
+  gasCelleSp(celle, oc);   // VIVO_1911: gas morbido, niente sfere
+  gasRiccioli(w, 6);
+  await tw(.6, k => { lampoLuce.intensity = 3 * (1 - k); });
+  for (const [a, b] of celle) { macchiaSp(a, b, 0x3fbf3a, 1.6, .46); if (!SPL()) { const z = pos(a, b).add(mondo.position); z.y = .3; sbuffoGas(z, dispariSp(a + b) ? 0x7be35a : GAS_VIOLA, {s0: .5, s1: 1.2, vita: 1.6, op: .5, su: .4}); } }
+  spegniAree(); oc.sq = 1; impattoSp(oc);
 }
-// ── LUMA · LANTERNA: alza la lanterna, la luce si carica, esplode con i raggi, i cristalli di ghiaccio crescono sui presi ──
-async function lanternaFx(oc, v, celle) {
-  avviaGestoSp(oc, 'lampo', 0.84);
-  const c = v.clone(); c.y = (oc.topY || 1.4) * .95; oc.braccioSu = 1; oc.posaF = 'ready'; oc.posaT = .4; suono('carica', .6);
-  lampoLuce.color.set(0xffe9a8); lampoLuce.position.copy(c); const nucleo = new THREE.Sprite(new THREE.SpriteMaterial({map: TEX_PUNTO, color: 0xfff1b8, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending}));
-  nucleo.position.copy(c); nucleo.renderOrder = 22; scena.add(nucleo);
-  await tw(.26, k => { lampoLuce.intensity = 7 * k; const s = .3 + 1.1 * k * k; nucleo.scale.set(s, s, 1); });
-  oc.posaF = 'win'; oc.posaT = .4; suono('gelo'); suono('specchio', .5); mostraAree(celle, '#fff6d0', false);
-  fermo(.06); scossa(.3); pugnoCam(c, .06); lampo('#fff6d8', .2); lampoLuce.intensity = 7; palla(c, 0xfff3c4, 1.8, .45); palla(c, 0xffd56a, 1.1, .35);
-  const raggi = [];
-  if (!SPL()) for (let a = 0; a < 10; a++) { const r = new THREE.Mesh(new THREE.PlaneGeometry(.12, 2.6), new THREE.MeshBasicMaterial({color: 0xfff0b8, transparent: true, opacity: .8, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide}));
-    r.position.copy(c); r.rotation.set(-Math.PI / 2, 0, a / 10 * 6.283); r.translateY(1.8); scena.add(r); raggi.push(r); }
-  anello(v.clone().setY(.12), 0xffe9a8, 3.4, .5, .2); anelloSchermo(c, '#ffe08a', 240);
-  for (const [a, b] of celle) macchia(a, b, 0xbfe8ff, 1.3, .46);
-  await tw(.42, k => { lampoLuce.intensity = 7 * (1 - k); nucleo.material.opacity = 1 - k; for (const r of raggi) { r.material.opacity = .8 * (1 - k); r.scale.y = 1 + k * .5; } });
-  via(nucleo); for (const r of raggi) via(r); oc.braccioSu = 0; spegniAree();
+const dispariSp = n => n % 3 !== 0;
+function nuvoleSp(celle, oc, cols) {   // la nube vera: batuffoli pieni sulle caselle prese, a ondate dal centro
+  const c0 = [Math.round(oc.x), Math.round(oc.y)], lista = celle.slice().sort((a, b) => Math.hypot(a[0] - c0[0], a[1] - c0[1]) - Math.hypot(b[0] - c0[0], b[1] - c0[1]));
+  lista.forEach(([a, b], j) => { if ((SPL() && j % 2) || (a === c0[0] && b === c0[1])) return; const v = pos(a, b).add(mondo.position), d = Math.hypot(a - c0[0], b - c0[1]);
+    dopoSp(.04 + d * .07, () => { for (let q = 0; q < (SPL() ? 1 : 2); q++) { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), new THREE.MeshStandardMaterial({color: cols[(j + q) % cols.length], emissive: cols[(j + q) % cols.length], emissiveIntensity: .35, roughness: 1, transparent: true, opacity: .9, depthWrite: false}));
+      m.position.set(v.x + (q ? .25 : -.15), .45 + q * .3, v.z + (q ? -.15 : .2)); m.renderOrder = 19; scena.add(m); const r0 = .55 + Math.random() * .15;
+      tw(1.0, k => { const e = k < .25 ? ebk(k / .25) : 1; m.scale.set(r0 * e * (1 + .25 * k), r0 * e * (.8 + .2 * k), r0 * e * (1 + .25 * k)); m.position.y += .004; m.material.opacity = k < .6 ? .9 : .9 * (1 - (k - .6) / .4); }).then(() => via(m)); } }); });
 }
+
+// ---------- LUMA · LANTERNA ----------
+function puntoLanternaSp(o) { const lc = lanternaCoda(o); if (lc) return lc; const c = testaDi(o); c.y += (o.topY || 1.4) * .22; return c; }
+async function lanternaFxV3(oc, v, celle) {   // VIVO_1911: resta per «meno movimento»
+  const C = PAL_SP.lampo; posa3(oc, 'lampo'); oc.braccioSu = 1; oc.posaF = 'ready'; oc.posaT = .4; suono('carica', .6);
+  let c = puntoLanternaSp(oc); lampoLuce.color.set(C[0]); lampoLuce.position.copy(c);
+  const nucleo = new THREE.Sprite(new THREE.SpriteMaterial({map: TEX_PUNTO, color: 0xfff1b8, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending})); nucleo.position.copy(c); nucleo.renderOrder = 22; scena.add(nucleo);
+  // 1 RACCOGLIE: lucine che corrono alla lanterna, la luce cresce, lei si chiude su se stessa
+  risucchioSp(c, C[0], 18, .24);
+  await tw(.24, k => { c = puntoLanternaSp(oc); nucleo.position.copy(c); lampoLuce.position.copy(c); lampoLuce.intensity = 3 * k; const s = .3 + 1.2 * k * k; nucleo.scale.set(s, s, 1); });
+  momentoSp(oc, C[0]);
+  await attendi(.08);
+  // 2 ESPLODE: lampo, raggi che girano, colonna di luce, anelli d'oro e di ghiaccio, schegge sui presi; lei levita (posa)
+  impattoSp(oc); oc.posaF = 'win'; oc.posaT = .5; suono('gelo'); suono('specchio', .6); mostraAree(celle, '#ffc93c', false);
+  c = puntoLanternaSp(oc); fermo(.11); fotoImpatto('#ffe08a'); scossa(.45); pugnoCam(c, .08); lampo('#ffe9a8', .1); lampoLuce.intensity = 5;
+  palla(c, C[0], .8, .25); stellaSp(c, 0xffffff, 1.3, .22); stellaSp(c, C[3], 1.8, .3); stellaSp(c, C[2], 1.9, .46);
+  const raggi = [], nr = SPL() ? 0 : 12;
+  for (let a = 0; a < nr; a++) { const r = new THREE.Mesh(new THREE.PlaneGeometry(a % 2 ? .1 : .18, a % 2 ? 2.2 : 3), new THREE.MeshBasicMaterial({color: a % 3 ? C[3] : C[2], transparent: true, opacity: .7, depthWrite: false, side: THREE.DoubleSide}));
+    r.userData.a = a / nr * 6.283; r.renderOrder = 22; scena.add(r); raggi.push(r); }
+  const w = v.clone().setY(.08); colonnaSp(w, C[3], 3, .4, .3); anello(w, C[0], 3.6, .5, .22); dopoSp(.08, () => anello(w, C[2], 4.4, .55, .12)); anelloSchermo(c, '#ffe08a', 260);
+  for (const [a, b] of celle) { macchiaSp(a, b, 0xbfe8ff, 1.3, .46); }
+  for (const o2 of RANE) if (o2 !== oc && !o2.ko && celle.some(([a, b]) => a === Math.round(o2.x) && b === Math.round(o2.y))) scheggeSp(corpoDi(o2), C[2], 7, 2);
+  await tw(.5, k => { c = puntoLanternaSp(oc); nucleo.position.copy(c); lampoLuce.position.copy(c); lampoLuce.intensity = 5 * (1 - k); nucleo.material.opacity = 1 - k; const s = .9 + .6 * k; nucleo.scale.set(s, s, 1);   // VIVO_1911
+    for (const r of raggi) { r.position.copy(c); r.rotation.set(-Math.PI / 2, 0, r.userData.a + k * .9); r.translateY(1.6 + k * .6); r.material.opacity = .7 * (1 - k); r.scale.y = 1 + k * .6; } });
+  via(nucleo); for (const r of raggi) via(r); oc.braccioSu = 0; spegniAree(); impattoSp(oc);
+}
+
 async function effetto(e) {
   const t = e.t, x = e.x, y = e.y, c = new THREE.Color(COLA(t)), o = pos(x, y).add(mondo.position);
-  if (e.celle && e.celle.length) lampeggiaCelle(e.celle, COLA(t)); setTimeout(() => scintilleColpiti(e), 200);
+  const spV3 = NOMI_SP[t] && !e.copia && RANE[e.sg];   // REGIA_V3_1811
+  presagioVia(e.sg); const nv3 = NINFEE_ARMI.has(t) && RANE[e.sg]; if (nv3 && !SPI[e.sg]) preparaImpatto(e.sg, t, e.presi || []);   // NINFEE_V3_1811
+  if (e.celle && e.celle.length && !spV3 && !nv3) lampeggiaCelle(e.celle, COLA(t)); if (!spV3 && !nv3) setTimeout(() => scintilleColpiti(e), 200);
   const bruc = () => e.celle.forEach(([a, b]) => bruciatura(a, b));
-  const Lz = async (x1, y1, x2, y2) => {
-    const A = pos(x1, y1).add(mondo.position), B = pos(x2, y2).add(mondo.position); A.y = B.y = .78;
-    // 1. linea di carica: sottile, tremolante, mentre il sibilo sale
-    suono('sibilo'); const g = new THREE.BufferGeometry().setFromPoints([A, B]); const linea = new THREE.Line(g, new THREE.LineBasicMaterial({color: LASER, transparent: true, opacity: .2})); scena.add(linea);
-    await tw(.3, k => { linea.material.opacity = .2 + .6 * k * (Math.random() > .3 ? 1 : .3); }); via(linea);
-    // 2. il raggio vero e proprio
-    suono('getto'); return raggioSweep(o, A, B, c); };
-  if (['riga', 'colonna', 'croce', 'diagonali'].includes(t)) { lampo(COLA(t), .14); scossa(.18); }
+  const Lz = (x1, y1, x2, y2) => raggioV3(o, x1, y1, x2, y2, e);   // NINFEE_V3_1811: carica, getto con le gocce, impatto sui presi
   const sp0 = e.copia ? null : RANE[e.sg];   // SPECIALI_1811: il potere della rana (non la ninfea copiata)
-  if (sp0 && NOMI_SP[t]) nomeSp(sp0, t);
+  if (sp0 && NOMI_SP[t]) { preparaImpatto(sp0.i, t, e.presi || []); nomeSp(sp0, t); }   // REGIA_V3_1811
   if (sp0 && t === 'panciata') { await panciataFx(sp0, o); return; }
   if (sp0 && t === 'superbalzo') { await superbalzoFx(sp0, o); return; }
   if (sp0 && t === 'nube') { await nubeFx(sp0, o, e.celle || []); return; }
   if (sp0 && t === 'lampo') { await lanternaFx(sp0, o, e.celle || []); return; }
-  if (sp0 && t === 'lingua') { if (e.presi.length && RANE[e.presi[0]]) await linguaFuori(sp0, RANE[e.presi[0]]); else { suono('plop', .6); await attendi(.2); } return; }
+  if (sp0 && t === 'lingua') { if (e.presi.length && RANE[e.presi[0]]) await linguaFuori(sp0, RANE[e.presi[0]]); else { suono('plop', .6); await attendi(.2); } impattoSp(sp0); return; }
   if (t === 'riga') { await Lz(-0.6, y, W - .4, y); bruc(); }
   else if (t === 'colonna') { await Lz(x, -0.6, x, H - .4); bruc(); }
   else if (t === 'croce') { await Promise.all([Lz(-0.6, y, W - .4, y), Lz(x, -0.6, x, H - .4)]); bruc(); }
   else if (t === 'diagonali') { await Promise.all([Lz(x - 6, y - 6, x + 6, y + 6), Lz(x - 6, y + 6, x + 6, y - 6)]); bruc(); }
-  else if (t === 'bomba') { scossa(.5); await esplosione(x, y, 1.2); }
+  else if (t === 'bomba') { await vesciaV3(e); }
+  else if (t === 'gelo') { await melmaV3(e); }
   else if (t === 'gelo' || t === 'lampo') { suono('gelo'); mostraAree(e.celle, t === 'gelo' ? '#7fd0ff' : '#ffffff', false); if (t === 'lampo') lampo('#ffffff', .6); anello(o, 0xbfe8ff, 3, .5); particelle(o.clone().add(new THREE.Vector3(0, .5, 0)), 30, 0xe6f8ff, 3, .8, {g: 2}); await attendi(.45); spegniAree(); }
+  else if (t === 'onda') { await ondataV3(e); }
   else if (t === 'onda' || t === 'panciata' || t === 'superbalzo') { suono('onda'); suono('splash', .6); getto(o); anello(o, 0xffffff, 3.2, .45); anello(o, 0x7fd6ff, 2.2, .35, .15); scossa(.3); await attendi(.45); }
+  else if (t === 'corrente' && RANE[e.sg]) { await correnteV3(e); }
   else if (t === 'corrente') { suono('onda'); suono('getto', .8); const A = pos(-0.6, y).add(mondo.position), B = pos(W - .4, y).add(mondo.position); A.y = B.y = .45; lampo('#9fd8ff', .12); scossa(.25);
     await raggioSweep(o, A, B, new THREE.Color('#5fb8ff')); for (const [a, b] of e.celle || []) { const v = pos(a, b).add(mondo.position); v.y = .1; particelle(v, 5, 0xd8fff4, 1.6, .5, {su: 1.2, r: .1, g: 7}); } }
+  else if (t === 'calamita' && RANE[e.sg]) { await risucchioV3(e); }
   else if (t === 'calamita') { suono('magnete'); await Promise.all([campoMagnetico(o), ...(e.presi || []).map(j => raggioSweep(o, o, RANE[j].root.position.clone().add(mondo.position), new THREE.Color('#ff7a8a')))]); }
   else if (t === 'veleno' || t === 'nube') { mostraAree(e.celle, '#43c443', false); particelle(o.clone().add(new THREE.Vector3(0, .3, 0)), 24, 0x7be35a, 1.6, 1.2, {fumo: true, r: .7, g: -1, cresce: 1}); await attendi(.5); spegniAree(); }
   else if (t === 'lingua') { if (e.presi.length) { const j = RANE[e.presi[0]]; suono('rimbalzo'); await raggioSweep(o, o, pos(j.x, j.y).add(mondo.position), new THREE.Color('#ff7aa8')); } }
   else await attendi(.3);
+  if (RANE[e.sg] && NINFEE_ARMI.has(t)) impattoSp(RANE[e.sg]);
 }
 async function caduta(e) {
   const o = RANE[e.sg]; o.stato = 'volo'; o.sbraccia = 1; suono('cade');
@@ -2628,7 +3618,7 @@ async function patataBoom(b) {
   momento(3, 'patata', `${en ? 'The burr pops on' : 'Il cardo scoppia addosso a'} ${nm(e.sg)}`); boom(en ? 'POP!' : 'SCOPPIA!', nm(e.sg), '#ff8a3a'); cap(en ? `The burr pops on ${NM(e.sg)}!` : `Il cardo scoppia addosso a ${NM(e.sg)}!`);
   o.paura = 1; await attendi(.25); o.paura = 0; ST.p[e.sg].patata = 0;
   await esplosione(e.x, e.y, 1.1);
-  for (const x of b.slice(1)) { if (x.k === 'danno') ferita(x.sg, x.n, x.da); else if (x.k === 'parato') { vola(RANE[x.sg], en ? 'BLOCKED' : 'PARATO', '#ffe38a'); if (x.con === 'scudo') rompiScudo(RANE[x.sg]); } }
+  for (const x of b.slice(1)) { if (x.k === 'danno') ferita(x.sg, x.n, x.da, x.perche); else if (x.k === 'parato') { vola(RANE[x.sg], en ? 'BLOCKED' : 'PARATO', '#ffe38a'); if (x.con === 'scudo') rompiScudo(RANE[x.sg]); } }
   hud();
 }
 async function passo(e) {
@@ -2648,7 +3638,7 @@ async function passo(e) {
       fumetto(j, `<b>${SC('patata')[0]}</b> · ${OPZ.lang === 'en' ? 'cannot pass back to' : 'non può ridarlo a'} ${nm(e.sg)}`, ARANCIO); await attendi(.5); break;
     }
     case 'trampolino': {
-      cap(en ? `${NM(e.sg)}: moon leap, 2 more tiles!` : `${NM(e.sg)}: balzo lunare, altre 2 caselle!`); suono('boing'); dip(e.da[0], e.da[1], .35);
+      lunaV3(o, e); etichettaMossa(o, en ? 'moon leap: +2 tiles' : 'balzo lunare: +2 caselle', '#7fd6ff', 'trampolino'); cap(en ? `${NM(e.sg)}: moon leap, 2 more tiles!` : `${NM(e.sg)}: balzo lunare, altre 2 caselle!`); suono('boing'); dip(e.da[0], e.da[1], .35);
       const x0 = o.x, y0 = o.y; await tw(.45, k => { o.x = x0 + (e.a[0] - x0) * k; o.y = y0 + (e.a[1] - y0) * k; o.alt = Math.sin(k * Math.PI) * 2.4; o.spin = k * 6.283; o.braccioSu = 1; }, eio);
       o.alt = 0; o.spin = 0; o.braccioSu = 0; atterra(o); break;
     }
@@ -2658,30 +3648,36 @@ async function passo(e) {
       const v = o.root.position.clone().add(mondo.position); v.y = 1; particelle(v, 40, 0xffd76a, 3, 1, {r: .3}); await raccoglie(o, 'jackpot'); o.festa = 1; setTimeout(() => { o.festa = 0; }, 900);
       cap(T.jackpot[1]); await attendi(.4); break;
     }
-    case 'danno': ferita(e.sg, e.n, e.da); await attendi(.3); break;
+    case 'danno': ferita(e.sg, e.n, e.da, e.perche); await attendi(.3); break;
     case 'trappola': {
-      const v = o.root.position.clone().add(mondo.position); v.y = .2; window.__trappola = (window.__trappola || 0) + 1;
-      if (e.t === 'fauci') { boom(en ? 'CHOMP!' : 'MORSO!', nm(e.sg), '#ff4d5e'); suono('morso'); scossa(.45); fermo(.08); lampo('#ff2d45', .3); vibra(80, true);
+      const v = o.root.position.clone().add(mondo.position); v.y = .2; window.__trappola = (window.__trappola || 0) + 1; trappolaV3(o, e);   // NINFEE_V3_1811
+      if (ST.campo && ST.campo[e.x]) { ST.campo[e.x][e.y] = 'vuota'; }   // CHIARO_1811: la trappola scattata sparisce subito
+      if (e.t === 'fauci') { boom(en ? 'TRAP!' : 'TRAPPOLA!', (en ? 'snapper: bitten, −1 · ' : 'fauci: morso, −1 · ') + nm(e.sg), '#ff4d5e'); suono('morso'); scossa(.45); fermo(.08); lampo('#ff2d45', .3); vibra(80, true);
         const sp = new THREE.Sprite(new THREE.SpriteMaterial({map: discoTex('fauci'), transparent: true, depthTest: false})); sp.position.copy(v); sp.position.y += .6; sp.renderOrder = 25; scena.add(sp);
         await tw(.45, k => { const s = .4 + 1.6 * ebk(Math.min(1, k * 2)); sp.scale.set(s, s * (k > .5 ? 1 - (k - .5) * 1.6 : 1), 1); sp.material.opacity = k < .7 ? 1 : (1 - k) / .3; }); via(sp);
         particelle(v, 14, 0x3a8a3a, 2.4, .6, {su: 1.4, r: .14, g: 7}); cap(e.da != null ? (en ? `${NM(e.da)} shoves ${NM(e.sg)} into the snapper: bitten, -1` : `${NM(e.da)} spinge ${NM(e.sg)} nelle fauci: morso, -1`) : (en ? `${NM(e.sg)} lands on a snapper: bitten, -1` : `${NM(e.sg)} atterra sulle fauci: morso, -1`)); }
-      else { suono('splash', .8); particelle(v, 22, 0x5a3e1a, 2.2, .8, {su: 1.6, r: .16, g: 6}); anello(v, 0x8a6a3a, 1.6, .5); o.gelo = true; o.jv = (o.jv || 0) - 2;
+      else { boom(en ? 'TRAP!' : 'TRAPPOLA!', (en ? 'bog: stuck next turn · ' : 'pantano: fermo il prossimo turno · ') + nm(e.sg), '#c49a5a'); scossa(.25); fermo(.05);
+        { const sp = new THREE.Sprite(new THREE.SpriteMaterial({map: discoTex('pantano'), transparent: true, depthTest: false})); sp.position.copy(v); sp.position.y += .6; sp.renderOrder = 25; scena.add(sp);
+          tw(.6, k => { const s = .4 + 1.6 * ebk(Math.min(1, k * 2)); sp.scale.set(s, s, 1); sp.material.opacity = k < .7 ? 1 : (1 - k) / .3; }).then(() => via(sp)); }
+        suono('splash', .8); particelle(v, 22, 0x5a3e1a, 2.2, .8, {su: 1.6, r: .16, g: 6}); anello(v, 0x8a6a3a, 1.6, .5); o.gelo = true; o.jv = (o.jv || 0) - 2;
         cap(en ? `${NM(e.sg)} sinks into the bog: stuck next turn` : (e.sg === IO ? `${NM(e.sg)} affondi nel pantano: il turno dopo resti fermo` : `${NM(e.sg)} affonda nel pantano: il turno dopo resta fermo`)); await attendi(.35); }
       if (e.da != null && e.da !== e.sg) { momento(3, 'combo', `${nm(e.da)} ${en ? 'shoves' : 'spinge'} ${nm(e.sg)} ${en ? 'into the' : 'nella trappola:'} ${T[e.t][0]}`); STAT[e.da] = STAT[e.da] || {d: 0, k: 0, g: 0}; if (e.t === 'fauci') STAT[e.da].d++; }
       else momento(2, 'patata', `${nm(e.sg)}: ${T[e.t][0]}`); break; }
     case 'gelato': { o.gelo = true; await cristalli(o); break; }
     case 'finale': {   // annunciato un turno prima: da qui lo stagno si stringe fino a 2 file, e dopo 3 turni la cascata morde tutti
       DUELLO = true; TEMPO = 140; sigla('crollo'); pubblico(1, true); scossa(.3); lampo('#7fffe0', .25); GORGO_LAMPO = 1;
-      boom(en ? 'FINALE!' : 'FINALE!', en ? `in ${e.morde - e.turno + 1} turns the waterfall bites everyone` : `tra ${e.morde - e.turno + 1} turni la cascata morde tutti`, '#7fffe0');
-      bannerVia(en ? 'The finale: the pond shrinks to 2 rows' : 'Il finale: lo stagno si stringe a 2 file', 'linear-gradient(90deg,#0b6b8a,#2fc9a6)', 2.4); await attendi(1.0); break; }
+      boom('FINALE!', en ? 'the pond shrinks' : 'lo stagno si restringe', '#7fffe0'); ST.finale = {da: e.turno, morde: e.morde};   // CHIARO_1811
+      bannerVia(en ? `FINALE: the pond shrinks · in ${e.morde - e.turno + 1} turns the waterfall bites: −1 heart to everyone at the end of each turn` : `FINALE: lo stagno si restringe · fra ${e.morde - e.turno + 1} turni la cascata morde: −1 cuore a tutti a fine turno`, 'linear-gradient(90deg,#0b6b8a,#2fc9a6)', 3.4); morsoPill(); await attendi(1.2); break; }
     case 'cascata_finale': {
       suono('crollo'); suono('splash'); scossa(.45); lampo('#9fd8ff', .3); vibra(80, true);
-      boom(en ? 'THE WATERFALL BITES' : 'LA CASCATA MORDE', '-1 ' + (en ? 'to everyone' : 'a tutti'), '#9fd8ff');
+      boom(en ? 'THE WATERFALL BITES' : 'LA CASCATA MORDE', (en ? '−1 heart to everyone' : '−1 cuore a tutti'), '#ff6a7a');   // CHIARO_1811
+      if (!passo.morsoDetto) { passo.morsoDetto = true; bannerVia(en ? 'THE WATERFALL BITES: −1 heart to everyone at the end of every turn' : 'LA CASCATA MORDE: −1 cuore a tutti a fine turno, ogni turno', 'linear-gradient(90deg,#b0122c,#ff4d5e)', 3.2); }
+      if (CIGLIO_SP) CIGLIO_SP.material.opacity = 1;
       for (const j of e.presi || []) { const r = RANE[j]; if (!r) continue; const v = r.root.position.clone().add(mondo.position); v.y = .05; spruzzo(v, .6); }
       await attendi(.5); break; }
     case 'parato': vola(o, en ? 'BLOCKED' : 'PARATO', '#ffe38a'); if (e.con === 'scudo') { rompiScudo(o); ST.p[e.sg].scudo = 0; hud(); } break;
-    case 'spinto': await scivola(o, e.a, .28, {bordo: e.fuori}); break;   // FOTO_MOSSE_1811: la spinta fuori dal blocco del gadget (dopo una trappola)
-    case 'scorre': {
+    case 'spinto': await scivola(o, e.a, .28, {bordo: e.fuori, causa: causaSpinta('spinta', e.da), col: e.da != null ? COL[e.da] : '#fff'}); break;   // FOTO_MOSSE_1811: la spinta fuori dal blocco del gadget (dopo una trappola)
+    case 'scorre': { cap(en ? 'The pads drift: everyone moves 1 tile toward the waterfall' : 'Le ninfee scorrono: tutti avanzano di 1 verso la cascata');   // CHIARO_1811
       const P0 = mondo.position.clone(), dirS = pos(0, 0).sub(pos(1, 0)), col0 = CELLE[0].filter(c => c.visible);
       for (const c of col0) { c.userData.trema = .4; const v = c.position.clone().add(mondo.position); detriti(v, 2, 0x4a1020, .4); }
       await tw(.55, k => { mondo.position.copy(P0).addScaledVector(dirS, eio(k)); for (const c of col0) { c.position.y = -Math.pow(Math.max(0, k - .1), 2) * 9; c.userData.corpo.rotation.z = k * .7; } }); mondo.position.copy(P0);
@@ -2690,11 +3686,17 @@ async function passo(e) {
       ST.mine = (ST.mine || []).map(m => [m[0] - 1, m[1], m[2]]).filter(m => m[0] >= 0);
       for (const r of RANE) r.x -= 1; aggiornaCampo(); break;
     }
+    case 'scambio': {   // CHIARO_1811: prima lo scambio non si vedeva (le rane «saltavano» al posto giusto a fine turno)
+      const j = RANE[e.con]; cap(en ? `${NM(e.sg)} swaps places with ${NM(e.con)}` : `${NM(e.sg)} si scambia di posto con ${NM(e.con)}`); suono('specchio', .6);
+      const ox = o.x, oy = o.y, jx = j.x, jy = j.y; causaMossa(o, ox, oy, e.a, en ? 'swap' : 'scambio', COL[e.sg]); causaMossa(j, jx, jy, e.b, en ? `swapped by ${nm(e.sg)}` : `scambiato da ${nm(e.sg)}`, COL[e.sg]);
+      await tw(.55, k => { const h = eio(k); o.x = ox + (e.a[0] - ox) * h; o.y = oy + (e.a[1] - oy) * h; j.x = jx + (e.b[0] - jx) * h; j.y = jy + (e.b[1] - jy) * h; o.alt = j.alt = Math.sin(k * Math.PI) * 1.6; });
+      o.x = e.a[0]; o.y = e.a[1]; j.x = e.b[0]; j.y = e.b[1]; o.alt = j.alt = 0; atterra(o); atterra(j); break; }
     case 'cade': cap(e.perche === 'riva' ? (en ? `${NM(e.sg)}: the pad sinks under them, -1` : `${NM(e.sg)}: la ninfea affonda sotto i piedi, -1`) : (en ? `${NM(e.sg)} goes over the waterfall, -1` : `${NM(e.sg)} cade nella cascata, -1`)); await caduta(e); break;
     case 'stringe': {
       bannerVia(L().crolla, 'linear-gradient(90deg,#b0122c,#ff2d45)'); schermo(OPZ.lang === 'en' ? 'SINKING!' : 'AFFONDANO!', '', '#ff6a6a'); pubblico(.5, true); suono('crollo'); sigla('crollo');
       const fila = []; for (let x = 0; x < W; x++) fila.push(CELLE[x][e.riga]);
       await tw(.35, k => { for (const c of fila) { c.userData.trema = .6; c.userData.corpo.rotation.z = Math.sin(k * 40) * .05; } });
+      affondaV3(fila);   // NINFEE_V3_1811
       for (const c of fila) { const v = c.position.clone().add(mondo.position); detriti(v, 5, 0x2a3048, .6); particelle(v, 6, 0x9aa3ab, 1.2, .8, {fumo: true, r: .6, g: -.3}); }
       await tw(.8, k => { fila.forEach((c, j) => { const t = Math.max(0, k * 1.5 - j * .08); c.position.y = -t * t * 7; c.userData.corpo.rotation.z = t * (.6 + (j % 3) * .2); c.userData.corpo.rotation.x = t * .4 * (j % 2 ? 1 : -1); }); });
       if (!ST.righe) ST.righe = [0, H - 1]; if (e.riga === ST.righe[0]) ST.righe[0]++; else ST.righe[1]--; if (ST.pericolo) ST.pericolo.riga = null;
