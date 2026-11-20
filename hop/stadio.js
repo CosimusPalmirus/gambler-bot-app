@@ -28,7 +28,7 @@ const TX = {
   pronta: 'pronta', tra: n => `tra ${n}`, arr: 'IN ARRIVO', com: 'COMANDI', lobby: 'Menu', rivincita: 'Rivincita', vinto: 'Hai vinto!', vince: n => `Vince ${n}`, pari: 'Pareggio',
   regole: 'Legenda', gadget: 'I poteri', ok: 'Ok', tu: 'Tu', turno: n => `Turno ${n}`, via: 'Si salta!', crolla: 'Le ninfee affondano!',
   stat: (d, k, g) => [d ? `${d} ${d === 1 ? 'colpo' : 'colpi'} a segno` : '', k ? `${k} KO` : '', g ? `${g} ${g === 1 ? 'potere' : 'poteri'}` : ''].filter(Boolean).join(' · '), voto: 'Lo stagno ha votato', prossimo: 'dal prossimo turno', ultima: 'Un cuore solo: salti più lontano',
-  ev: {scivoloso: 'Ninfee viscide: si scivola di una casella', raddoppio: 'Colpi doppi', nebbia: 'Nebbia: non si vede cosa arriva'},
+  ev: {raddoppio: 'Colpi doppi', nebbia: 'Nebbia: non si vede cosa arriva'},
   tasti: ['<kbd>clic</kbd>scegli', '<kbd>&larr;&uarr;&rarr;&darr;</kbd><kbd>WASD</kbd>sposta la scelta', '<kbd>1-9</kbd>direzione (Maiusc: 2)', '<kbd>Invio</kbd><kbd>Spazio</kbd>pronto', '<kbd>E</kbd>abilità <kbd>H</kbd>legenda', '<kbd>Tab</kbd>un avversario', '<kbd>rotella</kbd>zoom <kbd>tasto destro</kbd>ruota', '<kbd>M</kbd>audio'],
   tut: ['Tocca una <b>ninfea accesa</b>: è dove salterai. Tutti saltano nello stesso momento.', 'Le ninfee coi <b>simboli</b> hanno un potere: scatta quando ci atterri. Tieni premuto per leggerlo (o tocca <b>?</b>).', 'Le file nuove arrivano dall\'alto e la corrente <b>scorre</b>: chi finisce oltre la cascata cade e perde un cuore.'],
   opzioni: ['Italiano', 'Daltonici', 'Meno movimento'], liv: {facile: 'Facili', forte: 'Forti'},
@@ -37,7 +37,7 @@ const TX = {
   lezione: 'Lezione (2 min)', passaQui: 'passa qui', passaInfo: 'Atterra accanto a un altro per attaccarglielo',
   passa: (a, b) => `${a} attacca il cardo a ${b} (non può ${a.includes(">Tu<") ? "ridartelo" : "ridarglielo"})`, legT: ['Poteri', 'Stati', 'Pericoli'],
   pericoli: [['rosse', 'Ninfea rossa', 'affonda a fine turno: chi ci sta sopra cade in acqua e perde un cuore'], ['rosse2', 'Rossa a strisce chiare', 'affonda alla fine del turno dopo'],
-    ['buco', 'Gorgo', 'lasciato da chi è andato KO: lì non si atterra più'], ['bordo', 'Cascata', 'la corrente scorre: la fila sul bordo della cascata cade a ogni turno'],
+    ['buco', 'Gorgo', 'acqua che gira: lì non si atterra (lo lascia chi va KO; nella mappa Isole c\'è già). Chi ci viene spinto cade, -1'], ['bordo', 'Cascata', 'la corrente scorre: la fila sul bordo della cascata cade a ogni turno'],
     ['scontro', 'Scontro', 'due sulla stessa ninfea: rimbalzano, -1 a testa'], ['spinta', 'Spinta', 'atterri su chi è rimasto fermo: lo spingi via di una casella'],
     ['voto', 'Voto dello stagno', 'ogni 4 turni una regola cambia per un turno (annunciata prima)']]},
  en: {sot: 'A pond brawl: everyone secretly picks a lily pad and jumps <b>at once</b>. Grab powers, dodge the jets, knock the others into the water. Last one dry wins.',
@@ -46,7 +46,7 @@ const TX = {
   pronta: 'ready', tra: n => `in ${n}`, arr: 'INCOMING', com: 'CONTROLS', lobby: 'Menu', rivincita: 'Rematch', vinto: 'You win!', vince: n => `${n} wins`, pari: 'Draw',
   regole: 'Legend', gadget: 'Powers', ok: 'Ok', tu: 'You', turno: n => `Turn ${n}`, via: 'Hop to it!', crolla: 'The lily pads sink!',
   stat: (d, k, g) => [d ? `${d} ${d === 1 ? 'hit' : 'hits'} landed` : '', k ? `${k} KO` : '', g ? `${g} ${g === 1 ? 'power' : 'powers'}` : ''].filter(Boolean).join(' · '), voto: 'The pond voted', prossimo: 'from next turn', ultima: 'One heart left: longer jumps',
-  ev: {scivoloso: 'Slimy pads: you slide one more tile', raddoppio: 'Double hits', nebbia: 'Fog: incoming tiles hidden'},
+  ev: {raddoppio: 'Double hits', nebbia: 'Fog: incoming tiles hidden'},
   tasti: ['<kbd>click</kbd>pick', '<kbd>&larr;&uarr;&rarr;&darr;</kbd><kbd>WASD</kbd>move pick', '<kbd>1-9</kbd>direction (Shift: 2)', '<kbd>Enter</kbd><kbd>Space</kbd>ready', '<kbd>E</kbd>ability <kbd>H</kbd>legend', '<kbd>Tab</kbd>an opponent', '<kbd>wheel</kbd>zoom <kbd>right drag</kbd>rotate', '<kbd>M</kbd>audio'],
   tut: ['Tap a <b>lit lily pad</b>: that is where you jump. Everyone jumps at the same moment.', 'Pads with <b>symbols</b> hold a power: it fires when you land. Press and hold to read it (or tap <b>?</b>).', 'New rows come from the top and the current <b>flows</b>: go over the waterfall and you lose a heart.'],
   opzioni: ['English', 'Colour-blind', 'Reduced motion'], liv: {facile: 'Easy', forte: 'Strong'},
@@ -55,7 +55,7 @@ const TX = {
   lezione: 'Lesson (2 min)', passaQui: 'pass here', passaInfo: 'Land next to someone to stick it on them',
   passa: (a, b) => `${a} sticks the burr on ${b} (no passing back)`, legT: ['Powers', 'Statuses', 'Hazards'],
   pericoli: [['rosse', 'Red pad', 'sinks at the end of the turn: anyone on it falls in and loses a heart'], ['rosse2', 'Light red stripes', 'sinks at the end of next turn'],
-    ['buco', 'Whirlpool', 'left by a KO: nobody can land there any more'], ['bordo', 'Waterfall', 'the current flows: the row on the waterfall edge drops every turn'],
+    ['buco', 'Whirlpool', 'swirling water: nobody lands there (left by a KO; the Islands map already has some). Shoved in = fall, -1'], ['bordo', 'Waterfall', 'the current flows: the row on the waterfall edge drops every turn'],
     ['scontro', 'Clash', 'two on the same pad bounce back, -1 each'], ['spinta', 'Shove', 'land on someone who stayed put and you push them one tile'],
     ['voto', 'Pond vote', 'every 4 turns a rule changes for one turn (announced first)']]}};
 const L = () => TX[OPZ.lang] || TX.it;
@@ -85,30 +85,32 @@ const GN = {
   corrente: ['Corrente', 'spinge via di 2 tutti quelli sulla tua fila, nelle due direzioni (fuori = in acqua, -1)'], fauci: ['Fauci', 'TRAPPOLA: ninfea carnivora, chi ci finisce (atterrando o spinto) viene morso (-1). Spingi gli avversari nelle trappole!'], pantano: ['Pantano', 'TRAPPOLA: ninfea marcia, chi ci finisce (atterrando o spinto) il turno dopo non salta'],
   loto: ['Loto', '+1 cuore'], scudo: ['Conchiglia', 'para il prossimo colpo'], molla: ['Lucciole', 'il prossimo salto arriva a 3'],
   patata: ['Cardo', 'si attacca a chi lo prende: dopo 2 turni scoppia (-2). Passalo atterrando accanto a un altro: non può ridartelo e il conto non riparte'], trampolino: ['Balzo lunare', 'rimbalzi avanti di altre 2 caselle'],
-  calamita: ['Risucchio', 'chi è a 2 caselle viene tirato di 1 verso di te'], specchio: ['Bolla specchio', 'il prossimo colpo torna a chi l\'ha tirato'], jackpot: ['Perla', '+1 cuore e conchiglia, ma per 2 turni sei il bersaglio (+1 a ogni colpo)']},
+  calamita: ['Risucchio', 'chi è a 2 caselle viene tirato di 1 verso di te'], specchio: ['Bolla specchio', 'il prossimo colpo torna a chi l\'ha tirato'], jackpot: ['Perla', '+1 cuore e conchiglia, ma per 2 turni sei il bersaglio (+1 a ogni colpo)'],
+  ricarica: ['Ricarica', 'la tua SPECIALE torna pronta subito: la usi dal turno dopo'], radici: ['Radici', 'questo turno e il prossimo nessuno ti sposta (spinte, ondate, lingua, risucchio): il danno resta']},   // HOP_2011
  en: {riga: ['Jet', 'sprays along the arrows (-1)'], colonna: ['Jet', 'sprays along the arrows (-1)'], croce: ['Cross jet', 'sprays both ways (-1)'],
   bomba: ['Puffball', 'bursts around you (-2)'], gelo: ['Mud', 'everyone around you is stuck for a turn'], onda: ['Wave', 'shoves everyone around you 2 tiles away (off the pads = in the water, -1)'],
   corrente: ['Current', 'shoves everyone on your row 2 tiles away, both directions (off the pads = in the water, -1)'], fauci: ['Snapper', 'TRAP: a carnivorous pad, whoever ends up on it (landing or shoved) gets bitten (-1). Shove your opponents into traps!'], pantano: ['Bog', 'TRAP: a rotten pad, whoever ends up on it (landing or shoved) cannot jump next turn'],
   loto: ['Lotus', '+1 heart'], scudo: ['Shell', 'blocks the next hit'], molla: ['Fireflies', 'next jump reaches 3'],
   patata: ['Burr', 'sticks to whoever grabs it: pops after 2 turns (-2). Land next to someone to pass it: no passing back, the count keeps running'], trampolino: ['Moon leap', 'bounce 2 more tiles forward'],
-  calamita: ['Whirlpool', 'pulls everyone 2 tiles away one tile toward you'], specchio: ['Mirror bubble', 'the next hit bounces back to the thrower'], jackpot: ['Pearl', '+1 heart and a shell, but for 2 turns you are the target (+1 per hit)']}};
+  calamita: ['Whirlpool', 'pulls everyone 2 tiles away one tile toward you'], specchio: ['Mirror bubble', 'the next hit bounces back to the thrower'], jackpot: ['Pearl', '+1 heart and a shell, but for 2 turns you are the target (+1 per hit)'],
+  ricarica: ['Recharge', 'your SPECIAL is ready again right away: use it from next turn'], radici: ['Roots', 'this turn and the next nobody can move you (shoves, waves, tongue, whirlpool): damage still hits']}};   // HOP_2011
 const TC = {riga: '#ff5a3c', colonna: '#ff5a3c', croce: '#ff3d7a', bomba: '#c25bff', gelo: '#8a6a3a', onda: '#3d8bff', loto: '#ff6fa8', scudo: '#ffb38a', molla: '#d6f24a',
-  patata: '#ff8a1e', trampolino: '#7fd6ff', calamita: '#6a5cff', specchio: '#bfefff', jackpot: '#ffd23f', corrente: '#1f7bff', fauci: '#c4102c', pantano: '#6b4a1e'};
+  patata: '#ff8a1e', trampolino: '#7fd6ff', calamita: '#6a5cff', specchio: '#bfefff', jackpot: '#ffd23f', corrente: '#1f7bff', fauci: '#c4102c', pantano: '#6b4a1e', ricarica: '#f5a400', radici: '#1f6f3a'};
 const T = new Proxy({}, {get: (o, t) => GN[OPZ.lang] && GN[OPZ.lang][t] ? [GN[OPZ.lang][t][0], GN[OPZ.lang][t][1], TC[t]] : undefined, has: (o, t) => !!TC[t]});
 // ogni potere: la sua icona dipinta (assets_bayou/ic) e la forma della targa sotto, che dice DOVE colpisce
 const ICONA = {riga: 'getto', colonna: 'getto', croce: 'cerbottana', bomba: 'vescia', gelo: 'melma', onda: 'corrente', loto: 'loto', scudo: 'conchiglia', molla: 'lucciole',
-  patata: 'cardo', trampolino: 'luna', calamita: 'risucchio', specchio: 'bolla', jackpot: 'perla', onda: null, corrente: null, fauci: null, pantano: 'marcia'};
-const FAMIGLIA = {riga: 'att', colonna: 'att', croce: 'att', bomba: 'att', gelo: 'ctl', onda: 'ctl', calamita: 'ctl', loto: 'aiu', scudo: 'aiu', molla: 'aiu', trampolino: 'aiu', specchio: 'aiu', patata: 'ris', jackpot: 'oro', corrente: 'ctl', fauci: 'trap', pantano: 'trap'};
+  patata: 'cardo', trampolino: 'luna', calamita: 'risucchio', specchio: 'bolla', jackpot: 'perla', onda: null, corrente: null, fauci: null, pantano: 'marcia', ricarica: 'ricarica', radici: 'radici'};   // HOP_2011b: icone dipinte
+const FAMIGLIA = {riga: 'att', colonna: 'att', croce: 'att', bomba: 'att', gelo: 'ctl', onda: 'ctl', calamita: 'ctl', loto: 'aiu', scudo: 'aiu', molla: 'aiu', trampolino: 'aiu', specchio: 'aiu', patata: 'ris', jackpot: 'oro', corrente: 'ctl', fauci: 'trap', pantano: 'trap', ricarica: 'aiu', radici: 'aiu'};
 const DISCO = t => [TC[t], TC[t]];
 const ROSSO = '#ff2d45', ARANCIO = '#ff9a2e', BLU = '#3d8bff';
-const LEGENDA = ['fauci', 'pantano', 'onda', 'corrente', 'riga', 'croce', 'bomba', 'gelo', 'calamita', 'loto', 'scudo', 'molla', 'specchio', 'trampolino', 'patata', 'jackpot'];
+const LEGENDA = ['fauci', 'pantano', 'onda', 'corrente', 'riga', 'croce', 'bomba', 'gelo', 'calamita', 'loto', 'scudo', 'molla', 'specchio', 'trampolino', 'patata', 'jackpot', 'ricarica', 'radici'];
 const PGS = ['tonfo', 'zip', 'axa', 'camu', 'grumo', 'luma'];
 const PGN = {tonfo: 'Tonfo', zip: 'Zip', axa: 'Axa', camu: 'Camu', grumo: 'Grumo', luma: 'Luma'};
 const AB = {
  it: {panciata: ['Panciata', 'dopo il salto spinge via di 2 chi ti sta attorno (-1)'], superbalzo: ['Superbalzo', 'salti fino a 4 e atterrando spingi via di 1 chi ti sta attorno'], bolla: ['Bolla', 'per un turno i colpi non ti feriscono (le cadute sì)'],
-  lingua: ['Lingua', 'tira a te il più vicino in linea (-1)'], nube: ['Nube', 'avveleni chi ti sta attorno'], lampo: ['Lanterna', 'abbagli e blocchi un turno chi ti sta attorno (-1)']},
+  lingua: ['Lingua', 'tira a te il primo che vedi in dritto o in diagonale, da 2 a 4 caselle (-1)'], nube: ['Nube', 'avveleni chi ti sta attorno'], lampo: ['Lanterna', 'abbagli e blocchi un turno chi ti sta attorno (-1)']},
  en: {panciata: ['Belly flop', 'after the jump shoves everyone around you by 2 (-1)'], superbalzo: ['Super hop', 'jump up to 4 and the landing shoves everyone around you 1 tile'], bolla: ['Bubble', 'hits cannot hurt you this turn (falls still do)'],
-  lingua: ['Tongue', 'pulls the nearest in line to you (-1)'], nube: ['Cloud', 'poisons everyone around you'], lampo: ['Lantern', 'dazzles and freezes everyone around you for a turn (-1)']}};
+  lingua: ['Tongue', 'pulls in the first one you see in a straight or diagonal line, 2 to 4 tiles away (-1)'], nube: ['Cloud', 'poisons everyone around you'], lampo: ['Lantern', 'dazzles and freezes everyone around you for a turn (-1)']}};
 const ABPG = {tonfo: 'panciata', zip: 'superbalzo', axa: 'bolla', camu: 'lingua', grumo: 'nube', luma: 'lampo'};
 const ab = k => (AB[OPZ.lang] || AB.it)[k];
 
@@ -322,7 +324,7 @@ function freccia(g, x1, y1, x2, y2, w) {
   g.beginPath(); g.moveTo(x2 + Math.cos(a) * h * .6, y2 + Math.sin(a) * h * .6); g.lineTo(x2 + Math.cos(a + 2.5) * h, y2 + Math.sin(a + 2.5) * h); g.lineTo(x2 + Math.cos(a - 2.5) * h, y2 + Math.sin(a - 2.5) * h); g.fill();
 }
 function glifo(g, t, x, y, r, col) {
-  const w = r * .17, k = r * .7, cc = col || (t === 'jackpot' ? '#7a4a00' : '#fff'); g.fillStyle = cc; g.strokeStyle = cc; g.lineJoin = 'round'; g.lineCap = 'round';
+  const w = r * .17, k = r * .7, cc = col || (t === 'jackpot' || t === 'ricarica' ? '#4a2600' : '#fff');   /* HOP_2011 */ g.fillStyle = cc; g.strokeStyle = cc; g.lineJoin = 'round'; g.lineCap = 'round';
   const fr = (a, b, c, d) => freccia(g, a, b, c, d, w);
   if (t === 'riga') { fr(x - k * .15, y, x - k, y); fr(x + k * .15, y, x + k, y); }
   else if (t === 'colonna') { fr(x, y - k * .15, x, y - k); fr(x, y + k * .15, x, y + k); }
@@ -337,6 +339,12 @@ function glifo(g, t, x, y, r, col) {
   else if (t === 'trampolino') { g.lineWidth = w * .75; g.beginPath(); g.moveTo(x - k, y + k * .55); g.quadraticCurveTo(x, y + k * .95, x + k, y + k * .55); g.stroke(); fr(x, y + k * .3, x, y - k * .95); }
   else if (t === 'calamita') { g.lineWidth = w * 1.3; g.lineCap = 'butt'; g.beginPath(); g.arc(x, y - k * .1, k * .58, Math.PI, 0, true); g.stroke(); g.fillRect(x - k * .58 - w * .65, y - k * .1, w * 1.3, k * .7); g.fillRect(x + k * .58 - w * .65, y - k * .1, w * 1.3, k * .7); }
   else if (t === 'specchio') { g.beginPath(); for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3 + Math.PI / 6; g.lineTo(x + Math.cos(a) * k * .85, y + Math.sin(a) * k * .85); } g.closePath(); g.globalAlpha *= .85; g.fill(); g.globalAlpha /= .85; g.strokeStyle = '#7a8ab0'; g.lineWidth = w * .5; g.beginPath(); g.moveTo(x - k * .35, y + k * .2); g.lineTo(x + k * .1, y - k * .45); g.stroke(); }
+  else if (t === 'ricarica') { g.beginPath(); g.moveTo(x + k * .2, y - k); g.lineTo(x - k * .55, y + k * .12); g.lineTo(x - k * .02, y + k * .12); g.lineTo(x - k * .22, y + k); g.lineTo(x + k * .58, y - k * .16); g.lineTo(x + k * .05, y - k * .16); g.closePath(); g.fill();   // HOP_2011: fulmine = speciale carica
+    g.lineWidth = w * .55; g.beginPath(); g.arc(x, y, k * 1.05, -2.4, 1.9); g.stroke(); }
+  else if (t === 'radici') { g.lineWidth = w * .8; g.beginPath(); g.moveTo(x, y - k * .95); g.lineTo(x, y + k * .1); g.stroke();   // HOP_2011: un germoglio con tre radici piantate
+    g.beginPath(); g.ellipse(x + k * .32, y - k * .62, k * .32, k * .16, -.5, 0, 6.28); g.fill(); g.beginPath(); g.ellipse(x - k * .3, y - k * .42, k * .28, k * .14, .5, 0, 6.28); g.fill();
+    g.lineWidth = w * .62; for (const s of [-1, 0, 1]) { g.beginPath(); g.moveTo(x, y + k * .1); g.quadraticCurveTo(x + s * k * .55, y + k * .3, x + s * k * .85, y + k * (s ? .85 : 1)); g.stroke(); }
+    g.lineWidth = w * .5; g.beginPath(); g.moveTo(x - k, y + k * .14); g.lineTo(x + k, y + k * .14); g.stroke(); }
   else if (t === 'jackpot') { g.beginPath(); for (let i = 0; i < 10; i++) { const rr = (i % 2 ? .42 : .98) * k, a = i * Math.PI / 5 - Math.PI / 2; g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } g.closePath(); g.fill(); }
 }
 // targa del potere: forma e colore dicono DOVE colpisce (linea, croce, 3x3, attorno, 5x5) e la famiglia; sopra l'icona dipinta
@@ -706,7 +714,7 @@ function badgeTex(txt, col) {
 let SCORSI = 0;
 // livello di pericolo di una piattaforma: 1 = cade alla fine di questo turno, 2 = alla fine del prossimo
 function pericoloLiv(x, y) {
-  const P = ST && ST.pericolo; if (!P || LEZIONE && ST.lezione && ST.lezione.id !== 'rosse') return 0;
+  const P = ST && ST.pericolo; if (!P || LEZIONE && ST.lezione && ST.lezione.id !== 'rosse' && !ST.lezione.peri) return 0;   /* TUTORIAL_2011 */
   const b1 = Math.max(0, P.bordo - SCORSI);
   if (x < b1) return 1;
   if (P.riga != null && y === P.riga) return 1;
@@ -745,10 +753,10 @@ function tinta(c, t, scuro, luce, liv) {
   const buco = t === 'buco'; u.buco.visible = buco; u.base.visible = !buco; u.peri.visible = !buco; u.cor.visible = !buco;
   if (buco) { u.top.visible = false; u.badge.visible = false; u.fascio.visible = false; u.alza = 0; return; }
   const colT = g ? new THREE.Color(g) : new THREE.Color(0x3fe0b0);
-  u.mat.color.set(scuro ? 0x3c7a45 : (t === 'jackpot' ? 0xb8962a : (EVENTO === 'scivoloso' ? 0x4f9a86 : (luce ? 0x86d47e : 0x4f9a55))));
+  u.mat.color.set(scuro ? 0x3c7a45 : (t === 'jackpot' ? 0xb8962a : (luce ? 0x86d47e : 0x4f9a55)));
   u.mat.emissive.copy(colT).multiplyScalar((scuro ? .02 : (t === 'jackpot' ? .6 : g ? .22 : (luce ? .2 : .08))) + u.carica);
   u.fascio.visible = !!g && !scuro && c.scale.x > .9; if (u.fascio.visible) u.fascio.material.color.copy(colT);
-  u.mat.metalness = 0; u.mat.roughness = EVENTO === 'scivoloso' ? .2 : .55;
+  u.mat.metalness = 0; u.mat.roughness = .55;
   u.top.material.map = g ? discoTex(t) : null; u.top.visible = !!g; u.top.material.opacity = 1; u.top.material.needsUpdate = true;
   u.cor.material.color.set(0xffffff); u.cor.material.opacity = luce ? .9 : 0; u.alza = luce ? .06 : 0;
   if (scuro) { u.mat.color.set(0x3c7a45); u.top.material.opacity = .9; }
@@ -771,7 +779,7 @@ function aggiornaCampo() {
   // un solo «!» per ogni linea che crolla (al centro), «2» per quella del turno dopo
   const r0v = ST.righe ? ST.righe[0] : 0, r1v = ST.righe ? ST.righe[1] : H - 1, ym = Math.round((r0v + r1v) / 2), P = ST.pericolo;
   const segna = (x, y, liv) => { const c = CELLE[x] && CELLE[x][y]; if (!c || !c.visible || c.userData.t === 'buco') return; c.userData.badge.material.map = liv === 1 ? badgeTex('!', ROSSO) : badgeTex('2', '#c2414f'); c.userData.badge.material.needsUpdate = true; c.userData.badge.visible = true; };
-  if (P && !(LEZIONE && ST.lezione && ST.lezione.id !== 'rosse')) {
+  if (P && !(LEZIONE && ST.lezione && ST.lezione.id !== 'rosse' && !ST.lezione.peri)) {   /* TUTORIAL_2011 */
     const b1 = Math.max(0, P.bordo - SCORSI); if (b1 > 0) segna(0, ym, 1); else segna(0, ym, 2);
     if (P.riga != null) segna(W - 1, P.riga, 1); if (P.riga_poi != null && FASE === 'scegli') segna(W - 1, P.riga_poi, 2);
   }
@@ -1263,7 +1271,7 @@ function animaBot(o, dt, tt) {
   o.bolla.visible = !!(o.bollaOn && !o.ko); if (o.bolla.visible && !OPZ.rm && o.bolla.material.color) { const h = (.55 + .09 * Math.sin(tt * 1.7 + o.i)) % 1; o.bolla.material.color.setHSL(h, .9, .7); o.bolla.material.opacity = .42 + .06 * Math.sin(tt * 5 + o.i); if (o.bolla.material.emissive) o.bolla.material.emissive.setHSL((h + .32) % 1, 1, .32); }   // REGIA_V3_1811: iridescente
   if (q) { const k = statiDi(q, o.i).filter(s => s[1] != null).map(s => s.join(':')).join('|'); if (k !== o.statiK) { o.statiK = k; if (k) { o.statiS.material.map = statiTex(statiDi(q, o.i).filter(s => s[1] != null)); o.statiS.material.needsUpdate = true; } } }
   o.statiS.visible = !!o.statiK && !o.ko && FASE !== 'fine' && FASE !== 'rivela';
-  o.badge.visible = !o.ko && o.a > .5; { const hb = (o.topY + (o.glb ? (o.podio || ANTE ? .6 : .34) : .42)) * o.sq, th = -o.anca.rotation.x; o.badge.position.set(0, hb * Math.cos(th) + .06, -hb * Math.sin(th)); }
+  o.badgeVis = !o.ko && o.a > .5; o.badge.visible = false; { const hb = (o.topY + (o.glb ? (o.podio || ANTE ? .6 : .34) : .42)) * o.sq, th = -o.anca.rotation.x; o.badge.position.set(0, hb * Math.cos(th) + .06, -hb * Math.sin(th)); }
   o.molla.visible = !!(q && q.molla && !o.ko); if (o.molla.visible) o.molla.children.forEach((m, k) => { m.material.opacity = .5 + .5 * Math.abs(Math.sin(tt * 5 + k)); m.position.y = .05 + k * (.07 + .03 * Math.sin(tt * 6)); });
   o.bomba.visible = !!(q && q.patata && !o.ko); if (o.bomba.visible) { if (o.timerV !== q.patata) { o.timerV = q.patata; o.timer.material.map = badgeTex(String(q.patata), q.patata <= 1 ? ROSSO : '#e0701a'); o.timer.material.needsUpdate = true; }
     o.bomba.rotation.z = Math.sin(tt * 6) * .15; o.bomba.position.y = o.topY * .72 + Math.sin(tt * 3) * .05; }
@@ -1360,7 +1368,7 @@ function ricolora(m, v) {
   m.customProgramCacheKey = () => 'ricolora';   // un solo programma per tutte le varianti (cambia solo l'uniform)
   m.needsUpdate = true;
 }
-const VER = '20261117pro9';
+const VER = '20261120b';   // HOP_2011b: meta.json nuovo (icone ricarica/radici)
 const RIPIEGO = {sp: ['sp'], land: ['land', 'ready', 'idle'], ready: ['ready', 'idle'], jump: ['jump', 'idle'], clash: ['clash', 'hit', 'idle'], hit: ['hit', 'idle'], fall: ['fall', 'hit', 'idle'], win: ['win', 'idle'], lose: ['lose', 'idle'], idle: ['idle']};
 const GIRO_CLIP = {idle: true, jump: true, fall: true, win: true, lose: true};
 function contornoMat(col, spess) {
@@ -1538,23 +1546,25 @@ const STATI = {
   molla: ['Lucciole', 'il prossimo salto arriva a 3 caselle', n => n === 1 ? '1 salto' : n + ' salti'], patata: ['Cardo', 'scoppia su chi ce l\'ha (-2): passalo atterrando accanto a un altro', n => n === 1 ? 'scoppia ora' : 'tra ' + n + ' turni'],
   specchio: ['Bolla specchio', 'il prossimo colpo torna a chi l\'ha tirato', n => '1 colpo'], bersaglio: ['Bersaglio', 'ogni colpo gli fa +1 danno', n => n === 1 ? '1 turno' : n + ' turni'],
   ultima: ['Un cuore solo', 'salta una casella più lontano', null], bolla: ['Bolla', 'in questo turno i colpi non lo feriscono (le cadute sì)', null], capo: ['Corona', 'è in testa: ha più cuori di tutti', null],
+  radici: ['Radici', 'nessuno lo può spostare', n => n === 1 ? '1 turno' : n + ' turni'],   // HOP_2011
   tu: ['Freccia bianca', 'sei tu', null], fumo: ['Gocce e sudore', 'gli resta un cuore solo', null]},
  en: {scudo: ['Shell', 'blocks the next hit', n => '1 hit'], gelo: ['Stuck', 'cannot jump this turn', n => n === 1 ? '1 turn' : n + ' turns'],
   molla: ['Fireflies', 'next jump reaches 3 tiles', n => n === 1 ? '1 jump' : n + ' jumps'], patata: ['Burr', 'pops on the holder (-2): land next to someone to pass it', n => n === 1 ? 'pops now' : 'in ' + n + ' turns'],
   specchio: ['Mirror bubble', 'the next hit bounces back to the thrower', n => '1 hit'], bersaglio: ['Target', 'every hit deals +1', n => n === 1 ? '1 turn' : n + ' turns'],
   ultima: ['One heart left', 'jumps one tile further', null], bolla: ['Bubble', 'hits cannot hurt them this turn (falls still do)', null], capo: ['Crown', 'in the lead: most hearts', null],
+  radici: ['Roots', 'nobody can move them', n => n === 1 ? '1 turn' : n + ' turns'],
   tu: ['White arrow', 'that is you', null], fumo: ['Sweat drops', 'one heart left', null]}};
 const SC = k => (STATI[OPZ.lang] || STATI.it)[k];
-const COLSTATO = {scudo: '#ffb38a', gelo: '#c49a5a', molla: '#d6f24a', patata: '#ff8a1e', specchio: '#bfefff', bersaglio: '#ff6a6a', ultima: '#ffd23f', bolla: '#bfefff', capo: '#ffd23f'};
+const COLSTATO = {scudo: '#ffb38a', gelo: '#c49a5a', molla: '#d6f24a', patata: '#ff8a1e', specchio: '#bfefff', bersaglio: '#ff6a6a', ultima: '#ffd23f', bolla: '#bfefff', capo: '#ffd23f', radici: '#5fcf6a'};
 function statiDi(q, i) {
   const o = []; if (!q || !q.vivo) return o;
   if (q.scudo) o.push(['scudo', 1]); if (q.gelo) o.push(['gelo', q.gelo]); if (q.molla) o.push(['molla', q.molla]); if (q.patata) o.push(['patata', q.patata]);
-  if (q.specchio) o.push(['specchio', 1]); if (q.bersaglio) o.push(['bersaglio', q.bersaglio]); if (q.hp === 1) o.push(['ultima', null]);
+  if (q.specchio) o.push(['specchio', 1]); if (q.radici) o.push(['radici', q.radici]); if (q.bersaglio) o.push(['bersaglio', q.bersaglio]); if (q.hp === 1) o.push(['ultima', null]);
   if (ST && ST.capo && ST.capo.includes(i)) o.push(['capo', null]);
   return o;
 }
 function iconaStato(g, k, x, y, r) {
-  const mappa = {scudo: 'scudo', gelo: 'gelo', molla: 'molla', patata: 'patata', specchio: 'specchio'};
+  const mappa = {scudo: 'scudo', gelo: 'gelo', molla: 'molla', patata: 'patata', specchio: 'specchio', radici: 'radici'};
   g.save(); g.fillStyle = COLSTATO[k] || '#fff'; g.beginPath(); g.arc(x, y, r, 0, 6.28); g.fill();
   const imS = mappa[k] && IMGIC[ICONA[mappa[k]]]; if (imS) { const s2 = r * 1.7; g.drawImage(imS, x - s2 / 2, y - s2 / 2, s2, s2); } else if (mappa[k]) glifo(g, mappa[k], x, y, r * .8, '#1a1420');
   else if (k === 'bersaglio') { g.strokeStyle = '#1a1420'; g.lineWidth = r * .18; g.beginPath(); g.arc(x, y, r * .55, 0, 6.28); g.stroke(); g.beginPath(); g.arc(x, y, r * .15, 0, 6.28); g.fillStyle = '#1a1420'; g.fill(); }
@@ -1638,7 +1648,7 @@ function evidenziaLezione() {
 }
 function cartaLezione() {
   const c = $('lezc'); if (!LEZIONE || !ST || !ST.lezione) { c.classList.add('nasc'); return; }
-  const z = ST.lezione, t = (LEZ[OPZ.lang] || LEZ.it)[z.id];
+  const z = ST.lezione, t = z.tx || (LEZ[OPZ.lang] || LEZ.it)[z.id];   /* TUTORIAL_2011: il testo puo' arrivare con la lezione */
   c.innerHTML = `<div class="lt"><span>${L().lez} ${z.k}/${z.n}</span><b>${t[0]}</b>${z.ripeti ? `<em>${L().riprova}</em>` : `<em class="pv">${z.id === 'stati' ? (OPZ.lang === 'en' ? 'Watch' : 'Guarda') : L().prova}</em>`}</div><div class="lx">${t[1]}</div>` +
     `<div class="lp">${Array.from({length: z.n}, (_, k) => `<i class="${k < z.k - 1 ? 'ok' : k === z.k - 1 ? 'on' : ''}"></i>`).join('')}</div>`;
   c.classList.remove('nasc'); adatta();
@@ -1720,6 +1730,7 @@ function frame() {
   if (folla.visible) folla.instanceMatrix.needsUpdate = true;
   FARI.forEach((s, k) => { s.target.position.set(Math.sin(tt * .13 + k * 2) * 3, 0, Math.cos(tt * .1 + k) * 2.5); s.intensity = .35 + .25 * CHEER; });
   if (CATENA_I.visible) for (let k = 0; k < NCAT; k++) { const f = (k - tt * 18) % 8; colTmp.setHSL(((k / NCAT) + tt * .05) % 1, .8, f > -1.2 && f < 0 ? .75 : .25); CATENA_I.setColorAt(k, colTmp); } CATENA_I.instanceColor.needsUpdate = true;
+  LU_FRAME(dt, dtr, tt);   /* LEVELUP_2011 */
   animaAmbiente(dtr, tt); try { animaFinaleSp(tt); } catch (x) {}   // CHIARO_1811
   for (const r of CELLE) for (const c of r) { const u = c.userData;
     u.dip *= Math.pow(.02, dtr); u.trema = Math.max(0, u.trema - dtr);
@@ -1744,14 +1755,52 @@ function frame() {
     const a = g.anca.getWorldPosition(new THREE.Vector3()), h = g.testa.getWorldPosition(new THREE.Vector3()).sub(a); const ang = Math.acos(Math.max(-1, Math.min(1, h.y / Math.max(1e-6, h.length())))) * 57.3;
     T0.push([+(tt.toFixed(2)), o.pg, Math.round(ang), FASE, o.stato, g.ora, o.ko ? 1 : 0, +o.alt.toFixed(2)]); } }
   if (FASE === 'scegli' && IO >= 0 && ST && ST.p[IO].vivo && ST.p[IO].hp === 1) { BATTITO -= dtr; if (BATTITO <= 0) { BATTITO = .85; battito(); vignetta(.35); } } if ((tt * 3 | 0) !== frame.pp) { frame.pp = tt * 3 | 0; posizionaPill(); }
-  cam.position.copy(CAMV.p); if (SCOSSA > 0) { cam.position.x += (Math.random() - .5) * SCOSSA; cam.position.y += (Math.random() - .5) * SCOSSA; SCOSSA = Math.max(0, SCOSSA - dtr * 1.6); }
-  cam.lookAt(CAMV.l);
+  cam.position.copy(CAMV.p); LU.roll = 0; if (SCOSSA > 0) LU_SCOSSA(dtr, tt);   /* LEVELUP_2011: scossa liscia */
+  cam.lookAt(CAMV.l); if (LU.roll) cam.rotateZ(LU.roll);
   scena.fog.density += ((EVENTO === 'nebbia' ? .034 : NEBBIA0) - scena.fog.density) * Math.min(1, dtr * 2);
   disegnaHover();
   renderer.render(scena, cam);
   for (let k = FLOAT.length - 1; k >= 0; k--) posFloat(FLOAT[k], dtr);
+  posBadge();   // HOP_2011
   if (FASE === 'scegli' && !OPZ.rm && Math.random() < dtr * .5) { const liberi = RANE.filter(o => !o.ko && !o.emote && o.stato === 'idle' && o.i !== IO); if (liberi.length) { const o = liberi[Math.floor(Math.random() * liberi.length)]; o.emote = ['saluta', 'saluta', 'salto', 'cappello'][Math.floor(Math.random() * 4)]; /* splash2 17/11: tolto 'giro' */ o.emoteT = 0; } }
   requestAnimationFrame(frame);
+}
+
+/* HOP_2011 FOTO (proprietario 20/11: «ancora problemi con le immagini profilo sopra i personaggi»). Prima il cartello era
+   una TEXTURE: serviva il CORS (t.me non lo manda, la copia /foto/ a volte 404) e, se mancava, restava la FACCIA DI UN BOT
+   sopra un giocatore vero; in piu' era piccolo (40 px sul telefono) e sfocato. Ora e' un elemento della pagina sopra la tela:
+   <img> normale (niente CORS), nitido a ogni densita', misurato sulla camera con un minimo leggibile; senza foto l'iniziale del
+   nome sul colore del giocatore. Sta sotto l'HUD (stesso ordine del DOM: subito dopo la tela). */
+const BADGE_DOM = (() => { const d = document.createElement('div'); d.id = 'hop-badge'; renderer.domElement.after(d);
+  const s = document.createElement('style'); s.textContent = '#hop-badge{position:fixed;inset:0;pointer-events:none;overflow:hidden;contain:strict}' +
+    '#hop-badge .hb{position:absolute;left:0;top:0;width:var(--s,44px);height:var(--s,44px);border-radius:50%;background:var(--c);box-shadow:0 0 0 2px var(--c),0 3px 9px rgba(0,0,0,.55);will-change:transform;display:none}' +
+    '#hop-badge .hb.on{display:block}#hop-badge .hb.io{box-shadow:0 0 0 2px #fff,0 0 0 4px var(--c),0 3px 9px rgba(0,0,0,.55)}' +
+    '#hop-badge .hb b{position:absolute;inset:0;display:grid;place-items:center;border-radius:50%;color:#fff;font:900 calc(var(--s,44px) * .46)/1 var(--x-tit,sans-serif);text-shadow:0 1px 2px rgba(0,0,0,.5)}' +
+    '#hop-badge .hb img{position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover;background:#0d2a26}' +
+    '#hop-badge .hb::after{content:"";position:absolute;left:50%;top:100%;margin-top:2px;transform:translateX(-50%);border:5px solid transparent;border-top:6px solid var(--c)}' +
+    '#hop-badge .hb.io::after{border-top-color:#fff}#hop-badge .hb i{position:absolute;left:50%;top:-11px;transform:translateX(-50%);padding:0 5px;border-radius:999px;background:#fff;color:#0b1a18;font:900 9px/1.3 var(--x-tit,sans-serif);font-style:normal;letter-spacing:.04em}';
+  document.head.appendChild(s); return d; })();
+function fotoSeggio(i) { let u = ''; try { u = (typeof window.__hopFoto === 'function' && window.__hopFoto(i)) || ''; } catch (e) { u = ''; }
+  if (u) return u; let um = false; try { um = typeof window.__hopUmano === 'function' && !!window.__hopUmano(i); } catch (e) {}
+  return um ? '' : `assets_bot/avatar_${i % 5}.webp`; }
+const VB_A = new THREE.Vector3(), VB_B = new THREE.Vector3(), VB_U = new THREE.Vector3();
+function posBadge() {
+  const fuori = FASE === 'menu' || !!ANTE || !!TIT; VB_U.set(0, 1, 0).applyQuaternion(cam.quaternion);
+  for (const o of RANE) { if (!o || !o.badge) continue;
+    let d = o.bd; if (!d) { d = o.bd = document.createElement('div'); d.className = 'hb'; BADGE_DOM.appendChild(d); o.bdU = null; o.bdS = 0; }
+    const u = fotoSeggio(o.i), io = o.i === IO, ch = u + '|' + io + '|' + COL[o.i] + '|' + nm(o.i);
+    if (ch !== o.bdU) { o.bdU = ch; d.classList.toggle('io', io); d.style.setProperty('--c', COL[o.i]); const n0 = String(nm(o.i) || '?').replace(/<[^>]*>/g, '').trim().charAt(0).toUpperCase() || '?';
+      d.innerHTML = `<b>${escSp(n0)}</b>` + (u ? `<img alt="" decoding="async" draggable="false" src="${escSp(u)}" onerror="this.remove()">` : '') + (io ? `<i>${escSp(L().tu.toUpperCase())}</i>` : ''); }
+    let vis = !fuori && o.badgeVis && o.root.visible;
+    if (vis) { o.badge.updateWorldMatrix(true, false); VB_A.setFromMatrixPosition(o.badge.matrixWorld); VB_B.copy(VB_A).addScaledVector(VB_U, io ? .8 : .66); VB_A.project(cam); VB_B.project(cam); if (VB_A.z > 1 || VB_A.z < -1) vis = false; }
+    d.classList.toggle('on', vis); if (!vis) continue;
+    const cel = innerWidth < 700 || innerHeight < 500, min = io ? (cel ? 32 : 36) : (cel ? 28 : 30);   // HOP_2011b: piu' piccole (prima 46/50 e 40/44)
+    const s = Math.round(Math.max(min, Math.min(io ? 58 : 50, Math.abs(VB_B.y - VB_A.y) * innerHeight / 2 * .68)));
+    if (s !== o.bdS) { o.bdS = s; d.style.setProperty('--s', s + 'px'); }
+    VB_B.setFromMatrixPosition(o.badge.matrixWorld).addScaledVector(VB_U, -(io ? .8 : .66) * .5).project(cam);   // dove stava la punta del cartello di prima
+    const x = (VB_A.x + 1) / 2 * innerWidth, y = (1 - VB_B.y) / 2 * innerHeight - 8 - s; d.style.transform = `translate(${(x - s / 2).toFixed(1)}px,${Math.max(2, y).toFixed(1)}px)`;
+    d.style.opacity = String(Math.max(0, Math.min(1, (o.a - .5) * 4))); }
+  for (const el of BADGE_DOM.children) if (!RANE.some(o => o && o.bd === el)) el.remove();
 }
 
 /* ---------------- testi, banner, lampi ---------------- */
@@ -1819,10 +1868,11 @@ const STAT = {};
 const nm = i => i === IO ? L().tu : (/^Bot \d+$/.test(NOMI[i] || '') && ST && ST.p && ST.p[i] && PGN[ST.p[i].pg]) ? PGN[ST.p[i].pg] : NOMI[i];
 const NM = i => `<span style="color:${COL[i]}">${nm(i)}</span>`;
 const elenco = a => a.map(NM).join(', ');
-const avatarURL = i => (typeof window.__hopFoto === 'function' && window.__hopFoto(i)) || `assets_bot/avatar_${i % 5}.webp`;   // HOP_RT_1711: la foto vera del seggio (ponte); il 6o bot riusa un avatar   // 17/11 mappa: le foto sono 5, la sesta rana riusa la prima (manca una sesta foto)
+const avatarURL = i => fotoSeggio(i) || 'data:image/gif;base64,R0lGODlhAQABAAAAACw=';   // HOP_2011: mai la faccia di un bot su un giocatore vero (vedi fotoSeggio)   // HOP_RT_1711: la foto vera del seggio (ponte); il 6o bot riusa un avatar   // 17/11 mappa: le foto sono 5, la sesta rana riusa la prima (manca una sesta foto)
 const SVG_CUORE = '<path d="M12 21s-7.5-4.6-9.6-9.1C.9 8.6 3 5 6.6 5c2.1 0 3.6 1.2 5.4 3.2C13.8 6.2 15.3 5 17.4 5 21 5 23.1 8.6 21.6 11.9 19.5 16.4 12 21 12 21z"/>';
 const cuore = v => `<svg viewBox="0 0 24 24" class="${v ? 'v' : ''}">${SVG_CUORE}</svg>`;
 function chip() {
+  $('top').style.setProperty('--n', ST.p.length);   // HOP_2011: i cuori si misurano su quante rane ci sono
   $('top').innerHTML = ST.p.map((q, i) => `<div class="chip ${i === IO ? 'io' : ''}" id="ch${i}" style="--c:${COL[i]}"><svg class="re" viewBox="0 0 30 24"><path d="M2 20 0 5l8 6 7-10 7 10 8-6-2 15z"/></svg><div class="av" style="background-image:url(${avatarURL(i)})"></div><div><div class="nmc">${nm(i)}</div><div class="cu" id="cu${i}"></div><div class="st" id="cs${i}"></div></div><div class="ok"><svg viewBox="0 0 10 10"><path d="M1.5 5.2 4 7.6 8.6 2.6"/></svg></div></div>`).join('');
   hud();
 }
@@ -1845,7 +1895,7 @@ function cuorePerso(i) {
 function legenda(dove, scheda) {
   const el = $(dove); el.innerHTML = '';
   const riga = (disegna, tit, txt) => { const d = document.createElement('div'); const c = tela(68, 68); c.style.cssText = 'width:34px;height:34px;flex:none'; disegna(c.getContext('2d')); d.appendChild(c); const s = document.createElement('span'); s.innerHTML = `<b>${tit}</b>${txt}`; d.appendChild(s); el.appendChild(d); };
-  if (scheda === 1) { for (const k of ['scudo', 'gelo', 'molla', 'patata', 'specchio', 'bersaglio', 'ultima', 'capo']) riga(g => iconaStato(g, k, 34, 34, 30), SC(k)[0], SC(k)[1]);
+  if (scheda === 1) { for (const k of ['scudo', 'gelo', 'molla', 'patata', 'specchio', 'radici', 'bersaglio', 'ultima', 'capo']) riga(g => iconaStato(g, k, 34, 34, 30), SC(k)[0], SC(k)[1]);
     riga(g => { g.fillStyle = '#bfefff'; g.globalAlpha = .5; g.beginPath(); g.arc(34, 34, 30, 0, 6.28); g.fill(); }, SC('bolla')[0], SC('bolla')[1]);
     riga(g => { g.fillStyle = '#fff'; g.beginPath(); g.moveTo(14, 18); g.lineTo(54, 18); g.lineTo(34, 54); g.fill(); }, SC('tu')[0], SC('tu')[1]);
     riga(g => { g.fillStyle = '#2fbf6a'; g.beginPath(); g.arc(34, 34, 22, 0, 6.28); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 6; g.beginPath(); g.moveTo(23, 35); g.lineTo(31, 43); g.lineTo(46, 26); g.stroke(); }, OPZ.lang === 'en' ? 'Green tick' : 'Spunta verde', OPZ.lang === 'en' ? 'that player has already picked' : 'quel giocatore ha già scelto');
@@ -1882,7 +1932,7 @@ function inizio(e) {
   cartaLezione();
   if (vivo && ST.p[IO].patata > 0) setTimeout(() => fumetto(RANE[IO], `<b>${SC('patata')[0]} · ${SC('patata')[2](ST.p[IO].patata)}</b><br>${L0.passaInfo}`, ARANCIO), 400);
   schermo(L0.turno(e.turno || ST.turno), ST.evento ? L0.ev[ST.evento].split(':')[0] : (ST.turno >= (ST.stringe || 8) ? (OPZ.lang === 'en' ? 'the pads are sinking' : 'le ninfee affondano') : ''));
-  bottoni(); aggiornaCampo(); mostraEvento(); $('b-abil').style.display = LEZIONE ? 'none' : '';
+  bottoni(); aggiornaCampo(); mostraEvento(); $('b-abil').style.display = LEZIONE && !(ST && ST.lezione && ST.lezione.sp) ? 'none' : '';   /* TUTORIAL_2011 */
   for (const o of RANE) o.bordo = o.x === 0 && !o.ko;
   // sguardo mentre si sceglie: gli altri guardano un potere vicino (o un avversario); tu guardi la ninfea che scegli
   for (const o of RANE) { o.guardaP = null; if (o.ko || o.i === IO) continue; const cand = [];
@@ -1891,16 +1941,24 @@ function inizio(e) {
     if (t) o.guardaP = pos(t[0], t[1]).add(mondo.position); }
   if (vivo && ST.p[IO].hp === 1 && !inizio.ultima) { inizio.ultima = true; bannerVia(L0.ultima, 'linear-gradient(90deg,#ff7a1a,#ffcf3a)', 1.6); }
   clearInterval(timer);
-  timer = setInterval(() => { const r = Math.max(0, SCAD - performance.now() / 1000); $('sec').textContent = Math.ceil(r); $('arco').style.strokeDashoffset = 119.4 * (1 - r / DUR); $('arco').style.stroke = r < 2 ? '#ff4d5e' : '#fff';
+  timer = setInterval(() => { if (window.__hopTut && window.__hopTut.fermo()) SCAD = performance.now() / 1000 + DUR;   /* TUTORIAL_2011: il tempo aspetta il giocatore */
+    const r = Math.max(0, SCAD - performance.now() / 1000); $('sec').textContent = Math.ceil(r); $('arco').style.strokeDashoffset = 119.4 * (1 - r / DUR); $('arco').style.stroke = r < 2 ? '#ff4d5e' : '#fff';
     if (r < 2 && r > 0 && !MIA && vivo && !AVVISO_FERMO) { AVVISO_FERMO = true; suono('tic'); statoMsg(L0.fermo); }
     if (r <= 0) clearInterval(timer); }, 100);
   tutorial(e.turno || ST.turno);
   try { if (!ST.finale) { passo.morsoDetto = false; inizio.preMorso = null; } bloccatoSp(vivo); morsoPill(); bottoneLog();   // CHIARO_1811
     if (ST.finale && ST.finale.morde === (e.turno || ST.turno) && inizio.preMorso !== ST.finale.morde) { inizio.preMorso = ST.finale.morde; bannerVia(OPZ.lang === 'en' ? 'Last turn before the waterfall bites!' : 'Ultimo turno prima che la cascata morda!', 'linear-gradient(90deg,#ff7a1a,#ff4d5e)', 2.2); } } catch (x) {}
 }
-function bottoni() { const b = $('b-abil'); if (!INFO) { b.disabled = true; return; } b.innerHTML = `<canvas width="56" height="56" class="ia"></canvas><span><small style="margin:0;font-size:11.5px">${INFO.puo ? L().pronta : L().tra(INFO.cd)}</small></span>`;
-  iconaAbil(b.querySelector('canvas').getContext('2d'), INFO.abil, ABON); b.title = ab(INFO.abil)[1];
-  if (INFO.puo && !bottoni.detto && !LEZIONE && IO >= 0) { bottoni.detto = true; annuncio(`<b>${ab(INFO.abil)[0]}</b>: ${ab(INFO.abil)[1]}`, {pri: 1, dur: 3.5}); } b.disabled = !INFO.puo; b.classList.toggle('on', ABON); $('b-pronto').textContent = L().pronto; }
+// HOP_2011 (proprietario: «il tasto della speciale non si capisce»): icona del potere del personaggio, «SPECIALE · nome»
+// e una riga breve: cosa fa (pronta), quando torna (in ricarica), cosa fare adesso (attiva)
+const SP_BREVE = {it: {panciata: 'spingi via chi hai attorno', superbalzo: 'salto fino a 4 + spinta', bolla: 'un turno senza danni', lingua: 'tiri a te chi vedi in dritto o in diagonale', nube: 'avveleni chi hai attorno', lampo: 'blocchi chi hai attorno'},
+  en: {panciata: 'shove away everyone around', superbalzo: 'jump up to 4 + shove', bolla: 'one turn without damage', lingua: 'pull in whoever is in a straight or diagonal line', nube: 'poison everyone around', lampo: 'freeze everyone around'}};
+function bottoni() { const b = $('b-abil'); if (!INFO) { b.disabled = true; return; }
+  const en = OPZ.lang === 'en', a = ab(INFO.abil) || [INFO.abil, ''], cd = +INFO.cd || 0;
+  const riga = ABON ? (en ? 'ON: now tap a pad' : 'ATTIVA: ora tocca una ninfea') : INFO.puo ? ((SP_BREVE[en ? 'en' : 'it'] || {})[INFO.abil] || a[1]) : (en ? `ready in ${cd} ${cd === 1 ? 'turn' : 'turns'}` : `pronta tra ${cd} ${cd === 1 ? 'turno' : 'turni'}`);
+  b.innerHTML = `<canvas width="96" height="96" class="ia"></canvas><span class="sp-tx"><em>${en ? 'SPECIAL' : 'SPECIALE'}${ABON ? ' ✓' : ''}</em><b>${escSp(a[0])}</b><small>${escSp(riga)}</small></span>`;
+  iconaAbil(b.querySelector('canvas').getContext('2d'), INFO.abil, ABON, !INFO.puo); b.title = `${a[0]}: ${a[1]}`; b.style.setProperty('--spc', SPCOL[INFO.abil] || '#b06bff');
+  if (INFO.puo && !bottoni.detto && !LEZIONE && IO >= 0) { bottoni.detto = true; annuncio(`<b>${en ? 'SPECIAL' : 'SPECIALE'} · ${a[0]}</b>: ${a[1]}`, {pri: 1, dur: 3.5}); } b.disabled = !INFO.puo; b.classList.toggle('on', ABON); b.classList.toggle('pronta', !!INFO.puo && !ABON); $('b-pronto').textContent = L().pronto; }
 const SEGNO = new THREE.Mesh(new THREE.TorusGeometry(.42, .08, 8, 40), new THREE.MeshBasicMaterial({color: 0xffffff})); SEGNO.rotation.x = Math.PI / 2; SEGNO.visible = false; mondo.add(SEGNO);
 function scegli(x, y) {
   const lista = ABON && MOSSE_AB.length ? MOSSE_AB : MOSSE;
@@ -2109,7 +2167,7 @@ async function torna(o, a) {
 }
 // SPINTO: colpo (schiacciato), sbalzo a saltelli (uno per casella) col corpo all'indietro e i piedi che annaspano, schizzo a ogni ninfea toccata,
 // barcollata all'arrivo; se finisce in acqua, fuori o su una trappola: un attimo di «uh-oh» sul bordo, braccia a mulinello
-async function scivola(o, a, d, opz) {
+async function trascina(o, a, d, opz) {
   (window.__momenti = window.__momenti || []).push(['spinta', performance.now()]); const vic = Q.get('vicino') === '1' && !CAMT; if (vic) primoPiano((o.x + a[0]) / 2, (o.y + a[1]) / 2, 8, .25);
   opz = opz || {}; const x0 = o.x, y0 = o.y, n = Math.max(1, Math.round(Math.max(Math.abs(a[0] - x0), Math.abs(a[1] - y0)))), rm = OPZ.rm;
   const A0 = pos(x0, y0), A1 = pos(a[0], a[1]); o.direzione = Math.atan2(A0.x - A1.x, A0.z - A1.z);   // guarda chi lo ha spinto: vola all'indietro
@@ -2164,7 +2222,7 @@ async function rivela(evs, stato) { const t0r = performance.now(); ultimoTurnoSp
   $('lezc').classList.add('nasc'); mostraTip(''); HAKO = evs.some(e => e.k === 'ko');
   const rv = evs.find(e => e.k === 'rivela'); if (rv) for (const [i, sc] of Object.entries(rv.scelte)) { const o = RANE[+i]; if (o && sc[2]) { usaPotere(o); if (ST.p[+i].pg === 'axa') { o.bollaOn = true; bollaFx(o); } } }   // SPECIALI_1811 / POTERI_PRO_1811
   const s = evs.find(e => e.k === 'salti');
-  { const cat = e => ['spara', 'mina', 'minacce'].includes(e.k) ? 'gadget' : ['loto', 'scudo', 'molla', 'specchio', 'patata', 'jackpot', 'trampolino', 'passa', 'spintone', 'scivola', 'patata_boom', 'trappola'].includes(e.k) ? 'effetti' : e.k === 'scorre' ? 'scorre' : e.k === 'stringe' ? 'crollo' : e.k === 'ko' ? 'ko' : null;
+  { const cat = e => ['spara', 'mina', 'minacce'].includes(e.k) ? 'gadget' : ['loto', 'scudo', 'molla', 'specchio', 'patata', 'jackpot', 'trampolino', 'passa', 'spintone', 'patata_boom', 'trappola', 'ricarica', 'radici'].includes(e.k) ? 'effetti' : e.k === 'scorre' ? 'scorre' : e.k === 'stringe' ? 'crollo' : e.k === 'ko' ? 'ko' : null;
     const L1 = ['salto']; if (evs.some(e => e.k === 'scontro') || (s.rimbalzo || []).length) L1.push('scontri');
     for (const e of evs) { const c = cat(e); if (c && !L1.includes(c) && c !== 'ko') L1.push(c); } if (evs.some(e => e.k === 'ko')) L1.push('ko'); passi(L1); }
   passoFase('salto');
@@ -2211,8 +2269,8 @@ async function rivela(evs, stato) { const t0r = performance.now(); ultimoTurnoSp
   while (k < seq.length) {
     const e = seq[k];
     if (fatti.has(e) || e.k === 'scontro' || e.k === 'buco' || e.k === 'lezione_esito' || e.k === 'spareggio' || e.k === 'sorteggio') { k++; continue; }   // UNICO_1711: dopo i KO
-    { const c = ['spara', 'mina', 'minacce'].includes(e.k) ? 'gadget' : ['loto', 'scudo', 'molla', 'specchio', 'patata', 'jackpot', 'trampolino', 'passa', 'spintone', 'scivola', 'patata_boom', 'trappola'].includes(e.k) ? 'effetti' : e.k === 'scorre' ? 'scorre' : e.k === 'stringe' ? 'crollo' : null; if (c) await passoFase(c); }
-    if (e.k === 'spintone' || e.k === 'scivola') { const blocco = [seq[k++]]; while (k < seq.length && ((seq[k].k === 'cade' && ['spinta', 'scivolo'].includes(seq[k].perche)) || (seq[k].k === 'danno' && ['spinta', 'scivolo'].includes(seq[k].perche)))) blocco.push(seq[k++]); await (e.k === 'spintone' ? spintone(blocco) : scivolata(blocco)); continue; }
+    { const c = ['spara', 'mina', 'minacce'].includes(e.k) ? 'gadget' : ['loto', 'scudo', 'molla', 'specchio', 'patata', 'jackpot', 'trampolino', 'passa', 'spintone', 'patata_boom', 'trappola', 'ricarica', 'radici'].includes(e.k) ? 'effetti' : e.k === 'scorre' ? 'scorre' : e.k === 'stringe' ? 'crollo' : null; if (c) await passoFase(c); }
+    if (e.k === 'spintone') { const blocco = [seq[k++]]; while (k < seq.length && ((seq[k].k === 'cade' && seq[k].perche === 'spinta') || (seq[k].k === 'danno' && seq[k].perche === 'spinta'))) blocco.push(seq[k++]); await spintone(blocco); continue; }
     if (e.k === 'minacce' || e.k === 'mina' || e.k === 'spara') {
       const blocco = []; while (k < seq.length && ['minacce', 'mina', 'spara', 'danno', 'parato', 'gelato', 'spinto', 'cade', 'copia_vuota', 'riflesso', 'trappola'].includes(seq[k].k) && !(seq[k].k === 'trappola' && !seq[k].spinto) && !(seq[k].k === 'cade' && seq[k].perche !== 'spinta') && !(seq[k].k === 'danno' && ['bordo', 'patata', 'riva'].includes(seq[k].perche))) blocco.push(seq[k++]);
       await gadget(blocco); continue;
@@ -2232,13 +2290,7 @@ async function spintone(b) {
   boom(OPZ.lang === 'en' ? 'SHOVE!' : 'SPINTONE!', null, '#ffb020'); suono('onda'); scossa(.25); fermo(.07); pubblico(.3);
   cap(OPZ.lang === 'en' ? `${NM(e.sg)} lands on ${NM(e.su)} and ${e.fuori ? 'knocks them into the water!' : 'shoves them away'}` : `${NM(e.sg)} atterra su ${NM(e.su)} e lo ${e.fuori ? 'butta in acqua!' : 'spinge via'}`);
   j.stato = 'colpito'; j.capogiro = 1; RANE[e.sg].sfotto = .6;
-  await scivola(j, e.a, .3, {bordo: e.fuori, causa: causaSpinta('spintone', e.sg), col: COL[e.sg]});
-  for (const x of b.slice(1)) { if (x.k === 'cade') await caduta(x); else ferita(x.sg, x.n, x.da, x.perche); }
-}
-async function scivolata(b) {
-  const e = b[0], o = RANE[e.sg];
-  cap(OPZ.lang === 'en' ? `${NM(e.sg)} slips!` : `${NM(e.sg)} scivola!`); o.sbraccia = .8;
-  await scivola(o, e.a, .3, {causa: causaSpinta('scivola', e.sg), col: '#bfe9ff'}); o.sbraccia = 0;
+  await trascina(j, e.a, .3, {bordo: e.fuori, causa: causaSpinta('spintone', e.sg), col: COL[e.sg]});
   for (const x of b.slice(1)) { if (x.k === 'cade') await caduta(x); else ferita(x.sg, x.n, x.da, x.perche); }
 }
 const NOMEARMA = t => (T[t] ? T[t][0] : ab(t) ? ab(t)[0] : t).toLowerCase();
@@ -2273,6 +2325,7 @@ function consegueSeq(blocco) {
     else if (e.k === 'riflesso') s = spari.find(x => x.sg === e.su && (x.presi || []).includes(e.sg)) || null;
     else if (e.k === 'danno' && (e.perche === 'spinta' || e.perche === 'fauci')) { s = e.da != null ? trovaSp(e.da, null) : null; dove = 'spinte'; }
     else if (e.k === 'danno') s = e.da != null ? trovaSp(e.da, e.perche) : null;
+    else if (e.k === 'radicato') s = e.da != null ? (spari.find(x => x.sg === e.da && ['onda', 'corrente', 'panciata', 'superbalzo', 'calamita', 'lingua'].includes(x.t)) || trovaSp(e.da, null)) : null;   // HOP_2011
     else if (e.k === 'parato') s = e.da != null ? (spari.find(x => x.sg === e.da && (x.presi || []).includes(e.sg)) || trovaSp(e.da, null)) : null;
     else if (e.k === 'gelato' && e.perche !== 'pantano') s = spari.find(x => ['gelo', 'lampo'].includes(x.t) && (x.presi || []).includes(e.sg)) || null;
     else if (e.k === 'spinto') { s = e.da != null ? (spari.find(x => x.sg === e.da && ['onda', 'corrente', 'panciata', 'superbalzo', 'calamita', 'lingua'].includes(x.t)) || trovaSp(e.da, null)) : null; dove = 'spinte'; }
@@ -2304,13 +2357,14 @@ async function gadget(blocco) {
   const subito = (e, s) => { fatti.add(e); const imp = s ? attendiImpatto(s.k === 'mina' ? null : s.sg) : Promise.resolve();
     if (e.k === 'danno') return imp.then(() => ferita(e.sg, e.n, e.da, e.perche));
     if (e.k === 'parato') { const o = RANE[e.sg]; return imp.then(() => { if (e.con === 'bolla') bollaColpo(o); vola(o, e.con === 'bolla' ? (en ? 'BUBBLE' : 'BOLLA') : (en ? 'BLOCKED' : 'PARATO'), '#ffe38a'); if (e.con === 'scudo') { rompiScudo(o); ST.p[e.sg].scudo = 0; hud(); } }); }
+    if (e.k === 'radicato') { const o = RANE[e.sg]; return imp.then(() => { vola(o, en ? 'ROOTED' : 'RADICI', COLSTATO.radici); anello(o.root.position.clone().add(mondo.position).setY(.1), 0x5fcf6a, 1.3, .4, .12); }); }   // HOP_2011
     if (e.k === 'gelato') { const o = RANE[e.sg]; o.gelo = true; return imp.then(() => { fumetto(o, spiegaStato('gelo', 1), COLSTATO.gelo); return cristalli(o); }); }
     if (e.k === 'riflesso') { const o = RANE[e.sg], j = RANE[e.su]; return imp.then(() => { suono('specchio'); momento(3, 'specchio', `${nm(e.sg)} ${en ? 'reflects onto' : 'rimanda il colpo a'} ${nm(e.su)}`); boom(en ? 'BOUNCE BACK!' : 'RIMANDATO!', `${nm(e.sg)} → ${nm(e.su)}`, '#d6def0'); ST.p[e.sg].specchio = 0; hud();
       return raggioSweep(o.root.position.clone().add(mondo.position), o.root.position.clone().add(mondo.position), j.root.position.clone().add(mondo.position), new THREE.Color('#e8eeff')); }); }
     return Promise.resolve(); };
   // una spinta (con la sua caduta in acqua, il -1, la trappola)
   const spinta = async (e, s, lista) => { fatti.add(e); const sx = SPI[e.da], tS = s ? s.t : null;
-    await ((LINGUE.some(L => L.a === RANE[e.sg]) && !e.fuori) ? linguaDentro(RANE[e.sg], e.a) : scivola(RANE[e.sg], e.a, .28, {bordo: e.fuori, forte: sx && (sx.t === 'panciata' || sx.t === 'superbalzo'), causa: causaSpinta(tS || 'spinta', e.da), col: COL[e.da], ico: tS}));
+    await ((LINGUE.some(L => L.a === RANE[e.sg]) && !e.fuori) ? linguaDentro(RANE[e.sg], e.a) : trascina(RANE[e.sg], e.a, .28, {bordo: e.fuori, forte: sx && (sx.t === 'panciata' || sx.t === 'superbalzo'), causa: causaSpinta(tS || 'spinta', e.da), col: COL[e.da], ico: tS}));
     for (const x of lista) if (!fatti.has(x) && x.sg === e.sg) { if (x.k === 'cade') { fatti.add(x); await caduta(x); } else if (x.k === 'danno' && x.perche === 'spinta') { fatti.add(x); ferita(x.sg, x.n, x.da, x.perche); } }
     if (TRAP[e.sg]) { await trappolaSp(TRAP[e.sg]); for (const x of TRAP[e.sg].dopo) fatti.add(x); fatti.add(TRAP[e.sg].e); } };
   // la scaletta: prima le mine (scoppiano dal turno prima), poi i poteri nell'ordine del motore
@@ -2700,7 +2754,6 @@ function causaDanno(perche, da) {
   switch (perche) {
     case 'scontro': return {t: en ? 'clash on the same pad' : 'scontro sulla stessa ninfea', g: '!'};
     case 'spinta': return {t: chi ? (en ? `shoved into the water by ${chi}` : `spinto in acqua da ${chi}`) : (en ? 'shoved into the water' : 'spinto in acqua'), g: acqua};
-    case 'scivolo': return {t: en ? 'slipped into the water' : 'scivolato in acqua', g: acqua};
     case 'bordo': return {t: en ? 'dragged over the waterfall' : 'trascinato giù dalla cascata', g: acqua};
     case 'riva': return {t: en ? 'the pad sank' : 'la ninfea è affondata', g: acqua};
     case 'finale': return {t: en ? 'the waterfall bites' : 'la cascata morde', g: acqua};
@@ -2713,8 +2766,8 @@ function causaDanno(perche, da) {
 }
 function causaSpinta(t, da) {
   const en = OPZ.lang === 'en', chi = da != null && RANE[da] ? nm(da) : '?';
-  let nome = t; if (t === 'spintone') nome = en ? 'shove' : 'spintone'; else if (t === 'scivola') nome = en ? 'slip' : 'scivolone'; else { try { nome = NOMEARMA(t); } catch (e) {} }
-  return t === 'scivola' ? (en ? 'slippery pond: slides on' : 'stagno scivoloso: scivola avanti') : (en ? `${nome} by ${chi}` : `${nome} di ${chi}`);
+  let nome = t; if (t === 'spintone') nome = en ? 'shove' : 'spintone'; else { try { nome = NOMEARMA(t); } catch (e) {} }
+  return en ? `${nome} by ${chi}` : `${nome} di ${chi}`;
 }
 function pillola(o, cls, html, col, vita) { cssChiaro(); const d = document.createElement('div'); d.className = cls; d.innerHTML = html; if (col) d.style.setProperty('--c', col); document.body.appendChild(d); FLOAT.push({d, o, t: 0, vita: vita || 2, dy: cls === 'ch-mos' ? -1.2 : 0}); return d; }
 function volaDanno(o, n, perche, da) {
@@ -2736,7 +2789,7 @@ function frecciaMossa(x0, y0, a, col) {
 function causaMossa(o, x0, y0, a, testo, col, ico) { frecciaMossa(x0, y0, a, col); etichettaMossa(o, testo, col, ico); }
 // ---------- «Cosa è successo» ----------
 let ULTIMO_TURNO = null; const CAUSA_GELO = {};
-const K_MOSSE = new Set(['salti', 'spinto', 'spintone', 'scivola', 'trampolino', 'scambio', 'cade', 'scorre']);
+const K_MOSSE = new Set(['salti', 'spinto', 'spintone', 'radicato', 'trampolino', 'scambio', 'cade', 'scorre']);
 function riassuntoTurno(evs) {
   const en = OPZ.lang === 'en', N = i => NM(i), righe = [], coperti = new Set(), spari = evs.filter(e => e.k === 'spara');
   const r = (h, c, e) => { righe.push({h, c}); if (e) coperti.add(e); };
@@ -2749,7 +2802,6 @@ function riassuntoTurno(evs) {
       case 'scontro': r(en ? `${e.chi.map(N).join(' and ')}: same pad, clash` : `${e.chi.map(N).join(' e ')}: stessa ninfea, scontro`, 'x', e); break;
       case 'spintone': r(en ? `${N(e.sg)} lands on ${N(e.su)} and shoves them${e.fuori ? ' into the water' : ''}` : `${N(e.sg)} atterra su ${N(e.su)} e lo spinge${e.fuori ? ' in acqua' : ''}`, 'm', e); break;
       case 'trampolino': r(en ? `${N(e.sg)}: moon leap, 2 more tiles` : `${N(e.sg)}: balzo lunare, altre 2 caselle`, 'm', e); break;
-      case 'scivola': r(en ? `${N(e.sg)} slips on (slippery pond)${e.fuori ? ' into the water' : ''}` : `${N(e.sg)} scivola avanti (stagno scivoloso)${e.fuori ? ' in acqua' : ''}`, 'm', e); break;
       case 'scambio': r(en ? `${N(e.sg)} swaps places with ${N(e.con)}` : `${N(e.sg)} si scambia di posto con ${N(e.con)}`, 'm', e); break;
       case 'scorre': r(en ? 'The pads drift: everyone moves 1 tile toward the waterfall' : 'Le ninfee scorrono: tutti avanzano di 1 verso la cascata', 'm', e); break;
       case 'stringe': r(en ? 'A row of pads sinks' : 'Una fila di ninfee affonda', 'x', e); break;
@@ -2763,7 +2815,8 @@ function riassuntoTurno(evs) {
       case 'riflesso': r(en ? `${N(e.sg)} bounces the hit back to ${N(e.su)}` : `${N(e.sg)} rimanda il colpo a ${N(e.su)}`, 'x', e); break;
       case 'gelato': r(en ? `${N(e.sg)} is stuck next turn (${e.perche === 'pantano' ? 'bog' : 'mud'})` : `${N(e.sg)} resta bloccato il prossimo turno (${e.perche === 'pantano' ? 'pantano' : 'melma'})`, 'x', e); break;
       case 'trappola': r(en ? `${N(e.sg)} ends up on a trap: ${escSp(arma(e.t))}${e.da != null && e.da !== e.sg ? ` (shoved by ${N(e.da)})` : ''}` : `${N(e.sg)} finisce su una trappola: ${escSp(arma(e.t))}${e.da != null && e.da !== e.sg ? ` (spinto da ${N(e.da)})` : ''}`, 'x', e); break;
-      case 'loto': case 'scudo': case 'molla': case 'specchio': case 'patata': case 'jackpot': r(`${N(e.sg)}: ${escSp(arma(e.k))}`, 'x', e); break;
+      case 'radicato': r(en ? `${N(e.sg)} stays put: roots` : `${N(e.sg)} resta fermo: radici`, 'm', e); break;   // HOP_2011
+      case 'loto': case 'scudo': case 'molla': case 'specchio': case 'patata': case 'jackpot': case 'ricarica': case 'radici': r(`${N(e.sg)}: ${escSp(arma(e.k))}`, 'x', e); break;
       case 'passa': r(en ? `${N(e.sg)} passes the burr to ${N(e.a)}` : `${N(e.sg)} passa il cardo a ${N(e.a)}`, 'x', e); break;
       case 'patata_boom': r(en ? `The burr pops on ${N(e.sg)}` : `Il cardo scoppia addosso a ${N(e.sg)}`, 'x', e); break;
       case 'finale': r(en ? `FINALE: the waterfall bites in ${e.morde - e.turno + 1} turns` : `FINALE: la cascata morde fra ${e.morde - e.turno + 1} turni`, 'x', e); break;
@@ -2787,7 +2840,8 @@ function bottoneLog() {
   if (!b) { b = document.createElement('button'); b.id = 'ch-log'; b.type = 'button'; b.onclick = ev => { ev.stopPropagation(); apriRiassunto(); }; document.body.appendChild(b); }
   b.textContent = OPZ.lang === 'en' ? 'What happened?' : 'Cosa è successo?';
   const vis = !!(ULTIMO_TURNO && ST && !ANTE && !TIT && FASE !== 'menu'); b.classList.toggle('on', vis); if (!vis) return;
-  try { const a = $('aiuto').getBoundingClientRect(); b.style.top = (a.bottom + 8) + 'px'; b.style.right = Math.max(6, innerWidth - a.right) + 'px'; b.style.left = 'auto'; } catch (e) {}
+  try { const a = $('aiuto').getBoundingClientRect(); let sotto = a.bottom; for (const id of ['top', 'muto']) { const t = $(id) && $(id).getBoundingClientRect(); if (t && t.width > 0 && t.height > 0 && t.right > a.right - 190 && t.top < sotto + 30) sotto = Math.max(sotto, t.bottom); }   // HOP_2011: sotto la barra in alto e sotto l'audio, se arrivano fin li'
+    b.style.top = (sotto + 8) + 'px'; b.style.right = Math.max(6, innerWidth - a.right) + 'px'; b.style.left = 'auto'; } catch (e) {}
 }
 function apriRiassunto() {
   cssChiaro(); let p = document.getElementById('ch-pan');
@@ -3516,7 +3570,7 @@ async function linguaDentro(oj, a) {   // la tirata: la rana presa vola aggancia
   const giro = () => { if (fine) return; const t = (performance.now() - t0) / 1000; curvaLingua(L, testaDi(L.da), corpoDi(oj), 1 + t); requestAnimationFrame(giro); }; giro();
   suono('magnete', .5); oj.sbraccia = 1; oj.posaF = 'hit'; oj.posaT = .5;
   const stira = tw(.36, k => { oj.sq = 1 + .4 * Math.sin(k * Math.PI); });
-  await scivola(oj, a, .34, {causa: causaSpinta('lingua', L.da.i), col: COL[L.da.i], ico: 'lingua'}); await stira; oj.sbraccia = 0; fine = true;
+  await trascina(oj, a, .34, {causa: causaSpinta('lingua', L.da.i), col: COL[L.da.i], ico: 'lingua'}); await stira; oj.sbraccia = 0; fine = true;
   oj.sq = .55; oj.jv = (oj.jv || 0) - 3.5; oj.bianco = .07; suono('plop', .8); scossa(.28); fermo(.05);   // VIVO_1911
   const P0 = L.punta.position.clone();
   await tw(.14, k => { const A = testaDi(L.da), P = P0.clone().lerp(A, k * k); curvaLingua(L, A, P, 2 + k); L.punta.scale.setScalar(1 - .5 * k); });
@@ -3635,6 +3689,9 @@ async function passo(e) {
     case 'loto': { const q = ST.p[e.sg]; if (q.hp === 1) { vola(o, OPZ.lang === 'en' ? 'SAVED!' : 'SALVO!', '#ffd23f', true); pubblico(.6, true); } if (q.hp < 4) q.hp++; hud(); await raccoglie(o, 'loto'); vola(o, '+1', '#ff8fb1'); suono('cura'); const v = o.root.position.clone().add(mondo.position); v.y = 1; particelle(v, 16, 0xff9fc4, 1.5, .9, {g: -2}); o.festa = 1; setTimeout(() => { o.festa = 0; }, 600); cap(`${NM(e.sg)}: ${T.loto[0]}, +1`); break; }
     case 'scudo': fumetto(o, spiegaStato('scudo', 1), COLSTATO.scudo); await raccoglie(o, 'scudo'); ST.p[e.sg].scudo = 1; hud(); suono('cura'); o.scudo.visible = true; o.scudo.scale.setScalar(.2); tw(.35, k => o.scudo.scale.setScalar(.2 + .8 * ebk(k))); cap(en ? `${NM(e.sg)} grabs the shell` : `${NM(e.sg)} prende la conchiglia`); await attendi(.25); break;
     case 'molla': fumetto(o, spiegaStato('molla', 2), COLSTATO.molla); await raccoglie(o, 'molla'); ST.p[e.sg].molla = 2; hud(); suono('boing'); await tw(.35, k => { o.alt = Math.sin(k * Math.PI) * .9; o.sq = 1 + Math.sin(k * Math.PI * 2) * .2; }); o.alt = 0; cap(`${NM(e.sg)}: ${T.molla[1]}`); break;
+    case 'ricarica': { await raccoglie(o, 'ricarica'); if (ST.p[e.sg]) ST.p[e.sg].cd = 0; hud(); suono('cura'); vola(o, en ? 'SPECIAL READY' : 'SPECIALE PRONTA', TC.ricarica, true); cap(`${NM(e.sg)}: ${T.ricarica[1]}`); break; }   // HOP_2011
+    case 'radici': { fumetto(o, spiegaStato('radici', 2), COLSTATO.radici); await raccoglie(o, 'radici'); if (ST.p[e.sg]) ST.p[e.sg].radici = 2; hud(); suono('cura'); cap(`${NM(e.sg)}: ${T.radici[1]}`); break; }
+    case 'radicato': vola(o, en ? 'ROOTED' : 'RADICI', COLSTATO.radici); break;
     case 'specchio': fumetto(o, spiegaStato('specchio', 1), COLSTATO.specchio); await raccoglie(o, 'specchio'); ST.p[e.sg].specchio = 1; hud(); suono('specchio'); cap(`${NM(e.sg)}: ${T.specchio[1]}`); break;
     case 'patata': fumetto(o, spiegaStato('patata', e.timer - 1 || 1) + '<br>' + L().passaInfo, ARANCIO); await raccoglie(o, 'patata'); ST.p[e.sg].patata = e.timer; hud(); suono('miccia'); o.paura = 1; setTimeout(() => { o.paura = 0; }, 500); cap(en ? `${NM(e.sg)} grabs the BURR: pass it by landing next to someone!` : `${NM(e.sg)} prende il CARDO: passalo atterrando accanto a qualcuno!`); await attendi(.2); break;
     case 'passa': {
@@ -3684,7 +3741,7 @@ async function passo(e) {
       for (const j of e.presi || []) { const r = RANE[j]; if (!r) continue; const v = r.root.position.clone().add(mondo.position); v.y = .05; spruzzo(v, .6); }
       await attendi(.5); break; }
     case 'parato': vola(o, en ? 'BLOCKED' : 'PARATO', '#ffe38a'); if (e.con === 'scudo') { rompiScudo(o); ST.p[e.sg].scudo = 0; hud(); } break;
-    case 'spinto': await scivola(o, e.a, .28, {bordo: e.fuori, causa: causaSpinta('spinta', e.da), col: e.da != null ? COL[e.da] : '#fff'}); break;   // FOTO_MOSSE_1811: la spinta fuori dal blocco del gadget (dopo una trappola)
+    case 'spinto': await trascina(o, e.a, .28, {bordo: e.fuori, causa: causaSpinta('spinta', e.da), col: e.da != null ? COL[e.da] : '#fff'}); break;   // FOTO_MOSSE_1811: la spinta fuori dal blocco del gadget (dopo una trappola)
     case 'scorre': { cap(en ? 'The pads drift: everyone moves 1 tile toward the waterfall' : 'Le ninfee scorrono: tutti avanzano di 1 verso la cascata');   // CHIARO_1811
       const P0 = mondo.position.clone(), dirS = pos(0, 0).sub(pos(1, 0)), col0 = CELLE[0].filter(c => c.visible);
       for (const c of col0) { c.userData.trema = .4; const v = c.position.clone().add(mondo.position); detriti(v, 2, 0x4a1020, .4); }
@@ -3821,9 +3878,13 @@ async function avvia(v) {
   document.body.classList.remove('menu'); chip(); layout(); etichettaArrivo(); pannelloArrivo(); aggiornaCampo();
   velo(false);
   await entrata();
+  try { const TM = {isole: [['Mappa: ISOLE', 'nello stagno ci sono dei <b>gorghi</b>: lì non si atterra, e chi ci viene spinto cade (-1)'], ['Map: ISLANDS', 'the pond has <b>whirlpools</b>: nobody lands there, and anyone shoved in falls (-1)']],
+      giardino: [['Mappa: GIARDINO', 'più ninfee coi <b>poteri</b> in ogni fila'], ['Map: GARDEN', 'more <b>power</b> pads in every row']]}[v.tema];   // HOP_2011: il tema della mappa
+    if (TM && !LEZIONE) { const t = TM[OPZ.lang === 'en' ? 1 : 0]; annuncio(`<b>${t[0]}</b> · ${t[1]}`, {pri: 1, dur: 4}); } } catch (e) {}
   if (v.fase === 'scegli' && v.m) { MOSSE = v.m; MOSSE_AB = v.m_ab || []; INFO = v; inizio({scade: v.t + v.resta, durata: v.resta, turno: v.turno}); }
 }
 function fineLezione() {
+  if (window.__hopTut) { FASE = 'fine'; $('bot').classList.add('via'); $('lezc').classList.add('nasc'); boom(window.__hopTut.boomFine().toUpperCase(), null, '#ffd23f'); coriandoli(80); sigla('vince'); pubblico(1, true); window.__hopTut.fine(); return; }   /* TUTORIAL_2011 */
   FASE = 'fine'; $('bot').classList.add('via'); $('lezc').classList.add('nasc'); $('fase').classList.remove('on'); scrivi('lez', '1');
   boom(L().lezFine.toUpperCase(), null, '#ffd23f'); coriandoli(80); sigla('vince'); pubblico(1, true);
   $('f-vinc').innerHTML = `<img src="assets_bayou/pg/${(ST && ST.p[IO] && ST.p[IO].pg) || OPZ.pg}_win.webp" alt=""><div class="tt"><div class="logo">${L().lezFine}</div></div>`; $('f-sot').innerHTML = L().lezFineSot; $('cl').innerHTML = '';
@@ -3949,6 +4010,7 @@ async function regia() {
       else if (e.k === 'blocco') { const evs = []; for (;;) { if (!CODA.length) { await sleep(.03); continue; } const x = CODA.shift(); if (x.k === 'stato') { const g = setTimeout(() => { if (FASE === 'rivela') { console.warn('rivelazione lenta: accelero'); ACC = 6; SCALA = 1; FERMO = 0; } }, 16000); try { await rivela(evs, x); } finally { clearTimeout(g); ACC = 1; } break; } evs.push(x); } }
       else if (e.k === 'partita_finita') { if (LEZIONE) fineLezione(); else fine(e); }
     } catch (err) { console.error(err); }
+    try { if (window.__hopTut) window.__hopTut.ev(e); } catch (x) {}   /* TUTORIAL_2011 */
   }
 }
 const Rete = {
@@ -4021,12 +4083,21 @@ function animaAnteprima(dt, tt) {
   CAMV.l.set(isP ? 1.6 : 0, isP ? 1.2 : -2.9, 0); CAMV.p.set(isP ? 1.6 : 0, isP ? 2.6 : 2.2, isP ? 9.2 : 17);
 }
 // icona di ogni abilita' (la faccia del bot e' la stessa per tutti: il personaggio e' l'abilita')
-function iconaAbil(g, a, sel) {
-  const gr = g.createRadialGradient(36, 30, 4, 48, 48, 46); gr.addColorStop(0, sel ? '#a99cff' : '#3a3f5c'); gr.addColorStop(1, sel ? '#5b46d6' : '#1d2133');
-  g.fillStyle = gr; g.beginPath(); g.arc(48, 48, 44, 0, 6.28); g.fill();
-  const m = {panciata: 'onda', superbalzo: 'trampolino', bolla: 'scudo', lingua: 'calamita', lampo: 'gelo'}[a];
-  if (m) glifo(g, m, 48, 48, 34);
-  else { g.fillStyle = '#fff'; for (const [x, y, r] of [[36, 52, 13], [52, 44, 16], [64, 54, 12], [48, 58, 12]]) { g.beginPath(); g.arc(x, y, r, 0, 6.28); g.fill(); } }
+const SPCOL = {panciata: '#2f8fff', superbalzo: '#ff9f1f', bolla: '#3fc6f0', lingua: '#ff5d8f', nube: '#5fbf3a', lampo: '#f2b81f'};   // HOP_2011
+function iconaAbil(g, a, sel, spenta) {   // HOP_2011: disegnata su 96x96 (prima usciva tagliata a meta' nella tela da 56 del tasto)
+  const c = g.canvas, S = Math.min(c.width, c.height) / 96; g.save(); g.setTransform(S, 0, 0, S, 0, 0); g.clearRect(0, 0, 96, 96);
+  const col = spenta ? '#4a5560' : (SPCOL[a] || '#7a5cff'), gr = g.createRadialGradient(36, 30, 4, 48, 48, 46); gr.addColorStop(0, sel ? '#ffffff' : '#ffffff55'); gr.addColorStop(.25, col); gr.addColorStop(1, col);
+  g.fillStyle = gr; g.beginPath(); g.arc(48, 48, 44, 0, 6.2832); g.fill(); g.lineWidth = 4; g.strokeStyle = sel ? '#ffd23f' : 'rgba(255,255,255,.9)'; g.stroke();
+  g.fillStyle = '#fff'; g.strokeStyle = '#fff'; g.lineCap = 'round'; g.lineJoin = 'round';
+  const fr = (x1, y1, x2, y2, w) => { g.lineWidth = w; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke(); const an = Math.atan2(y2 - y1, x2 - x1), h = w * 1.9; g.beginPath(); g.moveTo(x2 + Math.cos(an) * h * .7, y2 + Math.sin(an) * h * .7); g.lineTo(x2 + Math.cos(an + 2.4) * h, y2 + Math.sin(an + 2.4) * h); g.lineTo(x2 + Math.cos(an - 2.4) * h, y2 + Math.sin(an - 2.4) * h); g.closePath(); g.fill(); };
+  if (a === 'panciata') { g.beginPath(); g.arc(48, 48, 11, 0, 6.2832); g.fill(); for (let k = 0; k < 8; k++) { const an = k * Math.PI / 4; fr(48 + Math.cos(an) * 17, 48 + Math.sin(an) * 17, 48 + Math.cos(an) * 30, 48 + Math.sin(an) * 30, 5); } }
+  else if (a === 'superbalzo') { g.lineWidth = 7; g.beginPath(); g.moveTo(22, 70); g.quadraticCurveTo(40, 14, 70, 30); g.stroke(); fr(62, 26, 74, 32, 7); g.lineWidth = 4; g.beginPath(); for (let k = 0; k <= 6; k++) g.lineTo(18 + k * 4, k % 2 ? 76 : 84); g.stroke(); }
+  else if (a === 'bolla') { g.lineWidth = 6; g.beginPath(); g.arc(48, 50, 26, 0, 6.2832); g.stroke(); g.lineWidth = 5; g.beginPath(); g.arc(48, 50, 17, 3.6, 4.6); g.stroke(); g.beginPath(); g.arc(62, 38, 4, 0, 6.2832); g.fill(); }
+  else if (a === 'lingua') { g.strokeStyle = '#ffd0df'; g.lineWidth = 9; g.beginPath(); g.moveTo(20, 48); g.bezierCurveTo(40, 30, 56, 66, 72, 46); g.stroke(); g.fillStyle = '#ffd0df'; g.beginPath(); g.arc(73, 45, 9, 0, 6.2832); g.fill(); g.fillStyle = '#fff'; fr(66, 72, 30, 72, 5); }
+  else if (a === 'nube') { for (const [x, y, r] of [[34, 46, 13], [50, 38, 16], [64, 48, 12], [48, 52, 13]]) { g.beginPath(); g.arc(x, y, r, 0, 6.2832); g.fill(); } g.fillStyle = '#d6ff9a'; for (const x of [34, 50, 66]) { g.beginPath(); g.moveTo(x, 64); g.quadraticCurveTo(x + 6, 74, x, 80); g.quadraticCurveTo(x - 6, 74, x, 64); g.fill(); } }
+  else if (a === 'lampo') { g.beginPath(); g.arc(48, 48, 12, 0, 6.2832); g.fill(); g.lineWidth = 5; for (let k = 0; k < 8; k++) { const an = k * Math.PI / 4 + Math.PI / 8; g.beginPath(); g.moveTo(48 + Math.cos(an) * 19, 48 + Math.sin(an) * 19); g.lineTo(48 + Math.cos(an) * 31, 48 + Math.sin(an) * 31); g.stroke(); } }
+  else { for (const [x, y, r] of [[36, 52, 13], [52, 44, 16], [64, 54, 12], [48, 58, 12]]) { g.beginPath(); g.arc(x, y, r, 0, 6.2832); g.fill(); } }
+  g.restore();
 }
 /* ---------------- TITOLO (splash 17/11): il logo grande sopra lo stagno vivo; le sei rane 3D escono dall'acqua, stanno sulle ninfee
    e ogni tanto saltano su quelle libere (le altre le guardano). Al tocco: le rane si tuffano, la camera va sul protagonista, poi la lobby. ---------------- */
@@ -4147,7 +4218,7 @@ function lobby() {
   $('b-lez').textContent = L0.lezione; $('b-lez').classList.toggle('g', leggi('lez', '0') === '1'); $('b-gioca').classList.toggle('g', leggi('lez', '0') !== '1');
   $('esci').textContent = OPZ.lang === 'en' ? 'Leave' : 'Esci'; $('b-come').textContent = L0.come; $('b-gioca').textContent = L0.gioca; $('b-guarda').textContent = L0.guarda; $('b-var').textContent = L0.altre;
   $('t-arr').textContent = L0.arr; $('t-com').textContent = L0.com; $('tasti').innerHTML = L0.tasti.map(x => `<div>${x}</div>`).join('');
-  $('l-pg').innerHTML = PGS.map((p, k) => `<div class="pgc ${p === OPZ.pg ? 'sel' : ''}" data-p="${p}" style="--c:${COL[k % 5]}"><img class="im" src="assets_bayou/ritratti/${p}_${p === OPZ.pg ? 'win' : 'idle'}.webp" onerror="this.onerror=null;this.src='assets_bayou/pg/${p}_${p === OPZ.pg ? 'win' : 'idle'}.webp'" alt=""><div class="n">${PGN[p]}</div><div class="ab">${ab(ABPG[p])[0]}</div><div class="a">${ab(ABPG[p])[1]}</div></div>`).join('');
+  $('l-pg').innerHTML = PGS.map((p, k) => `<div class="pgc ${p === OPZ.pg ? 'sel' : ''}" data-p="${p}" style="--c:${COL[k % 5]}"><img class="im" src="assets_bayou/ritratti/${p}_${p === OPZ.pg ? 'win' : 'idle'}.webp?v=20261120" onerror="this.onerror=null;this.src='assets_bayou/pg/${p}_${p === OPZ.pg ? 'win' : 'idle'}.webp'" alt=""><div class="n">${PGN[p]}</div><div class="ab">${ab(ABPG[p])[0]}</div><div class="a">${ab(ABPG[p])[1]}</div></div>`).join('');
   $('s-n').innerHTML = [2, 3, 4, 5, 6].map(n => `<b class="${n === NGIOC ? 'sel' : ''}" data-n="${n}">${n}</b>`).join('');
   $('s-liv').innerHTML = ['facile', 'forte'].map(k => `<b class="${k === OPZ.liv ? 'sel' : ''}" data-l="${k}">${L0.liv[k]}</b>`).join('');
   $('s-opz').innerHTML = [['lang', OPZ.lang === 'en' ? 'EN' : 'IT'], ['cb', L0.opzioni[1]], ['rm', L0.opzioni[2]]].map(([k, l]) => `<b class="${k === 'lang' || OPZ[k] ? 'sel' : ''}" data-o="${k}">${l}</b>`).join('');
@@ -4181,8 +4252,9 @@ muto(OPZ.muto);
   // non al primo turno (prima davano uno scatto di ~200 ms all'entrata in scena)
   try { const prova = nuovaCella(true); tinta(prova, 'bomba', false, true, 1); prova.userData.fascio.visible = true; const bps = PGS.map((pg, k) => { const o = nuovoBot(k % 5, pg); RANE.pop(); o.root.traverse(x => { x.visible = true; }); o.root.position.x = k * 2 - 5; return o; }); const sp = new THREE.Sprite(new THREE.SpriteMaterial({map: TEX_PUNTO, transparent: true, depthWrite: false})); mondo.add(sp); cam.position.set(0, 14, 11); cam.lookAt(0, 0, 0); cam.updateMatrixWorld(); renderer.compile(scena, cam); renderer.render(scena, cam); mondo.remove(prova); for (const o of bps) mondo.remove(o.root); mondo.remove(sp); } catch (e) { console.warn('riscaldamento', e); }
   requestAnimationFrame(frame); regia(); Rete.poll(); $('carica').classList.add('via');
-  if (Q.get('avvia') === '1' || Q.get('titolo') === '0') lobby(); else titolo();
-  if (Q.get('avvia') === '1') setTimeout(() => { GUARDA = GUARDA0; Rete.nuova(Q.get('lezione') === '1'); }, +(Q.get('regole_s') || 0) * 1000);
+  const TUT2011 = !!window.__hopTut;   /* TUTORIAL_2011: hop.html?modo=tutorial parte subito nella lezione guidata */
+  if (TUT2011 || Q.get('avvia') === '1' || Q.get('titolo') === '0') lobby(); else titolo();
+  if (TUT2011 || Q.get('avvia') === '1') setTimeout(() => { GUARDA = GUARDA0; Rete.nuova(TUT2011 || Q.get('lezione') === '1'); }, +(Q.get('regole_s') || 0) * 1000);
 })();
 function sovrapposizioni() {
   const vis = el => { if (!el) return null; const cs = getComputedStyle(el); if (cs.display === 'none' || +cs.opacity < .2 || el.closest('.nasc') || el.classList.contains('via')) return null;
@@ -4266,6 +4338,7 @@ function controllaVicini(margine = .1) {
   [IO, NOMI] = salva; return out;
 }
 // HOP_RT_1711 (innesto del pacchetto, costruisci_pagina.py): l aggancio per il ponte del server vero
+window.__hopTutInt = {cella: (x, y) => { const v = pos(x, y).add(mondo.position).project(cam); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; }, abon: () => ABON, fase: () => FASE};   /* TUTORIAL_2011 */
 window.__HOP_RT = {avatar: (i, im) => { if (im) { IMGAV[i] = im; if (typeof aggiornaFoto === 'function') aggiornaFoto(+i); } }, nuova: () => Rete.nuova(),   // FOTO_MOSSE_1811
   stato: () => ({FASE, IO, MOSSE, MIA, turno: ST && ST.turno, nomi: NOMI, p: ST && ST.p}),
   schermo: (x, y) => { const c = CELLE[x] && CELLE[x][y]; if (!c || !c.visible) return null; const v = new THREE.Vector3(); c.getWorldPosition(v); v.y += .12; v.project(cam); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; }};
@@ -4299,6 +4372,458 @@ window.HCV = {get FASE() { return FASE; }, posiz: () => RANE.map(o => { if (!o |
   dbg: () => ({corr: corrente.visible, p: corrente.position.toArray(), s: corrente.scale.toArray(), mondo: corrente.parent === mondo}), programmi: () => renderer.info.programs.map(p => p.name + ' | ' + p.cacheKey), audio: {suono, sigla, pubblico, rumore, ac, voce: voceRana, peso: tonfoPeso, stato: (f, tempo) => { FASE = f; TEMPO = tempo || 98; CHEER = f === 'rivela' ? 1 : .2; }, mix: () => MIX, ricette: () => Object.keys(RICETTE), voci: () => VOCI.length}, controllaCappelli, controllaVicini, taglie: () => PGS.map(pg => { const o = nuovoRobot(0, pg); RANE.pop(); return [pg, o.ex.taglia]; }), tempi: () => TEMPI, sovrapposizioni, scudi: () => RANE.filter(o => o.scudo.visible && !(ST.p[o.i] || {}).scudo).map(o => [o.i, FASE, !!o.scudo.userData.rompe, o.ko]), mosse: () => MOSSE, mia: () => MIA, io: () => IO >= 0 && ST ? [ST.p[IO].x, ST.p[IO].y] : null,
   mosseArmate: () => MOSSE.filter(m => { const t = ST.campo[m[0]][m[1]]; return TC[t] && !(m[0] === ST.p[IO].x && m[1] === ST.p[IO].y); }), vista: () => VISTA, mem: () => ({geo: renderer.info.memory.geometries, tex: renderer.info.memory.textures, prog: renderer.info.programs.length, calls: renderer.info.render.calls, part: PART.length, tw: TW.length, scena: scena.children.length, heap: performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1e6) : 0}),
   schermoDi: (x, y) => { const v = pos(x, y).add(mondo.position); v.y = .2; const p = v.project(cam); return [(p.x + 1) / 2 * innerWidth, (1 - p.y) / 2 * innerHeight]; }, fps: () => FPS};
+/* ==================== LEVELUP_2011 (proprietario, 20/11 notte: «level up su VFX, SFX e musica, livello PROFESSIONALE») ====================
+   Tutto qui dentro, sopra le funzioni che ci sono gia' (si avvolgono: prima la versione di prima, poi lo strato nuovo). Niente regole, motore,
+   punteggi o soldi: solo resa.
+   VFX  · un sistema di particelle a POOL (4 pool: luce additiva, normale, fumo, GOCCE d'acqua allungate sulla velocita'), una chiamata di
+          disegno per pool e zero oggetti nuovi per fotogramma; la vecchia `particelle` scrive qui (prima: 1 Sprite + 1 materiale a particella).
+        · l'ACQUA reagisce: fino a 10 cerchi d'onda dentro lo shader dello stagno (cresta + avvallamento + onde piccole dietro), colorati per
+          evento; riflessi caldi delle lanterne; gorghi che risucchiano; gocce che si spengono sull'acqua con un luccichio.
+        · corona d'acqua, colonna e bolle per tuffi, cadute, KO; firma propria per ogni ninfea speciale, trappola e potere (all'impatto vero:
+          impattoSp); vittoria con fuochi di lucciole; scossa della camera LISCIA (rumore a seni, con un filo di rollio) invece del tremolio
+          casuale a ogni fotogramma; la luce calda delle lanterne trema come una fiamma.
+   SFX  · suoni nuovi sintetizzati (tuffo con bolle «vere», gocce, bolle, onda d'urto, gorgo, scoppio, campanelle, conto alla rovescia
+          a 3-2-1, legnetto) e variazione di volume (±1 dB) oltre a quella di tono; ducking leggero sotto i colpi grossi.
+   MUSICA · tema originale «Stagno di mezzanotte» (la minore, swing), strumenti costruiti in memoria all'avvio (banjo e contrabbasso
+          Karplus-Strong, kalimba modale, legnetto, washboard, cassa d'acqua) + pad e ancia sintetizzati; strati che entrano ed escono
+          (menu / scelta / rivelazione / partita stretta / ultimi 3 secondi del turno), sigle nuove di vittoria e sconfitta. */
+const LU = {t: 0, nOnde: 0, scossa: [0, 0, 0], roll: 0};
+const LU_OK = !Q.get('lu0');           // ?lu0=1: prova senza il level up (confronti)
+// ---------------- POOL DI PARTICELLE (InstancedBufferGeometry + shader billboard) ----------------
+const LU_VS = `attribute vec3 iPos; attribute vec4 iCol; attribute float iSz;
+#ifdef STIRA
+attribute vec3 iVel; uniform float uStira;
+#endif
+varying vec2 vUv; varying vec4 vCol;
+#include <fog_pars_vertex>
+void main(){ vUv = uv; vCol = iCol; vec4 mvPosition = modelViewMatrix * vec4(iPos, 1.); vec2 c = position.xy * iSz;
+#ifdef STIRA
+  vec2 vd = (modelViewMatrix * vec4(iVel, 0.)).xy; float vl = length(vd);
+  vec2 ay = vl > .001 ? vd / vl : vec2(0., 1.); vec2 ax = vec2(ay.y, -ay.x);
+  c = ax * (position.x * iSz) + ay * (position.y * iSz * (1. + min(vl * uStira, 2.6)));
+#endif
+  mvPosition.xy += c; gl_Position = projectionMatrix * mvPosition;
+#include <fog_vertex>
+}`;
+const LU_FS = `uniform sampler2D map; varying vec2 vUv; varying vec4 vCol;
+#include <fog_pars_fragment>
+void main(){ vec4 t = texture2D(map, vUv); gl_FragColor = vec4(vCol.rgb * t.rgb, t.a * vCol.a);
+#include <fog_fragment>
+#include <encodings_fragment>
+}`;
+const LU_TEX_GOCCIA = (() => { const c = tela(64, 64), g = c.getContext('2d'); const r = g.createRadialGradient(32, 32, 1, 32, 32, 30);
+  r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(.42, 'rgba(225,250,255,.95)'); r.addColorStop(.7, 'rgba(150,215,235,.8)'); r.addColorStop(.86, 'rgba(30,95,110,.5)'); r.addColorStop(1, 'rgba(20,70,80,0)');
+  g.fillStyle = r; g.fillRect(0, 0, 64, 64); g.fillStyle = 'rgba(255,255,255,.95)'; g.beginPath(); g.arc(24, 24, 5, 0, 6.283); g.fill();
+  return new THREE.CanvasTexture(c); })();
+function luPool(cap, tex, add, stira) {
+  const base = new THREE.PlaneGeometry(1, 1), g = new THREE.InstancedBufferGeometry(); g.setIndex(base.index); g.setAttribute('position', base.attributes.position); g.setAttribute('uv', base.attributes.uv);
+  const P = {cap, n: 0, pos: new Float32Array(cap * 3), vel: new Float32Array(cap * 3), col: new Float32Array(cap * 4), sz: new Float32Array(cap),
+    t: new Float32Array(cap), vita: new Float32Array(cap), g: new Float32Array(cap), sc0: new Float32Array(cap), cr: new Float32Array(cap), a0: new Float32Array(cap), dr: new Float32Array(cap), coda: new Uint8Array(cap), stira};
+  const at = (arr, k) => { const a = new THREE.InstancedBufferAttribute(arr, k); a.setUsage(THREE.DynamicDrawUsage); return a; };
+  P.aPos = at(P.pos, 3); P.aCol = at(P.col, 4); P.aSz = at(P.sz, 1); g.setAttribute('iPos', P.aPos); g.setAttribute('iCol', P.aCol); g.setAttribute('iSz', P.aSz);
+  if (stira) { P.aVel = at(P.vel, 3); g.setAttribute('iVel', P.aVel); }
+  g.instanceCount = 0;
+  const m = new THREE.ShaderMaterial({uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {map: {value: null}, uStira: {value: .24}}]), vertexShader: LU_VS, fragmentShader: LU_FS,
+    transparent: true, depthWrite: false, fog: true, blending: add ? THREE.AdditiveBlending : THREE.NormalBlending, defines: stira ? {STIRA: 1} : {}});
+  m.uniforms.map.value = tex;
+  P.mesh = new THREE.Mesh(g, m); P.mesh.frustumCulled = false; P.mesh.visible = false; P.mesh.renderOrder = stira ? 3 : 2; scena.add(P.mesh); return P;
+}
+const LU_PA = luPool(1400, TEX_PUNTO, true), LU_PN = luPool(360, TEX_PUNTO, false), LU_PF = luPool(420, TEX_FUMO, false), LU_PG = luPool(900, LU_TEX_GOCCIA, false, true);
+const LU_C = new THREE.Color();
+function luEmit(P, x, y, z, vx, vy, vz, vita, g, sz, r, gg, b, a, cr, dr, coda) {
+  if (P.n >= P.cap) return; const i = P.n++, i3 = i * 3, i4 = i * 4;
+  P.pos[i3] = x; P.pos[i3 + 1] = y; P.pos[i3 + 2] = z; P.vel[i3] = vx; P.vel[i3 + 1] = vy; P.vel[i3 + 2] = vz;
+  P.col[i4] = r; P.col[i4 + 1] = gg; P.col[i4 + 2] = b; P.col[i4 + 3] = a; P.a0[i] = a; P.t[i] = 0; P.vita[i] = Math.max(.02, vita); P.g[i] = g; P.sc0[i] = sz; P.sz[i] = sz; P.cr[i] = cr || 0; P.dr[i] = dr || 0; P.coda[i] = coda || 0;
+}
+function luCopia(P, d, s) { const d3 = d * 3, s3 = s * 3, d4 = d * 4, s4 = s * 4;
+  for (let k = 0; k < 3; k++) { P.pos[d3 + k] = P.pos[s3 + k]; P.vel[d3 + k] = P.vel[s3 + k]; } for (let k = 0; k < 4; k++) P.col[d4 + k] = P.col[s4 + k];
+  P.sz[d] = P.sz[s]; P.t[d] = P.t[s]; P.vita[d] = P.vita[s]; P.g[d] = P.g[s]; P.sc0[d] = P.sc0[s]; P.cr[d] = P.cr[s]; P.a0[d] = P.a0[s]; P.dr[d] = P.dr[s]; P.coda[d] = P.coda[s]; }
+function luAggiorna(P, dt) {
+  let i = 0;
+  while (i < P.n) {
+    const t = P.t[i] += dt, i3 = i * 3;
+    if (t >= P.vita[i]) { P.n--; if (i < P.n) luCopia(P, i, P.n); continue; }
+    if (dt > 0) { P.vel[i3 + 1] -= P.g[i] * dt; if (P.dr[i]) { const f = Math.exp(-P.dr[i] * dt); P.vel[i3] *= f; P.vel[i3 + 1] *= f; P.vel[i3 + 2] *= f; }
+      P.pos[i3] += P.vel[i3] * dt; P.pos[i3 + 1] += P.vel[i3 + 1] * dt; P.pos[i3 + 2] += P.vel[i3 + 2] * dt;
+      // una goccia che ricade sull'acqua si spegne con un luccichio
+      if (P.stira && P.pos[i3 + 1] < -.04 && P.vel[i3 + 1] < 0) { if (P.coda[i] && LU_PA.n < LU_PA.cap - 40) luEmit(LU_PA, P.pos[i3], -.02, P.pos[i3 + 2], 0, .3, 0, .16, 0, P.sc0[i] * 1.6, .8, 1, .95, .7, 2);
+        P.n--; if (i < P.n) luCopia(P, i, P.n); continue; } }
+    const k = t / P.vita[i]; P.col[i * 4 + 3] = P.a0[i] * (P.stira ? (k > .75 ? (1 - k) * 4 : 1) : 1 - k); P.sz[i] = P.sc0[i] * (1 + t * P.cr[i]);
+    i++;
+  }
+  const g = P.mesh.geometry; g.instanceCount = P.n; P.mesh.visible = P.n > 0;
+  if (P.n) { for (const a of [P.aPos, P.aCol, P.aSz, P.aVel]) if (a) { a.updateRange.offset = 0; a.updateRange.count = P.n * a.itemSize; a.needsUpdate = true; } }
+}
+// la vecchia `particelle` (stessa forma, stessi numeri) scrive nei pool: niente Sprite e niente materiale nuovo a ogni particella
+const LU_particelle0 = particelle;
+if (LU_OK) particelle = function (v, n, col, vel, vita, opz) {
+  opz = opz || {}; n = Math.ceil(n * .7); if (OPZ.rm) n = Math.ceil(n / 3);
+  const P = opz.fumo ? LU_PF : opz.normale ? LU_PN : LU_PA; LU_C.set(col == null ? 0xffffff : col);
+  const su = opz.su == null ? 1 : opz.su, g = opz.g == null ? 9 : opz.g, r0 = opz.r || .22;
+  for (let k = 0; k < n; k++) { if (P.n >= P.cap) break; const a = Math.random() * 6.28, sp = (.3 + Math.random()) * vel;
+    luEmit(P, v.x, v.y, v.z, Math.cos(a) * sp, su * vel * (.6 + Math.random()), Math.sin(a) * sp, vita * (.6 + Math.random() * .8), g, r0 * (.5 + Math.random()), LU_C.r, LU_C.g, LU_C.b, 1, opz.cresce || 0, 0); }
+};
+// ---------------- GOCCE, CORONE, SCINTILLE ----------------
+const luLeggero = () => OPZ.rm || QUAL.liv >= 1;
+// corona d'acqua: anello di gocce che salgono e ricadono + colonna centrale + schiuma; forza 0.3 (atterraggio) .. 1.6 (panciata)
+function luCorona(v, f, col) {
+  if (!LU_OK) return; f = f || 1; LU_C.set(col == null ? 0x8fe0f8 : col); const n = Math.round((luLeggero() ? 6 : 11) + (luLeggero() ? 6 : 14) * f), cr = LU_C.r, cg = LU_C.g, cb = LU_C.b;
+  for (let k = 0; k < n; k++) { const a = k / n * 6.283 + Math.random() * .3, sp = (1.1 + Math.random() * 1.5) * (.6 + .6 * f), r0 = .28 + .12 * f;
+    luEmit(LU_PG, v.x + Math.cos(a) * r0, .24, v.z + Math.sin(a) * r0, Math.cos(a) * sp, (2.2 + Math.random() * 2.4) * (.55 + .55 * f), Math.sin(a) * sp, .9 + .4 * f, 10.5, (.15 + Math.random() * .13) * (.8 + .3 * f), cr, cg, cb, .95, 0, 0, 1); }
+  if (f >= .6) { const m = Math.round((luLeggero() ? 3 : 7) * f); for (let k = 0; k < m; k++) luEmit(LU_PG, v.x + (Math.random() - .5) * .2, .3, v.z + (Math.random() - .5) * .2, (Math.random() - .5) * .8, (4.4 + Math.random() * 2.4) * Math.min(1.3, f), (Math.random() - .5) * .8, 1.1, 11, .19 + Math.random() * .1, 1, 1, 1, .95, 0, 0, 1);
+    for (let k = 0; k < (luLeggero() ? 2 : 5); k++) { const a = Math.random() * 6.283; luEmit(LU_PF, v.x + Math.cos(a) * .3, .12, v.z + Math.sin(a) * .3, Math.cos(a) * .6, .35, Math.sin(a) * .6, .9 + Math.random() * .5, -.2, .55 + .25 * f, .9, 1, .97, .55, 1.1, 1.2); } }
+}
+// spruzzo che va in una direzione (getti, lingua, fauci)
+function luSpruzzo(v, dx, dz, n, sp, col, su) {
+  if (!LU_OK) return; LU_C.set(col == null ? 0x8fe0f8 : col); if (luLeggero()) n = Math.ceil(n / 2);
+  for (let k = 0; k < n; k++) { const s = sp * (.5 + Math.random() * .8), j = (Math.random() - .5) * .9;
+    luEmit(LU_PG, v.x, v.y, v.z, (dx + j * dz) * s, (su == null ? 2.6 : su) * (.5 + Math.random()), (dz - j * dx) * s, .8, 10, .14 + Math.random() * .08, LU_C.r, LU_C.g, LU_C.b, .92, 0, 0, 1); }
+}
+// scintille/lucine additive: raggiera (r = velocita'), con attrito (salgono e si fermano come lucciole)
+function luScintille(v, n, col, sp, vita, g, dr, sz) {
+  if (!LU_OK) return; if (luLeggero()) n = Math.ceil(n / 2); const cs = Array.isArray(col) ? col : [col];
+  for (let k = 0; k < n; k++) { LU_C.set(cs[k % cs.length]); const a = Math.random() * 6.283, b = Math.random() * 1.2 - .1, s = sp * (.4 + Math.random() * .8);
+    luEmit(LU_PA, v.x, v.y, v.z, Math.cos(a) * Math.cos(b) * s, Math.sin(b) * s + .4, Math.sin(a) * Math.cos(b) * s, vita * (.6 + Math.random() * .7), g == null ? .6 : g, (sz || .14) * (.6 + Math.random() * .8), LU_C.r, LU_C.g, LU_C.b, 1, 0, dr == null ? 2.2 : dr); }
+}
+// bolle che salgono dall'acqua e scoppiano (pantano, nube, gorgo, KO)
+function luBolle(v, n, col, raggio) {
+  if (!LU_OK) return; LU_C.set(col == null ? 0xcff6ee : col); if (luLeggero()) n = Math.ceil(n / 2);
+  for (let k = 0; k < n; k++) { const a = Math.random() * 6.283, r = Math.sqrt(Math.random()) * (raggio || .6);
+    luEmit(LU_PN, v.x + Math.cos(a) * r, -.02, v.z + Math.sin(a) * r, 0, .5 + Math.random() * .7, 0, .35 + Math.random() * .5, -.6, .07 + Math.random() * .09, LU_C.r, LU_C.g, LU_C.b, .8, .9, 0); }
+}
+// ---------------- L'ACQUA CHE REAGISCE: cerchi d'onda dentro lo shader dello stagno ----------------
+const LU_NO = 10, LU_ONDE = Array.from({length: LU_NO}, () => ({x: 0, z: 0, eta: 1, vita: 1, f: 0, r: 0, c: new THREE.Color(), contrae: false})),
+  LU_UO = Array.from({length: LU_NO}, () => new THREE.Vector4()), LU_UC = Array.from({length: LU_NO}, () => new THREE.Vector4());
+(function luAcqua() {
+  if (!LU_OK) return; const fs = acqua.material.fragmentShader, A = 'uniform float lampo; varying vec2 vW;', B = '    float dist = length(vW - c);';
+  if (fs.indexOf(A) < 0 || fs.indexOf(B) < 0) return;
+  const testa = A + '\n  uniform vec4 luO[10]; uniform vec4 luC[10]; uniform int luN; uniform float luG;';
+  const onde = `    float luR = 0., luD = 0.; vec3 luT = vec3(0.);
+    for (int i = 0; i < 10; i++) { if (i >= luN) break; vec4 o = luO[i], q = luC[i]; float k = o.z, Rm = abs(q.w);
+      float Rr = q.w < 0. ? Rm * (1. - k * .92) : Rm * (1. - (1. - k) * (1. - k));
+      float dd = length(vW - o.xy), w = .12 + .26 * k, x = (dd - Rr) / w, fade = o.w * (1. - k) * (1. - k);
+      float cresta = exp(-x * x), solco = exp(-(x + 1.7) * (x + 1.7));
+      float dietro = dd < Rr ? sin((Rr - dd) * 10.) * exp(-(Rr - dd) * 2.6) * .45 : 0.;
+      float v = (cresta + dietro) * fade; luR += max(v, 0.); luD += (solco + max(-dietro, 0.)) * fade; luT += q.rgb * max(v, 0.); }
+    col = col * (1. - min(.3, luD * .26)) + luT * 1.1 + vec3(.6, 1., .94) * luR * .28;
+    col += vec3(1., .74, .4) * pow(n2(vW * 1.6 + vec2(t * .11, -t * .17)), 20.) * 1.5 * luG;   // i riflessi caldi delle lanterne
+`;
+  acqua.material.fragmentShader = fs.replace(A, testa).replace(B, onde + B).replace('gl_FragColor = vec4(col, alfa);', 'gl_FragColor = vec4(col, min(1., alfa + luR * .25 * alfa));');
+  Object.assign(acqua.material.uniforms, {luO: {value: LU_UO}, luC: {value: LU_UC}, luN: {value: 0}, luG: {value: 1}});
+  acqua.material.needsUpdate = true; LU.acqua = true;
+})();
+// un cerchio d'onda: v = punto del mondo, f = forza (0..1.5), r = raggio massimo, vita in s, col = tinta della cresta
+function luOnda(v, f, r, vita, col, contrae) {
+  if (!LU_OK || !LU.acqua) return; let w = LU_ONDE[0];
+  for (const o of LU_ONDE) { if (o.eta >= 1) { w = o; break; } if (o.f * (1 - o.eta) < w.f * (1 - w.eta)) w = o; }
+  w.x = v.x; w.z = v.z; w.eta = 0; w.vita = vita || 1.2; w.f = f == null ? 1 : f; w.r = r || 2.5; w.c.set(col == null ? 0x9ff6ea : col); w.contrae = !!contrae;
+}
+function luOndeAggiorna(dt) {
+  if (!LU.acqua) return; let n = 0;
+  for (const o of LU_ONDE) { if (o.eta >= 1) continue; o.eta = Math.min(1, o.eta + dt / o.vita); if (o.eta >= 1) continue;
+    LU_UO[n].set(o.x, o.z, o.eta, o.f); LU_UC[n].set(o.c.r, o.c.g, o.c.b, o.contrae ? -o.r : o.r); n++; }
+  acqua.material.uniforms.luN.value = n; acqua.material.uniforms.luG.value = QUAL.liv >= 2 ? 0 : 1; LU.nOnde = n;
+}
+const luMondo = (x, y) => pos(x, y).add(mondo.position);
+const luRana = o => { const v = o.root.position.clone().add(mondo.position); v.y = .05; return v; };
+// ---------------- SUONI NUOVI (stessi mattoni: tono/sbuffo, stessi bus) ----------------
+// bolla d'acqua (modello di Minnaert): una sinusoide breve che sale; piu' e' piccola, piu' e' acuta
+function luBolla(t, f, d, v, bus) { tono(t, {f0: f, f1: f * (1.45 + Math.random() * .6), dur: d, vol: v, glide: d * .85, att: .002, bus}); }
+Object.assign(RICETTE, {
+  tuffo: (n, v, r) => { tono(n, {f0: 92 * r, f1: 36, dur: .5, vol: .75 * v, glide: .32}); sbuffo(n, {dur: .42, vol: .5 * v, filtro: 'lowpass', f0: 4600, f1: 320, att: .003});
+    sbuffo(n + .008, {dur: .22, vol: .22 * v, filtro: 'highpass', f0: 3200, f1: 8000}); sbuffo(n + .06, {dur: .8, vol: .14 * v, f0: 900, f1: 260, q: 1.3, att: .06});
+    for (let k = 0; k < 13; k++) { const t = n + .07 + Math.random() * Math.random() * .85, f = 240 + Math.random() * 950; luBolla(t, f * r, .045 + Math.random() * .06, (.04 + Math.random() * .055) * v); } },
+  gocce: (n, v, r) => { for (let k = 0; k < 4; k++) luBolla(n + k * .03 + Math.random() * .03, (950 + Math.random() * 1500) * r, .03 + Math.random() * .02, (.025 + Math.random() * .03) * v); },
+  bolle: (n, v, r) => { for (let k = 0; k < 8; k++) luBolla(n + Math.random() * .75, (170 + Math.random() * 520) * r, .07 + Math.random() * .07, (.035 + Math.random() * .045) * v); sbuffo(n, {dur: .7, vol: .05 * v, f0: 450, f1: 300, q: 2, att: .12}); },
+  onda_urto: (n, v, r) => { tono(n, {f0: 68 * r, f1: 31, dur: .6, vol: .62 * v, glide: .45}); sbuffo(n, {dur: .7, vol: .32 * v, filtro: 'lowpass', f0: 1100, f1: 110, att: .006}); sbuffo(n + .02, {dur: .5, vol: .1 * v, f0: 2400, f1: 500, q: .8, att: .04}); },
+  vortice: (n, v, r) => { sbuffo(n, {dur: 1.1, vol: .2 * v, f0: 1900 * r, f1: 260, q: 3.2, att: .22}); sbuffo(n + .1, {dur: .9, vol: .12 * v, f0: 700, f1: 1500, q: 4, att: .3}); for (let k = 0; k < 6; k++) luBolla(n + .35 + Math.random() * .6, 200 + Math.random() * 300, .08, .045 * v); },
+  scoppio: (n, v, r) => { sbuffo(n, {dur: .3, vol: .24 * v, filtro: 'lowpass', f0: 2400, f1: 300, att: .002}); tono(n, {f0: 150 * r, f1: 58, dur: .22, vol: .26 * v, glide: .15});
+    for (let k = 0; k < 11; k++) sbuffo(n + .06 + Math.random() * Math.random() * .7, {dur: .012, vol: (.04 + Math.random() * .07) * v, filtro: 'highpass', f0: 3500 + Math.random() * 3500}); },
+  campanelle: (n, v, r) => { [[0, 0], [7, .055], [12, .11], [16, .165]].forEach(([m, d]) => { const f = 1320 * r * Math.pow(2, m / 12); tono(n + d, {f0: f, dur: .7, vol: .045 * v, att: .002}); tono(n + d, {f0: f * 2.76, dur: .18, vol: .012 * v, att: .001}); }); },
+  conto: (n, v, r) => { tono(n, {f0: 1120 * r, dur: .075, vol: .2 * v, att: .001, bus: MIX.ui}); tono(n, {f0: 1790 * r, dur: .045, vol: .07 * v, tipo: 'triangle', att: .001, bus: MIX.ui}); sbuffo(n, {dur: .014, vol: .1 * v, filtro: 'highpass', f0: 3200, bus: MIX.ui}); },
+  schiocco: (n, v, r) => { sbuffo(n, {dur: .05, vol: .45 * v, filtro: 'highpass', f0: 1800 * r, f1: 5000}); tono(n, {f0: 2400 * r, f1: 700, dur: .06, vol: .1 * v, tipo: 'triangle'}); },
+  colpo: (n, v, r) => { tono(n, {f0: 210 * r, f1: 70, dur: .16, vol: .42 * v, glide: .1}); sbuffo(n, {dur: .07, vol: .3 * v, f0: 1300 * r, q: 1.4, att: .002}); tono(n + .015, {f0: 820 * r, f1: 1250 * r, dur: .07, vol: .05 * v, tipo: 'triangle'});
+    tono(n + .09, {f0: 1320 * r, f1: 990 * r, dur: .12, vol: .035 * v, bus: MIX.ui}); },
+  ventata: (n, v, r) => { sbuffo(n, {dur: .45, vol: .22 * v, f0: 500 * r, f1: 2600, q: .9, att: .14}); }
+});
+Object.assign(DUR_RIC, {colpo: .25, tuffo: 1, gocce: .2, bolle: .8, onda_urto: .7, vortice: 1.2, scoppio: .8, campanelle: .9, conto: .1, schiocco: .1, ventata: .5});
+Object.assign(GUAD, {tuffo: 1, gocce: 1, bolle: 1.1, campanelle: 1, conto: 1});
+// suono con altezza fissa (conto alla rovescia: sale a ogni numero)
+function luS(k, vol, p) { if (OPZ.muto || !LU_OK) return; try { const a = ac(); if (!RICETTE[k] || !voce(k, DUR_RIC[k] || .3)) return; RICETTE[k](a.currentTime + .005, (vol || 1) * (GUAD[k] || 1), p || (1 + (Math.random() - .5) * .08)); } catch (e) {} }
+// variazione di volume (±1 dB) su tutti gli effetti, oltre a quella di tono che c'era gia'
+const LU_suono0 = suono;
+if (LU_OK) suono = function (k, vol) { return LU_suono0(k, (vol == null ? 1 : vol) * (.89 + Math.random() * .23)); };
+// ducking leggero (la musica scende al 60% e torna): per i colpi grossi, piu' morbido di quello delle sigle
+function luDuck(s) { if (!MIX || OPZ.muto || !LU_OK) return; const g = MIX.mus.gain, n = AC.currentTime; if (g.value < MUSV * .5) return; g.cancelScheduledValues(n); g.setValueAtTime(g.value, n); g.linearRampToValueAtTime(MUSV * .6, n + .05); g.linearRampToValueAtTime(MUSV, n + (s || .9)); }
+// ---------------- GLI EVENTI: si avvolgono le funzioni di prima ----------------
+// il colpo preso: un tonfo secco sotto la voce della rana (prima c'era solo il gracidio) e un «ding» che scende per il cuore perso
+const LU_ferita0 = ferita;
+if (LU_OK) ferita = function (i, n, da, perche) { const r = LU_ferita0(i, n, da, perche); luS('colpo', .75 + .15 * Math.min(2, n || 1)); return r; };
+// lo spruzzo (cadute in acqua, KO, getti che colpiscono, cascata che morde): corona d'acqua vera, onde sull'acqua, bolle, tuffo
+const LU_spruzzo0 = spruzzo;
+if (LU_OK) spruzzo = function (v, forza) {
+  LU_spruzzo0(v, forza); const f = forza || 1;
+  luCorona(v, f); luOnda(v, .55 + .5 * f, 1.6 + 1.6 * f, 1 + .5 * f); if (f >= .7) setTimeout(() => luOnda(v, .45, 1.2 + f, 1.3), 160);
+  if (f >= .9) { luS('tuffo', .45 + .35 * f); luDuck(1); setTimeout(() => luBolle(v, 10, null, .7), 260); } else luS('gocce', .7);
+};
+// l'atterraggio: onda sotto la ninfea (piu' larga per Grumo e Tonfo), poche gocce, un plic
+const LU_atterra0 = atterra;
+if (LU_OK) atterra = function (o) {
+  LU_atterra0(o); try { const w = (VOCE_PG[o.pg] || {}).peso || 1, v = luRana(o); luOnda(v, .32 + .2 * w, 1.15 + .35 * w, .9);
+    if (!luLeggero()) { LU_C.set(0x8fe0f8); for (let k = 0; k < 5 + Math.round(3 * w); k++) { const a = Math.random() * 6.283, r = .5; luEmit(LU_PG, v.x + Math.cos(a) * r, .08, v.z + Math.sin(a) * r, Math.cos(a) * 1.1, 1.6 + Math.random() * 1.2, Math.sin(a) * 1.1, .6, 10, .12 + Math.random() * .06, LU_C.r, LU_C.g, LU_C.b, .9, 0, 0, 1); } }
+    luS('gocce', .45 + .2 * w); } catch (e) {}
+};
+// il KO: la ninfea si spacca e cade nell'acqua con chi c'e' sopra: tuffo grosso, gorgo e bolle
+const LU_ko0 = koMomento;
+if (LU_OK) koMomento = async function (ko, buchi) {
+  try { for (const e of ko || []) { const o = RANE[e.sg]; if (!o) continue; const v = luRana(o); setTimeout(() => { luS('tuffo', 1); luOnda(v, 1.3, 3.4, 1.6, 0xff8a9a); luBolle(v, 18, null, .6); }, 380);
+    setTimeout(() => { luOnda(v, .8, 2.2, 1.6, 0xb8a6ff, true); luS('vortice', .6); }, 1100); } } catch (x) {}
+  return LU_ko0(ko, buchi);
+};
+// la caduta in acqua (cascata, ninfea che affonda, gorgo): il tuffo arriva quando la rana tocca l'acqua
+const LU_caduta0 = caduta;
+if (LU_OK) caduta = async function (e) {
+  try { const o = RANE[e.sg], v = luRana(o); setTimeout(() => { spruzzo(v, .95); if (e.perche === 'buco') { luS('vortice', .8); luOnda(v, .9, 2.4, 1.6, 0xb8a6ff, true); luBolle(v, 14, 0xd6ccff, .5); } }, 190); } catch (x) {}
+  return LU_caduta0(e);
+};
+// le ninfee che affondano: un cerchio d'onda per ognuna, con lo stesso ritmo degli schizzi
+const LU_affonda0 = affondaV3;
+if (LU_OK) affondaV3 = function (fila) { LU_affonda0(fila); fila.forEach((c, j) => setTimeout(() => { const v = c.position.clone().add(mondo.position); luOnda(v, .55, 1.8, 1.2); luBolle(v, 5, null, .4); }, (120 + j * 60) / Math.max(.2, SCALA))); };
+// i GETTI: l'acqua corre davvero lungo la linea (gocce che seguono il fronte nelle due direzioni), poi onde dove arriva
+const LU_raggio0 = raggioV3;
+if (LU_OK) raggioV3 = function (o, x1, y1, x2, y2, e) {
+  const p = LU_raggio0(o, x1, y1, x2, y2, e);
+  try { const A = luMondo(x1, y1), B = luMondo(x2, y2), C = o.clone(); C.y = .55; let fatto = 0;
+    dopoSp(.24, () => { luS('ventata', .5); tw(.2, k => { const n = luLeggero() ? 2 : 5; for (const D of [A, B]) { const dx = D.x - C.x, dz = D.z - C.z, L = Math.hypot(dx, dz) || 1;
+        for (let q = 0; q < n; q++) { const u = Math.min(1, k + Math.random() * .08), j = (Math.random() - .5) * .5; luEmit(LU_PG, C.x + dx * u - dz / L * j, .45 + Math.random() * .35, C.z + dz * u + dx / L * j, dx / L * (1.5 + Math.random() * 2.5) - dz / L * j * 3, 1 + Math.random() * 2.6, dz / L * (1.5 + Math.random() * 2.5) + dx / L * j * 3, .5 + Math.random() * .2, 10, .07 + Math.random() * .08, .7, .98, 1, .9, 0, 0, 1); } }
+        if (k - fatto > .2) { fatto = k; for (const D of [A, B]) { const w = C.clone().lerp(D, k); luOnda(w, .5, 1.1, .8); } } });
+      setTimeout(() => { for (const D of [A, B]) luOnda(D, .7, 1.6, 1); }, 200); }); } catch (x) {}
+  return p;
+};
+// la FIRMA dei poteri e delle ninfee armate, al momento vero dell'impatto (impattoSp, una volta sola per colpo)
+const LU_impatto0 = impattoSp;
+if (LU_OK) impattoSp = function (o) { const s = o && SPI[o.i], primo = s && !s.fatto; LU_impatto0(o); if (primo) try { luFirma(s.t, o, s.presi || []); } catch (x) {} };
+function luFirma(t, o, presi) {
+  const v = luRana(o), x0 = Math.round(o.x), y0 = Math.round(o.y), presiV = presi.map(j => RANE[j]).filter(r => r && !r.ko);
+  if (t === 'panciata') { luOnda(v, 1.4, 4.2, 1.3, 0x9fd4ff); setTimeout(() => luOnda(v, 1, 5.6, 1.6), 90); setTimeout(() => luOnda(v, .6, 6.8, 1.9), 200); luCorona(v, 1.5); luS('onda_urto', .7); luDuck(1.1);
+    for (const [a, b] of celleAttorno(x0, y0, 1)) { const w = luMondo(a, b); luSpruzzo(w.setY(.15), w.x - v.x, w.z - v.z, 4, 1.4); } }
+  else if (t === 'superbalzo') { luOnda(v, 1.1, 3.6, 1.1, 0xffd23f); luCorona(v, .7, 0xfff3c0); luScintille(v.clone().setY(.3), 26, [0xffd23f, 0xfff6c0, 0xff8a1f], 4.6, .55, .4, 3.2, .12); luS('onda_urto', .45); }
+  else if (t === 'nube') { luOnda(v, .9, 3, 1.5, 0x9aff6a); for (const [a, b] of celleAttorno(x0, y0, 1)) { const w = luMondo(a, b); luBolle(w, 4, 0xa8ff7a, .45); } luS('bolle', .8);
+    LU_C.set(0x8ee05a); for (let k = 0; k < (luLeggero() ? 5 : 12); k++) { const a = Math.random() * 6.283, r = .4 + Math.random() * 1.3; luEmit(LU_PF, v.x + Math.cos(a) * r, .2, v.z + Math.sin(a) * r, Math.cos(a) * .25, .35 + Math.random() * .3, Math.sin(a) * .25, 1.4 + Math.random() * .6, -.1, .6 + Math.random() * .4, LU_C.r, LU_C.g, LU_C.b, .5, .7, .8); } }
+  else if (t === 'lampo') { luOnda(v, 1.1, 4.2, 1.3, 0xffd27a); setTimeout(() => luOnda(v, .6, 5.2, 1.6, 0xfff0c0), 120); luScintille(v.clone().setY(1.1), 40, [0xffe08a, 0xfff6d8, 0xffb02e, 0x7fd8ff], 3.2, 1.1, -.2, 1.6, .13); luS('campanelle', .8); }
+  else if (t === 'lingua') { for (const r of presiV) { const w = luRana(r); luOnda(w, .8, 1.8, 1, 0xff8fb8); luSpruzzo(w.clone().setY(.6), v.x - w.x, v.z - w.z, 10, .9, 0xffc6da, 1.6); } luS('schiocco', .8); }
+  else if (t === 'riga' || t === 'colonna' || t === 'croce' || t === 'diagonali') { for (const r of presiV) { const w = luRana(r); luOnda(w, .9, 2, 1.1); luCorona(w, .55); } }
+  else if (t === 'bomba') { luOnda(v, 1.5, 5, 1.4, 0xd59bff); setTimeout(() => luOnda(v, .8, 6.2, 1.8), 110); luS('onda_urto', .75); luDuck(1);
+    LU_C.set(0xd59bff); for (let k = 0; k < (luLeggero() ? 14 : 34); k++) { const a = Math.random() * 6.283, s = .6 + Math.random() * 2.4; luEmit(LU_PA, v.x, .4 + Math.random() * .5, v.z, Math.cos(a) * s, .5 + Math.random() * 1.6, Math.sin(a) * s, 1.4 + Math.random() * .9, -.25, .1 + Math.random() * .1, k % 3 ? LU_C.r : 1, k % 3 ? LU_C.g : .9, k % 3 ? LU_C.b : 1, 1, 0, 1.6); } }
+  else if (t === 'gelo') { for (const r of presiV) luOnda(luRana(r), .8, 1.5, 1.3, 0xc49a5a); luOnda(v, .7, 2.8, 1.2, 0xc49a5a); }
+  else if (t === 'onda') { luOnda(v, 1.4, 4.4, 1.1); setTimeout(() => luOnda(v, .9, 5.4, 1.4), 120); setTimeout(() => luOnda(v, .5, 6.4, 1.7), 240);
+    const n = luLeggero() ? 14 : 30; for (let k = 0; k < n; k++) { const a = k / n * 6.283; luEmit(LU_PG, v.x + Math.cos(a) * .6, .25, v.z + Math.sin(a) * .6, Math.cos(a) * 4.2, 1.6 + Math.random() * 1.4, Math.sin(a) * 4.2, .6, 8, .16 + Math.random() * .08, .7, .97, 1, .9, 0, .6, 1); } luS('ventata', .6); }
+  else if (t === 'corrente') { for (let x = 0; x < W; x++) { const w = luMondo(x, y0), d = Math.abs(x - x0); if (d) setTimeout(() => { luOnda(w, .55, 1.2, .9, 0x8fd0ff); luSpruzzo(w.clone().setY(.2), Math.sign(x - x0) * (ROT ? 0 : 1), Math.sign(x - x0) * (ROT ? -1 : 0), 4, 2.2); }, d * 55); } luS('ventata', .7); }
+  else if (t === 'calamita') { luOnda(v, 1, 3.2, 1.2, 0xb4a8ff, true); LU_C.set(0xb4a8ff); const n = luLeggero() ? 10 : 26;
+    for (let k = 0; k < n; k++) { const a = Math.random() * 6.283, R = 1.8 + Math.random() * 1.2, sp = R / .55; luEmit(LU_PA, v.x + Math.cos(a) * R, .35 + Math.random() * .4, v.z + Math.sin(a) * R, -Math.cos(a) * sp + Math.sin(a) * 1.6, 0, -Math.sin(a) * sp - Math.cos(a) * 1.6, .55, 0, .12, LU_C.r, LU_C.g, LU_C.b, 1, 0, 0); } luS('vortice', .55); }
+}
+// la BOLLA di Axa: riflessi iridescenti quando si gonfia, gocce quando scoppia
+const LU_bollaFx0 = bollaFx, LU_bollaScoppia0 = bollaScoppia, LU_bollaColpo0 = bollaColpo;
+if (LU_OK) bollaFx = function (o) { LU_bollaFx0(o); try { if (!o || !o.bolla) return; setTimeout(() => { const c = corpoDi(o); luScintille(c, 22, [0x9fe8ff, 0xff9fe0, 0xb08cff, 0xffffff], 1.4, .8, -.4, 2.4, .1); luOnda(luRana(o), .7, 1.8, 1.1, 0xc9b8ff); }, 170); } catch (x) {} };
+if (LU_OK) bollaScoppia = function (o) { LU_bollaScoppia0(o); try { if (!o || OPZ.rm) return; const c = corpoDi(o); LU_C.set(0xe6fbff); for (let k = 0; k < 16; k++) { const a = Math.random() * 6.283, b = Math.random() * 1.3 - .3;
+  luEmit(LU_PG, c.x + Math.cos(a) * .7, c.y, c.z + Math.sin(a) * .7, Math.cos(a) * Math.cos(b) * 2.6, Math.sin(b) * 2.6 + 1, Math.sin(a) * Math.cos(b) * 2.6, .7, 9, .13, LU_C.r, LU_C.g, LU_C.b, .9, 0, 0, 1); } luOnda(luRana(o), .6, 1.6, 1); luS('gocce', .9); } catch (x) {} };
+if (LU_OK) bollaColpo = function (o) { LU_bollaColpo0(o); try { if (o) luOnda(luRana(o), .7, 1.7, .9, 0xd6f6ff); } catch (x) {} };
+// le TRAPPOLE: fauci che azzannano in un getto d'acqua rossa, pantano che ribolle e inghiotte
+const LU_trappola0 = trappolaV3;
+if (LU_OK) trappolaV3 = function (o, e) {
+  LU_trappola0(o, e); try { if (!o) return; const v = luRana(o);
+    if (e.t === 'fauci') { luOnda(v, 1, 2, 1, 0xff5a6e); luCorona(v, .8, 0xffd6dc); luS('schiocco', 1); luDuck(.8); }
+    else { luOnda(v, .9, 1.8, 1.6, 0xb08a4a); setTimeout(() => luOnda(v, .5, 1.4, 1.4, 0x8a6a3a, true), 240); luBolle(v, 16, 0xb59660, .5); luS('bolle', 1.1); LU_C.set(0x5a3e1a);
+      for (let k = 0; k < (luLeggero() ? 6 : 14); k++) { const a = Math.random() * 6.283; luEmit(LU_PN, v.x + Math.cos(a) * .3, .2, v.z + Math.sin(a) * .3, Math.cos(a) * 1.4, 2 + Math.random() * 1.5, Math.sin(a) * 1.4, .7, 9, .1 + Math.random() * .06, LU_C.r, LU_C.g, LU_C.b, 1, 0, 0); } } } catch (x) {}
+};
+// RICARICA: prima la pillola «Ricarica» e la scritta «SPECIALE PRONTA» si accavallavano sulla stessa rana (misurato nelle clip):
+// ora una pillola sola («Ricarica · speciale pronta») e, se sei tu, il tasto della speciale che lampeggia
+const LU_etich0 = etichettaMossa, LU_vola0 = vola, LU_passo0 = passo;
+if (LU_OK) { etichettaMossa = function (o, testo, col, ico) { if (LU.ricarica && o === LU.ricarica && ico === 'ricarica') testo = OPZ.lang === 'en' ? 'Recharge · special ready' : 'Ricarica · speciale pronta'; return LU_etich0(o, testo, col, ico); };
+  vola = function (o, s, c, big) { if (LU.ricarica && o === LU.ricarica && /SPECIAL/.test(String(s))) return; return LU_vola0(o, s, c, big); };
+  passo = async function (e) { if (e && e.k === 'ricarica' && e.sg != null) { LU.ricarica = RANE[e.sg]; try { return await LU_passo0(e); } finally { LU.ricarica = null; if (e.sg === IO) { const b = $('b-abil'); if (b) { b.classList.remove('lu-pronta'); void b.offsetWidth; b.classList.add('lu-pronta'); } } luS('campanelle', .6); } } return LU_passo0(e); }; }
+// le pillole sopra la stessa rana non si coprono piu': la piu' nuova sale sopra la piu' vecchia (di quanto serve)
+const LU_posFloat0 = posFloat;
+// (misure fatte UNA volta per pillola e posizioni lette dallo stile appena scritto: nessuna lettura del layout a ogni fotogramma)
+const luRett = f => { if (!f.luW) { f.luW = f.d.offsetWidth || 1; f.luH = f.d.offsetHeight || 1; } const x = parseFloat(f.d.style.left) || 0, y = parseFloat(f.d.style.top) || 0;
+  return [x - f.luW / 2, y - f.luH / 2, x + f.luW / 2, y + f.luH / 2]; };
+if (LU_OK) posFloat = function (f, dt) {
+  LU_posFloat0(f, dt); if (!f.d.isConnected) return;
+  try { const a = luRett(f); let su = 0;
+    for (const g of FLOAT) { if (g === f) break; if (g.o !== f.o || !g.d.isConnected) continue; const b = luRett(g);
+      if (a[2] > b[0] && a[0] < b[2] && a[3] - su > b[1] && a[1] - su < b[3]) su = Math.max(su, a[3] - b[1] + 3); }
+    f.luSu = (f.luSu || 0) + (su - (f.luSu || 0)) * Math.min(1, dt * 14); if (f.luSu > .5) f.d.style.top = (parseFloat(f.d.style.top) - f.luSu) + 'px'; } catch (x) {}
+};
+// la VITTORIA: fuochi di lucciole sopra il podio, lucciole che salgono dall'acqua, la luce calda che si accende
+const LU_cerimonia0 = cerimonia;
+if (LU_OK) cerimonia = async function (cl) {
+  const r = await LU_cerimonia0(cl);
+  try { const C = new THREE.Vector3(FIT.l.x, 0, FIT.l.z), t0 = performance.now(), col = [[0xffe08a, 0xfff6d8, 0xffb02e], [0xd8ff6a, 0xf6ff8a, 0x9fffd8], [0x9ff6ff, 0xffffff, 0x7fd8ff], [0xff9fe0, 0xffd6f0, 0xffe08a]];
+    luOnda(C, 1.2, 6, 2, 0xffe08a); LU.festa = 1; let k = 0;
+    const giro = () => { if (FASE !== 'fine' || performance.now() - t0 > 6500) { LU.festa = 0; return; }
+      const p = C.clone().add(new THREE.Vector3((Math.random() - .5) * 6.5, 4.4 + Math.random() * 2, -1.6 + (Math.random() - .5) * 2));
+      const cc = col[k++ % col.length]; luScintille(p, 46, cc, 3.6, 1.6, .9, 1.3, .24); LU_C.set(cc[0]); luEmit(LU_PA, p.x, p.y, p.z, 0, 0, 0, .28, 0, 1.6, LU_C.r, LU_C.g, LU_C.b, 1, 1.5, 0); luS('scoppio', .45); setTimeout(() => luS('campanelle', .35, .9 + Math.random() * .3), 90);
+      setTimeout(giro, 520 + Math.random() * 420); };
+    setTimeout(giro, 650); } catch (x) {}
+  return r;
+};
+// ---------------- MUSICA: «Stagno di mezzanotte» (originale, 20/11) ----------------
+const LU_M = {pronta: false, buf: {}, bus: {}, t: 0, passo: 0, bpm: 96, stato: 'menu', int: 0, ult: -1, riser: null, pad: null};
+const luHz = m => 440 * Math.pow(2, (m - 69) / 12);
+function luBuf(dur, fn) { const sr = AC.sampleRate, n = Math.floor(sr * dur), b = AC.createBuffer(1, n, sr), d = b.getChannelData(0); fn(d, sr); let m = 0; for (let i = 0; i < n; i++) m = Math.max(m, Math.abs(d[i])); if (m > 0) for (let i = 0; i < n; i++) d[i] *= .89 / m; return b; }
+// corda pizzicata Karplus-Strong: un giro di rumore che si filtra a ogni passaggio (banjo chiaro, contrabbasso scuro)
+function luKS(d, sr, f, perdita, chiaro, coda) {
+  const N = Math.max(2, Math.round(sr / f)), z = new Float32Array(N); let lp = 0; for (let i = 0; i < N; i++) { const x = Math.random() * 2 - 1; lp += (x - lp) * chiaro; z[i] = lp; }
+  let j = 0; for (let i = 0; i < d.length; i++) { const a = z[j], b = z[(j + 1) % N]; z[j] = (a + b) * .5 * perdita; d[i] = a; j = (j + 1) % N; }
+  for (let i = 0; i < d.length; i++) d[i] *= Math.min(1, (d.length - i) / (sr * coda));
+}
+function luStrumenti() {
+  const B = LU_M.buf, PI2 = Math.PI * 2;
+  B.banjo = luBuf(1.2, (d, sr) => { luKS(d, sr, 392, .993, .9, .3); for (let i = 0; i < 160; i++) d[i] += (Math.random() * 2 - 1) * (1 - i / 160) * .5; });
+  B.basso = luBuf(1.6, (d, sr) => { luKS(d, sr, 110, .996, .25, .3); for (let i = 0; i < d.length; i++) { const t = i / sr; d[i] = d[i] * .6 + Math.sin(PI2 * 110 * t) * Math.exp(-t * 2.6) * .8 + Math.sin(PI2 * 220 * t) * Math.exp(-t * 6) * .2; } });
+  B.kalimba = luBuf(1.5, (d, sr) => { for (let i = 0; i < d.length; i++) { const t = i / sr; d[i] = Math.sin(PI2 * 440 * t) * Math.exp(-t * 2.6) + Math.sin(PI2 * 440 * 5.95 * t) * Math.exp(-t * 16) * .28 + Math.sin(PI2 * 440 * 13.3 * t) * Math.exp(-t * 40) * .1 + (i < 60 ? (Math.random() - .5) * .3 : 0); } });
+  B.legno = luBuf(.12, (d, sr) => { for (let i = 0; i < d.length; i++) { const t = i / sr; d[i] = Math.sin(PI2 * 980 * t) * Math.exp(-t * 55) + Math.sin(PI2 * 1530 * t) * Math.exp(-t * 80) * .5; } });
+  B.washboard = luBuf(.16, (d, sr) => { let lp = 0, pr = 0; for (let i = 0; i < d.length; i++) { const t = i / sr, k = (t * 1000) % 24, e = k < 3 ? 1 - k / 3 : 0; const x = (Math.random() * 2 - 1) * e * (1 - t / .16); const h = x - pr; pr = x; lp += (h - lp) * .6; d[i] = lp; } });
+  B.shaker = luBuf(.09, (d, sr) => { let pr = 0; for (let i = 0; i < d.length; i++) { const t = i / sr, e = t < .012 ? t / .012 : Math.exp(-(t - .012) * 55); const x = (Math.random() * 2 - 1) * e; d[i] = x - pr * .9; pr = x; } });
+  B.cassa = luBuf(.5, (d, sr) => { let ph = 0; for (let i = 0; i < d.length; i++) { const t = i / sr, f = 48 + 70 * Math.exp(-t * 28); ph += PI2 * f / sr; d[i] = Math.sin(ph) * Math.exp(-t * 7) + (i < 90 ? (Math.random() - .5) * .25 * (1 - i / 90) : 0); } });
+  LU_M.pronta = true;
+}
+function luNota(buf, t, rate, vol, bus) { if (!buf) return; const s = AC.createBufferSource(), g = AC.createGain(); s.buffer = buf; s.playbackRate.value = rate; g.gain.value = vol; s.connect(g); g.connect(bus); s.start(t); s.stop(t + buf.duration / rate + .02); }
+// l'ancia (fisarmonica/armonica da bayou): due onde stonate, filtro che si apre, vibrato che arriva tardi
+function luAncia(t, f, d, v, bus, slide) {
+  const a = AC, o1 = a.createOscillator(), o2 = a.createOscillator(), fl = a.createBiquadFilter(), g = a.createGain(), l = a.createOscillator(), lg = a.createGain();
+  o1.type = 'sawtooth'; o2.type = 'square'; o1.frequency.setValueAtTime(slide ? f * .94 : f, t); if (slide) o1.frequency.exponentialRampToValueAtTime(f, t + .09); o2.frequency.value = f * 1.004; o2.detune.value = 6;
+  l.frequency.value = 5.2; lg.gain.setValueAtTime(0, t); lg.gain.linearRampToValueAtTime(f * .012, t + Math.min(.35, d * .6)); l.connect(lg); lg.connect(o1.frequency); lg.connect(o2.frequency);
+  fl.type = 'lowpass'; fl.Q.value = 1.6; fl.frequency.setValueAtTime(700, t); fl.frequency.linearRampToValueAtTime(2300, t + .06); fl.frequency.exponentialRampToValueAtTime(1300, t + d);
+  g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(v, t + .03); g.gain.setValueAtTime(v, t + Math.max(.03, d - .08)); g.gain.exponentialRampToValueAtTime(.0001, t + d + .06);
+  o1.connect(fl); o2.connect(fl); fl.connect(g); g.connect(bus); for (const o of [o1, o2, l]) { o.start(t); o.stop(t + d + .1); }
+}
+// la forma: 16 battute in la minore (A = tema, B = risposta col blue note). Accordi: [basso, voci del pad, seconda meta' della battuta]
+const LU_ACC = {Am: [45, [57, 60, 64]], Dm: [38, [57, 62, 65]], E7: [40, [56, 62, 64]], F: [41, [57, 60, 65]], G: [43, [55, 59, 62]], Em: [40, [55, 59, 64]], Bh: [47, [57, 62, 65]]};
+const LU_FORMA = [['Am'], ['Am'], ['Dm'], ['E7'], ['Am'], ['F'], ['Dm', 'E7'], ['Am'], ['F'], ['G'], ['Em'], ['Am'], ['Dm'], ['Am'], ['Bh', 'E7'], ['E7']];
+// melodia a crome (8 per battuta, -1 = pausa): un tema che salta come una rana e poi una risposta piu' tesa
+const LU_MELO = [[64, -1, 69, -1, 72, 71, 69, -1], [67, 64, -1, 62, 64, -1, -1, -1], [65, -1, 69, -1, 74, 72, 69, -1], [68, -1, 71, -1, 74, -1, 71, 68],
+  [69, -1, 72, -1, 76, 74, 72, 69], [72, -1, 69, 65, -1, 69, 72, -1], [74, 72, 69, 65, 64, -1, 68, 71], [69, -1, -1, 64, 69, -1, -1, -1],
+  [69, 72, -1, 77, 76, -1, 72, -1], [71, 74, -1, 79, 77, -1, 74, -1], [67, 71, -1, 76, 74, -1, 71, 67], [69, -1, 76, -1, 75, 74, 72, -1],
+  [65, 69, 74, -1, 77, 76, 74, -1], [76, -1, 72, -1, 69, 72, 76, -1], [77, 76, 74, -1, 68, 71, 74, -1], [76, -1, -1, -1, 75, 74, 71, 68]];
+// i livelli di ogni strato per stato (0..1): [pad, basso, kalimba, banjo, percussioni, ancia, tensione]
+const LU_LIV = {menu: [.85, .75, .9, 0, 0, 0, 0], scegli: [.7, .8, .55, 0, .45, 0, .7], pieno: [.55, 1, .8, .85, .9, 0, 0], fine: [.8, .6, .9, .35, 0, 0, 0]};
+function luMusica() {
+  const a = AC, mus = MIX.mus, bus = (v, pan) => { const g = a.createGain(); g.gain.value = 0; if (pan && a.createStereoPanner) { const p = a.createStereoPanner(); p.pan.value = pan; g.connect(p); p.connect(mus); } else g.connect(mus); return g; };
+  const Bn = LU_M.bus; Bn.pad = bus(0); Bn.basso = bus(0); Bn.kal = bus(0, -.28); Bn.banjo = bus(0, .3); Bn.perc = bus(0, .08); Bn.ancia = bus(0, -.12);
+  { const post = a.createGain(); post.gain.value = MUSV; post.connect(MIX.m); Bn.tens = a.createGain(); Bn.tens.gain.value = 0; Bn.tens.connect(post); LU_M.post = post; }   // la tensione non passa dal filtro dell'attesa
+  // pad: tre voci, ognuna triangolo + dente di sega stonato, dentro un filtro che respira
+  const pf = a.createBiquadFilter(); pf.type = 'lowpass'; pf.frequency.value = 820; pf.Q.value = .7; pf.connect(Bn.pad);
+  const lfo = a.createOscillator(), lg = a.createGain(); lfo.frequency.value = .09; lg.gain.value = 260; lfo.connect(lg); lg.connect(pf.frequency); lfo.start();
+  LU_M.pad = [57, 60, 64].map(m => { const o1 = a.createOscillator(), o2 = a.createOscillator(), g = a.createGain(); o1.type = 'triangle'; o2.type = 'sawtooth'; o1.frequency.value = luHz(m); o2.frequency.value = luHz(m) * 1.003;
+    const g2 = a.createGain(); g2.gain.value = .32; o2.connect(g2); g2.connect(g); o1.connect(g); g.gain.value = .045; g.connect(pf); o1.start(); o2.start(); return [o1, o2]; });
+  luStrumenti(); LU_M.t = a.currentTime + .15; LU_M.passo = 0;
+  setInterval(luSequenza, 45);
+}
+function luStato() {
+  if (TIT || FASE === 'menu' || !ST) return 'menu'; if (FASE === 'fine') return 'fine'; if (FASE === 'scegli') return 'scegli'; return 'pieno';
+}
+function luIntensita() {   // 0..1: quanto e' stretta la partita (pochi vivi, cuori bassi, duello, finale)
+  if (!ST || !ST.p) return 0; const vivi = ST.p.filter(q => q.vivo), n = ST.p.length || 2; if (!vivi.length) return 0;
+  const minHp = Math.min(...vivi.map(q => q.hp)), x = (n - vivi.length) / Math.max(1, n - 2) * .45 + (DUELLO ? .3 : 0) + (ST.finale ? .25 : 0) + (minHp <= 1 ? .15 : 0);
+  return Math.max(0, Math.min(1, x));
+}
+function luSequenza() {
+  if (!MIX || !LU_M.pronta) return; const a = AC, now = a.currentTime;
+  if (LU_M.t < now - .3 || OPZ.muto) { LU_M.t = Math.max(LU_M.t, now + .05); if (OPZ.muto) return; }        // la scheda era in pausa: si riparte puliti, niente raffica di note
+  const st = luStato(), I = LU_M.int += (luIntensita() - LU_M.int) * .05, rest = FASE === 'scegli' ? SCAD - performance.now() / 1000 : 99, teso = st === 'scegli' && rest < 3.2 && rest > 0;
+  // livelli degli strati: si muovono morbidi verso lo stato (dissolvenze di ~0,5 s)
+  const L0 = LU_LIV[st], liv = [L0[0], L0[1], L0[2], L0[3] + (st === 'pieno' ? .15 * I : 0), L0[4] + (st === 'pieno' ? .1 * I : 0), st === 'pieno' && I > .4 ? Math.min(1, (I - .4) * 2.2) : st === 'scegli' && I > .6 ? .35 : 0, L0[6] * (teso ? 1.4 : 1)];
+  const nomi = ['pad', 'basso', 'kal', 'banjo', 'perc', 'ancia', 'tens'];
+  if (st !== LU_M.stato || ((now * 4) | 0) !== LU_M.lv) { LU_M.lv = (now * 4) | 0; LU_M.stato = st; nomi.forEach((k, i) => LU_M.bus[k].gain.setTargetAtTime(liv[i], now, st === 'scegli' ? .12 : .35)); }
+  // riser negli ultimi 3 secondi della scelta: rumore che sale e si apre fino al salto
+  if (teso && !LU_M.riser && !OPZ.muto) { const d = Math.max(.4, rest); LU_M.riser = 1; sbuffo(now, {dur: d + .15, vol: .16, f0: 380, f1: 3400, q: 2.4, att: d * .9, rate: .6, bus: LU_M.bus.tens}); }
+  if (!teso && st !== 'scegli') LU_M.riser = null;
+  while (LU_M.t < now + .3) {
+    const bpm = st === 'menu' || st === 'fine' ? 92 : 98 + 14 * I, sed = 60 / bpm / 4, p = LU_M.passo, s = p % 16, bar = Math.floor(p / 16) % 16, swing = s % 2 ? sed * .16 : 0, t = LU_M.t + swing;
+    const forma = LU_FORMA[bar], acc = LU_ACC[forma[s >= 8 && forma[1] ? 1 : 0]], prox = LU_ACC[LU_FORMA[(bar + 1) % 16][0]], B = LU_M.buf, bs = LU_M.bus;
+    if (s === 0 || (s === 8 && forma[1])) LU_M.pad.forEach(([o1, o2], k) => { const f = luHz(acc[1][k]); o1.frequency.setTargetAtTime(f, t, .04); o2.frequency.setTargetAtTime(f * 1.003, t, .04); });
+    // contrabbasso: due tempi nel menu, note ribattute mentre si sceglie, camminata nella rivelazione
+    const rad = acc[0], quinta = rad + 7, r = m => luHz(m) / 110;
+    if (st === 'menu' || st === 'fine') { if (s === 0) luNota(B.basso, t, r(rad), .5, bs.basso); if (s === 8) luNota(B.basso, t, r(quinta - 12 > 35 ? quinta - 12 : quinta), .4, bs.basso); }
+    else if (st === 'scegli') { if (s % 4 === 0) luNota(B.basso, t, r(rad), s === 0 ? .5 : .32, bs.basso); if (teso && s % 2 === 1) luNota(B.basso, t, r(rad), .22, bs.basso); }
+    else if (s % 4 === 0) { const cam = [rad, rad + (acc[1].some(m => (m - rad) % 12 === 3) ? 3 : 4), quinta, prox[0] + (prox[0] > rad ? -1 : 1)][s / 4]; luNota(B.basso, t, r(cam), s === 0 ? .52 : .4, bs.basso); }
+    // kalimba: la melodia (nel menu tutta, mentre si sceglie una battuta si' e una no)
+    if (s % 2 === 0) { const m = LU_MELO[bar][s / 2]; if (m > 0 && (st !== 'scegli' || bar % 2 === 0)) { luNota(B.kalimba, t, luHz(m) / 440, st === 'scegli' ? .2 : .26, bs.kal);
+      if (st === 'pieno' && I > .4 && LU_M.bus.ancia.gain.value > .05) { const lunga = LU_MELO[bar][s / 2 + 1] === -1 ? 2 : 1; luAncia(t, luHz(m - 12), sed * 2 * lunga * .95, .05, bs.ancia, s === 0); } } }
+    // banjo: rullata sugli accordi (pollice, indice, medio)
+    if (st === 'pieno' || st === 'fine') { if (s % 2 === 0 && (st === 'pieno' || s % 4 === 0)) { const voci = acc[1], ord = [0, 1, 2, 1, 2, 0, 1, 2], m = voci[ord[(s / 2) % 8]] + 12 - (s === 0 ? 12 : 0); luNota(B.banjo, t, luHz(m) / 392, (s % 4 === 0 ? .2 : .13) * (st === 'fine' ? .7 : 1), bs.banjo); } }
+    // percussioni: cassa d'acqua, washboard sul due e quattro, semi sulle sedicesime; mentre si sceglie il tic-tac del legnetto
+    if (st === 'pieno') { if (s === 0 || s === 10 || (I > .5 && s === 6)) luNota(B.cassa, t, 1, s === 0 ? .6 : .42, bs.perc); if (s === 4 || s === 12) luNota(B.washboard, t, 1 + (Math.random() - .5) * .06, .34, bs.perc);
+      if (s % 2 === 1 || I > .55) luNota(B.shaker, t, 1 + (Math.random() - .5) * .1, (s % 4 === 2 ? .22 : .13) * (.7 + .5 * I), bs.perc); if (bar % 4 === 3 && s >= 13) ranaTamburo(t, 140 + s * 7, .06, bs.perc); }
+    else if (st === 'scegli') { if (s % 4 === 0) luNota(B.legno, t, s % 8 ? 1.33 : 1, .3, bs.perc); if (s === 0) luNota(B.cassa, t, 1, .3, bs.perc);
+      if (teso && s % 2 === 0) luNota(B.legno, t, 1.6 + (s % 4) * .05, .34, bs.tens); }
+    LU_M.t += sed; LU_M.passo++;
+  }
+}
+// le SIGLE nuove di vittoria e sconfitta (le altre restano quelle di prima)
+const LU_sigla0 = sigla;
+if (LU_OK) sigla = function (tipo) {
+  if ((tipo !== 'vince' && tipo !== 'sconfitta') || !LU_M.pronta) return LU_sigla0(tipo);
+  if (OPZ.muto) return; try { const a = ac(), n = a.currentTime + .03, Bs = MIX.sig, B = LU_M.buf; duck(tipo === 'vince' ? 2.8 : 2.4);
+    if (tipo === 'vince') {   // la maggiore: cassa d'acqua, banjo che arpeggia, kalimba in fanfara, accordo lungo d'ancia, washboard che rulla, rane
+      luNota(B.cassa, n, 1, .7, Bs); luNota(B.cassa, n + .36, 1, .5, Bs);
+      [57, 61, 64, 69, 73, 76].forEach((m, k) => luNota(B.banjo, n + k * .045, luHz(m) / 392, .28, Bs));
+      [[76, 0], [81, .12], [85, .24], [88, .36], [85, .6], [88, .72]].forEach(([m, d]) => luNota(B.kalimba, n + d, luHz(m) / 440, .34, Bs));
+      for (const m of [57, 61, 64, 69]) luAncia(n + .72, luHz(m), 1.5, .045, Bs, true);
+      luNota(B.basso, n + .72, luHz(45) / 110, .6, Bs); for (let k = 0; k < 8; k++) luNota(B.washboard, n + .72 + k * .07, 1, .22, Bs);
+      for (let k = 0; k < 6; k++) ranaTamburo(n + .9 + k * .1, 150 + k * 25, .08, Bs);
+      [0, 7, 12, 16].forEach((m, k) => tono(n + .8 + k * .07, {f0: 1760 * Math.pow(2, m / 12), dur: .9, vol: .03, att: .002, bus: Bs}));
+    } else {                   // la sconfitta: «uah uah uah uaaah» d'ancia che scende, contrabbasso e un tonfo nell'acqua
+      [[64, 0, .3], [63, .34, .3], [62, .68, .3], [61, 1.02, 1.1]].forEach(([m, d, l], k) => { luAncia(n + d, luHz(m), l, .07, Bs, true); if (k === 3) tono(n + d, {f0: luHz(m - 12), f1: luHz(m - 13), dur: l, vol: .05, tipo: 'sawtooth', lp: 900, glide: l, bus: Bs}); });
+      luNota(B.basso, n, luHz(45) / 110, .5, Bs); luNota(B.basso, n + 1.02, luHz(40) / 110, .55, Bs); luNota(B.cassa, n + 1.02, .8, .5, Bs);
+      setTimeout(() => luS('gocce', .6), 1400);
+    } } catch (e) {}
+};
+if (LU_OK) avviaMusica = function () { try { luMusica(); } catch (e) { console.warn('musica', e); } };
+// la rete di sicurezza in fondo: dopo il limitatore di prima, un saturatore morbido (tanh) che non lascia mai passare piu' di ~-1,4 dBFS
+// (il compressore del Web Audio non e' un muro: nelle registrazioni di prova i picchi arrivavano a -0,4 dB). Sotto -8 dB e' trasparente.
+function luMaster() {
+  if (!AC || !MIX || MIX.luSat) return; const a = AC, T = .85, n = 4096, cur = new Float32Array(n);
+  for (let i = 0; i < n; i++) { const x = (i / (n - 1) * 2 - 1) * 1.6; cur[i] = T * Math.tanh(x / T); }
+  const pre = a.createGain(), ws = a.createWaveShaper(); pre.gain.value = 1 / 1.6; ws.curve = cur; ws.oversample = '2x';
+  const post = a.createGain(); post.gain.value = 1;
+  try { MIX.lim.disconnect(); } catch (e) {} MIX.lim.connect(pre); pre.connect(ws); ws.connect(post); post.connect(a.destination); MIX.luSat = ws;
+}
+const LU_ac0 = ac;
+if (LU_OK) ac = function () { const nuovo = !AC, a = LU_ac0(); if (nuovo) try { luMaster(); } catch (e) {} return a; };
+// il conto alla rovescia: 3, 2, 1 con un legnetto che sale, e l'orologio che pulsa
+let LU_CD = 0;
+if (LU_OK) setInterval(() => { try {
+  if (FASE !== 'scegli' || !(DUR > 3.5)) { LU_CD = 0; return; } const r = SCAD - performance.now() / 1000, s = Math.ceil(r);
+  if (r > 0 && s >= 1 && s <= 3 && LU_CD !== s) { LU_CD = s; luS('conto', .85 + (3 - s) * .2, 1 + (3 - s) * .12); const o = $('orol'); if (o) { o.classList.remove('lu-batti'); void o.offsetWidth; o.classList.add('lu-batti'); } }
+} catch (x) {} }, 40);
+// l'audio riparte al primo tocco se il telefono l'aveva sospeso (iOS, scheda in secondo piano)
+if (LU_OK) for (const ev of ['pointerdown', 'touchend', 'keydown']) addEventListener(ev, () => { try { if (AC && AC.state === 'suspended') AC.resume(); } catch (x) {} }, {capture: true, passive: true});
+// CSS degli innesti: l'orologio che batte, il tasto della speciale che si ricarica
+{ const s = document.createElement('style'); s.textContent = '#orol.lu-batti{animation:lubatti .32s cubic-bezier(.2,1.6,.4,1)}@keyframes lubatti{0%{transform:scale(1.22)}100%{transform:scale(1)}}' +
+    '#b-abil.lu-pronta{animation:lupronta 1.1s ease-out}@keyframes lupronta{0%{box-shadow:0 0 0 0 var(--spc,#ffd23f)}35%{box-shadow:0 0 0 6px var(--spc,#ffd23f),0 0 26px var(--spc,#ffd23f)}100%{box-shadow:0 0 0 0 rgba(0,0,0,0)}}' +
+    'body.rm #orol.lu-batti,body.rm #b-abil.lu-pronta{animation:none}'; document.head.appendChild(s); }
+// ---------------- IL FOTOGRAMMA: pool, onde, ambiente vivo, scossa liscia, lanterne ----------------
+function LU_FRAME(dt, dtr, tt) {
+  if (!LU_OK) return; LU.t = tt; if (MIX && !MIX.luSat) try { luMaster(); } catch (e) {}
+  luAggiorna(LU_PA, dt); luAggiorna(LU_PN, dt); luAggiorna(LU_PF, dt); luAggiorna(LU_PG, dt); luOndeAggiorna(dt);
+  // lo stagno e' vivo: ogni tanto un cerchio piccolo (un insetto, una goccia), e i gorghi risucchiano l'acqua attorno
+  if (FASE !== 'menu' && !OPZ.rm && Math.random() < dtr * .45) { const v = FIT.l.clone(); v.x += (Math.random() - .5) * 9; v.z += (Math.random() - .5) * 7; v.y = 0; luOnda(v, .22 + Math.random() * .15, .8 + Math.random() * .6, 1.4, 0x7fe6d0); }
+  LU.gt = (LU.gt || 0) + dtr; if (LU.gt > 1.35 && CELLE.length) { LU.gt = 0; for (const r of CELLE) for (const c of r) if (c.visible && c.userData.buco && c.userData.buco.visible) { const v = c.position.clone().add(mondo.position); luOnda(v, .5, 1.25, 1.35, 0xb8a6ff, true); } }
+  // la luce calda delle lanterne trema come una fiamma (rumore lento, non casuale a ogni fotogramma)
+  if (MIX && FASE !== LU.fm) { LU.fm = FASE; if (FASE === 'scegli') MIX.musF.frequency.setTargetAtTime(2400, AC.currentTime, .6); }   // l'attesa resta ovattata ma non sorda
+  if (FARI[2] && !OPZ.rm) FARI[2].intensity *= .9 + .07 * Math.sin(tt * 7.3) + .05 * Math.sin(tt * 13.1 + 1.7) + .03 * Math.sin(tt * 23.7) + (LU.festa ? .6 : 0);
+}
+// la scossa: rumore a somma di seni (liscio, ~9-15 Hz) con un filo di rollio; la forza resta quella di prima (SCOSSA) e cala uguale
+function LU_SCOSSA(dtr, tt) {
+  const a = SCOSSA * .55, n1 = Math.sin(tt * 61.3) * .6 + Math.sin(tt * 97.1 + 1.3) * .4, n2 = Math.sin(tt * 67.9 + 2.1) * .6 + Math.sin(tt * 89.3 + .7) * .4;
+  cam.position.x += n1 * a; cam.position.y += n2 * a; LU.roll = (Math.sin(tt * 43.7 + .4) * .7 + Math.sin(tt * 71.9) * .3) * SCOSSA * .018; SCOSSA = Math.max(0, SCOSSA - dtr * 1.6);
+}
+window.__hopLU = {versione: '20261120L', pool: () => ({luce: LU_PA.n, norm: LU_PN.n, fumo: LU_PF.n, gocce: LU_PG.n, onde: LU.nOnde, acqua: !!LU.acqua}),
+  musica: () => ({pronta: LU_M.pronta, stato: LU_M.stato, int: +LU_M.int.toFixed(2), passo: LU_M.passo, liv: LU_M.bus.pad ? Object.fromEntries(Object.entries(LU_M.bus).map(([k, g]) => [k, +g.gain.value.toFixed(2)])) : null}),
+  onda: (x, y, f) => luOnda(luMondo(x, y), f || 1, 3, 1.4), suona: (k, v, p) => luS(k, v, p), sigla: t => sigla(t)};
+/* ==================== fine LEVELUP_2011 ==================== */
 const TRACCIA = Q.get('traccia') === '1';
 let FPS = 0; (function contaFps() { let n = 0, t0 = performance.now(); (function g() { n++; const t = performance.now(); if (t - t0 > 1000) { FPS = Math.round(n * 1000 / (t - t0)); n = 0; t0 = t; } requestAnimationFrame(g); })(); })();
 })();

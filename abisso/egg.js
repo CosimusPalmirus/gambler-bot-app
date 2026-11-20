@@ -12,29 +12,33 @@
 "use strict";
 (function () {
   if (typeof V === "undefined" && typeof evento !== "function") return;
-  const UV = "20261118u";
+  const UV = "20261118u";   // (la versione di pix/uovo.png: invariata)
+  // 20/11 (il proprietario): l'uovo SOLO ALLA FINE del percorso. Il nido e' la FINE del sentiero (motore 2.2: V.nido.a passi,
+  // V.prof = passi fatti, V.fondo_sentiero): li' AVANTI non c'e' piu', si sceglie RUBA L'UOVO o TORNA SU.
   const UT = {
     it: { uovo: "UOVO D'ORO", nido: "NIDO", alNido: (n) => n <= 0 ? "sei al nido!" : "nido fra " + n + (n === 1 ? " carta" : " carte"),
       ruba: "RUBA L'UOVO", rubaSub: (o, p) => "+" + o + " · occhio " + p + "%", rubaReg: (o, p) => "Torni su con l'uovo (+" + o + ", diviso fra chi lo ruba ora). Ma l'occhio del drago: se vede un segno (" + p + "%) perdi uovo E sacco.",
-      chip: (o) => "UOVO D'ORO +" + o, chipNido: (n) => "nel nido fra " + n + (n === 1 ? " carta" : " carte"), chipApri: (p) => "RUBALO! occhio " + p + "%",
+      chip: (o) => "UOVO D'ORO +" + o, chipNido: (n) => "in fondo al sentiero · fra " + n + (n === 1 ? " passo" : " passi"), chipApri: (p) => "RUBALO! occhio " + p + "%",
+      fondo: "FINE DEL SENTIERO", fondoSub: (p) => "RUBA L'UOVO o TORNA SU · occhio " + p + "%",
       chipRubato: (n) => "rubato da " + n, prende: (n) => n + " AFFERRA L'UOVO!", prendono: (n) => n + " AFFERRANO L'UOVO!",
       occhio: "L'OCCHIO DEL DRAGO SI APRE", occhioSub: (p) => "se vede un segno: addio uovo e sacco (" + p + "%)",
       vede: "TI VEDE!", nonVede: "NON VI VEDE", salvo: "UOVO D'ORO IN SALVO!", salvoSub: (s) => s,
       presi: "IL DRAGO VI HA VISTI!", presiSub: (s, k) => s + (k > 1 ? ": perdono" : ": perde") + " l'uovo e il sacco", torna: "l'uovo torna nel nido",
       tutti: "chi scappa con l'uovo", diviso: (k, q, r) => "diviso in " + k + ": +" + q + " a testa" + (r ? " · " + r + " resta sul nido" : ""),
       storiaOk: (q) => "UOVO D'ORO +" + q, storiaKo: (b) => "UOVO: visto dal drago, -" + b,
-      regola: (o, a) => "<b>Uovo d'oro</b> (+" + o + "): sta nel <b>nido</b>, dopo " + a + " carte (lo vedi luccicare in fondo). Da lì, a ogni scelta puoi <b>RUBARE L'UOVO</b>: torni su con lui. Se lo rubate in più nello stesso momento ve lo dividete. Mentre scappate <b>l'occhio del drago</b> pesca una carta del mazzo: se è un <b>segno qualsiasi</b> vi vede e perdete uovo e sacco (l'uovo torna nel nido). Chi scappa con l'uovo non raccoglie avanzi né reliquie. Uno solo per partita.",
+      regola: (o, a) => "<b>Uovo d'oro</b> (+" + o + "): sta nel <b>nido</b>, in <b>fondo al sentiero</b> (dopo " + a + " passi: lo vedi luccicare in fondo). Lì il sentiero finisce: niente AVANTI, o <b>RUBI L'UOVO</b> (torni su con lui) o <b>TORNI SU</b>. Se lo rubate in più nello stesso momento ve lo dividete. Mentre scappate <b>l'occhio del drago</b> pesca una carta del mazzo: se è un <b>segno qualsiasi</b> vi vede e perdete uovo e sacco (l'uovo torna nel nido). Chi scappa con l'uovo non raccoglie avanzi né reliquie. Uno solo per partita.",
       classica: "Classica", avventura: "Avventura" },
     en: { uovo: "GOLDEN EGG", nido: "NEST", alNido: (n) => n <= 0 ? "you're at the nest!" : "nest in " + n + (n === 1 ? " card" : " cards"),
       ruba: "STEAL THE EGG", rubaSub: (o, p) => "+" + o + " · eye " + p + "%", rubaReg: (o, p) => "You go back up with the egg (+" + o + ", split among whoever steals it now). But the dragon's eye: if it sees a sign (" + p + "%) you lose the egg AND your sack.",
-      chip: (o) => "GOLDEN EGG +" + o, chipNido: (n) => "in the nest in " + n + (n === 1 ? " card" : " cards"), chipApri: (p) => "STEAL IT! eye " + p + "%",
+      chip: (o) => "GOLDEN EGG +" + o, chipNido: (n) => "at the end of the path · " + n + (n === 1 ? " step" : " steps"), chipApri: (p) => "STEAL IT! eye " + p + "%",
+      fondo: "END OF THE PATH", fondoSub: (p) => "STEAL THE EGG or GO BACK · eye " + p + "%",
       chipRubato: (n) => "stolen by " + n, prende: (n) => n + " GRABS THE EGG!", prendono: (n) => n + " GRAB THE EGG!",
       occhio: "THE DRAGON'S EYE OPENS", occhioSub: (p) => "if it sees a sign: bye egg and sack (" + p + "%)",
       vede: "IT SEES YOU!", nonVede: "IT DOESN'T SEE YOU", salvo: "GOLDEN EGG SAFE!", salvoSub: (s) => s,
       presi: "THE DRAGON SAW YOU!", presiSub: (s, k) => s + (k > 1 ? ": they lose" : ": loses") + " the egg and the sack", torna: "the egg goes back to the nest",
       tutti: "egg thieves", diviso: (k, q, r) => "split " + k + " ways: +" + q + " each" + (r ? " · " + r + " stays on the nest" : ""),
       storiaOk: (q) => "GOLDEN EGG +" + q, storiaKo: (b) => "EGG: seen by the dragon, -" + b,
-      regola: (o, a) => "<b>Golden egg</b> (+" + o + "): it sits in the <b>nest</b>, after " + a + " cards (you see it shine at the far end). From there, at every choice you can <b>STEAL THE EGG</b>: you go back up with it. Steal it together and you split it. As you run, <b>the dragon's eye</b> draws a card from the deck: if it's <b>any sign</b> it sees you and you lose egg and sack (the egg goes back to the nest). Egg thieves pick up no leftovers or relics. One per game.",
+      regola: (o, a) => "<b>Golden egg</b> (+" + o + "): it sits in the <b>nest</b> at the <b>end of the path</b> (after " + a + " steps: you see it shine at the far end). There the path ends: no GO ON, either <b>STEAL THE EGG</b> (you go back with it) or <b>GO BACK</b>. Steal it together and you split it. As you run, <b>the dragon's eye</b> draws a card from the deck: if it's <b>any sign</b> it sees you and you lose egg and sack (the egg goes back to the nest). Egg thieves pick up no leftovers or relics. One per game.",
       classica: "Classic", avventura: "Adventure" } };
   const ut = (k, ...a) => { const v = UT[LINGUA === "en" ? "en" : "it"][k]; return typeof v === "function" ? v(...a) : v; };
   const AVV_ = () => typeof V !== "undefined" && V && V.variante === "avventura" && V.nido;
@@ -72,8 +76,10 @@
   if (PIX && PIX.meta && !PIX.img.uovo) carica("pix/uovo.png?v=" + UV).then((i) => { PIX.img.uovo = i; });
 
   // ── il nido nella scena ──
-  const NIDO_I = () => (V.nido.a || 7) - 1;
-  function puntoNido(g) { const p = posT(NIDO_I(), g); return { x: p.x, y: p.y + 6 }; }
+  // 20/11: il nido e' in FONDO: subito dopo l'ultima colonna del sentiero (la colonna V.nido.a); la fuga parte da li'
+  // (mezza colonna piu' in la': il nido non sta addosso al gruppo che ci arriva)
+  const NIDO_D = .5, NIDO_I = () => V.strada.length + NIDO_D;
+  function puntoNido(g) { const p = typeof posColonna === "function" ? posColonna((V.nido.a || 10) + NIDO_D, 0, g) : posT(V.strada.length, g); return { x: p.x, y: p.y + 6 }; }
   function uovoNelNido() {
     if (!AVV_()) return false;
     const R = FUGA.R;
@@ -108,7 +114,7 @@
         const ap = V.nido.aperto && V.fase === "scelta";
         disegnaUovo(q.x, q.y - 4, t, true, ap ? 2 : 1);
         scintille(q.x, q.y - 6, t, ap ? 6 : 4, 16);
-        if (!V.strada.length || V.strada.length < NIDO_I()) pixTesto(cx, "+" + V.nido.oro, q.x, q.y - 40, P.o3, 1, true, "c");
+        if (!V.fondo_sentiero) pixTesto(cx, "+" + V.nido.oro, q.x, q.y - 40, P.o3, 1, true, "c");
       }
     } else if (q.x >= g.W - 10 && uovoNelNido()) {
       // fuori schermo a destra (in fondo al sentiero): un faro al bordo, cosi' l'uovo si vede dalla prima carta
@@ -198,7 +204,7 @@
   }
 
   function avviaFuga(e) {
-    const f = e.fuga, R = { ladri: f.ladri.slice(), presi: !!f.presi, vista: f.vista, t0: SIM + .05, da: Math.max(S.gruppo, NIDO_I()), fine: 4.6, f };
+    const f = e.fuga, R = { ladri: f.ladri.slice(), presi: !!f.presi, vista: f.vista, t0: SIM + .05, da: S.gruppo, fine: 4.6, f };
     FUGA.R = R;
     const nomi = R.ladri.map(nome).join(", "), k = R.ladri.length;
     R.ladri.forEach((sg) => { attendi(sg, 1); });
@@ -265,7 +271,7 @@
     if (e.k === "discesa") FUGA.R = null;
     if (!anima || !AVV_()) return;
     if (e.k === "carta" && e.nido) {
-      dopo(1.3, () => { SU("uovo", { vol: .8, riv: .4 }); annuncia(ut("uovo") + " +" + V.nido.oro, ut("chipApri", pc(V.nido.occhio)), 2200, "oro"); S.lampo = .3; S.lampoCol = "255,210,110"; });
+      dopo(1.3, () => { SU("uovo", { vol: .8, riv: .4 }); annuncia(ut("fondo") + " · " + ut("uovo") + " +" + V.nido.oro, ut("fondoSub", pc(V.nido.occhio)), 2400, "oro"); S.lampo = .3; S.lampoCol = "255,210,110"; });
       log('<b style="color:#ffd27a">' + ut("nido") + "!</b> · " + ut("rubaReg", V.nido.oro, pc(V.nido.occhio)));
     }
     if (e.k === "uscite" && e.fuga) avviaFuga(e);
@@ -312,8 +318,11 @@
           if (r) { r.hidden = false; r.textContent = ut("rubaReg", nd.oro, p) + (n > 1 ? "" : ""); }
         } else if (r) r.hidden = true;
       }
+      // 20/11: in fondo al sentiero AVANTI non c'e': restano RUBA L'UOVO (se c'e') e TORNA SU
+      const gi = $u("b-giu");
+      if (gi && V.fondo_sentiero && V.fase === "scelta") { gi.style.visibility = "hidden"; gi.disabled = true; }
       if (c) {
-        const sentiero = V.strada ? V.strada.length : 0, manca = Math.max(0, nd.a - sentiero);
+        const sentiero = V.prof != null ? V.prof : (V.strada ? V.strada.length : 0), manca = Math.max(0, nd.a - sentiero);
         c.hidden = V.fase === "intro" && !V.strada.length && V.discesa < 0;
         c.classList.toggle("aperto", !!nd.aperto && V.fase === "scelta");
         c.classList.toggle("via", nd.stato !== "nido");
@@ -333,9 +342,13 @@
   // la schermata pre-partita (intro.js): la riga dell'uovo dice l'UOVO D'ORO di oggi, con l'uovo d'oro come icona
   try {
     if (typeof IN_T !== "undefined") {
-      const riga = { it: "Uovo d'oro nel nido (dopo 7 carte): vale 30. Rubalo e scappa, ma se l'occhio del drago vede un segno perdi uovo e sacco",
-        en: "Golden egg in the nest (after 7 cards): worth 30. Steal it and run, but if the dragon's eye sees a sign you lose egg and sack" };
+      const riga = { it: "Uovo d'oro nel nido, in fondo al sentiero: vale 30. Rubalo e scappa, ma se l'occhio del drago vede un segno perdi uovo e sacco",
+        en: "Golden egg in the nest at the end of the path: worth 30. Steal it and run, but if the dragon's eye sees a sign you lose egg and sack" };
       for (const L of ["it", "en"]) { const r = IN_T[L] && IN_T[L].avv && IN_T[L].avv.find((x) => x[0] === "UOVO"); if (r) r[1] = riga[L]; }
+      // 20/11: il bivio dura 3 passi, la bottega e' di tutti
+      const riga2 = { it: { BIVIO: "Bivio: sinistra o destra per 3 passi. L'oro di una via è solo di chi la prende", TORCIA: "Bottega fra le spedizioni: ognuno compra torcia, scudo o ninna nanna col suo forziere" },
+        en: { BIVIO: "Fork: left or right for 3 steps. A path's gold goes only to those who take it", TORCIA: "Shop between expeditions: everyone buys a torch, shield or lullaby from their chest" } };
+      for (const L of ["it", "en"]) for (const k of ["BIVIO", "TORCIA"]) { const r = IN_T[L] && IN_T[L].avv && IN_T[L].avv.find((x) => x[0] === k); if (r) r[1] = riga2[L][k]; }
       const st = document.createElement("style");
       st.textContent = ".in-avv h4 + .in-a .in-ic{background:url(pix/uovo.png?v=" + UV + ") 0 0/800% 100% no-repeat !important}";
       document.head.appendChild(st);

@@ -28,7 +28,10 @@ corsiaAvanzi = function (g, t) {
     const p = posT(a.i, g), lam = ORO.lampo[a.i] != null && t - ORO.lampo[a.i] < 1.8 && t >= ORO.lampo[a.i];
     const ic = a.v >= 9 ? img("mucchio_m") : img("mucchio_s"), lab = String(a.v);
     const w = ic.width + 3 + pixLargo(lab, sc) + 4;
-    voci.push({ i: a.i, v: a.v, ic, lab, w, lam, x0: p.x, px: p.x, py: p.y });
+    // 20/11: con le vie del bivio la corsia degli avanzi resta SOTTO la via piu' bassa (mai fra le due vie, mai sui ladri)
+    let py = p.y;
+    try { if (typeof posColonna === "function" && AVV() && S.alza) { const C = colonne(); if (C.col[a.i] != null) py = Math.max(p.y, posColonna(C.col[a.i], 1, g).y); } } catch (e) { }
+    voci.push({ i: a.i, v: a.v, ic, lab, w, lam, x0: p.x, px: p.x, py });
   }
   if (!voci.length) return;
   voci.sort((a, b) => a.i - b.i);
@@ -100,4 +103,40 @@ const disegnaPrimaOro = disegna;
 disegna = function () {
   disegnaPrimaOro();
   try { aggiornaAnteprima(); } catch (e) { console.warn(e); }
+};
+
+// 20/11 CHIAREZZA (il proprietario: «si deve capire subito cosa rischi»): sotto AVANTI, gemello di «+N al sicuro» di TORNA SU,
+// quello che rischi se vai avanti: il tuo sacco e la probabilita' ESATTA che la prossima carta svegli il drago (V.rischio,
+// dal motore). Sacco vuoto: solo la probabilita'. Nessun segno ancora uscito: «nessun rischio».
+(function () {
+  const b = $("b-giu"), sp = b && b.querySelector("[data-t]"); if (!sp) return;
+  const col = document.createElement("span"); col.className = "oro-col"; sp.replaceWith(col); col.appendChild(sp);
+  const a = document.createElement("small"); a.id = "rischio-ant"; a.hidden = true; col.appendChild(a);
+  const st = document.createElement("style");
+  st.textContent = "#b-giu .oro-col{display:flex;flex-direction:column;align-items:center;line-height:1.05;min-width:0}" +
+    "#rischio-ant{display:flex;align-items:center;gap:3px;font:700 10px Silkscreen,monospace;letter-spacing:0;white-space:nowrap;margin-top:3px;padding:1px 4px;background:rgba(42,18,0,.78);color:#ffe2a0}" +
+    "#rischio-ant[hidden]{display:none}#rischio-ant b{color:#fff3c4;font-weight:700}#rischio-ant.alto{color:#ffb3a8}#rischio-ant.alto b{color:#ffd0c8}" +
+    "@media (min-width:700px) and (min-height:500px){#rischio-ant{font-size:11px}}";
+  document.head.appendChild(st);
+})();
+let rischioAntK = "";
+function aggiornaRischio() {
+  const el = $("rischio-ant"); if (!el) return;
+  const me = V && V.giocatori ? V.giocatori[V.io] : null, it = LINGUA !== "en";
+  let k = "";
+  if (me && me.dentro && !V.fine && V.fase === "scelta" && !V.fondo_sentiero) {
+    const m = MOSTRA[V.io], sacco = m ? m.sacco : me.bottino || 0, pc = Math.round((V.rischio || 0) * 100);
+    k = sacco + "|" + pc + "|" + LINGUA;
+  }
+  if (k === rischioAntK) return; rischioAntK = k;
+  if (!k) { el.hidden = true; el.innerHTML = ""; return; }
+  const [sacco, pc] = k.split("|").map(Number);
+  el.classList.toggle("alto", pc >= 20);
+  el.innerHTML = !pc ? (it ? "nessun rischio" : "no risk") : sacco > 0 ? (it ? "rischi <b>" + sacco + "</b> · " + pc + "%" : "risk <b>" + sacco + "</b> · " + pc + "%") : (it ? "rischio " : "risk ") + "<b>" + pc + "%</b>";
+  el.hidden = false;
+}
+const disegnaPrimaRischio = disegna;
+disegna = function () {
+  disegnaPrimaRischio();
+  try { aggiornaRischio(); } catch (e) { console.warn(e); }
 };
