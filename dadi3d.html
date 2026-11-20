@@ -458,7 +458,9 @@ const t="170",e={LEFT:0,MIDDLE:1,RIGHT:2,ROTATE:0,DOLLY:1,PAN:2},n={ROTATE:0,PAN
     lui: { corpo: ['rgba(176,168,255,.58)', 'rgba(104,94,220,.30)'], pip: ['#f1efff', '#ffffff'], pip1: null, bordo: 'rgba(225,220,255,.65)' },
     // QUEST NUOVE (25/09): i dadi «tavolo» sbloccati con le quest (costruiti solo se servono)
     oro: { corpo: ['#ffe27a', '#b8860b'], pip: ['#0b0802', '#2a1d05'], pip1: null, bordo: 'rgba(255,248,210,.55)' },
-    rubino: { corpo: ['#ff5a74', '#6a0014'], pip: ['#ffd34d', '#fff1b0'], pip1: null, bordo: 'rgba(255,200,210,.4)' }
+    rubino: { corpo: ['#ff5a74', '#6a0014'], pip: ['#ffd34d', '#fff1b0'], pip1: null, bordo: 'rgba(255,200,210,.4)' },
+    // COSMETICI_2011: i DADI DI CRISTALLO (dd 3, quest q18_backg_w10): prima il 3D non li conosceva e uscivano quelli di serie
+    cristallo: { corpo: ['rgba(214,236,255,.92)', 'rgba(150,190,235,.55)'], pip: ['#1e3a8a', '#3b5bb8'], pip1: null, bordo: 'rgba(255,255,255,.85)' }
   };
   // valore dipinto su ogni faccia della BoxGeometry (+X,-X,+Y,-Y,+Z,-Z) = DDF.FACCE
   var VAL_FACCIA = [3, 4, 1, 6, 2, 5];
@@ -900,11 +902,13 @@ const t="170",e={LEFT:0,MIDDLE:1,RIGHT:2,ROTATE:0,DOLLY:1,PAN:2},n={ROTATE:0,PAN
   // ─────────────────────────────── IL PONTE ───────────────────────────────
   // QUEST NUOVE (25/09): il materiale di un dado: 1 oro (metallo), 2 rubino; il resto e' quello di sempre
   function matDado(base, sk) {
-    var k = sk === 1 ? 'oro' : (sk === 2 ? 'rubino' : null);
+    var k = sk === 1 ? 'oro' : (sk === 2 ? 'rubino' : (sk === 3 ? 'cristallo' : null));
     if (!k || !D3._mats) return D3._mats[base];
     if (!D3._mats[k]) {
       var a = atlante(STILI[k]);
-      D3._mats[k] = new T.MeshStandardMaterial({ map: a.map, bumpMap: a.bump, bumpScale: 2.2,
+      D3._mats[k] = k === 'cristallo' ? new T.MeshPhysicalMaterial({ map: a.map, bumpMap: a.bump, bumpScale: 1.2, transparent: true, side: T.DoubleSide,
+          depthWrite: false, roughness: 0.04, metalness: 0.0, clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 1.7 })   // COSMETICI_2011: cristallo
+        : new T.MeshStandardMaterial({ map: a.map, bumpMap: a.bump, bumpScale: 2.2,
         roughness: k === 'oro' ? 0.3 : 0.18, metalness: k === 'oro' ? 0.78 : 0.05, envMapIntensity: k === 'oro' ? 1.25 : 1.0 });
     }
     return D3._mats[k];

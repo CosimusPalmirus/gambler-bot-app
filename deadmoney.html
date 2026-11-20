@@ -754,6 +754,16 @@ input:disabled{opacity:.6}
 .stain>div.miss{box-shadow:0 0 0 3px var(--blood)}
 
 </style>
+<style id="cos2011b-dm">
+/* COSMETICI_2011B (20/11/2026) · dm 1 CORNICE D'OSSA, dm 2 CORNICE SPETTRALE: il ritratto di chi l'ha sbloccata, ovunque
+   compaia (fiche del salone, liste, scene), visto da tutti (start.profiles[uid].tvl.dm). */
+img.dmc1,.ini.dmc1{box-shadow:0 0 0 2.5px #e7e2d3,0 0 0 4px #3f3a2e,0 0 7px rgba(231,226,211,.35)!important}
+img.dmc2,.ini.dmc2{box-shadow:0 0 0 2.5px #a5f3fc,0 0 11px #67e8f9!important;animation:dmc-spettro 1.4s ease-in-out infinite}
+@keyframes dmc-spettro{0%,100%{box-shadow:0 0 0 2.5px #a5f3fc,0 0 11px #67e8f9}37%{box-shadow:0 0 0 2px rgba(165,243,252,.65),0 0 4px rgba(103,232,249,.55)}41%{box-shadow:0 0 0 2.5px #cffafe,0 0 14px #67e8f9}}
+.chip .disc.dmc1::before{content:"";position:absolute;inset:3%;border-radius:50%;pointer-events:none;z-index:2;
+  background:radial-gradient(circle at 50% 5%,#e7e2d3 0 6%,#3f3a2e 7%,transparent 8.5%),radial-gradient(circle at 50% 95%,#e7e2d3 0 6%,#3f3a2e 7%,transparent 8.5%),radial-gradient(circle at 5% 50%,#e7e2d3 0 6%,#3f3a2e 7%,transparent 8.5%),radial-gradient(circle at 95% 50%,#e7e2d3 0 6%,#3f3a2e 7%,transparent 8.5%)}
+@media (prefers-reduced-motion:reduce){img.dmc2,.ini.dmc2{animation:none}}
+</style>
 
 <div id="app" data-scene="">
   <div id="bg"><div class="lay fallback on"></div></div>
@@ -1099,7 +1109,7 @@ async function cineTitolo(kick, ttl, rule, cls){
 }
 
 /* ---------- giocatori sul palco ---------- */
-function avatarHTML(p, cls=""){ if (!p) return `<span class="ini ${cls}">?</span>`; return p.foto ? `<img class="${cls}" src="${esc(p.foto)}" alt="" onerror="this.outerHTML='<span class=&quot;ini&quot;>${esc((p.nome||"?")[0])}</span>'">` : `<span class="ini ${cls}">${p.me ? T("TU","ME") : esc((p.nome||"?")[0])}</span>`; }
+function avatarHTML(p, cls=""){ if (p && p.cor) cls = (cls ? cls + " " : "") + "dmc" + p.cor; /* COSMETICI_2011B */ if (!p) return `<span class="ini ${cls}">?</span>`; return p.foto ? `<img class="${cls}" src="${esc(p.foto)}" alt="" onerror="this.outerHTML='<span class=&quot;ini&quot;>${esc((p.nome||"?")[0])}</span>'">` : `<span class="ini ${cls}">${p.me ? T("TU","ME") : esc((p.nome||"?")[0])}</span>`; }
 function listHTML(ps, right){ return `<div class="list">` + ps.map(p => { const r = right ? right(p) : {}; return `<div class="li ${r.cls||""}">${avatarHTML(p)}<span>${esc(nomeDi(p))}</span><span class="s">${r.t!=null?r.t:""}</span></div>`; }).join("") + `</div>`; }
 function setRound(t){ $("#tRound").textContent = t; }
 
@@ -2059,7 +2069,7 @@ function suStart(m){
   ST.P = (mi.seggi || []).map(s => {
     const pr = prof[s.uid] || {};
     const foto = s.bot ? fotoBot(s.sg) : (pr.photo_url || null);
-    return {id:s.sg, uid:s.uid, nome: s.nome || (pr.name || "?"), foto, bot:!!s.bot, col: COLORI[s.sg % 8], me:false, vivo:true, fiche:0};
+    return {id:s.sg, uid:s.uid, nome: s.nome || (pr.name || "?"), foto, bot:!!s.bot, col: COLORI[s.sg % 8], me:false, vivo:true, fiche:0, cor: (pr.tvl && ((pr.tvl.dm|0) === 1 || (pr.tvl.dm|0) === 2)) ? (pr.tvl.dm|0) : 0 /* COSMETICI_2011B */};
   });
   if (!ST.spec && m.you != null){ const mio = ST.P.find(p => p.uid === m.you); if (mio){ mio.me = true; ST.me = mio.id; } }
   $("#chips").innerHTML = "";
@@ -2166,7 +2176,7 @@ function renderChipsS(S){
   const box = $("#chips");
   if (box.children.length !== ST.P.length){
     box.style.setProperty("--n", ST.P.length);
-    box.innerHTML = ST.P.map(p => `<div class="chip" id="ch${p.id}" style="--c:${p.col}"><span class="tag b">${T("TAGLIA","BOUNTY")}</span><span class="tag c">${T("MALOCCHIO","EVIL EYE")}</span><span class="dot"></span><div class="disc">${avatarHTML(p)}</div><span class="mk"></span><span class="nm"></span><span class="fi"></span></div>`).join("");
+    box.innerHTML = ST.P.map(p => `<div class="chip" id="ch${p.id}" style="--c:${p.col}"><span class="tag b">${T("TAGLIA","BOUNTY")}</span><span class="tag c">${T("MALOCCHIO","EVIL EYE")}</span><span class="dot"></span><div class="disc${p.cor ? " dmc" + p.cor : ""}">${avatarHTML(p)}</div><span class="mk"></span><span class="nm"></span><span class="fi"></span></div>`).join("");
   }
   const riv = S.fase === "rivela" ? S.rivela : null;
   const mal = S.domanda && S.domanda.malocchio ? S.domanda.malocchio.su : -1;

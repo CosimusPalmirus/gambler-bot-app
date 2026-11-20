@@ -1623,10 +1623,10 @@ html[lang="en"] .targa.assente::after{content:"AWAY"}
   }
 
   function svg(cfg) {
-    var forte = !!(cfg && cfg.forma);
+    var forte = !!(cfg && cfg.forma), pelle = cfg ? (cfg.pelle | 0) : 0;   // COSMETICI_2011B
     cfg = normalizza(cfg);
     var d = (forte ? DATI_P : DATI)[cfg.specie], k = 100 / Math.max(d.fermo[0], d.fermo[1]), suf = forte ? '_p' : '';
-    var s = '<div class="kjm' + (forte ? ' forte' : '') + '" data-s="" data-specie="' + cfg.specie + '"><div class="kjm-g"><div class="kjm-in" style="--tinta:' + TINTE[cfg.tinta] + 'deg">';
+    var s = '<div class="kjm' + (forte ? ' forte' : '') + '" data-s="" data-specie="' + cfg.specie + '"><div class="kjm-g' + (pelle === 1 || pelle === 2 ? ' pelle-' + pelle : '') + '"><div class="kjm-in" style="--tinta:' + TINTE[cfg.tinta] + 'deg">';
     POSE.forEach(function (p) {
       s += '<img class="p-' + p + '" src="' + DIR + cfg.specie + '_' + p + suf + '.webp' + VER + '" style="width:' + (d[p][0] * k).toFixed(1) + '%" draggable="false" alt="">';
     });
@@ -3384,7 +3384,7 @@ function suStart(m) {
     modo: map.modo || 'classica', squadre: Array.isArray(map.squadre) ? map.squadre : null,
     g: map.seggi.map((s, i) => {
       const vero = String((map.nomi && map.nomi[i]) || s.nome || (m.names && m.names[s.uid]) || '?');
-      return { nome: nomeTarga(vero), vero: vero, bot: SPET || AUTO || i !== IO, eBot: !!s.bot, foto: s.bot ? '' : fvFoto(s.uid, (m.profiles || {})[s.uid]) /* FOTO_VERE_1711 */, mostro: { specie: KJM.OPZ.specie[most[i].sp], tinta: most[i].ti } };
+      return { nome: nomeTarga(vero), vero: vero, bot: SPET || AUTO || i !== IO, eBot: !!s.bot, foto: s.bot ? '' : fvFoto(s.uid, (m.profiles || {})[s.uid]) /* FOTO_VERE_1711 */, mostro: { specie: KJM.OPZ.specie[most[i].sp], tinta: most[i].ti, pelle: (typeof kjPelle === 'function' ? kjPelle((m.profiles || {})[s.uid]) : 0) /* COSMETICI_2011B */ } };
     })
   };
   CODA = []; maxS = 0; MN = 0; sMn = 0; ULT = null; OVER = null; primoFot = true; daEntrare = false; BUCO = false;
@@ -4050,7 +4050,7 @@ const KJL = (() => {
   L.ferma = () => { clearInterval(tm); tm = 0; };
   L.nuova = () => {
     L.ferma();
-    const ids = ['io'], nomi = [MIO.nome], prof = { io: { name: MIO.nome, kj: { sp: KJM.OPZ.specie.indexOf(MIO.cfg.specie), ti: MIO.cfg.tinta } } }, usati = [MIO.cfg.specie];
+    const ids = ['io'], nomi = [MIO.nome], prof = { io: { name: MIO.nome, tvl: (typeof kjMioTvl === 'function' ? kjMioTvl() : null), kj: { sp: KJM.OPZ.specie.indexOf(MIO.cfg.specie), ti: MIO.cfg.tinta } } }, usati = [MIO.cfg.specie];
     for (let k = 0; k < AVVERSARI; k++) {
       const m = KJM.aCaso(null, usati), u = 'bot:locale:' + k; usati.push(m.specie);
       ids.push(u); nomi.push(KJM.SPECIE[m.specie].nome); prof[u] = { name: KJM.SPECIE[m.specie].nome, kj: { sp: KJM.OPZ.specie.indexOf(m.specie), ti: 0 } };
@@ -5509,6 +5509,32 @@ if (LOCALE) v2Home();
       else for (var j = 0; j < m.addedNodes.length; j++) giro(m.addedNodes[j]);
     }
   }).observe(document.body, { subtree: true, childList: true, characterData: true });
+})();
+</script>
+<script id="cos2011b-kj">
+/* COSMETICI_2011B (20/11/2026) · kj 1 PELLE LAVICA, kj 2 PELLE CROMATA: la pelle del mostro di chi l'ha sbloccata, vista da
+   tutti (profiles[uid].tvl.kj dello start; nella prova locale il mio look dalla pagina madre o ?pelle=). Solo filtro CSS sul
+   mostro (le stesse pose webp): roccia scura con la lava che pulsa / cromo a specchio. Spento con window.KJPELLE_OFF=true. */
+function kjPelle(p) { if (window.KJPELLE_OFF) return 0; var v = p && p.tvl ? (p.tvl.kj | 0) : 0; return v === 1 || v === 2 ? v : 0; }
+function kjMioTvl() {
+  try { var q = new URLSearchParams(location.search).get('pelle'); if (q) return { kj: q | 0 }; } catch (e) { }
+  try { if (window.parent !== window && typeof window.parent.tvlLook === 'function') return { kj: window.parent.tvlLook().kj | 0 }; } catch (e) { }
+  return null;
+}
+(function () {
+  try {
+    var s = document.createElement('style'); s.id = 'cos2011b-kj-css';
+    s.textContent = [
+      '.kjm-g.pelle-1 .kjm-in{filter:grayscale(.5) sepia(.6) hue-rotate(-28deg) saturate(2.4) brightness(.6) contrast(1.4) drop-shadow(calc(var(--u,3.6px)*.55) calc(var(--u,3.6px)*.7) 0 rgba(27,23,48,.85))!important}',
+      '.kjm-g.pelle-1{animation:kjp-lava 1.9s ease-in-out infinite}',
+      '@keyframes kjp-lava{0%,100%{filter:drop-shadow(0 0 2px rgba(255,90,31,.55))}50%{filter:drop-shadow(0 0 calc(var(--u,3.6px)*2.4) rgba(255,110,30,.95))}}',
+      '.kjm-g.pelle-2 .kjm-in{filter:grayscale(1) contrast(1.7) brightness(1.22) drop-shadow(0 0 1px rgba(255,255,255,.95)) drop-shadow(calc(var(--u,3.6px)*.55) calc(var(--u,3.6px)*.7) 0 rgba(27,23,48,.85))!important}',
+      '.kjm-g.pelle-2{animation:kjp-cromo 2.6s ease-in-out infinite}',
+      '@keyframes kjp-cromo{0%,100%{filter:drop-shadow(0 0 1px rgba(200,220,255,.5))}50%{filter:drop-shadow(0 0 calc(var(--u,3.6px)*1.6) rgba(235,245,255,.95))}}',
+      '@media (prefers-reduced-motion:reduce){.kjm-g.pelle-1,.kjm-g.pelle-2{animation:none}}'
+    ].join('\n');
+    document.head.appendChild(s);
+  } catch (e) { }
 })();
 </script>
 </body>

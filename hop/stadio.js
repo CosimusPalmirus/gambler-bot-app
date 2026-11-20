@@ -1271,7 +1271,7 @@ function animaBot(o, dt, tt) {
   o.bolla.visible = !!(o.bollaOn && !o.ko); if (o.bolla.visible && !OPZ.rm && o.bolla.material.color) { const h = (.55 + .09 * Math.sin(tt * 1.7 + o.i)) % 1; o.bolla.material.color.setHSL(h, .9, .7); o.bolla.material.opacity = .42 + .06 * Math.sin(tt * 5 + o.i); if (o.bolla.material.emissive) o.bolla.material.emissive.setHSL((h + .32) % 1, 1, .32); }   // REGIA_V3_1811: iridescente
   if (q) { const k = statiDi(q, o.i).filter(s => s[1] != null).map(s => s.join(':')).join('|'); if (k !== o.statiK) { o.statiK = k; if (k) { o.statiS.material.map = statiTex(statiDi(q, o.i).filter(s => s[1] != null)); o.statiS.material.needsUpdate = true; } } }
   o.statiS.visible = !!o.statiK && !o.ko && FASE !== 'fine' && FASE !== 'rivela';
-  o.badgeVis = !o.ko && o.a > .5; o.badge.visible = false; { const hb = (o.topY + (o.glb ? (o.podio || ANTE ? .6 : .34) : .42)) * o.sq, th = -o.anca.rotation.x; o.badge.position.set(0, hb * Math.cos(th) + .06, -hb * Math.sin(th)); }
+  o.badgeVis = !o.ko && o.a > .5; o.badge.visible = false; { const hb = (o.topY + (o.glb ? (o.podio || ANTE ? .6 : .34) : .42) + (o.capAlto || 0)) * o.sq, th = -o.anca.rotation.x; o.badge.position.set(0, hb * Math.cos(th) + .06, -hb * Math.sin(th)); }
   o.molla.visible = !!(q && q.molla && !o.ko); if (o.molla.visible) o.molla.children.forEach((m, k) => { m.material.opacity = .5 + .5 * Math.abs(Math.sin(tt * 5 + k)); m.position.y = .05 + k * (.07 + .03 * Math.sin(tt * 6)); });
   o.bomba.visible = !!(q && q.patata && !o.ko); if (o.bomba.visible) { if (o.timerV !== q.patata) { o.timerV = q.patata; o.timer.material.map = badgeTex(String(q.patata), q.patata <= 1 ? ROSSO : '#e0701a'); o.timer.material.needsUpdate = true; }
     o.bomba.rotation.z = Math.sin(tt * 6) * .15; o.bomba.position.y = o.topY * .72 + Math.sin(tt * 3) * .05; }
@@ -1283,6 +1283,7 @@ function animaBot(o, dt, tt) {
   o.an.visible = o.om.visible = !o.ko && o.alt < 1.8 && o.alt > -.1; o.om.scale.setScalar(Math.max(.35, 1 - Math.max(0, o.alt) * .3) * o.k); o.om.position.y = .03 - o.alt; o.an.position.y = .04 - o.alt;
   o.om.material.opacity = .9 * Math.max(.3, 1 - Math.max(0, o.alt) * .35);
   if (o.glb) { posaGLB(o, p); animaGLB(o, dt); }
+  cappelloAggiorna(o);   // COSMETICI_2011: il cappello della rana
 }
 
 /* ---------------- PERSONAGGI 3D (GLB con scheletro) ----------------
@@ -1446,6 +1447,149 @@ function animaGLB(o, dt, verso) {
     const tr = op < .99; if (m.transparent !== tr) { m.transparent = tr; m.needsUpdate = true; } m.opacity = op; }
   for (const s of g.scafi) { s.visible = op > .6 && !o.triste; }
 }
+
+/* ==================== COSMETICI_2011: IL CAPPELLO DELLA RANA (slot «hc» del look «tavolo», 20/11) ====================
+   Premi delle quest HOP: 1 CILINDRO (q18_hop_w10: nero, nastro rosso) · 2 CORONA DELLO STAGNO (q18_hop_w25: oro, gemma blu)
+   · 3 CASCO DA BATTAGLIA (q18_hop_spar3: acciaio, visiera azzurra). Stessi colori della vetrina (TV3G NUOVI.hc).
+   Chi ha cosa: window.__hopCappello(seggio) del ponte di hop.html = il profilo `tvl.hc` che il server real-time manda a
+   TUTTI (giocatori e spettatori, gli stessi profili di nomi e foto); il mio dal mio look. Solo aspetto: niente rete, niente
+   motore. Il cappello e' FIGLIO DELL'OSSO DELLA TESTA: segue clip, salti, schiacciamenti, KO. Si misura la testa di ogni
+   modello sui dati di posa (bind) dello scheletro: cima del cranio, larghezza, davanti/dietro, una volta per modello.
+   Fuori dal server vero (pagina di prova) ?cappello=N mette N a tutti, ?cappelli=a,b,c per seggio. Spento: ?cappelli=0. */
+const CAP_FORMA = {   // d = diametro (x larghezza della testa) · giu = quanto affonda · dietro = spostato verso la nuca · incl = inclinazione
+  // COSMETICI_2011B (20/11): il proprietario «il cappello copre gli occhi». Gli occhi sporgono sopra la testa: i cappelli
+  // diventano piu' piccoli e stanno piu' indietro (fra/dietro gli occhi), il casco non affonda piu' fin sulla fronte.
+  // Prima: 1 {d .46, giu .05, dietro .06} · 2 {d .52, giu .07, dietro .04} · 3 {d .86, giu .27, dietro .05}.
+  1: {d: .42, giu: .05, dietro: .14, incl: -.16},
+  2: {d: .46, giu: .07, dietro: .10, incl: .05},
+  3: {d: .66, giu: .04, dietro: .14, incl: 0}};
+// COSMETICI_2011B: le correzioni PER RANA (si sommano sopra a CAP_FORMA: stesse chiavi, valori assoluti). Misurate a occhio sul
+// foglio di tutte e 6 le rane, di fronte e di tre quarti (cosmetici_2011b/hop3d/foto/foglio_rane_*.png): axa ha le branchie
+// dentro la larghezza della testa (cappelli troppo grandi), grumo ha gli occhi IN CIMA alla testa (cappelli dietro),
+// zip e luma hanno occhi alti sulla fronte (il casco va piu' indietro). Stessi numeri nelle anteprime (hop/cappelli3d.js).
+const CAP_RANA = {
+  axa: {1: {d: .29, giu: .02}, 2: {d: .31}, 3: {d: .44, giu: .03}},
+  grumo: {1: {d: .34, dietro: .32}, 2: {d: .38, dietro: .27}, 3: {d: .5, giu: 0, dietro: .32}},
+  zip: {3: {d: .54, giu: .02, dietro: .24}},
+  luma: {3: {d: .54, giu: .02, dietro: .24}}};
+function capForma(v, pg) { return Object.assign({}, CAP_FORMA[v], (CAP_RANA[pg] || {})[v] || {}); }
+function capVoluto(o) {
+  let v = 0;
+  try {
+    if (Q.get('cappelli') === '0') return 0;
+    if (typeof window.__hopCappello === 'function') v = window.__hopCappello(o.i) | 0;
+    else if (Q.get('rt') !== '1') { const t = Q.get('cappello'), l = Q.get('cappelli'); if (t != null) v = (+t) | 0; else if (l) v = (+(l.split(',')[o.i] || 0)) | 0; }
+  } catch (e) { v = 0; }
+  return v >= 1 && v <= 3 ? v : 0;
+}
+// la testa del modello, nello spazio dell'osso della testa (dati di posa: non cambia con la clip che sta girando)
+function capTesta(o) {
+  const g = o.glb, T = g && g.testa; if (!T) return null;
+  if (g.capM !== undefined) return g.capM;
+  const sotto = new Set(); T.traverse(n => sotto.add(n));
+  const pts = [], v = new THREE.Vector3(), M = new THREE.Matrix4(); let inv = null;
+  g.sc.traverse(n => {
+    if (!n.isSkinnedMesh || !n.skeleton) return; const sk = n.skeleton, hi = sk.bones.indexOf(T); if (hi < 0) return;
+    const P = n.geometry.attributes.position, SI = n.geometry.attributes.skinIndex, SW = n.geometry.attributes.skinWeight; if (!P || !SI || !SW) return;
+    const dentro = sk.bones.map(b => sotto.has(b)); inv = sk.boneInverses[hi]; M.multiplyMatrices(inv, n.bindMatrix);
+    // three r128: niente getComponent; gli attributi quantizzati (meshopt, normalized) si riportano a [0..1]/[-1..1] a mano
+    const den = a => { if (!a.normalized) return 1; const t = a.array; return t instanceof Int8Array ? 127 : t instanceof Uint8Array ? 255 : t instanceof Int16Array ? 32767 : t instanceof Uint16Array ? 65535 : 1; };
+    const dP = den(P), C = ['getX', 'getY', 'getZ', 'getW'], passo = Math.max(1, Math.floor(P.count / 6000));
+    for (let k = 0; k < P.count; k += passo) { let w = 0, tot = 0; for (let j = 0; j < 4; j++) { const q = SW[C[j]](k); tot += q; if (dentro[SI[C[j]](k)]) w += q; }
+      if (tot > 0 && w / tot >= .6) pts.push(new THREE.Vector3(P.getX(k) / dP, P.getY(k) / dP, P.getZ(k) / dP).applyMatrix4(M)); }
+  });
+  if (!inv || pts.length < 12) return (g.capM = null);
+  const su = new THREE.Vector3(0, 1, 0).transformDirection(inv), av0 = new THREE.Vector3(0, 0, 1).transformDirection(inv);
+  const dx = new THREE.Vector3().crossVectors(su, av0).normalize(), av = new THREE.Vector3().crossVectors(dx, su).normalize();
+  let a0 = 1e9, a1 = -1e9, b0 = 1e9, b1 = -1e9, h1 = -1e9;
+  for (const p of pts) { const a = p.dot(dx), b = p.dot(av); a0 = Math.min(a0, a); a1 = Math.max(a1, a); b0 = Math.min(b0, b); b1 = Math.max(b1, b); }
+  const ac = (a0 + a1) / 2, bc = (b0 + b1) / 2, larg = a1 - a0, prof = b1 - b0;
+  // la cima del cranio: il punto piu' alto nella parte centrale (occhi sporgenti, orecchie e cappucci ai lati non contano)
+  for (const p of pts) { const a = p.dot(dx), b = p.dot(av); if (Math.abs(a - ac) < larg * .2 && Math.abs(b - bc) < prof * .3) h1 = Math.max(h1, p.dot(su)); }
+  if (h1 < -1e8) for (const p of pts) h1 = Math.max(h1, p.dot(su));
+  return (g.capM = {su, av, dx, ac, bc, h1, larg, prof});
+}
+function capContorno(col, sp) {
+  const m = new THREE.MeshBasicMaterial({color: col, side: THREE.BackSide, transparent: true, opacity: 1});
+  m.onBeforeCompile = sh => { sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n transformed += normalize(normal) * ' + sp.toFixed(4) + ';'); };
+  m.customProgramCacheKey = () => 'capc' + sp.toFixed(4);
+  return m;
+}
+// il cappello in «unita' di cappello»: base a y=0, diametro della calotta = 1, il davanti verso +z
+function capCostruisci(v, col) {
+  const grp = new THREE.Group(), mats = [], cont = [], geos = [];
+  const S = (o) => { const m = new THREE.MeshStandardMaterial(Object.assign({transparent: false}, o)); mats.push(m); return m; };
+  const metti = (geo, mat, bordo, f) => { geos.push(geo); const me = new THREE.Mesh(geo, mat); me.frustumCulled = false; if (f) f(me); grp.add(me);
+    if (bordo) { const c = new THREE.Mesh(geo, capContorno(col, bordo)); c.frustumCulled = false; c.position.copy(me.position); c.quaternion.copy(me.quaternion); c.scale.copy(me.scale); mats.push(c.material); c.material.userData.contorno = true; grp.add(c); cont.push(c); }
+    return me; };
+  const V2 = (x, y) => new THREE.Vector2(x, y);
+  if (v === 1) {   // CILINDRO: tesa curva, calotta che si allarga appena in cima, nastro rosso
+    const nero = S({color: 0x18181b, roughness: .32, metalness: .15, emissive: 0x050507});
+    metti(new THREE.LatheGeometry([V2(0, .005), V2(.6, 0), V2(.8, .04), V2(.84, .075), V2(.79, .07), V2(.6, .06), V2(.49, .08), V2(.47, .1),
+      V2(.455, .5), V2(.47, .86), V2(.5, .93), V2(.49, .955), V2(.3, .96), V2(0, .962)], 44), nero, .045);
+    metti(new THREE.CylinderGeometry(.468, .461, .17, 44, 1, true), S({color: 0xb91c1c, roughness: .55, metalness: .05, emissive: 0x2a0303, side: THREE.DoubleSide}), 0, m => { m.position.y = .2; });
+    metti(new THREE.BoxGeometry(.1, .13, .05), S({color: 0xe5c07b, roughness: .3, metalness: .6, emissive: 0x2a1d05}), 0, m => { m.position.set(.2, .2, .43); m.rotation.y = .42; });
+  } else if (v === 2) {   // CORONA: fascia d'oro, cinque punte con le perle, gemma blu davanti
+    const oro = S({color: 0xe0b23c, roughness: .26, metalness: .55, emissive: 0x4a3000, emissiveIntensity: .7, side: THREE.DoubleSide});
+    metti(new THREE.CylinderGeometry(.5, .47, .3, 40, 1, true), oro, 0, m => { m.position.y = .15; });
+    metti(new THREE.TorusGeometry(.475, .045, 10, 44), oro, .03, m => { m.rotation.x = Math.PI / 2; m.position.y = .02; });
+    metti(new THREE.TorusGeometry(.5, .04, 10, 44), oro, .03, m => { m.rotation.x = Math.PI / 2; m.position.y = .3; });
+    const gemmaB = S({color: 0x2563eb, roughness: .12, metalness: .2, emissive: 0x1d4ed8, emissiveIntensity: .55});
+    const rossa = S({color: 0xdc2626, roughness: .15, metalness: .2, emissive: 0x7f1d1d, emissiveIntensity: .5});
+    for (let k = 0; k < 5; k++) { const a = k / 5 * Math.PI * 2, x = Math.sin(a) * .49, z = Math.cos(a) * .49;
+      metti(new THREE.ConeGeometry(.13, .34, 4), oro, .03, m => { m.position.set(x, .45, z); m.rotation.y = a + Math.PI / 4; });
+      metti(new THREE.SphereGeometry(.065, 12, 8), oro, .025, m => { m.position.set(x * 1.01, .64, z * 1.01); });
+      if (k) metti(new THREE.SphereGeometry(.05, 10, 8), rossa, 0, m => { m.position.set(Math.sin(a) * .51, .15, Math.cos(a) * .51); }); }
+    metti(new THREE.OctahedronGeometry(.11, 0), gemmaB, .025, m => { m.position.set(0, .16, .52); m.scale.set(1, 1.25, .55); });
+  } else {   // CASCO: calotta d'acciaio, cresta, bordo e visiera azzurra davanti
+    const acc = S({color: 0x9ca3af, roughness: .3, metalness: .55, emissive: 0x1f2937, emissiveIntensity: .5});
+    const scuro = S({color: 0x6b7280, roughness: .35, metalness: .6, emissive: 0x111827, emissiveIntensity: .5});
+    metti(new THREE.SphereGeometry(.56, 36, 16, 0, Math.PI * 2, 0, Math.PI / 2), acc, .04, m => { m.scale.y = .82; });
+    metti(new THREE.TorusGeometry(.56, .05, 10, 48), scuro, .03, m => { m.rotation.x = Math.PI / 2; m.position.y = .01; });
+    metti(new THREE.TorusGeometry(.47, .045, 8, 28, Math.PI), scuro, 0, m => { m.rotation.y = Math.PI / 2; m.scale.y = .98; m.position.y = .0; });
+    for (const s of [-1, 1]) metti(new THREE.SphereGeometry(.045, 10, 8), scuro, 0, m => { m.position.set(s * .5, .14, .2); });
+    const vis = S({color: 0x38bdf8, roughness: .08, metalness: .1, emissive: 0x0ea5e9, emissiveIntensity: .55, transparent: true, opacity: .82, side: THREE.DoubleSide});
+    vis.userData.op = .82; vis.userData.tr = true;
+    metti(new THREE.SphereGeometry(.6, 36, 6, Math.PI / 2 - .85, 1.7, Math.PI / 2 - .2, .34), vis, 0);
+  }
+  return {grp, mats, cont, geos};
+}
+function capTogli(o) {
+  const c = o.cap; if (!c) return; o.cap = null; o.capAlto = 0;
+  if (c.piv.parent) c.piv.parent.remove(c.piv);
+  for (const m of c.mats) m.dispose(); for (const g of c.geos) g.dispose();
+}
+function capMetti(o, v, dove) {
+  const F = capForma(v, o.pg), c = capCostruisci(v, COL[o.i] || '#ffffff'), piv = new THREE.Group(); piv.name = 'cappello_' + v; piv.add(c.grp);
+  const T = o.glb && o.glb.testa === dove ? capTesta(o) : null;
+  if (T) {
+    piv.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(T.dx, T.su, T.av));
+    piv.position.copy(T.su).multiplyScalar(T.h1 - T.larg * F.giu).addScaledVector(T.dx, T.ac).addScaledVector(T.av, T.bc - T.prof * F.dietro);
+    piv.scale.setScalar(T.larg * F.d);
+  } else {   // la carta dipinta (niente modello 3D): in cima alla figura
+    piv.position.set(0, o.topY * .97, .02); piv.scale.setScalar(Math.max(.3, (o.ex && o.ex.taglia && o.ex.taglia.largo) || 1) * F.d * .55);
+  }
+  c.grp.rotation.z = F.incl;
+  dove.add(piv); o.cap = {v, piv, mats: c.mats, cont: c.cont, geos: c.geos};
+  // l'oblo' con la foto sta sopra la testa: sale di quanto il cappello sporge sopra la cima della rana
+  try {
+    o.root.updateMatrixWorld(true); const bb = new THREE.Box3().setFromObject(c.grp), w = o.root.getWorldPosition(new THREE.Vector3());
+    w.y = bb.max.y; const y = o.root.worldToLocal(w).y; o.capAlto = Math.max(0, Math.min(1.2, y - o.topY + .06));
+  } catch (e) { o.capAlto = 0; }
+}
+function cappelloAggiorna(o) {
+  if (!o || !o.root) return;
+  const v = capVoluto(o), dove = o.glb ? o.glb.testa : o.anca, k = v + '|' + (dove ? dove.uuid : '');
+  if (o.capK !== k) { o.capK = k; capTogli(o); if (v && dove) { try { capMetti(o, v, dove); } catch (e) { console.warn('cappello', e); capTogli(o); } } }
+  if (!o.cap) return;
+  const op = o.mat && o.mat.uniforms ? o.mat.uniforms.op.value : 1;
+  for (const m of o.cap.mats) { const tr = op < .99 || !!m.userData.tr || !!m.userData.contorno; if (m.transparent !== tr) { m.transparent = tr; m.needsUpdate = true; } m.opacity = op * (m.userData.op || 1); }
+  for (const s of o.cap.cont) s.visible = op > .6 && !o.triste;
+}
+// per le prove: chi ha quale cappello, su quale osso, e dove cade sullo schermo
+window.__HOP_CAP = {stato: () => RANE.filter(Boolean).map(o => { let sch = null;
+  if (o.cap) { const w = o.cap.piv.getWorldPosition(new THREE.Vector3()).project(cam); sch = [Math.round((w.x + 1) / 2 * innerWidth), Math.round((1 - w.y) / 2 * innerHeight)]; }
+  return {i: o.i, pg: o.pg, v: o.cap ? o.cap.v : 0, osso: o.cap && o.cap.piv.parent ? (o.cap.piv.parent.isBone ? o.cap.piv.parent.name : 'carta') : null, glb: !!o.glb, schermo: sch, alto: +(o.capAlto || 0).toFixed(2)}; })};
 
 /* ---------------- effetti ---------------- */
 const TEX_PUNTO = (() => { const c = tela(64, 64), g = c.getContext('2d'), r = g.createRadialGradient(32, 32, 1, 32, 32, 31); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
@@ -3769,8 +3913,8 @@ async function passo(e) {
     }
     case 'voto': {
       sigla('voto'); pubblico(.6, true);
-      bannerVia(`${L().voto}: ${L().ev[e.nome].split(':')[0]} <span style="display:block;font:500 13px var(--x-body);font-style:normal;opacity:.85">${L().prossimo}</span>`, 'linear-gradient(90deg,#ff4f8b,#ffcf3a)', 2.2);
-      schermo(OPZ.lang === 'en' ? 'VOTE' : 'VOTO', L().ev[e.nome].split(':')[0], '#ffcf3a'); await attendi(.6); break;
+      bannerVia(`${L().voto}: ${String(L().ev[e.nome] || e.nome || '').split(':')[0]} <span style="display:block;font:500 13px var(--x-body);font-style:normal;opacity:.85">${L().prossimo}</span>`, 'linear-gradient(90deg,#ff4f8b,#ffcf3a)', 2.2);
+      schermo(OPZ.lang === 'en' ? 'VOTE' : 'VOTO', String(L().ev[e.nome] || e.nome || '').split(':')[0], '#ffcf3a'); await attendi(.6); break;
     }
     default: break;
   }
@@ -4826,4 +4970,7 @@ window.__hopLU = {versione: '20261120L', pool: () => ({luce: LU_PA.n, norm: LU_P
 /* ==================== fine LEVELUP_2011 ==================== */
 const TRACCIA = Q.get('traccia') === '1';
 let FPS = 0; (function contaFps() { let n = 0, t0 = performance.now(); (function g() { n++; const t = performance.now(); if (t - t0 > 1000) { FPS = Math.round(n * 1000 / (t - t0)); n = 0; t0 = t; } requestAnimationFrame(g); })(); })();
+/* COPERTINA_2011: hop.html?copertina=1 (copertina.js) mostra solo il titolo come copertina della mini app. Da fuori serve lo stato del
+   titolo e l'uscita (tuffi, poi «gioca» al padre al posto della lobby): solo con ?copertina=1, niente regole, rete o soldi. */
+if (Q.get('copertina') === '1') window.__hopCopInt = {tit: () => TIT, esci: f => { titoloEsci = f; }, tasto: () => titolo.tasto, ac: () => ac(), suono: k => suono(k), sigla: t => sigla(t), tw: (d, f) => tw(d, f), eio: x => eio(x), tuffo: (o, k) => titTuffo(o, k), muto: () => OPZ.muto, rm: () => OPZ.rm, pg: () => OPZ.pg};
 })();

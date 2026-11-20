@@ -19427,6 +19427,29 @@ function mkMedaglione(opz) {
     targa.position.set(0, R * 1.74, 0.03);
     G.add(targa);
 
+    /* COSMETICI_2011B (20/11/2026) · lp 1 MEDAGLIONE D'ARGENTO: cornice d'argento lucido, smalto notte sul fondo, una
+       lunetta e otto borchie d'argento. Lo accende ribattezzaTutti allo start per i seggi che l'hanno (profiles[uid].tvl.lp). */
+    var cs11 = { on: false, fc: fondo.material.color.getHex(), fr: fondo.material.roughness, cc: cornice.material.color.getHex(),
+                 cr: cornice.material.roughness, cm: cornice.material.metalness, extra: null };
+    G.userData.argento = function (on) {
+        on = !!on;
+        if (on === cs11.on) { return; }
+        cs11.on = on;
+        fondo.material.color.setHex(on ? 0x1e293b : cs11.fc); fondo.material.roughness = on ? 0.32 : cs11.fr;
+        cornice.material.color.setHex(on ? 0xf1f5f9 : cs11.cc); cornice.material.roughness = on ? 0.14 : cs11.cr;
+        cornice.material.metalness = on ? 0.95 : cs11.cm;
+        if (on && !cs11.extra) {
+            var ex = new THREE.Group(), argM = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.18, metalness: 0.95 });
+            var lun = new THREE.Mesh(new THREE.TorusGeometry(R * 1.01, R * 0.035, 6, 34), argM); lun.position.z = 0.018; ex.add(lun);
+            for (var b = 0; b < 8; b++) {
+                var a8 = b / 8 * Math.PI * 2 + Math.PI / 8, bo = new THREE.Mesh(new THREE.SphereGeometry(R * 0.06, 8, 6), argM);
+                bo.position.set(Math.cos(a8) * R * 1.27, Math.sin(a8) * R * 1.27, 0.02); ex.add(bo);
+            }
+            cs11.extra = ex; G.add(ex);
+        }
+        if (cs11.extra) { cs11.extra.visible = on; }
+        fondo.material.needsUpdate = true; cornice.material.needsUpdate = true;
+    };
     /* stato voce */
     var stato = { liv: 0, obiettivo: 0, spento: false };
     G.userData.voce = function (livello) {
@@ -54342,7 +54365,7 @@ var LUPG = (function () {
     }
     function nomiFoto(m, sg) {
         var mp = m.map || {}, seggi = mp.seggi instanceof Array ? mp.seggi : [], i, uid, s;
-        var n = mp.n | 0, nomi = [], foto = [];
+        var n = mp.n | 0, nomi = [], foto = [], lp = [];   /* lp: COSMETICI_2011B */
         for (i = 0; i < n; i++) { nomi.push("Seggio " + i); foto.push(""); }
         for (i = 0; i < seggi.length; i++) {
             if (!seggi[i]) { continue; }
@@ -54353,10 +54376,11 @@ var LUPG = (function () {
             if (m.profiles && m.profiles[uid] && m.profiles[uid].photo_url) {
                 foto[s] = String(m.profiles[uid].photo_url);
             }
+            lp[s] = (function (p) { var v = p && p.tvl ? (p.tvl.lp | 0) : 0; return v === 1 ? 1 : 0; })(m.profiles && m.profiles[uid]);   /* COSMETICI_2011B */
             if (uid.indexOf("bot:") === 0 && !(m.names && m.names[uid])) { nomi[s] = "Bot " + (s + 1); }
         }
         if (sg >= 0 && sg < n) { nomi[sg] = "Tu"; }
-        return { nomi: nomi, foto: foto };
+        return { nomi: nomi, foto: foto, lp: lp };
     }
     function ecoInCentesimi(B) {
         if (typeof window === "undefined") { return; }
@@ -54380,6 +54404,7 @@ var LUPG = (function () {
                 try { tex = mkTestaTexture(TINTE[i], i === sg); } catch (e) { tex = null; }
             }
             med.userData.ribattezza(nomi[i] || ("Seggio " + i), tex);
+            if (typeof med.userData.argento === "function") { try { med.userData.argento(!!(G.lp && G.lp[i])); } catch (eL) { } }   /* COSMETICI_2011B */
             /* anche il nome nel guscio: la lista finale e le targhe lo leggono */
             if (typeof NOMI !== "undefined" && NOMI && i < NOMI.length) { NOMI[i] = nomi[i] || NOMI[i]; }
             fatti++;
@@ -54524,7 +54549,7 @@ var LUPG = (function () {
         G.sg = G.spett ? -1 : ((sg >= 0) ? sg : 0);
         LUP_SG = G.sg;
         nf = nomiFoto(m, G.sg);
-        G.nomi = nf.nomi; G.foto = nf.foto;
+        G.nomi = nf.nomi; G.foto = nf.foto; G.lp = nf.lp;   /* COSMETICI_2011B */
         B = (mp.B | 0) || 100;
         k = (mp.k | 0) || 2;
         ecoInCentesimi(B);

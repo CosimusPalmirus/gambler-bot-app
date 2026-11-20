@@ -1297,6 +1297,7 @@ TV.giochi = TV.giochi || {};
       aTu: new TV.Pila(S.scena, TV.intarsioGeo(R * 0.52, R * 0.64), TV.smalto(0x1d8fe0), 44, false),
       aLui: new TV.Pila(S.scena, TV.intarsioGeo(R * 0.52, R * 0.64), TV.smalto(0xd0283c), 44, false),
       cor: new TV.Pila(S.scena, TV.coronaGeo(R * 0.3), TV.ottone(), 24) };
+    TV._cosPz = { tipo: 'dama', pile: pile };   // COSMETICI_2011B
     var segni = new TV.Segni(S.scena, TV.anelloTex(), 64, 3);
     var dischi = new TV.Segni(S.scena, TV.disco(), 64, 2);
     var macchie = new TV.Pila(S.scena, new T.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({ map: TV.disco(), color: 0x000000, transparent: true, opacity: S.ombre ? 0.32 : 0.5, depthWrite: false }), 40, false);
@@ -1689,6 +1690,7 @@ TV.giochi = TV.giochi || {};
     var bt = new T.CanvasTexture(b);
     return new T.MeshStandardMaterial({ map: TV.tex(c), bumpMap: bt, bumpScale: 2.4, roughness: 0.3, metalness: 0, envMapIntensity: 0.9 });
   }
+  TV.dadoMat = function (st) { return materiale(st); };   // COSMETICI_2011B
   function geoDado() {
     var g = new T.BoxGeometry(1, 1, 1, 4, 4, 4), pos = g.attributes.position, nor = g.attributes.normal, uv = g.attributes.uv;
     var r = 0.12, lim = H - r, v = new T.Vector3(), c = new T.Vector3(), per = pos.count / 6;
@@ -2028,6 +2030,7 @@ TV.giochi = TV.giochi || {};
         if (val) {
           st.ultimiDadi = { v: val, dbl: val[0] === val[1] && (ev ? ev.dbl : (raw.dice || []).length >= 3), mio: mio };
           var dove = { x: lato > 0 ? 2.75 : -2.75, z: 0, verso: lato, mio: mio, seme: (raw.rseq * 7919 + 13) >>> 0, veloce: !mio };
+          if (TV._cosDadi) { try { TV._cosDadi(dadi, raw.turn); } catch (eC) { } }   // COSMETICI_2011B
           if (primo) dadi.fermi(val, dove);
           else dadi.lancia(val, dove, function () { if (st.ultimiDadi && st.ultimiDadi.dbl) hud.grido(L('DOPPIO! 4 MOSSE', 'DOUBLES! 4 MOVES'), '#ffd76b', 1.1); });
         }
@@ -2355,6 +2358,7 @@ TV.giochi = TV.giochi || {};
     TV.pbr(MAT.b, 'ebano', { scala: 1, rugosita: 0.5, normale: 0.5 });
     var SCALA = 0.8;
     'PNBRQK'.split('').forEach(function (t) { ['w', 'b'].forEach(function (c) { pile[c + t] = new TV.Pila(S.scena, GEO[t], MAT[c], t === 'K' ? 2 : (t === 'P' ? 16 : 12)); }); });
+    TV._cosPz = { tipo: 'scacchi', pile: pile };   // COSMETICI_2011B
     // i pezzi Staunton del modello CC0 (pezzi.bin): quando arrivano sostituiscono quelli torniti in codice
     TV.pezziFile(function (F) {
       'PNBRQK'.split('').forEach(function (t) {
@@ -2711,6 +2715,67 @@ TV.giochi = TV.giochi || {};
   P.ferma = function () { if (raf) cancelAnimationFrame(raf); raf = 0; try { if (S) { S.fermaAnim(); S.R.dispose(); } } catch (e) { } S = null; G = null; };
   P.pronto = !!(window.THREE && window.TV && TV.Scena && TV.giochi);
   if (!P.pronto) P.errore = 'tavolo3d: moduli mancanti';
+})();
+/* ── COSMETICI_2011B (20/11/2026): i pezzi e i dadi sbloccati ──
+   TAV3D.cosmetici(o): o.pz = {tu, lui} (dama: il lato vicino «tu» e' il chiaro) o {w, b} (scacchi), indici del set pz
+   (1 marmo e onice, 2 argento e oro: il lato chiaro prende «chiari», lo scuro «scuri»); o.dd = {uid: indice} (backgammon:
+   i dadi di chi lancia, 1 oro 2 rubino 3 cristallo). Il padre (index) lo chiama solo quando cambia. Materiali nuovi (mai
+   le mappe PBR che arrivano dopo), al telefono passati da TV.fono come il resto della scena. */
+(function () {
+  'use strict';
+  var T = THREE, CACHE = {}, DD = {}, P = window.TAV3D;
+  function fono(m) { return TV.semplice() ? TV.fono(m) : m; }
+  function matPz(i, chiaro) {
+    var k = i + (chiaro ? 'c' : 's');
+    if (CACHE[k]) return CACHE[k];
+    var m, tex = i === 1 ? TV.tex(chiaro ? TV.marmo(256, 256, '#f1efe9', '#9a9a9a', 41) : TV.marmo(256, 256, '#151515', '#5a5a5a', 57)) : null;
+    if (TV.semplice()) {   // telefono: Phong diretto (TV.fono scurirebbe il metallo del 45 %: l'oro diventerebbe bronzo)
+      if (i === 1) m = new T.MeshPhongMaterial({ map: tex, shininess: chiaro ? 60 : 90, specular: 0x555555 });
+      else m = new T.MeshPhongMaterial({ color: chiaro ? 0xd9dde3 : 0xd4af37, shininess: 80, specular: chiaro ? 0xffffff : 0xfff0b0 });
+      return (CACHE[k] = m);
+    }
+    if (i === 1) m = new T.MeshStandardMaterial({ map: tex, roughness: chiaro ? 0.24 : 0.14, metalness: 0.02, envMapIntensity: 1.1 });
+    else m = new T.MeshStandardMaterial({ color: chiaro ? 0xe5e7eb : 0xd4af37, roughness: chiaro ? 0.2 : 0.26, metalness: 0.92, envMapIntensity: 1.25 });
+    return (CACHE[k] = m);
+  }
+  function vesti(pila, nome, i, chiaro) {
+    if (!pila || !pila.m) return;
+    if (!pila.m.userData.cs11orig) pila.m.userData.cs11orig = pila.m.material;
+    pila.m.material = i ? matPz(i, chiaro) : pila.m.userData.cs11orig;
+  }
+  var STD = { 1: { corpo: ['#ffe27a', '#b8860b'], pip: ['#0b0802', '#2a1d05'], pip1: null }, 2: { corpo: ['#ff5a74', '#6a0014'], pip: ['#ffd34d', '#fff1b0'], pip1: null },
+    3: { corpo: ['rgba(228,242,255,.96)', 'rgba(178,208,242,.82)'], pip: ['#1e3a8a', '#3b5bb8'], pip1: null } };   // piu' pieno del dadi3d: sul panno scuro il vetro sparirebbe
+  var MD = {};
+  function matDado(i) {
+    if (MD[i]) return MD[i];
+    var m = TV.dadoMat(STD[i]);
+    if (i === 1 && !TV.semplice()) { m.metalness = 0.78; m.roughness = 0.3; }
+    if (i === 3) { m.transparent = true; m.roughness = 0.06; m.depthWrite = false; }
+    return (MD[i] = m);
+  }
+  // chiamata da 45_backg.js prima di ogni lancio: i due dadi col set di chi lancia
+  TV._cosDadi = function (dadi, uid) {
+    TV._cosDadiUlt = { dadi: dadi, uid: uid };
+    var i = DD[String(uid)] | 0; if (!(i >= 1 && i <= 3)) i = 0;
+    if (dadi._cs11 === i) return; dadi._cs11 = i;
+    dadi.dadi.forEach(function (d) {
+      if (!d.m.userData.cs11orig) d.m.userData.cs11orig = d.m.material;
+      d.m.material = i ? fono(matDado(i).clone()) : d.m.userData.cs11orig;
+    });
+  };
+  P.cosmetici = function (o) {
+    try {
+      o = o || {};
+      if (o.dd) { DD = o.dd; var u = TV._cosDadiUlt; if (u) TV._cosDadi(u.dadi, u.uid); }   // il primo lancio arriva prima dei look
+      var c = TV._cosPz, z = o.pz;
+      if (c && z) {
+        if (c.tipo === 'dama') { vesti(c.pile.tu, 'tu', z.tu | 0, true); vesti(c.pile.lui, 'lui', z.lui | 0, false); }
+        else if (c.tipo === 'scacchi') 'PNBRQK'.split('').forEach(function (t) { vesti(c.pile['w' + t], 'w', z.w | 0, true); vesti(c.pile['b' + t], 'b', z.b | 0, false); });
+      }
+      TV.sporca();
+      return true;
+    } catch (e) { return false; }
+  };
 })();
 </script>
 </body>

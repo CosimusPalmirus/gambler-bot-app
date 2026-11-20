@@ -473,6 +473,7 @@ function fvImg(s){
       var you=(m.spec||m.you==null)?null:String(m.you);
       try{var pr=m.profiles||{},sq=m.map.squadre||{},pid;
         for(pid in sq){try{sq[pid].foto=(sq[pid]&&sq[pid].bot)?'':fvFoto(pid,pr[pid]);}catch(e){}/* FOTO_VERE_1711 */if(String(pid).indexOf('bot:')===0)continue;var n=pr[pid]&&pr[pid].name;if(n&&String(n).indexOf('bot:')!==0){n=String(n).replace(/[\u0000-\u001f<>&"]/g,'').trim().slice(0,22);if(n)sq[pid].nome=n;}}}catch(e){}
+      /* COSMETICI_2011: la scia del colpo (slot sb) di ognuno dal suo profilo, la mia dal mio look */try{var cosMio=0;try{cosMio=window.parent.tvlLook().sb|0;}catch(e){}var cq,cv;for(cq in sq){if(!sq[cq])continue;cv=(you!=null&&String(cq)===you)?cosMio:(String(cq).indexOf('bot:')===0?0:((((pr[cq]||{}).tvl)||{}).sb|0));sq[cq].tvlSb=(cv>=1&&cv<=2)?cv:0;}}catch(e){}
       window.__SBRT_PONTE.start++;finita=false;
       return {t:'start',game:'sbanca',you:you,map:m.map,tick_rate:m.tick_rate||20,modo:'rt',seed:0};
     }
@@ -1076,8 +1077,28 @@ function animaEvento(e){
     suono('ko');}
   else if(e.k==='end'){if(S)for(const u of S.U){const i=MAP.unita.find(q=>q.id===u[0]);if(i&&i.pid===e.winner&&(u[4]&1)){for(let k=0;k<30;k++){const aa=-Math.PI/2+(Math.random()-.5)*2.2,sp=200+Math.random()*300;parts.push({x:u[1],y:u[2],vx:Math.cos(aa)*sp,vy:Math.sin(aa)*sp,c:['#ff6969','#8f86f2','#3fd0c9','#f5c84c','#6edc96'][k%5],s:2.8,t:0,life:2.4,k:'c',rot:Math.random()*6});}}}}
 }
+// COSMETICI_2011: la scia del colpo «tavolo» (sb) di chi sta tirando: 1 monete d'oro, 2 fiamme. Chi ha cosa: MAP.squadre[pid].tvlSb
+// (scritto dal ponte dallo start del server: profilo di ognuno, il mio dal mio look). Fuori dal server vero: ?scia=1|2 per le prove.
+function sciaSkin(){try{if(Q.get('rt')!=='1'&&Q.get('scia'))return Math.max(0,Math.min(2,+Q.get('scia')|0));const q=S&&S.turno!=null&&MAP&&MAP.squadre&&MAP.squadre[S.turno];return q?(q.tvlSb|0):0;}catch(e){return 0;}}
+function sciaSkinDisegna(s,k){const T=performance.now()/1000,n=s.length;if(n<2)return;const h=s[n-1];
+  if(k===1){ // monete d'oro che girano lungo la traiettoria e ogni tanto ne cade una
+    for(let i=0;i<n-1;i++){const q=i/n,r=2+q*4,w=Math.abs(Math.cos(T*9+i*.8));ctx.globalAlpha=.25+q*.75;
+      ctx.fillStyle='#8a6400';ctx.beginPath();ctx.ellipse(s[i][0],s[i][1]+1,r*Math.max(.18,w),r,0,0,6.3);ctx.fill();
+      ctx.fillStyle='#facc15';ctx.beginPath();ctx.ellipse(s[i][0],s[i][1],r*Math.max(.15,w)*.9,r*.9,0,0,6.3);ctx.fill();
+      if(w>.6){ctx.fillStyle='#fff3b0';ctx.beginPath();ctx.ellipse(s[i][0]-r*.25*w,s[i][1]-r*.3,r*.22*w,r*.3,0,0,6.3);ctx.fill();}}
+    ctx.globalAlpha=1;
+    if(Math.random()<.35&&parts.length<400)parts.push({x:h[0],y:h[1],vx:(Math.random()-.5)*50,vy:-20-Math.random()*40,c:'#facc15',s:2.2,t:0,life:.7,k:'s'});
+    return;}
+  // fiamme: coda di fuoco che si allarga e sfuma, cuore giallo
+  ctx.save();ctx.globalCompositeOperation='lighter';
+  for(let i=0;i<n-1;i++){const q=i/n,r=3+q*8+Math.sin(T*20+i)*1.2,x=s[i][0]+Math.sin(T*15+i*1.7)*q*1.5,y=s[i][1]-(1-q)*3;
+    const g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,'rgba(253,224,71,'+(.85*q+.1)+')');g.addColorStop(.45,'rgba(249,115,22,'+(.7*q)+')');g.addColorStop(1,'rgba(120,20,0,0)');
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,6.3);ctx.fill();}
+  ctx.restore();
+  if(Math.random()<.5&&parts.length<400)parts.push({x:h[0],y:h[1],vx:(Math.random()-.5)*40,vy:-30-Math.random()*40,c:Math.random()<.5?'#fde047':'#f97316',s:1.8,t:0,life:.4,k:'s'});
+}
 function scia(p){ // scia dietro ogni proiettile
-  const s=SCIE[p[0]]||(SCIE[p[0]]=[]);s.push([p[2],p[3]]);if(s.length>10)s.shift();
+  const s=SCIE[p[0]]||(SCIE[p[0]]=[]);s.push([p[2],p[3]]);const cSk=sciaSkin();if(s.length>(cSk?16:10))s.shift();if(cSk){sciaSkinDisegna(s,cSk);return;}
   for(let i=0;i<s.length-1;i++){const q=i/s.length;ctx.fillStyle='rgba(255,240,210,'+(q*.35)+')';ctx.beginPath();ctx.arc(s[i][0],s[i][1],1+q*3,0,6.3);ctx.fill();}}
 let avatar={};function avatarDi(sq){if(avatar[sq])return avatar[sq];const f=ATL.squadre[sq].idle,c=document.createElement('canvas');const hh=Math.round(f.h*.62);c.width=c.height=64;const x=c.getContext('2d');const s=64/Math.max(f.w,hh);x.drawImage(IMG['sq_'+sq],f.x,f.y,f.w,hh,(64-f.w*s)/2,(64-hh*s)/2+4,f.w*s,hh*s);return avatar[sq]=c.toDataURL();}
 
