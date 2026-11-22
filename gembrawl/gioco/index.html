@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b0614">
+<title>Gem Brawl</title>
+<link rel="icon" href="data:,">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preload" href="ui/russo_one.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="ui/ui.css?v=fin2311b">
+<link rel="stylesheet" href="ui/abilita.css?v=fin2311b"><!-- 21/11: sezione ABILITÀ nella scheda eroe -->
+<link rel="stylesheet" href="ui/lobby_video.css?v=fin2311b"><!-- lobby video, solo con ?lobbyv=1 -->
+<link rel="stylesheet" href="ui/spettatore.css?v=fin2311b"><!-- 23/11: spettatore in partita -->
+</head>
+<body>
+<canvas id="gl" style="position:fixed;left:0;top:0;width:100vw;height:100vh;display:block"></canvas>
+<canvas id="cv" style="position:fixed;left:0;top:0;width:100vw;height:100vh;display:block"></canvas>
+<div id="sa"></div>
+
+<!-- ============ TITOLO (si tocca e si entra) ============ -->
+<section id="s-titolo" class="schermo" data-musica="menu">
+  <div class="tit-quadro"></div>
+  <div class="tit-velo"></div>
+  <div class="tit-lay">
+    <div class="tit-logo"><img class="logo-img" alt="Gem Brawl" draggable="false"><img class="logo-img logo-neon" alt="" draggable="false"></div>
+    <button class="tit-tocca" id="t-tocca" data-nav><span data-t="tocca_gioca">Tocca per giocare</span></button>
+    <p class="tit-piede" data-t="home_sotto">Contro i bot · nessuna puntata</p>
+  </div>
+</section>
+
+<!-- ============ LOBBY (giro 8: scena viva) ============ -->
+<section id="s-home" class="schermo" data-musica="menu">
+  <div class="lob-sfondo"></div>
+  <div class="lob-fasci"><i></i><i></i><i></i></div>
+  <div class="lob-polvere" id="h-polvere"></div>
+  <div class="lob-bagliore"></div>
+  <button class="lob-eroe" id="h-eroe" aria-label="Eroe">
+    <div class="pedana"></div>
+    <div class="vetrina" id="h-vetrina"></div>
+  </button>
+  <div class="targa" id="h-targa"><span class="cl-ico" id="h-cl"></span><b id="h-nome"></b><span class="ruolo" id="h-ruolo"></span><span class="t-trofei"><img src="ui/ico_trofeo.webp" alt=""><em id="h-trofei-eroe">0</em></span></div>
+  <div class="lob-lay">
+    <header class="lob-testa">
+      <button class="profilo" id="h-profilo" data-nav>
+        <span class="pf-avatar"><img id="h-eroi-img" alt="" draggable="false"></span>
+        <span class="pf-txt"><b id="h-nome-gioc">GIOCATORE</b>
+          <span class="pf-liv"><span class="stella-liv"><img src="ui/ico_stella.webp" alt=""><em id="h-liv">1</em></span><span class="liv-barra"><i id="h-xp"></i></span><small id="h-xp-t"></small></span></span>
+      </button>
+      <div class="risorse">
+        <div class="ris"><img src="ui/ico_trofeo.webp" alt=""><b id="h-trofei">0</b></div>
+        <div class="ris"><img src="ui/fiche_gb.webp" alt=""><b id="h-fiche">0</b></div>
+      </div>
+    </header>
+    <img class="lob-logo logo-img" alt="Gem Brawl" draggable="false">
+    <nav class="lob-lato">
+      <button class="icona3d" id="h-eroi" data-nav style="--k:#ff2bd6"><img src="ui/ico_eroi.webp?v=c2211" alt=""><span data-t="eroi">Eroi</span></button>
+      <button class="icona3d" id="h-modi2" data-nav style="--k:#1ad7ff"><img src="ui/ico_modi.webp" alt=""><span data-t="modalita_c">Modi</span></button>
+      <button class="icona3d" id="h-opz" data-nav style="--k:#ffd23b"><img src="ui/ico_opz.webp" alt=""><span data-t="opzioni">Opzioni</span></button>
+    </nav>
+    <div class="lob-piede">
+      <button class="sel-modo" id="h-modi" data-nav><span class="sm-arte"><img id="h-modo-img" alt="" draggable="false"></span><span class="sm-txt"><small id="h-modo-tag"></small><b id="h-modo-nome"></b><em id="h-gioca-sub"></em></span><span class="sm-freccia">›</span></button>
+      <button class="gioca grande" id="h-gioca" data-nav><span class="luce"></span><span class="lampo"></span><span class="g-l" data-t="gioca">Gioca</span></button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MODALITÀ ============ -->
+<section id="s-modi" class="schermo" data-musica="menu" data-indietro="s-home">
+  <div class="testa"><button class="indietro" data-va="s-home" data-nav aria-label="Indietro"><svg viewBox="0 0 24 24"><path d="M15 4 7 12l8 8" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><h2 data-t="modalita">Modalità</h2></div>
+  <div class="lista" id="m-lista"></div>
+  <div class="livelli-box"><span class="etich" data-t="bot_liv">Bravura dei bot</span><div class="livelli" id="m-liv"></div></div>
+</section>
+
+<!-- ============ EROI: galleria (giro 8) ============ -->
+<section id="s-eroi" class="schermo" data-musica="menu" data-indietro="s-home">
+  <div class="testa"><button class="indietro" data-va="s-home" data-nav aria-label="Indietro"><svg viewBox="0 0 24 24"><path d="M15 4 7 12l8 8" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><h2 data-t="eroi">Eroi</h2><span class="conta" id="e-conta"></span></div>
+  <div class="filtri" id="e-filtri"></div>
+  <div id="griglia"></div>
+</section>
+
+<!-- ============ SCHEDA DELL'EROE (giro 8: 3D di lato, barre, abilità) ============ -->
+<section id="s-scheda" class="schermo" data-musica="menu" data-indietro="s-eroi">
+  <div class="testa"><button class="indietro" data-va="s-eroi" data-nav aria-label="Indietro"><svg viewBox="0 0 24 24"><path d="M15 4 7 12l8 8" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><h2 id="d-nome"></h2><button class="frecciasc" id="d-prec" data-nav aria-label="Prec">‹</button><button class="frecciasc" id="d-succ" data-nav aria-label="Succ">›</button></div>
+  <div id="scheda">
+    <div class="sc-vetrina"><div class="sc-luce"></div><div class="pedana"></div><div class="vetrina" id="e-vetrina"></div><canvas id="e-vivo"></canvas>
+      <span class="sc-ruolo ruolo" id="d-ruolo"></span><div class="sc-rango" id="d-rango"></div></div>
+    <div class="sc-info">
+      <div class="sc-sopra" id="d-sopra"></div>
+      <div class="sc-stat" id="d-stat"></div>
+      <div class="sc-kit" id="d-kit"></div>
+      <div class="sc-motto" id="d-motto"></div>
+    </div>
+  </div>
+  <div class="piede"><button class="gioca piccolo" id="e-gioca" data-nav><span class="luce"></span><span class="lampo"></span><span class="g-l" data-t="scegli_btn">Scegli</span></button></div>
+</section>
+
+<!-- ============ VERSUS ============ -->
+<section id="s-carica" class="schermo">
+  <div class="vs-banda vs-blu"><div class="vs-squadra" id="c-blu"></div></div>
+  <div class="vs-banda vs-rossa"><div class="vs-squadra" id="c-rossi"></div></div>
+  <div class="vs-centro"><img class="vs-fiche" src="ui/fiche_gb.webp" alt="" draggable="false"><div class="vs-scritta">VS</div></div>
+  <div class="vs-info"><div class="vs-modo" id="c-modo"></div><div class="vs-mappa" id="c-mappa"></div><div class="vs-regola" id="c-regola"></div></div>
+</section>
+
+<!-- ============ FINE PARTITA ============ -->
+<section id="s-fine" class="schermo" data-indietro="s-home">
+  <div class="fine-raggi"></div>
+  <div class="fine-lay">
+    <h1 id="f-esito"></h1>
+    <div id="f-motivo"></div>
+    <div class="fine-premi" id="f-premi">
+      <div class="fp-trofei"><svg viewBox="0 0 24 24"><path d="M6 3h12v3h3v2a5 5 0 0 1-4.6 5A6 6 0 0 1 13 16.9V19h3v2H8v-2h3v-2.1A6 6 0 0 1 7.6 13 5 5 0 0 1 3 8V6h3V3Zm0 5H5a3 3 0 0 0 1.3 2.4A8 8 0 0 1 6 8Zm12 0a8 8 0 0 1-.3 2.4A3 3 0 0 0 19 8h-1Z" fill="currentColor"/></svg><b id="f-trofei">+0</b><small id="f-trofei-eroe"></small></div>
+      <div class="fp-xp"><span class="liv-stella" id="f-liv">1</span><span class="liv-barra"><i id="f-xp"></i></span><small id="f-xp-t"></small></div>
+    </div>
+    <div class="fine-mvp">
+      <div class="mvp-palco"><div class="pedana"></div><div class="vetrina" id="f-vetrina"></div><span class="mvp-stella">MVP</span></div>
+      <div class="mvp-info"><div class="mvp-nome" id="f-mvp-nome"></div><div class="mvp-dati" id="f-mvp-dati"></div></div>
+    </div>
+    <div class="fine-squadre" id="f-squadre"></div>
+    <div class="fine-tasti"><button class="gioca piccolo" id="f-ancora" data-nav><span class="luce"></span><span class="lampo"></span><span class="g-l" data-t="ancora">Ancora</span></button>
+      <button class="t3 corto" id="f-eroe" data-nav style="--k:#ff2bd6"><span class="luce"></span><span data-t="cambia">Cambia eroe</span></button>
+      <button class="t3 corto" id="f-home" data-nav style="--k:#1ad7ff"><span class="luce"></span><span data-t="lobby">Lobby</span></button></div>
+  </div>
+</section>
+
+<!-- ============ OPZIONI (foglio sopra a tutto) ============ -->
+<div id="opzioni" class="foglio" data-indietro="chiudi">
+  <div class="foglio-box">
+    <h2 data-t="opzioni">Opzioni</h2>
+    <div class="opz-righe">
+      <button class="opz" id="o-sfx" data-nav><span data-t="effetti">Effetti</span><i></i></button>
+      <button class="opz" id="o-mus" data-nav><span data-t="musica">Musica</span><i></i></button>
+      <button class="opz" id="o-vib" data-nav><span data-t="vibrazione">Vibrazione</span><i></i></button>
+      <button class="opz" id="o-lang" data-nav><span data-t="lingua">Lingua</span><b id="o-lang-v">IT</b></button>
+    </div>
+    <p class="opz-nota" data-t="comandi_nota"></p>
+    <button class="t3 corto" id="o-chiudi" data-nav style="--k:#ffd23b"><span class="luce"></span><span data-t="chiudi">Chiudi</span></button>
+  </div>
+</div>
+
+<!-- ============ PAUSA ============ -->
+<div id="pausa" class="foglio" data-indietro="riprendi">
+  <div class="foglio-box">
+    <h2 data-t="pausa">Pausa</h2>
+    <button class="gioca piccolo" id="p-riprendi" data-nav><span class="luce"></span><span class="lampo"></span><span class="g-l" data-t="riprendi">Riprendi</span></button>
+    <div class="opz-righe due">
+      <button class="opz" id="p-sfx" data-nav><span data-t="effetti">Effetti</span><i></i></button>
+      <button class="opz" id="p-mus" data-nav><span data-t="musica">Musica</span><i></i></button>
+      <button class="opz" id="p-vib" data-nav><span data-t="vibrazione">Vibrazione</span><i></i></button>
+    </div>
+    <button class="t3 corto" id="p-esci" data-nav style="--k:#ff4d5e"><span class="luce"></span><span data-t="esci">Esci dalla partita</span></button>
+  </div>
+</div>
+
+<!-- sipario fra le schermate: tre bande (magenta, oro, buio) con la fiche che gira -->
+<div id="sip" aria-hidden="true"><i class="b1"></i><i class="b2"></i><i class="b3"></i><img class="f" src="ui/fiche_gb.webp" alt="" draggable="false"></div>
+<div id="perf"></div>
+<div id="errore"></div>
+
+<!-- mondo in 3D (Three.js r170 ridotto): espone R3 e il cast window.GBR (ritratti e anteprime dai modelli 3D) -->
+<script>/* 21/11 notte: pagina di prova con le ultime cose di base (lobby con le clip); ?lobbyv=0 = lobby di prima */
+(function () { var q = new URLSearchParams(location.search), cambia = false; if (!q.has('lobbyv')) { q.set('lobbyv', '1'); cambia = true; }
+  /* 23/11: lingua automatica se l'URL non la dice: quella di Telegram, se no quella del telefono; italiano -> it, tutto il resto -> en */
+  if (!q.has('lang')) { var lc = ''; try { var tg = window.Telegram && Telegram.WebApp && Telegram.WebApp.initDataUnsafe && Telegram.WebApp.initDataUnsafe.user; lc = (tg && tg.language_code) || navigator.language || 'it'; } catch (e) { lc = 'it'; } if (String(lc).toLowerCase().indexOf('it') !== 0) { q.set('lang', 'en'); cambia = true; } }
+  if (cambia) history.replaceState(null, '', location.pathname + '?' + q.toString() + location.hash); })();</script>
+<script src="render3d.js?v=fin2311b"></script>
+<script src="taratura.js?v=fin2311b"></script>
+<script src="eroi.js?v=fin2311b"></script>
+<script src="mappe.js?v=fin2311b"></script>
+<script src="motore.js?v=fin2311b"></script>
+<script src="ia.js?v=fin2311b"></script>
+<script src="replay.js?v=fin2311b"></script><!-- 23/11: registratore/riproduttore (seme + input) -->
+<script src="audio.js?v=fin2311b"></script>
+<script src="disegno.js?v=fin2311b"></script>
+<script src="ui/cast.js?v=fin2311b"></script>
+<script src="ui/clip_alfa.js?v=fin2311b"></script><!-- clip Seedance nei menu (17/11) -->
+<script src="ui/abilita.js?v=fin2311b"></script><!-- 21/11: sezione ABILITÀ nella scheda eroe (mini video in abilita_video/) -->
+<script src="gioco.js?v=fin2311c"></script>
+<script src="spettatore.js?v=fin2311b"></script><!-- 23/11: guarda gli altri da KO/eliminato, ?replay= -->
+<script src="lobby_video.js?v=fin2311c"></script>
+</body>
+</html>
