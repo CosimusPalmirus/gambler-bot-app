@@ -211,7 +211,7 @@
     if (fatto > 0 && da && da !== h && da.vivo && da.d.cuoreRegale) { var rg = Math.min(da.vmax - da.vita, fatto * da.d.cuoreRegale); if (rg > 0) { da.vita += rg; da.cure += rg; ev(st, 'cura', da.x, da.y, da.i, Math.round(rg), 1, 0); } }   // 22/11 Regina: cuore regale
   }
 
-  function intoccabile(h) { return h.immT > 0; }
+  function intoccabile(h) { return h.immT > 0 || h.salTipo === 'balzoCav'; }   // 23/11: il Cavaliere in volo (balzo del gadget) non si tocca
 
   // il punto (o la sua provenienza) sta nel cono davanti allo scudo alzato
   function davantiScudo(t, ox, oy, x, y) {
@@ -1282,6 +1282,13 @@
       case 'grazia_reale': h.graziaN = 1; ev(st, 'grazia', h.x, h.y, h.i, 0, 0, 0); break;   // 22/11 Regina: il prossimo cuore torna
       case 'scatto_rombo': {   // 22/11 Fante: scatto dove miri (scoppia i rombi rossi); da Cavaliere spallata (meccanica della carica)
         guarda(h, ang);
+        if (h.cavT > 0 && o.balzo) {   // 23/11 (proprietario): da Cavaliere BALZO mirato su un punto, sopra muri e casse, e schianto ad area all'atterraggio
+          var bz = o.balzo, bb = bersaglio(h, gx, gy, bz.gitt, st._b), qb = liberaVicina(st, clampX(st, bb.x), clampY(st, bb.y), st._tmp);
+          guarda(h, bb.a);
+          h.salT = h.salTT = bz.T; h.salSx = h.x; h.salSy = h.y; h.salTx = qb.x; h.salTy = qb.y; h.salTipo = 'balzoCav'; h.dashD = 0; h.kx = h.ky = 0;
+          ev(st, 'balzoCav', h.x, h.y, h.i, qb.x, qb.y, bz.T);
+          break;
+        }
         if (h.cavT > 0) { var sp2 = o.spalla; h.dashD = sp2.dist; h.dvx = Math.cos(ang) * 12; h.dvy = Math.sin(ang) * 12; h.dmask = 0; h.dashTipo = 'oplita'; h.oplT = sp2.dist / 12 + 0.1; h.dashDan = sp2.danno; h.dashSp = sp2.spinta; h.dashStun = sp2.stun; h.caricaSup = 0; ev(st, 'spallata', h.x, h.y, h.i, ang, sp2.dist, 0); break; }
         var vs2 = o.dist / o.T; h.dashD = o.dist; h.dvx = Math.cos(ang) * vs2; h.dvy = Math.sin(ang) * vs2; h.dmask = 0; h.dashTipo = 'rombo'; h.caricaSup = 0;
         ev(st, 'scattoRombo', h.x, h.y, h.i, ang, o.dist, 0);
@@ -1517,7 +1524,7 @@
       // --- comandi: attacco, super, gadget ---
       var libero = h.stun <= 0 && h.salT <= 0 && h.dashD <= 0 && h.tirT <= 0 && h.pauraT <= 0 && h.immT <= 0 && h.prepT <= 0 && h.ventN <= 0 && h.cecT <= 0;
       if (libero && inp.sup && h.sup >= 1) avviaPrep(st, h, 1, inp.sx, inp.sy, h.d.sup.prep || 0.25);
-      else if (libero && inp.gad && h.gadUsi > 0 && h.gadCd <= 0) avviaPrep(st, h, 2, inp.gx, inp.gy, h.d.gad.prep || 0.12);
+      else if (libero && inp.gad && h.gadUsi > 0 && h.gadCd <= 0) avviaPrep(st, h, 2, inp.gx, inp.gy, (h.cavT > 0 && h.d.gad.balzo ? h.d.gad.balzo.prep : h.d.gad.prep) || 0.12);   // 23/11: da Cavaliere l'accovacciata del balzo
       else if (libero && inp.att && h.ammo >= 1 && h.cd <= 0 && h.seqN === 0 && h.muroT <= 0) attacca(st, h, inp.ax, inp.ay);
       inp.att = 0; inp.sup = 0; inp.gad = 0;
       if (h.seqN > 0) aggiornaSequenza(st, h);
@@ -1722,6 +1729,10 @@
         if (dx * dx + dy * dy > (g.area + R * 0.6) * (g.area + R * 0.6)) continue;
         if (danneggia(st, h, t, g.danno * h.k, F_ZONA, t.x, t.y) && t.vivo) { t.sangueT = 2; t.sangueDps = h.d.att.sangue * h.k; t.sangueDa = h.i; var d = Math.sqrt(dx * dx + dy * dy) || 1; spingi(t, dx / d, dy / d, 0.5); }
       }
+    } else if (tipo === 'balzoCav') {   // 23/11 schianto del Cavaliere: area piccola, danno, spinta forte verso l'esterno, breve stordimento
+      var bz = h.d.gad.balzo;
+      colpoArea(st, h, h.sq, h.x, h.y, bz.area, bz.danno * h.k, F_ZONA, bz.spinta, bz.stun, 0, 0);
+      ev(st, 'schiantoCav', h.x, h.y, h.i, bz.area, h.aim, 0);
     } else if (tipo === 'lanciato' || tipo === 'sbattuto') {
       var src = h.salDa >= 0 ? st.eroi[h.salDa] : null, o = src ? src.d.sup : null;
       if (h.stun < (o ? o.stun : 0.6)) h.stun = o ? o.stun : 0.6;

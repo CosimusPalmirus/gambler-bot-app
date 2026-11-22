@@ -304,7 +304,14 @@
     supporto: { col: '#3bff8b', dist: 0, ico: '<svg viewBox="0 0 24 24"><path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6Z" fill="currentColor"/></svg>' }
   };
   var NOME_GIOC = T('giocatore');
-  try { var tu = window.Telegram && Telegram.WebApp && Telegram.WebApp.initDataUnsafe && Telegram.WebApp.initDataUnsafe.user; if (tu && tu.first_name) NOME_GIOC = tu.first_name.toUpperCase().slice(0, 14); } catch (e) { }
+  // 23/11: nome del giocatore da Telegram: dalla pagina stessa, dalla mini app che la contiene (iframe, stessa origine), dai dati nell'indirizzo, o da ?nome=
+  (function () {
+    function daTg(w) { try { var u = w && w.Telegram && w.Telegram.WebApp && w.Telegram.WebApp.initDataUnsafe && w.Telegram.WebApp.initDataUnsafe.user; return u && u.first_name; } catch (e) { return null; } }
+    function daHash(h) { try { var m = /tgWebAppData=([^&]+)/.exec(h || ''); if (!m) return null; var d = new URLSearchParams(decodeURIComponent(m[1])); var u = JSON.parse(d.get('user') || 'null'); return u && u.first_name; } catch (e) { return null; } }
+    var n = Q.get('nome') || daTg(window) || daHash(location.hash);
+    if (!n) { try { if (window.parent && window.parent !== window) n = daTg(window.parent) || daHash(window.parent.location.hash); } catch (e) { } }
+    if (n) NOME_GIOC = String(n).toUpperCase().slice(0, 14);
+  })();
   // polvere d'oro e scintille che salgono nella lobby (solo CSS, 18 puntini)
   function polvere() {
     var b = $('h-polvere'); if (b.childNodes.length) return;
@@ -901,7 +908,7 @@
   var MIRA = { forma: '', ang: 0, gitt: 0, larg: 0, ango: 0, area: 0, dist: 0, rimb: 0, multi: 0, col: '#fff', alpha: 0.5, passaMuri: false };
   // forma della mira per ognuna delle 30 abilità (sup: false = attacco, true = super, 'gad' = gadget)
   function formaMira(h, sup, vx, vy, forte) {
-    var d = h.d, o = sup === 'gad' ? d.gad : sup ? d.sup : d.att, l = Math.sqrt(vx * vx + vy * vy), m = MIRA;
+    var d = h.d, o = sup === 'gad' ? (h.cavT > 0 && d.gad.balzo ? d.gad.balzo : d.gad) : sup ? d.sup : d.att, l = Math.sqrt(vx * vx + vy * vy), m = MIRA;   // 23/11: da Cavaliere la mira del gadget è il punto d'arrivo del balzo
     m.ang = l > 0.05 ? Math.atan2(vy, vx) : h.aim;
     var frac = l > 0.05 ? Math.min(1, l) : 0.75;
     m.multi = 0; m.rimb = 0; m.passaMuri = false; m.ango = 0; m.larg = 0.3; m.area = 0;
@@ -1017,7 +1024,7 @@
         }
         case 'affondo': D.effetto('lancia', e.x, e.y, e.b, e.c, 0, 0, 0.22, '#fff6c8'); break;
         case 'prep': if (window.R3) R3.runa(e.a, e.c); if (e.a === 0 || suSchermo(e.x, e.y)) S.carica(e.b === 1, e.c); break;
-        case 'gadget': if (e.a === 0) { S.tasto(); var gadNome = st.eroi[e.a].d.gad; if (st.eroi[e.a].cavT > 0 && gadNome.spalla && gadNome.spalla.nome_it) gadNome = gadNome.spalla;   /* 23/11: da Cavaliere il gadget è la Spallata */ banner((LANG === 'en' ? gadNome.nome_en : gadNome.nome_it).toUpperCase(), '', '#5cff8a', 0.8, 0.7); } break;
+        case 'gadget': if (e.a === 0) { S.tasto(); var gadNome = st.eroi[e.a].d.gad; if (st.eroi[e.a].cavT > 0 && gadNome.balzo && gadNome.balzo.nome_it) gadNome = gadNome.balzo;   /* 23/11: da Cavaliere il gadget è il Balzo del Cavaliere */ banner((LANG === 'en' ? gadNome.nome_en : gadNome.nome_it).toUpperCase(), '', '#5cff8a', 0.8, 0.7); } break;
         case 'slot': {
           var SIMB = ['🍒', '🔔', 'BAR', '7'], s0 = e.b & 3, s1 = (e.b >> 2) & 3, s2 = (e.b >> 4) & 3;
           D.numero(e.x, e.y - 0.4, SIMB[s0] + ' ' + SIMB[s1] + ' ' + SIMB[s2], '#ffd23f', 0);
@@ -1199,7 +1206,7 @@
         case 'pala': case 'pizzaGigante': case 'pizzeScudo': case 'pizzaPara': case 'ondaBassi': case 'dropOnda': case 'cassaPosata': case 'raggioCristallo': case 'cecchinoMira':
         case 'scudoSu': case 'scudoGiu':
         case 'stoccata': case 'puntaAsso': case 'assoVia': case 'marcato': case 'assoScatto': case 'trafitto': case 'ritirata': case 'cuoreVia': case 'cuoreCura': case 'grazia':   // 22/11 carte
-        case 'affondoRombo': case 'romboRosso': case 'romboScoppia': case 'scattoRombo': case 'pioggiaQuadri': case 'corazza': case 'corazzaEsplode': case 'mazzata': case 'caricaCavaliere': case 'spallata': case 'boomerang': case 'cuoreCade':
+        case 'affondoRombo': case 'romboRosso': case 'romboScoppia': case 'scattoRombo': case 'pioggiaQuadri': case 'corazza': case 'corazzaEsplode': case 'mazzata': case 'caricaCavaliere': case 'spallata': case 'boomerang': case 'cuoreCade': case 'balzoCav': case 'schiantoCav':   // 23/11 balzo del Cavaliere
         case 'sigillo': case 'taroccoVia': case 'scambio': case 'protetto': case 'parataVia': case 'tagliaVia': case 'portiere': {
           var mioFx = e.a === 0;
           if (mioFx || suSchermo(e.x, e.y)) S.fx(e.tipo === 'boomerang' && st.eroi[e.a] && st.eroi[e.a].id === 'regina' ? 'cuoreTorna' : e.tipo, e, mioFx);   // 22/11 notte: il cuore della Regina che torna ha il suo suono
@@ -1207,6 +1214,7 @@
           if (e.tipo === 'parata' && e.a === 0) vibra(20);
           if ((e.tipo === 'corazzaEsplode' || e.tipo === 'trafitto' || e.tipo === 'caricaCavaliere') && suSchermo(e.x, e.y)) D.scuoti(e.tipo === 'caricaCavaliere' ? 0.15 : 0.3);   // 22/11 carte
           if (e.tipo === 'corazza' && e.a === 0) { vibra(35); D.scuoti(0.2); }
+          if (e.tipo === 'schiantoCav' && suSchermo(e.x, e.y)) { D.scuoti(e.a === 0 ? 0.28 : 0.18); if (e.a === 0) vibra(30); }   // 23/11 schianto del Cavaliere: piccola scossa
           break;
         }
         case 'cuboPreso': { var chi = st.eroi[e.a]; if (e.a === 0 || suSchermo(e.x, e.y)) S.fx('cuboPreso', e, e.a === 0); if (e.a === 0) { P.popCubo = 1; D.numero(e.x, e.y - 0.3, '+10%', '#3bff8b', 1); vibra(15); } break; }

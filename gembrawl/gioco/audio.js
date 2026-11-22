@@ -683,6 +683,8 @@
         case 'mazzata': fatto = camp(fam('fan_mazzata', 2), k, 0.6); break;
         case 'caricaCavaliere': fatto = camp('fan_carica', k, 0.5); break;   // la battuta del Cavaliere la fa superGrido (gioco.js passa 'cavaliere')
         case 'spallata': fatto = camp('fan_spallata', k, 0.6); break;
+        case 'balzoCav': fatto = camp('fan_scatto', k * 0.8, 0.4); camp('aga_scudo_su', k * 0.5, 0.6); break;   // 23/11 balzo del Cavaliere: stacco + scudo che sale
+        case 'schiantoCav': fatto = camp('butt_atterra', k, 0.4); camp('fan_mazzata_2', k * 0.75, 0.5, 0.01); camp('fan_travolto', k * 0.5, 0.6, 0.03); break;   // schianto pesante: tonfo + metallo + crepa
         case 'travolto': fatto = camp('fan_travolto', k, 0.6); break;   // 23/11: chi viene travolto dalla carica del Cavaliere (gioco.js, evento impatto)
         // VEGGENTE
         case 'raggioCristallo': fatto = camp(fam('veg_raggio', 2), k, 0.8); break;

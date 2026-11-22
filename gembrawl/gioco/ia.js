@@ -594,7 +594,13 @@
       case 'ritirata': return T && ((tdist < 1.8 && MISCHIA[T.d.att.tipo]) || (hp < 0.35 && tdist < 4) || (h.ammo < 1 && tdist < 3)) ? verso(1) : false;   // 22/11 Asso: salta via (lontano dalla mira)
       case 'grazia_reale': return T && tdist < 7.5 && h.ammo >= 1 && !h.graziaN ? qui() : false;   // 22/11 Regina
       case 'scatto_rombo':   // 22/11 Fante: scoppia il rombo rosso; da Cavaliere spallata; se no per accorciare
-        if (h.cavT > 0) return T && tdist < 2.6 ? verso(1) : false;
+        if (h.cavT > 0 && o.balzo) {   // 23/11 Cavaliere: BALZO con schianto. Addosso a chi e' vicino (anche oltre un muro), o via quando e' ferito e lo pressano
+          var bz = o.balzo;
+          if (!T) return false;
+          if (hp < 0.3 && tdist < 2.8) { inp.gad = 1; inp.gx = -tdx(T, h) / (tdist || 1); inp.gy = -tdy(T, h) / (tdist || 1); return true; }
+          if (tdist < bz.gitt + 0.2 && (tdist > 1.6 || T.stun <= 0 && tdist < 1.2) && (hp > 0.3 || !M.lineaLibera(st, h.x, h.y, T.x, T.y))) return verso(Math.min(1, tdist / bz.gitt));
+          return false;
+        }
         if (T && T.romboT > 0 && T.romboDa === h.i && tdist < o.dist + 0.3) return verso(1);
         return T && tdist > 3 && tdist < o.dist + 1.8 && hp > 0.4 ? verso(1) : false;
       case 'balzo_predatore': return T && tdist > 1.8 && tdist < o.gitt + 0.3 && hp > 0.3 ? verso(Math.min(1, tdist / o.gitt)) : false;

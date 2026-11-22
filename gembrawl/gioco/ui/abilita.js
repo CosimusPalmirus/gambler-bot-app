@@ -45,7 +45,7 @@
     // 23/11 forma Cavaliere del Fante
     if (k === 'kat') return [[t.danno, n10(cz.mazzata.danno * kk)], [t.gitt, num(cz.mazzata.gitt) + ' · ' + t.mischia], [t.ric, num(cz.mazzata.ric) + ' s']];
     if (k === 'ksu') return [[t.danno, n10(d.sup.cav.danno * kk)], [t.gitt, num(d.sup.cav.dist)], [t.stun, num(d.sup.cav.stun) + ' s']];
-    if (k === 'kga') return [[t.danno, n10(d.gad.spalla.danno * kk)], [t.gitt, num(d.gad.spalla.dist)], [t.stun, num(d.gad.spalla.stun) + ' s'], [t.usi, '×' + (d.gad.usi || 3)]];
+    if (k === 'kga') return [[t.danno, n10(d.gad.balzo.danno * kk)], [t.gitt, num(d.gad.balzo.gitt)], [t.stun, num(d.gad.balzo.stun) + ' s'], [t.usi, '×' + (d.gad.usi || 3)]];   // 23/11: Balzo del Cavaliere (prima Spallata)
     if (k === 'ktr') return [[t.corazza, n10(cz.scudo * kk)], [t.dur, num(cz.dur) + ' s'], [t.scoppio, n10(cz.esplode.danno * kk)]];
     if (k === 'pas') { if (d.passiva_it && d.portiere) return [[t.ric, num(d.portiere.cd) + ' s'], [t.sempre, '']]; if (d.agguato > 1) return [['Bonus', '+' + Math.round((d.agguato - 1) * 100) + '%'], [t.sempre, '']]; if (d.pollice) return [[t.dur, '×' + d.pollice], [t.sempre, '']]; return [[t.sempre, '']]; }
     var dn = o.danno;
@@ -74,7 +74,7 @@
       var en = L === 'en', cz = d.corazza;
       a.push({ k: 'kat', cav: 1, nome: en ? 'Mace Blow' : 'Mazzata', desc: en ? 'As the Knight the sceptre becomes a greatsword: slash, backhand and an overhead mace blow that strikes the ground. Wide hits that push back.' : "Da Cavaliere lo scettro diventa uno spadone: fendente, rovescio e una mazzata dall'alto che batte a terra. Colpi larghi che spingono." });
       a.push({ k: 'ksu', cav: 1, nome: en ? d.sup.cav.nome_en : d.sup.cav.nome_it, desc: en ? 'Charges ' + d.sup.cav.dist + ' tiles behind the shield: runs over whoever it meets, pushes them back and stuns them.' : 'Corre avanti di ' + d.sup.cav.dist + ' caselle dietro lo scudo: travolge chi incontra, lo spinge e lo stordisce.' });
-      a.push({ k: 'kga', cav: 1, nome: en ? d.gad.spalla.nome_en : d.gad.spalla.nome_it, desc: en ? 'A forward shoulder bash that pushes and stuns whoever it hits.' : 'Una spallata in avanti che spinge e stordisce chi prende.' });
+      a.push({ k: 'kga', cav: 1, nome: en ? d.gad.balzo.nome_en : d.gad.balzo.nome_it, desc: en ? d.gad.balzo.desc_en : d.gad.balzo.desc_it });
       a.push({ k: 'ktr', cav: 1, nome: en ? 'Transformation' : 'Trasformazione', desc: en ? 'After ' + cz.colpi + ' hits the Jack becomes the KNIGHT for ' + cz.dur + ' s: an armor that absorbs ' + n10(cz.scudo * (d.k || 1)) + ', no knockback or stun. At the end the armor explodes and hurts whoever is close.' : 'Dopo ' + cz.colpi + ' colpi a segno il Fante diventa il CAVALIERE per ' + cz.dur + ' s: corazza che assorbe ' + n10(cz.scudo * (d.k || 1)) + ', niente spinte né stordimenti. Alla fine la corazza esplode e ferisce chi è vicino.' });
     }
     return a;
