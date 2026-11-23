@@ -291,5 +291,5 @@
   if (document.readyState === 'complete') aggancia(); else window.addEventListener('load', aggancia);
   setTimeout(aggancia, 500);
   // si apre DIRETTAMENTE sul menu (niente titolo), tranne nelle prove automatiche e quando si chiede un'altra schermata
-  if (Q.get('auto') !== '1' && !Q.get('schermo') && !Q.get('replay') && Q.get('subito') !== '1' && !Q.get('guarda') && !Q.get('torneo')) setTimeout(function () { window.__menuGBapri(); }, Q.get('apri') === 'menu' ? 600 : 50);
+  if (Q.get('auto') !== '1' && !Q.get('schermo') && !Q.get('replay') && Q.get('subito') !== '1' && !Q.get('guarda') && !Q.get('torneo') && !Q.get('lobby') && !Q.get('guardalid')) setTimeout(function () { window.__menuGBapri(); }, Q.get('apri') === 'menu' ? 600 : 50);
 })();

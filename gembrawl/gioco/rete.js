@@ -76,7 +76,7 @@
     cli.stacca = function () { if (ws) try { ws.close(); } catch (e) { } };   // banco: stacco della rete (si riattacca da solo)
     var RT = o.dialetto === 'rt';
     cli.dialetto = RT ? 'rt' : 'locale';
-    cli.coda = function (modo) { cli.fase = 'coda'; cli.modo = modo; cli.esito = null; cli.tour = null; cli.spettatore = false; cli.elimGuarda = false; cli.guardaRid = null; manda(RT ? { t: 'join', game: 'gembrawl', tier: 'gratis', modo: modo } : { t: 'coda', modo: modo }); };
+    cli.coda = function (modo) { cli.fase = 'coda'; cli.modo = modo; cli.esito = null; cli.tour = null; cli.lid = ''; cli.riv = false; cli.spettatore = false; cli.elimGuarda = false; cli.guardaRid = null; manda(RT ? { t: 'join', game: 'gembrawl', tier: 'gratis', modo: modo } : { t: 'coda', modo: modo }); };
     cli.esciCoda = function () { cli.fase = 'menu'; manda(RT ? { t: 'leave' } : { t: 'esci_coda' }); };
     cli.scegli = function (eroe, ok) { gb({ o: 'sc', e: eroe, ok: ok ? 1 : 0 }); };
     cli.pronto = function () { gb({ o: 'ok' }); };
@@ -106,6 +106,22 @@
     // eliminato in sopravvivenza: il resto della partita come spettatore (gok) o un rifiuto (gno)
     cli.guardaElim = function () { gb({ o: 'guarda' }); };
     cli.connessa = function () { return !!(ws && ws.readyState === 1); };
+    // ---- GBGRUPPI_2311: LA LOBBY DEL GRUPPO e LA RIVINCITA ----
+    // /gembrawl nel gruppo -> tasto ENTRA -> mini app -> questa pagina con &lobby=<lid>. Il posto lo da' il server (join_open,
+    // i termini li legge dal backend: modo, posti, gratis); l'attesa arriva come t:"lobby" (cap, starts_in, modo).
+    cli.lobby = function (lid) {
+      cli.lid = String(lid || ''); cli.riv = false; cli.fase = 'coda'; cli.esito = null; cli.tour = null;
+      cli.spettatore = false; cli.elimGuarda = false; cli.guardaRid = null;
+      manda({ t: 'join_open', lid: cli.lid });
+    };
+    cli.esciLobby = function () { cli.lid = ''; cli.fase = 'menu'; manda({ t: 'leave' }); };
+    // rivincita (RIVINCITA_RT_1511 del server): gli stessi giocatori veri in una stanza nuova, i posti vuoti di nuovo ai bot
+    cli.rivincita = function (rid) {
+      cli.riv = true; cli.rivRid = String(rid || cli.rid || ''); cli.fase = 'coda'; cli.esito = null; giocando = false;
+      cli.spettatore = false; cli.elimGuarda = false; cli.guardaRid = null;
+      manda({ t: 'riv_chiedi', rid: cli.rivRid });
+    };
+    cli.rivNo = function () { manda({ t: 'riv_no', rid: cli.rivRid || cli.rid || '' }); if (cli.riv) { cli.riv = false; cli.fase = 'menu'; } };
     // lo spettatore vede tutto: nessuna nebbia di squadra. Il server gli manda gia' tutta l'arena (codificatore viewer -1);
     // qui si accendono i bit di TUTTE le squadre in st.vis, cosi' Motore.visibile (disegno, render3d, effetti, suoni) e' vero
     // per ogni eroe, qualunque sia l'eroe seguito. Il motore non gira nella pagina online (solo il codec scrive st.vis).
@@ -124,7 +140,9 @@
         cli.info = m; if (m.uid) cli.uid = String(m.uid);
         // eravamo in partita (rete saltata): il RT rimanda da solo `start` alla socket nuova; se no lo si chiede
         if (cli.fase === 'scelta' || cli.fase === 'carica' || cli.fase === 'gioco' || (cli.fase === 'guarda' && cli.elimGuarda)) manda({ t: 'rientra' });
-        else if (cli.fase === 'coda' && cli.tour) manda({ t: 'join_ticket', ticket: cli.tour.ticket, game: 'gembrawl' });   // GBT2311: torneo = di nuovo il biglietto, MAI la coda gratis
+        else if (cli.fase === 'coda' && cli.tour) manda({ t: 'join_ticket', ticket: cli.tour.ticket, game: 'gembrawl' });
+        else if (cli.fase === 'coda' && cli.lid && !cli.riv && tent0) manda({ t: 'join_open', lid: cli.lid });   // GBGRUPPI_2311
+        else if (cli.fase === 'coda' && cli.riv && tent0) manda({ t: 'riv_chiedi', rid: cli.rivRid || '' });   // GBT2311: torneo = di nuovo il biglietto, MAI la coda gratis
         else if (cli.fase === 'coda' && cli.modo && tent0) manda({ t: 'join', game: 'gembrawl', tier: 'gratis', modo: cli.modo });   // di nuovo in coda dopo uno scalzo
         else if (cli.fase === 'guarda' && cli.guardaRid && tent0) { cli.spNuova = true; attesaFoto = true; manda({ t: 'watch', rid: cli.guardaRid }); }   // GBT2311: spettatore dopo una rete saltata
         tent0 = 0;
@@ -133,7 +151,8 @@
       if (m.t === 'lobby') {
         if (m.game && m.game !== 'gembrawl') return;
         if (m.tour || cli.tour) { emetti('torneoAttesa', { n: m.players | 0, cap: m.cap | 0, fra: m.starts_in, mid: m.mid, players: m.players }); return; }   // GBT2311: attesa dell'avversario
-        emetti('coda', { modo: cli.modo, n: m.players | 0, pos: 0, attesa: m.waited || 0, max: m.max_wait || 0 }); return;
+        if (m.lid && m.modo) cli.modo = m.modo;   // GBGRUPPI_2311: la lobby del gruppo porta il suo modo
+        emetti('coda', { modo: cli.modo, n: m.players | 0, pos: 0, attesa: m.waited || 0, max: m.max_wait || 0, cap: m.cap | 0, fra: m.starts_in, lid: m.lid || null, stake: +m.stake_eur || 0 }); return;
       }
       if (m.t === 'start') {
         if (m.game && m.game !== 'gembrawl') return;
@@ -143,6 +162,7 @@
           cli.io = mio; cli.perf.rientri++; attesaFoto = cli.fase === 'gioco' || cli.fase === 'guarda'; gb({ o: 'rs' }); return;
         }
         if (m.tour) cli.tourMid = m.mid;   // GBT2311
+        cli.riv = false;   // GBGRUPPI_2311: la rivincita e' partita
         cli.rid = (m.map && m.map.rid) || m.rid || null; cli.io = mio; cli.modo = (m.map && m.map.modo) || cli.modo; cli.fase = 'scelta'; cli.esito = null;
         gb({ o: 'ver', v: cli.firma }); emetti('partita', { mio: mio, modo: cli.modo, rid: cli.rid, tour: !!m.tour });
         // GBT2311: pagina ricaricata a partita gia' in corso (il RT rimanda `start`): si chiede subito dove siamo (rs)
@@ -155,6 +175,11 @@
         emetti('guardi', m); return;
       }
       if (m.t === 'left') { emetti('smesso', m); return; }
+      // GBGRUPPI_2311
+      if (m.t === 'riv_stato') { emetti('rivStato', m); return; }
+      if (m.t === 'riv_offerta') { if (!m.game || m.game === 'gembrawl') emetti('rivOfferta', m); return; }
+      if (m.t === 'riv_fine') { if (m.game && m.game !== 'gembrawl') return; if (cli.riv && cli.fase === 'coda') { cli.riv = false; cli.fase = 'menu'; } emetti('rivFine', m); return; }
+      if (m.t === 'refund') { if (cli.fase === 'coda' && cli.lid) { cli.fase = 'menu'; emetti('no', { perche: 'scaduta' }); } return; }
       if (m.t === 'watch_list') { if (m.game === 'gembrawl') { cli.ultimaLista = m.rooms || []; emetti('dirette', cli.ultimaLista); } return; }
       if (m.t === 'err') {
         emetti('errore', m);

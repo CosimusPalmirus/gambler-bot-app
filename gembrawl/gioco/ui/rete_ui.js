@@ -92,6 +92,7 @@
   }
   function entraCoda(m) {
     modo = m; scelta = null; confermato = false;
+    if (typeof LOBBY !== 'undefined' && LOBBY) { LOBBY = null; etichettaAncora(null); }   // GBGRUPPI_2311
     if (TOUR) { TOUR = null; var fa = $('f-ancora'), fe = $('f-eroe'), g = fa && fa.querySelector('.g-l'); if (g && fa.dataset.txt) { g.textContent = fa.dataset.txt; g.style.fontSize = ''; g.style.whiteSpace = ''; } if (fe) fe.style.display = ''; }   // GBT2311: coda gratis dopo un torneo
     assicura(function () { cli.coda(modo); });   // GBT2311: una connessione sola (assicura)
     tit.textContent = T(modo); sub.textContent = T('cerca'); corpo.innerHTML = '<div class="rete-giro"></div><div class="rete-coda"></div>'; tasti.innerHTML = '';
@@ -283,6 +284,116 @@
   }
   document.addEventListener('visibilitychange', function () { if (document.hidden && cli.fase === 'gioco') cli.sfondo(); });
 
+  // ================= GBGRUPPI_2311: LA LOBBY DEL GRUPPO, LO SPETTATORE DEL GRUPPO, LA RIVINCITA =================
+  // &lobby=<lid>: dal tasto ENTRA dell'annuncio nel gruppo (la mini app apre questa pagina). Si aspetta nella lobby
+  // (quanti, su quanti, fra quanto) e si parte quando e' piena o allo scadere: i posti vuoti li prende il bot del motore
+  // (solo gratis). &guardalid=<lid>: dal tasto GUARDA, la partita della lobby con 5 s di ritardo (si aspetta il via).
+  TX.it.l_tit = 'Lobby del gruppo'; TX.en.l_tit = 'Group lobby';
+  TX.it.l_entro = 'Prendo il tuo posto…'; TX.en.l_entro = 'Taking your seat…';
+  TX.it.l_attesa = 'Aspetto gli altri del gruppo…'; TX.en.l_attesa = 'Waiting for the rest of the group…';
+  TX.it.l_dentro = 'Dentro'; TX.en.l_dentro = 'In';
+  TX.it.l_parte = 'si parte fra'; TX.en.l_parte = 'starts in';
+  TX.it.l_bot = 'Allo scadere i posti vuoti vanno ai bot (servono almeno 2 persone).'; TX.en.l_bot = 'When time runs out bots take the empty seats (at least 2 people needed).';
+  TX.it.l_soldi = 'Allo scadere si parte se ci sono abbastanza persone, altrimenti le poste tornano.'; TX.en.l_soldi = 'When time runs out the match starts if enough people joined, otherwise stakes are returned.';
+  TX.it.l_esci = 'Esci dalla lobby'; TX.en.l_esci = 'Leave the lobby';
+  TX.it.l_piena = 'La lobby è piena: ci vediamo alla prossima'; TX.en.l_piena = 'The lobby is full: see you next time';
+  TX.it.l_chiusa = 'Questa lobby non c’è più'; TX.en.l_chiusa = 'This lobby is gone';
+  TX.it.l_scaduta = 'Lobby chiusa: non c’erano abbastanza persone'; TX.en.l_scaduta = 'Lobby closed: not enough people';
+  TX.it.l_gattesa = 'La partita non è ancora cominciata: aspetto il via…'; TX.en.l_gattesa = 'The match has not started yet: waiting for kick-off…';
+  TX.it.rivincita = 'Rivincita'; TX.en.rivincita = 'Rematch';
+  TX.it.r_attendi = 'Aspetto gli altri per la rivincita…'; TX.en.r_attendi = 'Waiting for the others to rematch…';
+  TX.it.r_si = 'Ci sono'; TX.en.r_si = 'In';
+  TX.it.r_tu = 'Tu'; TX.en.r_tu = 'You';
+  TX.it.r_attesi = 'manca'; TX.en.r_attesi = 'missing';
+  TX.it.r_chiede = 'vuole la rivincita: tocca «Rivincita»'; TX.en.r_chiede = 'wants a rematch: tap «Rematch»';
+  TX.it.r_no = 'Niente rivincita'; TX.en.r_no = 'No rematch';
+  TX.it.r_cerca = 'Cerca partita'; TX.en.r_cerca = 'Find a match';
+  TX.it.r_menu = 'Menu'; TX.en.r_menu = 'Menu';
+  TX.it.r_rifiutata = 'ha detto no'; TX.en.r_rifiutata = 'said no';
+  TX.it.r_scaduta = 'non ha risposto'; TX.en.r_scaduta = 'did not answer';
+  TX.it.r_non_collegato = 'è uscito dal gioco'; TX.en.r_non_collegato = 'left the game';
+  TX.it.r_occupato = 'sta già giocando'; TX.en.r_occupato = 'is already playing';
+  TX.it.r_non_disponibile = 'Rivincita non disponibile'; TX.en.r_non_disponibile = 'Rematch not available';
+  var LOBBY = null, GLID = null;
+  function alMenu() { if (B.esciRete) B.esciRete(); if (window.__menuGBapri) window.__menuGBapri(); else B.ui.vai('s-home', -1); }
+  function mmss(s) { s = Math.max(0, Math.ceil(+s || 0)); var m = Math.floor(s / 60), r = s % 60; return m ? m + ':' + (r < 10 ? '0' : '') + r : r + ' s'; }
+  function etichettaAncora(txt) {
+    var fa = $('f-ancora'), g = fa && fa.querySelector('.g-l'); if (!g) return;
+    if (!fa.dataset.txt) fa.dataset.txt = g.textContent;
+    g.textContent = txt || fa.dataset.txt;
+  }
+  function avviaLobby(lid) {
+    LOBBY = { lid: lid, attesa: true }; TOUR = null; scelta = null; confermato = false;
+    B.ui.mostra('s-rete'); viaLobbyVideo();
+    tit.textContent = T('l_tit'); sub.textContent = T('l_entro');
+    corpo.innerHTML = '<div class="rete-giro"></div><div class="rete-coda"></div><p class="rete-msg rete-lnota"></p>'; tasti.innerHTML = '';
+    tasti.appendChild(tasto(T('l_esci'), '', function () { cli.esciLobby(); LOBBY = null; alMenu(); }));
+    assicura(function () { cli.lobby(lid); });
+  }
+  (function () {
+    var coda0 = cli.on.coda;
+    cli.on.coda = function (m) {
+      if (!(LOBBY && LOBBY.attesa && m.lid)) { coda0(m); return; }
+      var c = corpo.querySelector('.rete-coda'); if (!c) return;
+      tit.textContent = T('l_tit') + ' · ' + T(m.modo || 'duello'); sub.textContent = T('l_attesa');
+      c.textContent = T('l_dentro') + ' ' + m.n + '/' + (m.cap || '?') + (m.fra != null ? ' · ' + T('l_parte') + ' ' + mmss(m.fra) : '');
+      var nt = corpo.querySelector('.rete-lnota'); if (nt) nt.textContent = T(m.stake > 0 ? 'l_soldi' : 'l_bot');
+    };
+    var part0 = cli.on.partita;
+    cli.on.partita = function (m) { if (LOBBY) LOBBY.attesa = false; etichettaAncora(null); part0(m); };
+    var no0 = cli.on.no;
+    cli.on.no = function (m) {
+      if (LOBBY && LOBBY.attesa) {
+        var p = String((m && m.perche) || '');
+        var k = /piena/.test(p) ? 'l_piena' : /scadut/.test(p) ? 'l_scaduta' : /already|impegn/.test(p) ? 'no_impegnato' : /auth/.test(p) ? null : 'l_chiusa';
+        LOBBY = null;
+        if (!k) { no0(m); return; }
+        tit.textContent = T('l_tit'); sub.textContent = ''; corpo.innerHTML = ''; tasti.innerHTML = '';
+        corpo.appendChild(el('p', 'rete-msg', T(k)));
+        tasti.appendChild(tasto(T('r_cerca'), 'rete-ok', function () { entraCoda(modo); }));
+        tasti.appendChild(tasto(T('r_menu'), '', alMenu));
+        return;
+      }
+      no0(m);
+    };
+    var fine0 = cli.on.fine;
+    cli.on.fine = function (m) { fine0(m); if (LOBBY && !TOUR && cli.io >= 0) etichettaAncora(T('rivincita')); };
+    var ancora0 = B.reteAncora;
+    B.reteAncora = function () { if (LOBBY && !TOUR) { rivChiedi(cli.rivOff || cli.rid); return; } ancora0(); };
+  })();
+  function rivChiedi(rid) {
+    B.ui.vai('s-rete', 1);
+    tit.textContent = T('rivincita'); sub.textContent = T('r_attendi'); corpo.innerHTML = '<div class="rete-giro"></div><div class="rete-coda"></div>'; tasti.innerHTML = '';
+    tasti.appendChild(tasto(T('annulla'), '', function () { cli.rivNo(); LOBBY = null; etichettaAncora(null); alMenu(); }));
+    setTimeout(function () { cli.rivOff = null; cli.rivincita(rid); }, 380);
+  }
+  cli.on.rivStato = function (m) {
+    var c = corpo.querySelector('.rete-coda'); if (!c || !cli.riv) return;
+    var si = [T('r_tu')].concat(m.si || []);
+    c.textContent = T('r_si') + ': ' + si.join(', ') + ((m.attesi || []).length ? ' · ' + T('r_attesi') + ': ' + m.attesi.join(', ') : '') + ' · ' + mmss(m.scade);
+  };
+  cli.on.rivOfferta = function (m) { cli.rivOff = m.rid || null; etichettaAncora(T('rivincita')); avvisa((m.da || '?') + ' ' + T('r_chiede'), 6000); suono('vsColpo'); };
+  cli.on.rivFine = function (m) {
+    etichettaAncora(null); cli.rivOff = null;
+    var chi = (m.chi || []).join(', '), k = 'r_' + (m.motivo || 'non_disponibile');
+    var testo = m.motivo === 'non_disponibile' || m.motivo === 'errore' || m.motivo === 'saldo' ? T('r_non_disponibile') : (m.tu ? T('r_non_disponibile') : chi + ' ' + T(k));
+    if (!document.getElementById('s-rete').classList.contains('on') || !/^(coda|menu)$/.test(cli.fase)) { avvisa(testo, 3500); return; }
+    LOBBY = null;
+    tit.textContent = T('r_no'); sub.textContent = ''; corpo.innerHTML = ''; tasti.innerHTML = '';
+    corpo.appendChild(el('p', 'rete-msg', testo));
+    tasti.appendChild(tasto(T('r_cerca'), 'rete-ok', function () { entraCoda(modo); }));
+    tasti.appendChild(tasto(T('r_menu'), '', alMenu));
+  };
+  // lo spettatore dal gruppo: la stanza nasce al via della lobby; prima il server risponde «non ancora cominciata»
+  function guardaLobby(lid) { GLID = { lid: lid, n: 0 }; if (guardaStanza('lid:' + lid)) sub.textContent = T('l_gattesa'); }
+  cli.on.errore = function (m) {
+    if (!GLID || cli.fase !== 'guarda' || cli.st || !/non .{0,3} ancora cominciata/.test(String((m && m.msg) || ''))) return;
+    sub.textContent = T('l_gattesa');
+    if (++GLID.n > 240) { cli.on.guardaNo({ code: 'trovata' }); return; }   // ~12 minuti (la lobby vive 10)
+    var g = GLID;
+    setTimeout(function () { if (GLID === g && cli.fase === 'guarda' && !cli.st) cli.guarda('lid:' + g.lid); }, 3000);
+  };
+
   // ---------------- ingresso: il menu principale di Gem Brawl (ui/menu_gb.js) apre la coda di un modo ----------------
   window.__reteUI = { coda: function (m) { B.ui.vai('s-rete', 1); setTimeout(function () { entraCoda(m); }, 380); }, cli: cli,
     // GBT2311: per menu_gb.js e spettatore.js
@@ -301,6 +412,8 @@
 
   // ---------------- prove: entra subito (&subito=1) o guarda (&guarda=1) ----------------
   var avviaSubito = function () {
+    if (Q.get('lobby')) { avviaLobby(Q.get('lobby')); return; }   // GBGRUPPI_2311: ENTRA dal gruppo
+    if (Q.get('guardalid')) { guardaLobby(Q.get('guardalid')); return; }   // GBGRUPPI_2311: GUARDA dal gruppo
     if (Q.get('torneo')) { avviaTorneo(Q.get('torneo'), TID); return; }   // GBT2311: match di torneo
     if (Q.get('guarda') && Q.get('guarda') !== '1') { guardaStanza(Q.get('guarda')); return; }   // GBT2311: diretta (rid rt...)
     if (Q.get('guarda') === '1') { assicura(function () { cli.guarda(Q.get('rid') || null); avvisa(T('guarda'), 3000); }); return; }
