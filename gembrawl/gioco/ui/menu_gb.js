@@ -80,7 +80,32 @@
   var Q$ = function (s) { return sc.querySelector(s); };
   var modiEl = Q$('.gm-modi'), soldiEl = Q$('.gm-soldi'), via = Q$('.gm-via');
   try { Q$('.gm-logo').src = (document.querySelector('.lob-logo.logo-img') || {}).src || ''; } catch (e) { }
-  Q$('.gm-ind').onclick = function () { suono('indietro'); B.ui.vai('s-home', -1); };
+  // 24/11 BACK: «‹» del menu = lasciare Gem Brawl.
+  //  · dentro la mini app (iframe GEMB): parent.gembChiudi -> si torna all'Arena o al pre-menu da cui si e' arrivati, e la mini app
+  //    rilascia lo schermo intero se l'aveva chiesto lei;
+  //  · aperta da sola (/gembrawl): openTelegramLink al deep link della mini app sull'Arena (Telegram chiude il gioco e apre la mini
+  //    app: un tocco e si e' dove si sceglie un altro gioco); se il client non lo sa fare (prima della 6.1), close();
+  //  · fuori da Telegram (browser, prove): la lobby di prima.
+  var DEEP = 'https://t.me/Master_Gambler_bot?startapp=arena';
+  function esciGB() {
+    try { var P0 = window.parent; if (P0 !== window && typeof P0.gembChiudi === 'function') { P0.gembChiudi('indietro'); return 'miniapp'; } } catch (e) { }
+    var TW = window.Telegram && Telegram.WebApp;
+    if (TW && TW.platform && TW.platform !== 'unknown') {
+      try { if (typeof TW.openTelegramLink === 'function' && typeof TW.isVersionAtLeast === 'function' && TW.isVersionAtLeast('6.1')) { TW.openTelegramLink(DEEP); return 'deeplink'; } } catch (e) { }
+      try { TW.close(); return 'chiusa'; } catch (e) { }
+    }
+    B.ui.vai('s-home', -1); return 'lobby';
+  }
+  GB_MENU.esci = function () { return (GB_MENU.ultimaUscita = esciGB()); };
+  Q$('.gm-ind').onclick = function () { suono('indietro'); GB_MENU.esci(); };
+  // BackButton di Telegram quando la pagina e' aperta da sola (dentro la mini app lo tiene la mini app, che chiede a B.indietro)
+  try {
+    var TWb = window.Telegram && Telegram.WebApp;
+    if (TWb && TWb.BackButton && TWb.platform && TWb.platform !== 'unknown' && window.parent === window) {
+      TWb.BackButton.onClick(function () { if (!(B.indietro && B.indietro())) GB_MENU.esci(); });
+      TWb.BackButton.show();
+    }
+  } catch (e) { }
   sc.querySelector('[data-x="eroe"]').onclick = function () { suono('passa'); B.ui.vai('s-eroi', 1); };
   sc.querySelector('[data-x="abil"]').onclick = function () { suono('passa'); try { B.ui.scheda(eroeId(), true); } catch (e) { } B.ui.vai('s-scheda', 1); };   // la scheda dell'eroe del menu
   var botEl = sc.querySelector('[data-x="bot"]');

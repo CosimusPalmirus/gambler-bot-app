@@ -147,6 +147,16 @@
   window.addEventListener('error', function (e) { B.errori.push(String(e.message)); var el = $('errore'); el.style.display = 'block'; el.textContent = 'ERRORE: ' + e.message + ' @' + (e.filename || '').split('/').pop() + ':' + e.lineno; });
 
   try { if (window.Telegram && Telegram.WebApp) { Telegram.WebApp.ready(); Telegram.WebApp.expand(); if (Telegram.WebApp.disableVerticalSwipes) Telegram.WebApp.disableVerticalSwipes(); } } catch (e) { }
+  // 24/11 SCHERMO INTERO sul telefono quando la pagina e' aperta da sola (/gembrawl): Bot API 8.0. Dentro la mini app lo chiede la
+  // mini app (gembApri); su PC e desktop niente. Le zone sicure le mette ui/schermo.js in --sa-* (eventi safeArea/fullscreen).
+  B.fs = 'no';
+  try {
+    var TW = window.Telegram && Telegram.WebApp;
+    if (TW && window.parent === window && /^(ios|android|android_x)$/.test(TW.platform || '') && typeof TW.isVersionAtLeast === 'function' && TW.isVersionAtLeast('8.0') && typeof TW.requestFullscreen === 'function') {
+      if (TW.onEvent) { TW.onEvent('fullscreenChanged', function () { B.fs = TW.isFullscreen ? 'si' : 'no'; if (window.GBS && GBS.aggiorna) GBS.aggiorna(); }); TW.onEvent('fullscreenFailed', function (e) { B.fs = 'fallito ' + ((e && e.error) || ''); }); }
+      if (TW.isFullscreen) B.fs = 'si'; else { B.fs = 'chiesto'; TW.requestFullscreen(); }
+    }
+  } catch (e) { B.fs = 'errore'; }
 
   // ---------------- dimensioni e aree sicure ----------------
   var W = 0, H = 0, DPR = 1, SA = { t: 0, b: 0, l: 0, r: 0 };
@@ -174,7 +184,8 @@
     W = window.innerWidth; H = window.innerHeight; DPR = Math.min(QDPR || 2, RISOL.max, window.devicePixelRatio || 1);
     var cs = getComputedStyle($('sa'));
     SA.t = parseFloat(cs.paddingTop) || 0; SA.b = parseFloat(cs.paddingBottom) || 0; SA.l = parseFloat(cs.paddingLeft) || 0; SA.r = parseFloat(cs.paddingRight) || 0;
-    try { var tg = window.Telegram && Telegram.WebApp && Telegram.WebApp.contentSafeAreaInset; if (tg) { SA.t += tg.top || 0; SA.b += tg.bottom || 0; } } catch (e) { }
+    try { var tg = window.Telegram && Telegram.WebApp && Telegram.WebApp.contentSafeAreaInset; if (tg && !document.documentElement.classList.contains('gb-tgsa')) { SA.t += tg.top || 0; SA.b += tg.bottom || 0; } } catch (e) { }   // 24/11: con gb-tgsa e' gia' in #sa (--sa-*)
+    B.SA = SA;   // 24/11: le zone che usa l'HUD (per le prove)
     D.ridimensiona(W, H, DPR);
     // giro 8b: la misura CSS del canvas 3D si fissa qui in px CSS. Senza, il canvas WebGL (setSize(..., false) non tocca lo stile)
     // prende come misura il suo buffer (W×dpr) quando il foglio di stile non lo vincola: con dpr 2 si vedeva solo un quarto della scena.
@@ -1976,6 +1987,18 @@
       if (APP.schermo === 's-carica') { $('s-carica').onclick(); return; }
       if (dove) { S.indietro(); if (APP.schermo === 's-fine') { P = null; B.fase = 'menu'; } vai(dove, -1); }
     }
+  };
+  // 24/11 BACK (tasto di Telegram, della mini app e «‹» del menu): UN passo indietro. true = fatto qui, false = sei al menu di
+  // Gem Brawl (chi chiama esce dal gioco). In partita apre la pausa: da li' «Esci» e' la conferma; in pausa riprende.
+  B.indietro = function () {
+    if (FOGLIO === 'pausa') { pausa(false); return true; }
+    if (FOGLIO) { S.indietro(); foglio(FOGLIO, false); return true; }
+    if (P && B.fase === 'partita') { pausa(true); return true; }
+    if (P && B.fase === 'finale') return true;   // la fine si sta mostrando: si aspetta la schermata di fine
+    var sc = APP.schermo && $(APP.schermo), dove = sc && sc.dataset.indietro;
+    if (window.__menuGB) { if (APP.schermo === 's-gb') return false; if (!dove || dove === 's-home') dove = 's-gb'; }   // il menu e' la radice
+    if (!dove || dove === APP.schermo) return false;
+    S.indietro(); if (APP.schermo === 's-fine') { P = null; B.fase = 'menu'; } vai(dove, -1); return true;
   };
   function nelMenu() { return !!FOGLIO || !(P && (B.fase === 'partita' || B.fase === 'finale')); }
   window.addEventListener('keydown', function (e) {

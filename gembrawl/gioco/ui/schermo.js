@@ -14,12 +14,16 @@
   function tg(w) { try { return (w && w.Telegram && w.Telegram.WebApp) || null; } catch (e) { return null; } }
   function num(v) { v = Number(v); return isFinite(v) && v > 0 ? Math.min(200, v) : 0; }
   function envTop() { try { var s = document.getElementById('sa'); return s ? parseFloat(getComputedStyle(s).paddingTop) || 0 : 0; } catch (e) { return 0; } }
+  // 24/11 SCHERMO INTERO: i quattro lati di Telegram (telefono + barra di Telegram) meno dove sta questa pagina (iframe)
+  function lati(w, ot, orr, ob, ol) { var s = w.safeAreaInset || {}, c = w.contentSafeAreaInset || {};
+    return { t: Math.max(0, num(s.top) + num(c.top) - ot), r: Math.max(0, num(s.right) + num(c.right) - orr), b: Math.max(0, num(s.bottom) + num(c.bottom) - ob), l: Math.max(0, num(s.left) + num(c.left) - ol) }; }
   function zone() {
-    var t = 0, ind = null;
+    var t = 0, ind = null, ins = null;
     try {
       if (P) {
         var pt = tg(P), fe = window.frameElement, ft = fe ? fe.getBoundingClientRect().top : 0;
         if (pt) t = Math.max(0, num((pt.safeAreaInset || {}).top) + num((pt.contentSafeAreaInset || {}).top) - ft);
+        if (pt && pt.platform && pt.platform !== 'unknown') { var fr = fe ? fe.getBoundingClientRect() : { top: 0, left: 0, right: P.innerWidth, bottom: P.innerHeight }; ins = lati(pt, fr.top, P.innerWidth - fr.right, P.innerHeight - fr.bottom, fr.left); }
         var b = P.document.querySelector('#gemb-wrap .gemb-ind');
         if (b && fe && P.getComputedStyle(b).display !== 'none') {
           var r = b.getBoundingClientRect(), f = fe.getBoundingClientRect();
@@ -27,11 +31,15 @@
         }
       } else {
         var mt = tg(window);
-        if (mt && mt.platform && mt.platform !== 'unknown') t = Math.max(0, num((mt.safeAreaInset || {}).top) + num((mt.contentSafeAreaInset || {}).top) - envTop());
+        if (mt && mt.platform && mt.platform !== 'unknown') { t = Math.max(0, num((mt.safeAreaInset || {}).top) + num((mt.contentSafeAreaInset || {}).top) - envTop()); ins = lati(mt, 0, 0, 0, 0); }
       }
     } catch (e) { }
-    GBS.t = Math.round(t); GBS.ind = ind;
-    D.style.setProperty('--tg-t', GBS.t + 'px');
+    GBS.t = Math.round(t); GBS.ind = ind; GBS.ins = ins;
+    // --sa-* = max(zona del browser, zona di Telegram): HUD (#sa), menu, comandi la rispettano tutti; --tg-t 0 (e' gia' in --sa-t)
+    var LATI = { t: 'top', r: 'right', b: 'bottom', l: 'left' };
+    Object.keys(LATI).forEach(function (k) { if (ins) D.style.setProperty('--sa-' + k, 'max(env(safe-area-inset-' + LATI[k] + ', 0px), ' + Math.round(ins[k]) + 'px)'); else D.style.removeProperty('--sa-' + k); });
+    D.classList.toggle('gb-tgsa', !!ins);
+    D.style.setProperty('--tg-t', (ins ? 0 : GBS.t) + 'px');
     D.style.setProperty('--ind-b', (ind ? Math.round(ind.b) : 0) + 'px');
     D.classList.toggle('gb-ind', !!ind);
   }
@@ -65,6 +73,9 @@
     if (!W || !H) return;
     var cambia = W !== GBS.W || H !== GBS.H;
     zone();
+    // 24/11: le zone di Telegram cambiano (schermo intero, rotazione) anche SENZA cambio di misura: il canvas (HUD) si rimisura
+    var kz = JSON.stringify(GBS.ins || 0), zcambia = kz !== GBS.kz; GBS.kz = kz;
+    if (zcambia && GBS.n && !cambia) { try { dispatchEvent(new Event('resize')); } catch (e) { } }
     if (!cambia && GBS.n) return;
     var oriz = W > H, giro = GBS.n && oriz !== GBS.oriz;
     GBS.W = W; GBS.H = H; GBS.oriz = oriz; GBS.n++;
@@ -75,7 +86,7 @@
   addEventListener('orientationchange', function () { pianifica(); setTimeout(pianifica, 150); setTimeout(pianifica, 450); });
   if (window.visualViewport) visualViewport.addEventListener('resize', pianifica);
   if (window.ResizeObserver) try { new ResizeObserver(pianifica).observe(D); } catch (e) { }
-  [tg(window), pt0].forEach(function (t) { try { if (t && t.onEvent) ['viewportChanged', 'safeAreaChanged', 'contentSafeAreaChanged', 'fullscreenChanged'].forEach(function (k) { t.onEvent(k, pianifica); }); } catch (e) { } });
+  [tg(window), pt0].forEach(function (t) { try { if (t && t.onEvent) ['viewportChanged', 'safeAreaChanged', 'contentSafeAreaChanged', 'fullscreenChanged', 'fullscreenFailed'].forEach(function (k) { t.onEvent(k, pianifica); }); } catch (e) { } });
   zone();
   GBS.W = innerWidth; GBS.H = innerHeight; GBS.oriz = GBS.W > GBS.H;
   GBS.aggiorna = function () { zone(); pianifica(); };
