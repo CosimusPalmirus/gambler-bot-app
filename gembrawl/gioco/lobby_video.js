@@ -61,12 +61,12 @@
       azioni: K.tutte.map(function (k) { return { k: k, src: P + id + '_' + k + '_alfa' + q + '.mp4' + v(K.v) }; }) };
   }
   var CLIP = {};
-  Object.keys(KIT).forEach(function (id) { CLIP[id] = { atterra: KIT[id].atterra, rimbalzo: KIT[id].rimbalzo, polvere: !!KIT[id].polvere, kit: { '': kitEroe(id, ''), '_s': kitEroe(id, '_s') } }; });
+  Object.keys(KIT).forEach(function (id) { CLIP[id] = { atterra: KIT[id].atterra, rimbalzo: KIT[id].rimbalzo, polvere: !!KIT[id].polvere, kit: { '': kitEroe(id, ''), '_s': kitEroe(id, '_s'), '_m': kitEroe(id, '_m') } }; });
   var PRONTO = Promise.all(Object.keys(KIT).map(function (id) {
     return fetch(cartella(id) + 'clip.json', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }).then(function (j) {
       var ok = ((j && j.azioni) || KIT[id].base).slice();
       if (id === 'pistolero' && Q.get('spin') === '1') ok.push('spin');   // piroetta: in prova (durante il giro la pistola si allunga)
-      ['', '_s'].forEach(function (q) { var k = CLIP[id].kit[q]; k.azioni = k.azioni.filter(function (a) { return ok.indexOf(a.k) >= 0; }); });
+      ['', '_s', '_m'].forEach(function (q) { var k = CLIP[id].kit[q]; k.azioni = k.azioni.filter(function (a) { return ok.indexOf(a.k) >= 0; }); });
       if (j && j.atterra) CLIP[id].atterra = j.atterra;
       if (j && j.rimbalzo) CLIP[id].rimbalzo = j.rimbalzo;
       if (j && j.polvere !== undefined) CLIP[id].polvere = !!j.polvere;
@@ -96,9 +96,24 @@
     'float al=smoothstep(.1,.95,texture2D(t,a).r);vec3 col=min(texture2D(t,c).rgb,vec3(al));gl_FragColor=vec4(col,al);}';
   var GL = { cv: null, gl: null, posti: [], dpr: 1, sporco: true, fps: 0, nf: 0, t0: performance.now(), lenti: 0 };
   var ROOT = null, FPSEL = null;
+  // MOBILE 23/11: telefono (lato corto < 600): un solo eroe in video (il tuo), gli alleati con l'arte 2D tratta dalle clip.
+  // Meno decodificatori video insieme (prima fino a 6 <video> carichi) = niente lobby che resta vuota sui telefoni deboli.
+  var TEL = Math.min(screen.width || 9999, screen.height || 9999, innerWidth || 9999) < 600;
+  var NOCLIP = Q.get('lclip') === '0', FALLITE = {};
+  // 23/11 sera (proprietario: «non vedo il salto quando entrano, li vedo comparire»): anche gli alleati con la loro clip (piccola _s),
+  // entrate UNA alla volta; con ?lclip=0 / niente WebGL / clip in errore: arte 2D, che fa lo stesso salto (CSS)
+  function clipOk(id, tu) { return !!CLIP[id] && !NOCLIP && !FALLITE[id] && !!GL.gl; }
+  var ENTRATE = [];   // registro delle entrate (prove): { i, id, tipo: 'clip'|'2d', t, attesa }
+  var CODA_ALL = { libera: true, coda: [] };   // alleati: una entrata alla volta
+  function turnoAlleato(fn) { if (CODA_ALL.libera) { CODA_ALL.libera = false; fn(); } else CODA_ALL.coda.push(fn); }
+  function fineTurno() { var f = CODA_ALL.coda.shift(); if (f) f(); else CODA_ALL.libera = true; }
   function avviaGL(canvas) {
     GL.cv = canvas;
-    var gl = GL.gl = canvas.getContext('webgl', { alpha: true, premultipliedAlpha: true, antialias: false });
+    var gl = null;
+    try { gl = canvas.getContext('webgl', { alpha: true, premultipliedAlpha: true, antialias: false }); } catch (e) { gl = null; }
+    if (!gl) { GL.gl = null; NOCLIP = true; if (window.GBDIAG) GBDIAG.nota('lobby: niente WebGL, solo arte 2D'); return; }   // MOBILE 23/11: niente WebGL = arte 2D, mai una lobby vuota
+    GL.gl = gl;
+    canvas.addEventListener('webglcontextlost', function (e) { e.preventDefault(); NOCLIP = true; GL.perso = true; if (window.GBDIAG) GBDIAG.nota('lobby: contesto WebGL perso'); ST.posti.forEach(function (p) { if (p.id && !p.el.classList.contains('r2d')) p.eroe(p.id); }); }, false);
     var sh = function (tipo, src) { var s = gl.createShader(tipo); gl.shaderSource(s, src); gl.compileShader(s); return s; };
     var pr = gl.createProgram(); gl.attachShader(pr, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(pr); gl.useProgram(pr);
     var b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]), gl.STATIC_DRAW);
@@ -107,12 +122,14 @@
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
   }
   function nuovaTex() {
-    var gl = GL.gl, tx = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tx);
+    var gl = GL.gl; if (!gl || GL.perso) return null;
+    var tx = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tx);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     return tx;
   }
   function misuraGL() {
+    if (!GL.gl) return;
     var d = GL.dpr = Math.min(1.5, window.devicePixelRatio || 1), w = Math.round(innerWidth * d), h = Math.round(innerHeight * d);
     if (GL.cv.width !== w || GL.cv.height !== h) { GL.cv.width = w; GL.cv.height = h; }
     GL.sporco = true;
@@ -124,7 +141,7 @@
       var v = p.att;
       if (!v || v.readyState < 2 || !p.vivo) return;
       if (v.currentTime !== p.ultimoT) {
-        p.ultimoT = v.currentTime; gl.bindTexture(gl.TEXTURE_2D, p.tex);
+        p.ultimoT = v.currentTime; if (!p.tex) return; gl.bindTexture(gl.TEXTURE_2D, p.tex);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, v); p.vw = v.videoWidth; p.pieno = true; cambiato = true;
       }
       if (ora - p.scossaT < 450 || p.volo || ora - p.hopT < 260) cambiato = true;
@@ -165,7 +182,7 @@
   }
   var ultimoF = performance.now();
   (function ciclo(t) {
-    if (GL.gl && ROOT && ROOT.classList.contains('on') && !document.hidden) disegnaGL();
+    if (GL.gl && !GL.perso && ROOT && ROOT.classList.contains('on') && !document.hidden && !(ST && ST.fase === 'via')) try { disegnaGL(); } catch (e) { if (!GL.errDetto) { GL.errDetto = 1; if (window.GBDIAG) GBDIAG.nota('lobby: disegno ' + e.message); } }
     if (t - ultimoF > 34) GL.lenti++;   // fotogrammi oltre ~30 fps
     ultimoF = t;
     GL.nf++; if (t - GL.t0 > 1000) { GL.fps = Math.round(GL.nf * 1000 / (t - GL.t0)); GL.nf = 0; GL.t0 = t; if (FPSEL) FPSEL.textContent = GL.fps + ' fps · ' + GL.posti.filter(function (p) { return p.att && !p.att.paused; }).length + ' video'; }
@@ -175,13 +192,14 @@
   // ---------------- un posto (piedistallo) ----------------
   function nuovoVideo() {
     var v = document.createElement('video');
+    v.addEventListener('error', function () { if (window.GBDIAG) GBDIAG.nota('lobby: video in errore ' + (v.getAttribute('src') || '').split('/').pop()); });
     v.muted = true; v.defaultMuted = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.setAttribute('muted', ''); v.preload = 'auto';
     return v;
   }
   function Posto(i) {
     this.i = i; this.id = null; this.stato = 'vuoto'; this.nick = ''; this.squadra = 'blu'; this.tu = i === 0; this.nScelta = 0;
     this.tex = nuovaTex(); this.v = [nuovoVideo(), nuovoVideo()]; this.att = null; this.ultimoT = -1; this.vivo = false; this.pieno = false; this.mostra = false;
-    this.scossaT = -1e9; this.hopT = -1e9; this.r = { x: 0, y: 0, w: 1, h: 1 }; this.giro = 0; this.q = this.tu ? '' : '_s';
+    this.scossaT = -1e9; this.hopT = -1e9; this.r = { x: 0, y: 0, w: 1, h: 1 }; this.giro = 0; this.q = this.tu ? (TEL && Q.get('lclipm') !== '0' ? '_m' : '') : '_s';
     var el = this.el = document.createElement('div'); el.className = 'lv-posto vuoto' + (this.tu ? ' tu' : '');
     el.innerHTML = '<img class="lv-pied" src="ui/lv_piedistallo.webp" alt="" draggable="false"><div class="lv-alone"></div><div class="lv-attesa"><i></i></div>' +
       '<div class="lv-ombra"></div><div class="lv-anello"></div><div class="lv-eroebox"><div class="lv-2d"><img alt="" draggable="false"></div></div><div class="lv-polvere"></div>' +
@@ -212,7 +230,9 @@
       if (me.giro !== n) return; me.att = r; me.ultimoT = -1; if (vecchio && vecchio !== r) vecchio.pause();
       if (me.voloAttesa) {
         me.voloAttesa = false; r.pause(); try { r.currentTime = 0; } catch (e) { }
-        var v = voloPer(me); v.t0 = performance.now(); me.volo = v;
+        var v = voloPer(me); v.t0 = performance.now(); me.volo = v; me.el.classList.remove('arriva'); me.entrato = me.nScelta;
+        ENTRATE.push({ i: me.i, id: me.id, tipo: 'clip', t: Math.round(v.t0), attesa: Math.round(v.t0 - (me.tSc || v.t0)) });
+        if (me.turno) setTimeout(function () { if (me.turno) { me.turno = false; fineTurno(); } }, v.dur + 300);
         setTimeout(function () { if (me.giro !== n) return; var x = r.play(); if (x && x.catch) x.catch(function () { }); }, v.dur - 40);
       }
     };
@@ -256,11 +276,27 @@
     var me = this; this.ferma(false); this.id = id; this.etichetta();
     this.el.classList.add('vuoto-eroe'); this.pieno = false; GL.sporco = true;
     var n = ++this.nScelta;
-    if (CLIP[id]) {
+    clearTimeout(this.tFall); this.el.classList.remove('arriva');
+    if (this.turno) { this.turno = false; fineTurno(); }
+    if (clipOk(id, this.tu) && !this.forza2d) {
+      if (!this.tu && !this.inTurno) {   // alleato: aspetta il suo turno (le entrate non si sovrappongono)
+        this.mostra = false; this.el.classList.add('arriva'); this.el.classList.remove('r2d'); this.d2.className = 'lv-2d';
+        turnoAlleato(function () { if (me.nScelta !== n) { fineTurno(); return; } me.inTurno = true; me.turno = true; me.eroe(id); me.inTurno = false; });
+        return;
+      }
       this.el.classList.remove('r2d'); this.d2.className = 'lv-2d'; this.mostra = true;
+      this.el.classList.add('arriva');   // segnaposto: luce sul piedistallo finché la clip non è pronta
+      this.pre2d = new Image(); this.pre2d.src = arte2d(id);   // il ripiego 2D è già scaricato se serve: il suo salto si vede intero
       var reg = this.regia = new Regista(this, CLIP[id].kit[this.q]);
-      this.voloAttesa = true; this.volo = null; this.atterrato = false; this.hopT = -1e9;
+      this.voloAttesa = true; this.volo = null; this.atterrato = false; this.hopT = -1e9; this.tSc = performance.now();
       reg.via('intro', reg.kit.intro);
+      // la clip d'entrata non è pronta in tempo (rete lenta, decodificatore occupato)? il salto si fa con l'arte 2D: si vede SEMPRE un salto,
+      // mai l'eroe che compare fermo. Tu: dopo ~1,2 s; un alleato: dopo 5 s (intanto resta «sta scegliendo»). In errore: arte 2D per sempre.
+      this.tFall = setTimeout(function () {
+        if (me.nScelta !== n || me.volo || me.atterrato || me.pieno) return;
+        if (window.GBDIAG) GBDIAG.nota('lobby: clip ' + id + ' in ritardo, salto 2D');
+        me.forza2d = true; me.eroe(id); me.forza2d = false;
+      }, this.tu ? 1200 : 5000);
       (function guarda() {
         if (me.nScelta !== n) return;
         var v = me.att;
@@ -271,7 +307,23 @@
       })();
     } else {
       this.mostra = false; this.el.classList.add('r2d');
-      this.img2.src = arte2d(id);
+      var d = this.d2, im2 = this.img2, tS = this.tSc || performance.now(), partito = false;
+      d.className = 'lv-2d'; d.style.visibility = 'hidden'; im2.src = arte2d(id);
+      // il salto parte quando l'immagine è decodificata (prima partiva subito e, con la rete lenta, l'eroe compariva già atterrato)
+      var parti = function () {
+        if (partito || me.nScelta !== n) return; partito = true;
+        d.style.visibility = ''; me.el.classList.remove('arriva'); me.entrato = n;
+        ENTRATE.push({ i: me.i, id: id, tipo: '2d', t: Math.round(performance.now()), attesa: Math.round(performance.now() - tS) });
+        if (me.turno) setTimeout(function () { if (me.turno) { me.turno = false; fineTurno(); } }, 900);
+        me.salto2d(id, n);
+      };
+      if (im2.decode) im2.decode().then(parti, parti); else if (im2.complete) parti(); else { im2.onload = parti; im2.onerror = parti; }
+      setTimeout(parti, 2500);
+    }
+  };
+  Posto.prototype.salto2d = function (id, n) {
+    var me = this;
+    {
       // stesso volo per l'arte 2D (CSS): partenza fuori schermo, arco, atterraggio al 55% (0,52 s)
       var v = voloPer(this), d = this.d2;
       d.style.setProperty('--vx0', v.dx + 'px'); d.style.setProperty('--vy0', (v.su ? v.dy : v.dy) + 'px'); d.style.setProperty('--va', v.A + 'px');
@@ -284,7 +336,7 @@
       }, 960);
     }
   };
-  Posto.prototype.svuota = function () { this.ferma(true); this.id = null; this.stato = 'vuoto'; this.nick = ''; this.pieno = false; this.mostra = false; this.d2.className = 'lv-2d'; this.el.classList.remove('r2d', 'vuoto-eroe'); this.etichetta(); this.nScelta++; };
+  Posto.prototype.svuota = function () { clearTimeout(this.tFall); this.el.classList.remove('arriva'); if (this.turno) { this.turno = false; fineTurno(); } this.ferma(true); this.id = null; this.stato = 'vuoto'; this.nick = ''; this.pieno = false; this.mostra = false; this.d2.className = 'lv-2d'; this.el.classList.remove('r2d', 'vuoto-eroe'); this.etichetta(); this.nScelta++; };
 
   // ---------------- regista dell'idle vivo (uno per posto) ----------------
   function Regista(posto, kit) { this.p = posto; this.kit = kit; this.ultima = null; this.idleN = 0; this.serve = 1; this.log = []; }
@@ -337,7 +389,7 @@
   window.__lobbyv = { stato: ST, ultima: '', gl: GL };
   var NICK = ['Rango_88', 'Kappa', 'SuperMario_IT', 'Lulù', 'xX_Bandito_Xx', 'Ferro', 'Gigi99', 'NottePiena', 'Tizio', 'Caio.exe', 'Sbirro', 'ZeroTre', 'LaVolpe', 'Fiche', 'Bomber', 'Asso'];
   function costruisciPosti() {
-    ST.posti.forEach(function (p) { p.svuota(); p.el.remove(); var i = GL.posti.indexOf(p); if (i >= 0) GL.posti.splice(i, 1); GL.gl.deleteTexture(p.tex); });
+    ST.posti.forEach(function (p) { p.svuota(); p.el.remove(); var i = GL.posti.indexOf(p); if (i >= 0) GL.posti.splice(i, 1); if (GL.gl && p.tex) GL.gl.deleteTexture(p.tex); });
     var m = MODI[ST.modo];
     ST.posti = []; ST.nemici = [];
     for (var i = 0; i < m.mia; i++) {
@@ -364,10 +416,12 @@
       return out;
     }
     // gli alleati su piedistalli più alti (all'altezza della tua testa), ai lati: si vedono interi, non dietro di te
-    var hb = Math.min(av * 0.8, W * 1.05), ha = Math.min(hb * 0.6, W * 0.52);
+    // MOBILE 23/11: gli alleati stanno all'altezza della TUA TESTA (prima delle spalle: il tuo eroe copriva i loro piedistalli) e
+    // il tuo eroe si misura sullo spazio che c'è davvero fra la testata e la fila: alleati interi (nome compreso) sotto la testata.
+    var hb = Math.min(av / 1.5, W * 0.95), ha = Math.min(hb * 0.58, W * 0.48), ya = Math.max(fondo - hb * 0.92, cima + ha * 1.0);
     out[0] = { x: W / 2, y: fondo, h: hb, pw: Math.min(hb * 0.98, W * 0.72) };
-    out[1] = { x: W * 0.19, y: fondo - hb * 0.55, h: ha, pw: Math.min(ha * 0.98, W * 0.4) };
-    out[2] = { x: W * 0.81, y: fondo - hb * 0.55, h: ha, pw: Math.min(ha * 0.98, W * 0.4) };
+    out[1] = { x: W * 0.2, y: ya, h: ha, pw: Math.min(ha * 0.98, W * 0.38) };
+    out[2] = { x: W * 0.8, y: ya, h: ha, pw: Math.min(ha * 0.98, W * 0.38) };
     return out;
   }
   function disegnaAvv() {
@@ -376,13 +430,20 @@
       ST.nemici.map(function (q) { return '<i class="' + q.stato + '">' + (q.nick ? q.nick.slice(0, 10) : '') + '</i>'; }).join('');
   }
   function layout() {
-    var W = innerWidth, H = innerHeight, oriz = W / H > 1.05;
+    var W = innerWidth, H = innerHeight;
+    // MOBILE 23/11: l'iframe della mini app nasce minuscolo e poi cresce: niente decisioni su una misura finta (si rifà al cambio)
+    if (W < 120 || H < 120) return;
+    var oriz = W / H > 1.05, tit = $('lv-titolo');
     ROOT.classList.toggle('oriz', oriz);
+    // il titolo: in orizzontale nella testata, in verticale sopra la fila degli eroi (intero, e l'angolo in alto a sinistra resta libero)
+    if (oriz && tit.parentNode !== $('lv-testa')) $('lv-testa').insertBefore(tit, $('lv-testa').firstChild);
+    else if (!oriz && tit.parentNode !== $('lv-piede')) $('lv-piede').insertBefore(tit, $('lv-eroi'));
     misuraGL();
     // cima: sotto la barra in alto e la banda di ricerca (compatte); fondo: il piedistallo intero (con l'ombra) sopra la fila degli eroi
     var piede = $('lv-piede').getBoundingClientRect().height || 150;
-    var testa = $('lv-testa').getBoundingClientRect().height || 44, banda = $('lv-banda').getBoundingClientRect().height || 30;
-    var cima = testa + banda + 8, fondo = H - piede - Math.min(W * 0.74, H * 0.5) * 0.14 - 4;
+    var testaR = $('lv-testa').getBoundingClientRect(), bandaR = $('lv-banda').getBoundingClientRect();
+    var cima = Math.max(testaR.bottom || 44, (bandaR.bottom || 74) + 8) + 4, fondo = H - piede - Math.min(W * 0.74, H * 0.5) * 0.14 - 4;
+    if (window.GBS && GBS.ind) cima = Math.max(cima, GBS.ind.b + 6);   // il tasto «‹» della mini app: gli alleati non ci finiscono sotto
     if (oriz) fondo = H - piede - Math.min(W * 0.3, H * 0.6) * 0.98 * 0.14 - 6;
     var pos = posizioni(W, H, oriz, cima, fondo);
     ST.posti.forEach(function (p, i) {
@@ -394,8 +455,17 @@
       if (i === 0) $('lv-posti').appendChild(p.el);   // il tuo davanti agli alleati
     });
     GL.sporco = true;
+    // la fila: il tuo eroe resta in vista dopo un cambio di misura
+    var fila = $('lv-eroi'), sel = fila.querySelector('.lv-chip.sel');
+    if (sel && fila.scrollWidth > fila.clientWidth) fila.scrollLeft = Math.max(0, sel.offsetLeft - fila.clientWidth / 2 + sel.offsetWidth / 2);
+    else fila.scrollLeft = 0;
   }
-  addEventListener('resize', layout);
+  // MOBILE 23/11: si rifà a ogni cambio vero di misura (rotazione, iframe che cresce, barre di Telegram), non solo al resize
+  var ridL = 0;
+  function layoutPresto() { if (!ridL) ridL = requestAnimationFrame(function () { ridL = 0; if (ROOT.classList.contains('on')) layout(); }); }
+  addEventListener('resize', layoutPresto);
+  addEventListener('gb-schermo', layoutPresto);
+  if (window.ResizeObserver) try { new ResizeObserver(layoutPresto).observe(ROOT); } catch (e) { }
 
   // ---------------- tu ----------------
   function scegliMio(id) {
@@ -418,8 +488,18 @@
     if (conClip.length && Math.random() < 0.3 * conClip.length) return conClip[Math.floor(Math.random() * conClip.length)];
     return lib[Math.floor(Math.random() * lib.length)] || EROI[0];
   }
+  // MOBILE 23/11: i modelli 3D degli eroi della partita si scaricano appena si sceglie (durante la ricerca), non a partita iniziata
+  var pescaVero = pescaPer;
+  pescaPer = function (p) {
+    var id = pescaVero(p);
+    if (p && !p.nemico && !p.tu) { var t1 = performance.now(); (function dopoEntrata() { if (p.id !== id) return; if (p.entrato === p.nScelta || performance.now() - t1 > 8000) scaricaModello(id); else setTimeout(dopoEntrata, 200); })(); }   // alleato: prima la sua clip d'entrata, poi il modello
+    else scaricaModello(id);
+    return id;
+  };
+  function scaricaModello(id) { try { if (id && window.R3 && R3.carica && !R3.spento) { var x = R3.carica(id); if (x && x.catch) x.catch(function () { }); } } catch (e) { } }
   function dopo(ms, fn) { var t = setTimeout(fn, ms); ST.tPosti.push(t); return t; }
   function cerca() {
+    if (ST.posti[0]) scaricaModello(ST.posti[0].id);
     if (ST.fase !== 'scelta') return;
     ST.fase = 'cerca'; if (S.lobby) try { S.lobby('cerca'); } catch (e) { } ROOT.classList.add('cerca'); ST.t0 = performance.now(); aggiornaBanda();
     ST.timer = setInterval(aggiornaBanda, 250);
@@ -436,7 +516,11 @@
           p.eroe(pescaPer(p));
           var cambia = Math.random() < 0.35 && p !== ST.doppioPosto;
           if (cambia) dopo(caso(2200, 3200), function () { p.eroe(pescaPer(p)); });
-          dopo((cambia ? 3400 : 0) + caso(1800, 3000), function () { p.stato = 'pronto'; p.etichetta(); controlla(); });
+          // 23/11 sera: «pronto» solo dopo che il suo salto d'entrata è partito (al massimo 9 s in più): niente piedistallo vuoto con «PRONTO»
+          dopo((cambia ? 3400 : 0) + caso(1800, 3000), function () {
+            var t1 = performance.now();
+            (function aspetta() { if (ST.fase === 'scelta') return; if (p.entrato === p.nScelta || performance.now() - t1 > 9000) { p.stato = 'pronto'; p.etichetta(); controlla(); } else dopo(150, aspetta); })();
+          });
         });
       });
     });
@@ -500,8 +584,13 @@
     var all = ST.posti.slice(1).map(function (p) { return p.id; });
     var nem = ST.nemici.map(function (q) { return q.id; });
     if (!LB.avvia(me.id, all, nem, ST.modo)) { ST.fase = 'tutti'; return; }
+    ST.posti.forEach(function (p) { p.v.forEach(function (v) { v.pause(); }); });   // MOBILE 23/11: sotto il sipario niente video né tela da aggiornare
     // il sipario di gioco.js copre in 0,33 s: sotto si spegne la lobby e si liberano i video
-    setTimeout(function () { ST.posti.forEach(function (p) { p.ferma(true); }); ROOT.classList.remove('on', 'cerca', 'tutti'); ST.fase = 'chiusa'; }, 340);
+    setTimeout(function () {
+      ST.posti.forEach(function (p) { p.ferma(true); clearTimeout(p.tFall); }); ROOT.classList.remove('on', 'cerca', 'tutti'); ST.fase = 'chiusa';
+      // MOBILE 23/11: in partita la tela della lobby non tiene memoria della GPU (si rimisura alla riapertura)
+      if (GL.gl && GL.cv) { GL.cv.width = 1; GL.cv.height = 1; }
+    }, 340);
   }
   function apri() {
     ROOT.classList.add('on');
@@ -510,7 +599,7 @@
     var id = ST.mio || (function () { try { return localStorage.getItem('gb_eroe'); } catch (e) { return null; } })() || LB.eroe();
     if (EROI.indexOf(id) < 0) id = EROI[0];
     tastoCerca();
-    PRONTO.then(function () { ST.posti.forEach(function (p, i) { var c = CLIP[i === 0 && CLIP[id] ? id : 'pistolero']; if (c) p.prepara(c.kit[p.q].intro); }); scegliMio(id); });
+    PRONTO.then(function () { ST.posti.forEach(function (p, i) { if (i && TEL) return; var c = CLIP[i === 0 && CLIP[id] ? id : 'pistolero']; if (c && clipOk(i === 0 ? id : 'pistolero', !i)) p.prepara(c.kit[p.q].intro); }); scegliMio(id); });   // 23/11: sul telefono si prepara solo la TUA entrata, per prima
   }
   $('lv-esci').onclick = function () { ST.uscito = true; annulla(); ST.posti.forEach(function (p) { p.ferma(true); }); ROOT.classList.remove('on'); };
   // dopo la partita: quando gioco.js torna alla lobby classica, si riapre questa
@@ -521,7 +610,24 @@
     ST.posti.forEach(function (p) { if (!p.att) return; if (document.hidden) p.att.pause(); else if (p.vivo) { var x = p.att.play(); if (x && x.catch) x.catch(function () { }); } });
   });
   // le clip si scaricano subito (entrata + idle, grandi e piccole): il primo salto non aspetta la rete
-  PRONTO.then(function () { Object.keys(CLIP).forEach(function (id) { ['', '_s'].forEach(function (q) { var k = CLIP[id].kit[q]; [k.intro, k.idle].forEach(function (u) { fetch(u).catch(function () { }); }); }); }); });
+  // MOBILE 23/11: una alla volta (prima tutte insieme: decine di MB in parallelo che rubavano la rete alla clip che serviva);
+  // sul telefono solo le grandi (le piccole degli alleati non servono: arte 2D), e partendo dal tuo eroe
+  // (piano di caricamento 23/11): SUBITO solo il tuo eroe; gli altri in coda pigra dopo la prima partita (mai durante una partita),
+  // niente se il telefono chiede di risparmiare dati
+  PRONTO.then(function () {
+    var mio = ST.mio, qq = TEL ? ['_m'] : ['', '_s'], coda = [], pigri = [];
+    Object.keys(CLIP).forEach(function (id) { qq.forEach(function (q) { var k = CLIP[id].kit[q]; if (id === mio) coda.push(k.idle); else pigri.push(k.intro, k.idle); }); });   // la tua entrata la scarica il <video> stesso, per prima
+    var risparmio = !!(navigator.connection && navigator.connection.saveData);
+    function prossimo() {
+      if (NOCLIP) return;
+      if (!coda.length && pigri.length && !risparmio && window.__brawl && (window.__brawl.partite || 0) > 0 && window.__brawl.fase !== 'partita') coda.push(pigri.shift());
+      var u = coda.shift();
+      if (!u) { if (pigri.length && !risparmio) setTimeout(prossimo, 4000); return; }
+      fetch(u).then(function (r) { return r.ok ? r.arrayBuffer() : null; }).catch(function () { }).then(function () { setTimeout(prossimo, 60); });
+    }
+    prossimo();
+  });
+  window.__lobbyv.entrate = ENTRATE;
   window.__lobbyv.apri = apri; window.__lobbyv.cerca = cerca; window.__lobbyv.scegli = scegliMio; window.__lobbyv.pronto = mioPronto;
   // banco: tutti i posti col Pistolero (caso peggiore per i fps: 6 video insieme)
   window.__lobbyv.tutti = function (id) { ST.posti.forEach(function (p, i) { if (i) { p.nick = NICK[i]; p.stato = 'pronto'; p.etichetta(); } p.eroe(id || 'pistolero'); }); };

@@ -3,7 +3,7 @@
 // pool per particelle, effetti e numeri (nessuna allocazione per fotogramma), niente shadowBlur né filtri.
 (function () {
   'use strict';
-  var NOMI_TESTA = /[?&]nomi=1/.test(location.search);
+  var NOMI_TESTA = /[?&]nomi=1/.test(location.search), Q0 = new URLSearchParams(location.search);
   var BARRA_A = (function () { var v = parseFloat(new URLSearchParams(location.search).get('barraalfa')); return v > 0 ? Math.min(1, v) : 0.8; })();
   var BARRA_K = (function () { var v = parseFloat(new URLSearchParams(location.search).get('barra')); return v > 0 ? v : 0.8; })();   // 22/11: altezza della barra vita sopra l'eroe (1 = come prima)
   var M = window.Motore, PI2 = Math.PI * 2;
@@ -38,13 +38,20 @@
   function hash(c, r) { var h = (c * 374761393 + r * 668265263) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
 
   D.init = function (cv) {
-    D.tre = !!(window.R3 && window.R3.init);
-    D.cv = cv; D.ctx = cv.getContext('2d', { alpha: D.tre });
+    D.tre = !!(window.R3 && window.R3.init && !window.R3.spento);   // MOBILE 23/11: 3D spento (niente WebGL2, renderer rotto) = disegno 2D
+    D.cv = cv; D.ctx = cv.getContext('2d', { alpha: true });
     for (var i = 0; i < MAXPA; i++) D.pa.push({ on: 0, k: 0, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, life: 0, max: 1, s: 1, c: '#fff', rot: 0, vr: 0, g: 0 });
     for (i = 0; i < MAXFX; i++) D.fx.push({ on: 0, k: '', x: 0, y: 0, a: 0, b: 0, c: 0, d: 0, life: 0, max: 1, col: '#fff', i: 0 });
     for (i = 0; i < MAXNUM; i++) D.num.push({ on: 0, x: 0, y: 0, s: '', col: '#fff', life: 0, max: 1, big: 0, vx: 0, val: 0, tgt: -9, src: -9 });
   };
 
+  // MOBILE 23/11: ripiego dal 3D al 2D anche a metà partita (render3d.js lo chiama: contesto perso, shader rotti, nero)
+  D.via3d = function () {
+    if (!D.tre) return;
+    D.tre = false;
+    try { var gl = document.getElementById('gl'); if (gl) gl.style.display = 'none'; } catch (e) { }
+    if (D.st) { var vv = D.eroiV.slice(); D.prepara(D.st, D.io); for (var i = 0; i < vv.length && i < D.eroiV.length; i++) { D.eroiV[i].x = vv[i].x; D.eroiV[i].y = vv[i].y; } }
+  };
   D.ridimensiona = function (W, H, dpr) {
     D.W = W; D.H = H; D.dpr = dpr;
     D.cv.width = Math.round(W * dpr); D.cv.height = Math.round(H * dpr);
@@ -55,7 +62,9 @@
     D.S = Math.round(D.S * dpr) / dpr;
     D.vignetta = null; TC = {}; TCn = 0;
     if (D.tre) R3.ridimensiona(W, H, dpr);
-    if (D.st) D.prepara(D.st, D.io);
+    // MOBILE 23/11: col 3D una rotazione (o un cambio di risoluzione) non rifà l'arena: solo gli sprite 2D alla scala nuova
+    // (prima D.prepara → R3.prepara ricostruiva tutto: 150-700 ms di fermo a ogni giro del telefono). In 2D lo sfondo cotto serve davvero.
+    if (D.st) { if (D.tre && Q0.get('ridim') !== 'tutto') { D.Sd = Math.min(Math.round(D.S * D.dpr), 110); D.Sb = Math.min(D.S * D.dpr, 110); SPRC = {}; SPRCn = 0; cuociSprite(); } else D.prepara(D.st, D.io); }
   };
 
   // ---------------- precottura ----------------

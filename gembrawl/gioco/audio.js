@@ -354,11 +354,34 @@
   var MU = { voluta: null, ora: null, el: {}, g: {}, pausa: false };
   // il brano del menu è un ANELLO cucito sul tempo (ui/strumenti/musica_anello.py): si ripete dal buffer WebAudio con loopEnd esatto
   // (l'elemento <audio> lascerebbe un buco a ogni giro). Stessa interfaccia di un <audio>: play, pause, currentTime, playbackRate.
+  // quando scaricare la musica del menu: la TUA entrata in lobby è fatta, sei ancora a scegliere (non hai premuto CERCA) e sono passati
+  // 2,5 s dallo sblocco; oppure è partita la prima partita (i modelli sono arrivati). ?musica=subito = come prima.
+  var MENU_T0 = 0;
+  function menuQuando(fn) {
+    if (/[?&]musica=subito/.test(location.search)) { fn(); return; }
+    if (!MENU_T0) MENU_T0 = performance.now();
+    var it = setInterval(function () {
+      var B = window.__brawl, L = window.__lobbyv, ok = false;
+      try {
+        if (B && (B.fase === 'partita' || (B.partite || 0) > 0)) ok = true;
+        else if (!L || !L.stato) ok = performance.now() - MENU_T0 > 2500;   // lobby classica: niente entrate da aspettare
+        else if (L.stato.fase === 'scelta' && performance.now() - MENU_T0 > 2500 && (L.entrate || []).some(function (e) { return e.i === 0; })) ok = true;
+      } catch (e) { ok = true; }
+      if (ok) { clearInterval(it); fn(); }
+    }, 500);
+  }
   function anello(url, jsonUrl, g) {
     var o = { buf: null, src: null, inizio: 0, posa: 0, suona: false, playbackRate: 1, preservesPitch: true, currentTime: 0, durata: 0 };
-    Promise.all([fetch(url).then(function (r) { return r.arrayBuffer(); }), fetch(jsonUrl).then(function (r) { return r.json(); }).catch(function () { return {}; })]).then(function (x) {
-      o.durata = x[1].durata || 0;
-      A.ctx.decodeAudioData(x[0], function (b) { o.buf = b; if (o.suona) { o.suona = false; o.play(); } }, function () { });
+    // 24/11 (proprietario: musica del menu RITARDATA): il brano (1,2 MB) si scarica solo quando non ruba la rete ai modelli 3D e alle
+    // entrate della lobby; appena decodificato entra in dissolvenza (1,5 s). Non blocca mai niente: finché non c'è, silenzio.
+    menuQuando(function () {
+      Promise.all([fetch(url).then(function (r) { return r.arrayBuffer(); }), fetch(jsonUrl).then(function (r) { return r.json(); }).catch(function () { return {}; })]).then(function (x) {
+        o.durata = x[1].durata || 0;
+        A.ctx.decodeAudioData(x[0], function (b) {
+          o.buf = b;
+          if (o.suona) { o.suona = false; var t = A.ctx.currentTime; if (MU.ora === 'menu') { g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + 1.5); } o.play(); }
+        }, function () { });
+      }).catch(function () { });
     });
     o.play = function () {
       if (o.suona && o.src) return Promise.resolve();
@@ -478,29 +501,51 @@
   var BUF = {}, caricati = false, attivi = 0, perNome = {}, inAttesa = null;
   A.mioEroe = null;
 
-  function decodifica(url, ok) {
+  function decodifica(url, ok, fine) {
     fetch(url).then(function (r) { if (!r.ok) throw 0; return r.arrayBuffer(); })
       .then(function (b) { return new Promise(function (s, f) { A.ctx.decodeAudioData(b, s, f); }); })
-      .then(ok, function () { });
+      .then(function (b) { ok(b); if (fine) fine(); }, function () { if (fine) fine(); });
   }
+  // MOBILE 23/11 (piano di caricamento): niente 413 mp3 al primo tocco. A ondate, in una CODA con pochi file in volo (3, 2 in partita),
+  // così i modelli 3D della partita passano prima: 1) al tocco annunciatore + sfx comuni; 2) il tuo eroe appena scelto/in partita,
+  // gli altri della partita poco dopo; 3) tutto il resto SOLO se serve (una battuta o un suono chiesti la prima volta: intanto suona
+  // la sintesi di prima, come quando un campione non è ancora arrivato). ?audio=tutto = tutto subito come prima.
+  var PREF = { agamennone: 'aga', pistolero: 'pist', regina: 'reg', pizzaiolo: 'piz', samurai: 'sam', asso: 'asso', buttafuori: 'butt', croupier: 'crou', veggente: 'veg', bot: 'bot', dj: 'dj', arciere: 'arc', lupo: 'lupo', dama: 'dama', fante: 'fan' };
+  var DI_PREF = {}; Object.keys(PREF).forEach(function (k) { DI_PREF[PREF[k]] = k; });
+  var CODA = [], IN_VOLO = 0, CHIESTI = {}, EROE_OK = {}, TUTTO = /[?&]audio=tutto/.test(location.search);
+  function metti(url, ok, prima) { if (CHIESTI[url]) return; CHIESTI[url] = 1; if (prima) CODA.unshift([url, ok]); else CODA.push([url, ok]); vai(); }
+  function vai() {
+    var max = (window.__brawl && window.__brawl.fase === 'partita') ? 2 : 3;
+    while (IN_VOLO < max && CODA.length) { var x = CODA.shift(); IN_VOLO++; decodifica(x[0], x[1], function () { IN_VOLO--; setTimeout(vai, 0); }); }
+  }
+  function nomeEroe(e) { e = String(e || ''); return VOCI_EROE[e] || PREF[e] ? e : e.split('_')[0]; }
+  function caricaEroe(e, prima) {
+    e = nomeEroe(e);
+    if (!caricati || !e || EROE_OK[e]) return; EROE_OK[e] = 1;
+    var v = (VOCI_EROE[e] || []).slice(); if (prima) v.reverse();   // in testa alla coda: l'ordine giusto resta (scelta_1 per prima)
+    v.forEach(function (k) {
+      metti(BASE + 'voci/' + e + '/' + VOCI_DIR + k + '.mp3' + VER_V, function (b) {
+        BUF['v_' + e + '_' + k] = b;
+        if (inAttesa && inAttesa.e === e && performance.now() - inAttesa.t < 1500) { var q = inAttesa; inAttesa = null; A.voceEroe(q.e, q.m, true); }
+      }, prima);
+    });
+    var p = PREF[e]; if (p) SFX_FILE.forEach(function (n) { if (n.split('_')[0] === p) metti(BASE + 'sfx/' + n + '.mp3' + VER, function (b) { BUF[n] = b; }, prima); });
+  }
+  A.caricaEroe = caricaEroe;
   function caricaCampioni() {
     if (caricati || !A.nuovo || !A.ctx || !window.fetch) return; caricati = true;
     if (!A.voce) { A.voce = A.ctx.createGain(); A.voce.gain.value = A.on ? 1 : 0; A.voce.connect(A.master); }
-    ANN.forEach(function (k) { decodifica(BASE + 'voci/annunciatore/' + VOCI_DIR + k + '.mp3' + VER_V, function (b) { BUF['a_' + k] = b; }); });   // prima l'annunciatore
-    SFX_FILE.forEach(function (n) { decodifica(BASE + 'sfx/' + n + '.mp3' + VER, function (b) { BUF[n] = b; }); });
-    Object.keys(VOCI_EROE).forEach(function (e) {
-      VOCI_EROE[e].forEach(function (k) {
-        decodifica(BASE + 'voci/' + e + '/' + VOCI_DIR + k + '.mp3' + VER_V, function (b) {
-          BUF['v_' + e + '_' + k] = b;
-          if (inAttesa && inAttesa.e === e && performance.now() - inAttesa.t < 1500) { var q = inAttesa; inAttesa = null; A.voceEroe(q.e, q.m, true); }
-        });
-      });
-    });
+    ANN.forEach(function (k) { metti(BASE + 'voci/annunciatore/' + VOCI_DIR + k + '.mp3' + VER_V, function (b) { BUF['a_' + k] = b; }); });   // prima l'annunciatore
+    SFX_FILE.forEach(function (n) { if (!DI_PREF[n.split('_')[0]]) metti(BASE + 'sfx/' + n + '.mp3' + VER, function (b) { BUF[n] = b; }); });   // sfx comuni (conto, colpo, gemme, ko)
+    if (A.mioEroe) caricaEroe(A.mioEroe, true);
+    if (TUTTO) Object.keys(VOCI_EROE).forEach(function (e) { caricaEroe(e); });
   }
   function dbg(nome) { var k = nome.replace(/_\d+$/, ''); return DB[k] !== undefined ? DB[k] : -6; }
   // suona un campione: varia altezza (+-semi) e volume (+-1,5 dB); false se non c'e' (allora suona il vecchio)
   function camp(nome, vol, semi, ritardo, dest) {
-    var b = BUF[nome]; if (!b || !A.ctx || !A.on) return false;
+    var b = BUF[nome];
+    if (!b && caricati) { var pe = DI_PREF[String(nome).split('_')[0]]; if (pe) caricaEroe(pe, true); }   // MOBILE 23/11: a richiesta
+    if (!b || !A.ctx || !A.on) return false;
     if (attivi >= 14 || (perNome[nome] || 0) >= 3) return true;
     var c = A.ctx, s = c.createBufferSource(), g = c.createGain(), t = c.currentTime + (ritardo || 0);
     s.buffer = b; s.playbackRate.value = Math.pow(2, ((Math.random() * 2 - 1) * (semi === undefined ? 0.8 : semi)) / 12);
@@ -531,6 +576,7 @@
     VOCE.ultimo[chiave] = k; return k;
   }
   A.voceEroe = function (eroe, momento, mia) {
+    if (A.ctx && caricati && eroe) caricaEroe(eroe, true);   // MOBILE 23/11: le battute di un eroe si scaricano la prima volta che servono
     if (!A.nuovo || !A.ctx || !A.on || !VOCI_EROE[eroe]) return false;
     var prio = mia ? 2 : 1; if (!libera(prio)) return false;
     var scelte = VOCI_EROE[eroe].filter(function (k) { return k.indexOf(momento) === 0 && BUF['v_' + eroe + '_' + k]; });
@@ -560,7 +606,12 @@
   A.sblocca = function () { vecchio.sblocca(); caricaCampioni(); };
   A.imposta = function (sfx, mus) { vecchio.imposta(sfx, mus); if (A.voce) A.voce.gain.value = sfx ? 1 : 0; };
   var primoKO = false, modoVoluto = null, ultimaTrovata = -99;
-  A.impostaEroe = function (id) { A.mioEroe = id || null; primoKO = false; };
+  A.impostaEroe = function (id) {
+    A.mioEroe = id || null; primoKO = false;
+    caricaEroe(id, true);
+    // gli altri eroi in campo poco dopo (i modelli 3D della partita intanto passano: la coda ha 2 posti in partita)
+    setTimeout(function () { try { var st = window.__brawl && window.__brawl.st; if (st && st.eroi) st.eroi.forEach(function (h) { caricaEroe(h.id); }); } catch (e) { } }, 1500);
+  };
   var ultGettone = -9, combo = {};
   function giro(chiave, t, finestra) {   // contatore della combo a 3 (si azzera dopo `finestra` s, come nel motore)
     var cb = combo[chiave] || { n: -1, t: -9 }; cb.n = t - cb.t < (finestra || 1.2) ? (cb.n + 1) % 3 : 0; cb.t = t; combo[chiave] = cb; return cb.n;

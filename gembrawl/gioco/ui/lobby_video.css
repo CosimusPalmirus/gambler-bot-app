@@ -110,7 +110,11 @@
 /* ---- piede: scelta eroe + tasto ---- */
 #lv .lv-piede { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4000; padding: 0 12px calc(var(--sa-b) + 12px); display: flex; flex-direction: column; gap: 8px; align-items: stretch;
   background: linear-gradient(180deg, rgba(11,6,20,0), rgba(11,6,20,.85) 40%); }
-#lv .lv-eroi { display: flex; gap: 8px; overflow-x: auto; padding: 8px 4px 6px; scrollbar-width: none; justify-content: safe center; touch-action: pan-x; }
+#lv .lv-eroi { display: flex; gap: 8px; overflow-x: auto; overflow-y: hidden; padding: 8px 4px 6px; scrollbar-width: none; justify-content: flex-start; touch-action: pan-x; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; min-width: 0; }
+/* MOBILE 23/11: niente «safe center» (WebKit vecchi e WebView lo ignorano e i primi eroi finivano fuori a sinistra, senza scorrere):
+   si parte da sinistra e i margini auto centrano la fila solo quando c'è spazio */
+#lv .lv-eroi > :first-child { margin-left: auto; }
+#lv .lv-eroi > :last-child { margin-right: auto; }
 #lv .lv-eroi::-webkit-scrollbar { display: none; }
 #lv .lv-chip { position: relative; flex: none; width: clamp(48px, 7.2vh, 66px); aspect-ratio: 1; border-radius: 13px; overflow: hidden; transform: skewX(-6deg);
   background: radial-gradient(circle at 50% 70%, var(--kh), #170d26 78%); box-shadow: 0 0 0 2px #120420, 0 4px 0 rgba(0,0,0,.6); transition: transform .15s, box-shadow .15s, opacity .2s; }
@@ -123,14 +127,14 @@
 #lv .lv-chip .lv-dot { position: absolute; right: 5px; top: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--verde); box-shadow: 0 0 6px var(--verde); }
 #lv.bloccato .lv-chip { opacity: .45; pointer-events: none; }
 #lv .lv-cerca { height: clamp(54px, 8.4vh, 72px); }
-#lv .lv-cerca .g-l { font-size: clamp(22px, min(4.4vh, 8vw), 36px); }
+#lv .lv-cerca .g-l { font-size: clamp(18px, min(4.4vh, 6.4vw), 36px); white-space: nowrap; letter-spacing: 2px; }   /* MOBILE 23/11: una riga sola anche a 320 px */
 #lv .lv-cerca.pronto { filter: hue-rotate(95deg) saturate(1.2); }
 #lv .lv-cerca.annulla { filter: grayscale(.85) brightness(.85); }
 #lv .lv-fps { position: absolute; right: 8px; top: calc(var(--sa-t) + 52px); z-index: 5000; display: none; font: 700 11px ui-monospace, monospace; color: #3bff8b; background: rgba(0,0,0,.6); padding: 3px 6px; border-radius: 6px; }
 
 /* ---- PC / orizzontale ---- */
 #lv.oriz .lv-piede { flex-direction: row; align-items: center; justify-content: center; gap: 18px; padding: 10px 3vw calc(var(--sa-b) + 14px); }
-#lv.oriz .lv-eroi { flex-wrap: nowrap; overflow: visible; padding: 8px 0 6px; }
+#lv.oriz .lv-eroi { flex-wrap: nowrap; flex: 0 1 auto; overflow-x: auto; padding: 10px 12px 8px; }   /* MOBILE 23/11: se non ci sta, scorre (prima overflow visible: tagliata) */
 #lv.oriz .lv-cerca { width: min(380px, 30vw); flex: none; }
 #lv.oriz .lv-chip { width: clamp(46px, 7.4vh, 62px); }
 
@@ -141,3 +145,19 @@
   #lv .lv-avv i.pronto::before { content: ''; }
   #lv .lv-banda { gap: 6px; padding: 4px 10px; }
 }
+
+/* ---- MOBILE 23/11: telefoni in verticale (320-430 px) ---- */
+/* testata: in verticale solo i due tasti a destra; l'angolo in alto a sinistra resta libero per il «‹» della mini app / di Telegram.
+   Il titolo scende sopra la fila degli eroi (lobby_video.js lo sposta), intero e centrato. */
+#lv .lv-testa { padding-top: calc(var(--sa-t) + var(--tg-t, 0px) + 6px); }
+#lv:not(.oriz) .lv-testa { justify-content: flex-end; padding-left: 60px; }
+#lv .lv-piede > .lv-titolo { flex: none; align-self: center; max-width: 100%; text-align: center; font-size: clamp(13px, 4.3vw, 20px); margin-bottom: -4px; overflow: visible; }
+#lv .lv-banda { top: max(calc(var(--sa-t) + var(--tg-t, 0px) + 44px), calc(var(--ind-b, 0px) + 6px)); }
+@media (max-width: 380px) {
+  #lv .lv-modo { padding: .5em .7em; }
+  #lv .lv-esci { padding: .55em .65em; }
+}
+/* 23/11 sera: segnaposto mentre la clip d'entrata arriva (al massimo ~1,2 s per te): luce che pulsa sul piedistallo, poi il salto */
+#lv .lv-posto.arriva .lv-alone { opacity: 1; animation: lvArriva .7s ease-in-out infinite; }
+#lv .lv-posto.arriva .lv-anello { opacity: .55; animation: lvArriva .7s ease-in-out infinite; }
+@keyframes lvArriva { 50% { opacity: .25; transform: scale(.92); } }

@@ -147,9 +147,10 @@
   // ---------------- dimensioni e aree sicure ----------------
   var W = 0, H = 0, DPR = 1, SA = { t: 0, b: 0, l: 0, r: 0 };
   // risoluzione adattiva: se il telefono non tiene i 48 fps, si scende di nitidezza (2 > 1,5 > 1,25 > 1)
-  var QDPR = +Q.get('dpr') || 0, RISOL = { max: 2, somma: 0, n: 0, gradini: [2, 1.5, 1.25, 1] };
+  var QDPR = +Q.get('dpr') || 0, RISOL = { max: Math.min(screen.width || 9999, screen.height || 9999) < 600 && Q.get('cam') !== 'vecchia' ? 1.5 : 2, somma: 0, n: 0, gradini: [2, 1.5, 1.25, 1] };
   function controllaRisoluzione(dt) {
     if (QDPR || B.fase !== 'partita') return;
+    if (dt > 0.1) return;   // MOBILE 23/11: i fotogrammi lunghi della transizione (shader, texture) non decidono la risoluzione
     RISOL.somma += dt; RISOL.n++;
     if (RISOL.n < 60) return;
     var media = RISOL.somma / RISOL.n; RISOL.somma = 0; RISOL.n = 0;
@@ -1317,7 +1318,8 @@
   function faccina(id, d, anello) {
     var k = 'f|' + id + '|' + Math.round(d) + '|' + anello + '|' + DPR, c = CUOCO[k];
     if (c) return c;
-    var im = hudImg(id);   // HUD in partita: busto del modello 3D (permesso solo in partita)
+    var im = hudImg(id);
+    if (CUOCO[k + '|p'] && !(im && im.complete && im.naturalWidth > 0)) return CUOCO[k + '|p'];   // MOBILE 23/11: ritratto non ancora arrivato (o mancante): il segnaposto si cuoce UNA volta, non a ogni fotogramma   // HUD in partita: busto del modello 3D (permesso solo in partita)
     c = mk(d + 4, d + 4);
     var q = c.getContext('2d'), r = d / 2, cx = r + 2;
     var gr = q.createRadialGradient(cx, cx + r * 0.4, 0, cx, cx, r); gr.addColorStop(0, info(id).colore); gr.addColorStop(1, '#170d26');
@@ -1326,7 +1328,7 @@
     if (ok) { q.save(); q.beginPath(); q.arc(cx, cx, r - 1, 0, 6.283); q.clip(); var s = d * 1.5; q.drawImage(im, cx - s / 2, cx - r * 0.82, s, s); q.restore(); }
     else { q.fillStyle = '#fff'; q.font = '400 ' + Math.round(d * 0.5) + 'px ' + FONT; q.textAlign = 'center'; q.textBaseline = 'middle'; q.fillText(nome(id).charAt(0), cx, cx + 1); }
     q.lineWidth = Math.max(2, d * 0.09); q.strokeStyle = anello; q.beginPath(); q.arc(cx, cx, r - q.lineWidth / 2 + 0.5, 0, 6.283); q.stroke();
-    if (ok) { CUOCO[k] = c; CUOCOn++; }
+    if (ok) { CUOCO[k] = c; CUOCOn++; } else CUOCO[k + '|p'] = c;
     return c;
   }
   // levette e tasti cotti: base di vetro, anello cromato, alone del loro colore
@@ -1386,7 +1388,7 @@
   }
 
   function disegnaHUD(dt) {
-    var g = D.ctx, st = P.st, me = st.eroi[0], k = scala(), top = SA.t + 8;
+    var g = D.ctx, st = P.st, me = st.eroi[0], k = scala(), HUDC = Math.min(W, H) < 600 && Q.get('cam') !== 'vecchia', top = SA.t + (HUDC ? 4 : 8);   // MOBILE 23/11: barra in alto compatta sul telefono (render3d.js zonaUtile la conosce)
     var cx = W / 2;
     g.setTransform(DPR, 0, 0, DPR, 0, 0);
     D.vignettaRossa(P.vignetta);
@@ -1398,7 +1400,7 @@
       g.globalAlpha = inten; g.fillStyle = st.conto.sq === me.sq ? '#3fb3ff' : '#ff4d5e';
       g.fillRect(0, 0, W, 6 * k); g.fillRect(0, H - 6 * k, W, 6 * k); g.fillRect(0, 0, 6 * k, H); g.fillRect(W - 6 * k, 0, 6 * k, H); g.globalAlpha = 1;
     }
-    var tr = M.tempoRimasto(st), ph = Math.round(42 * k), tw = Math.round(70 * k);
+    var tr = M.tempoRimasto(st), ph = Math.round((HUDC ? 38 : 42) * k), tw = Math.round(70 * k);
     var tempoTxt = mmss(tr), tempoCol = st.supp ? COL.oro : (tr <= 60 ? '#ff6b7a' : '#ffffff');
     // ultimo minuto e ultimi 10 secondi: banner, suono, tic a ogni secondo
     if (!st.supp && !AUTO && P.conto <= 0) {
