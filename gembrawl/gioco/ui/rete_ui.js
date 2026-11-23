@@ -68,7 +68,8 @@
   function togliAvviso() { avviso.classList.remove('on'); }
   function tasto(txt, cls, fn) { var b = el('button', 't3 corto ' + (cls || ''), null); b.innerHTML = '<span class="luce"></span><span></span>'; b.lastChild.textContent = txt; b.onclick = function () { suono('tasto'); fn(); }; return b; }
 
-  var cli = window.ReteGB.cliente({ url: URLR, uid: uid, nome: nome, dialetto: DIAL, leggiInput: function () { return B.inputRete ? B.inputRete() : null; } });
+  var cli = window.ReteGB.cliente({ url: URLR, uid: uid, nome: nome, dialetto: DIAL, leggiInput: function () { return B.inputRete ? B.inputRete() : null; },
+    c18: function () { try { return localStorage.getItem('gb18') === '1'; } catch (e) { return false; } } });   // GBSOLDI_ON_2311
   window.__rete = cli;
   var modo = Q.get('modo') || 'duello', scelta = null, confermato = false, fineTimer = null, connesso = false;
   // GBT2311: UNA connessione per tutto (coda, torneo, lista in diretta, spettatore): quello che serve dopo `hello_ok` si
@@ -90,22 +91,44 @@
     });
     tasti.appendChild(tasto(T('annulla'), '', function () { B.ui.vai(window.__menuGB ? 's-gb' : 's-home', -1); }));
   }
-  function entraCoda(m) {
+  // GBSOLDI_ON_2311: la CODA dei modi e' SOLO fra persone (gratis e a soldi): niente bot, si parte quando ci sono
+  // abbastanza giocatori. Mentre si aspetta: quanti in coda, da quanto, Annulla e la proposta «Allenati contro i bot».
+  var POSTA = '', codaT = null, codaT0 = 0, POSTA_OK = false;
+  function eurT(v) { v = Math.round(+v * 100) / 100; var t = Math.floor(v) === v ? String(v) : v.toFixed(2); return (LANG === 'en' ? t : t.replace('.', ',')) + ' €'; }   // come il menu (ui/menu_gb.js eur)
+  function mmssC(s) { s = Math.max(0, Math.floor(s)); return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
+  function allenati() { cli.esciCoda(); clearInterval(codaT); POSTA = ''; if (B.esciRete) B.esciRete(); B.ui.vai('s-home', 1); }
+  function entraCoda(m, posta) {
     modo = m; scelta = null; confermato = false;
+    POSTA = posta ? String(posta) : ''; POSTA_OK = false;
     if (typeof LOBBY !== 'undefined' && LOBBY) { LOBBY = null; etichettaAncora(null); }   // GBGRUPPI_2311
     if (TOUR) { TOUR = null; var fa = $('f-ancora'), fe = $('f-eroe'), g = fa && fa.querySelector('.g-l'); if (g && fa.dataset.txt) { g.textContent = fa.dataset.txt; g.style.fontSize = ''; g.style.whiteSpace = ''; } if (fe) fe.style.display = ''; }   // GBT2311: coda gratis dopo un torneo
-    assicura(function () { cli.coda(modo); });   // GBT2311: una connessione sola (assicura)
-    tit.textContent = T(modo); sub.textContent = T('cerca'); corpo.innerHTML = '<div class="rete-giro"></div><div class="rete-coda"></div>'; tasti.innerHTML = '';
-    tasti.appendChild(tasto(T('annulla'), '', function () { cli.esciCoda(); if (window.__menuGB) B.ui.vai('s-gb', -1); else schermoModi(); }));
+    assicura(function () { cli.coda(modo, POSTA); });   // GBT2311: una connessione sola (assicura)
+    tit.textContent = T(modo) + (POSTA ? ' · ' + eurT(POSTA) : ''); sub.textContent = T('cerca');
+    corpo.innerHTML = '<div class="rete-giro"></div><div class="rete-coda">' + T('q_n') + ' 1</div><p class="rete-msg rete-qregola"></p>' + (POSTA ? '<p class="rete-msg rete-qposta">' + T('q_blocco') + '</p>' : '');
+    corpo.querySelector('.rete-qregola').textContent = T('q_' + modo);
+    tasti.innerHTML = '';
+    tasti.appendChild(tasto(T('annulla'), '', function () { var p = POSTA; cli.esciCoda(); clearInterval(codaT); POSTA = ''; if (p && POSTA_OK) setTimeout(function () { avvisa(T('q_resa'), 2600); }, 420); if (window.__menuGB) B.ui.vai('s-gb', -1); else schermoModi(); }));
+    tasti.appendChild(tasto(T('q_bot'), 'rete-bot', allenati));
+    codaT0 = performance.now(); clearInterval(codaT);
+    codaT = setInterval(function () { if (cli.fase !== 'coda' || !corpo.querySelector('.rete-coda')) { clearInterval(codaT); return; } aggiornaCoda(); }, 500);
     if (B.ui && window.__brawl && document.getElementById('s-rete').classList.contains('on') === false) B.ui.vai('s-rete', 1);
+  }
+  var codaN = 1, codaCap = 2;
+  function aggiornaCoda() {
+    var c = corpo.querySelector('.rete-coda'); if (!c) return;
+    c.textContent = T('q_n') + ' ' + codaN + (codaCap ? '/' + codaCap : '') + ' · ' + T('q_attesa') + ' ' + mmssC((performance.now() - codaT0) / 1000);
   }
   cli.on.coda = function (m) {
     if (!m.modo) return;
-    var c = corpo.querySelector('.rete-coda'); if (!c) return;
-    var tot = m.modo === 'duello' ? 2 : 6;
-    c.textContent = T('coda') + ' · ' + m.n + '/' + tot + (m.modo !== 'duello' && m.max ? ' · ' + Math.max(0, Math.ceil(m.max - m.attesa)) + ' s' : '');
+    codaN = m.n || 1; codaCap = m.cap || (m.modo === 'duello' ? 2 : 6);
+    if (POSTA && !POSTA_OK) { POSTA_OK = true; var qp = corpo.querySelector('.rete-qposta'); if (qp) qp.textContent = '🔒 ' + T('q_bloccata') + ': ' + eurT(m.stake || POSTA); }
+    aggiornaCoda();
   };
-  cli.on.partita = function () { scelta = null; confermato = false; tit.textContent = T('scegli'); sub.textContent = ''; corpo.innerHTML = ''; tasti.innerHTML = ''; suono('vsColpo'); };
+  cli.on.partita = function () {
+    clearInterval(codaT);
+    scelta = null; confermato = false; tit.textContent = T('scegli'); sub.textContent = ''; corpo.innerHTML = ''; tasti.innerHTML = ''; suono('vsColpo');
+    if (!TOUR && !(typeof LOBBY !== 'undefined' && LOBBY) && !cli.riv) { var nP = modo === 'duello' ? 2 : modo === 'gemme' ? 6 : 0; avvisa(T(modo === 'duello' ? 'q_trovato' : 'q_trovati') + (POSTA && nP ? ' · ' + T('q_piatto') + ' ' + eurT(+POSTA * nP) : ''), 2400); }
+  };
   cli.on.sel = function (m) {
     if (!corpo.querySelector('.rete-griglia')) {
       corpo.innerHTML = '<div class="rete-tempo"></div><div class="rete-griglia"></div><div class="rete-conf"></div>';
@@ -394,8 +417,171 @@
     setTimeout(function () { if (GLID === g && cli.fase === 'guarda' && !cli.st) cli.guarda('lid:' + g.lid); }, 3000);
   };
 
+  // ================= GBSOLDI_ON_2311: LA CODA SOLO FRA PERSONE, E I SOLDI =================
+  var TXS = {
+    it: { q_n: 'In coda:', q_attesa: 'attesa', q_bot: 'Allenati contro i bot', q_blocco: 'Blocco la posta…', q_bloccata: 'Posta bloccata', q_resa: 'Uscito dalla coda: posta restituita',
+      q_duello: 'Solo persone vere: si parte appena arriva un avversario.', q_sopr: 'Solo persone vere: si parte con 6 giocatori, oppure dopo l’attesa con almeno 3.', q_gemme: 'Solo persone vere: si parte con 6 giocatori, 3 contro 3.',
+      q_trovato: 'Avversario trovato!', q_trovati: 'Avversari trovati!', q_piatto: 'piatto', q_ricoda: 'Connessione ripresa: sei di nuovo in coda',
+      e_saldo: 'Saldo insufficiente: ricarica il wallet o scegli una posta più bassa', e_presto: 'Le partite a soldi di Gem Brawl apriranno presto', e_max: 'Posta troppo alta per Gem Brawl',
+      e_ingioco: 'Hai già una posta in gioco: finisci prima quella partita', e_liq: 'Stiamo ancora pagando la tua ultima partita: riprova fra poco', e_gia: 'Sei già in coda o in partita', e_18: 'Conferma di avere 18 anni per giocare a soldi', e_fascia: 'Posta non valida',
+      r_scaduta: 'Nessuno è arrivato in tempo: posta restituita', r_riprova: 'Riprova', r_menu: 'Menu',
+      f_vinto: 'Hai vinto', f_netto: 'netto, commissione 5% già tolta', f_perso: 'Hai perso la posta', f_pari: 'Pareggio: posta restituita', f_annullata: 'Partita annullata: posta restituita', f_sospeso: 'Il premio arriva sul saldo fra poco',
+      f_uscito: 'Sei uscito: posta persa', f_aspetta: 'Pagamento in corso…', f_saldo: 'Saldo',
+      a_tit: 'Di nuovo a soldi?', a_sub: 'Posta', a_gioca: 'Gioca', a_cambia: 'Cambia posta',
+      x_tit: 'Esci dalla partita?', x_duello: 'Se esci adesso perdi la posta e la vittoria va all’avversario.', x_sopr: 'Se esci adesso il tuo eroe resta fermo e la posta è persa.', x_gemme: 'Se esci adesso il tuo eroe lo guida un bot fino alla fine e la tua parte va ai compagni.', x_si: 'Esci e perdi', x_no: 'Resta' },
+    en: { q_n: 'In queue:', q_attesa: 'waiting', q_bot: 'Train against bots', q_blocco: 'Locking your stake…', q_bloccata: 'Stake locked', q_resa: 'Left the queue: stake returned',
+      q_duello: 'Real people only: the match starts as soon as an opponent arrives.', q_sopr: 'Real people only: starts with 6 players, or after the wait with at least 3.', q_gemme: 'Real people only: starts with 6 players, 3 vs 3.',
+      q_trovato: 'Opponent found!', q_trovati: 'Opponents found!', q_piatto: 'pot', q_ricoda: 'Connection back: you are in the queue again',
+      e_saldo: 'Not enough balance: top up your wallet or pick a lower stake', e_presto: 'Gem Brawl money matches open soon', e_max: 'Stake too high for Gem Brawl',
+      e_ingioco: 'You already have a stake in play: finish that match first', e_liq: 'We are still paying your last match: try again in a moment', e_gia: 'You are already queued or playing', e_18: 'Confirm you are 18+ to play for money', e_fascia: 'Invalid stake',
+      r_scaduta: 'Nobody arrived in time: stake returned', r_riprova: 'Try again', r_menu: 'Menu',
+      f_vinto: 'You won', f_netto: 'net, 5% fee already taken', f_perso: 'You lost your stake', f_pari: 'Draw: stake returned', f_annullata: 'Match cancelled: stake returned', f_sospeso: 'Your prize reaches your balance shortly',
+      f_uscito: 'You left: stake lost', f_aspetta: 'Paying out…', f_saldo: 'Balance',
+      a_tit: 'Play for money again?', a_sub: 'Stake', a_gioca: 'Play', a_cambia: 'Change stake',
+      x_tit: 'Leave the match?', x_duello: 'If you leave now you lose your stake and the win goes to your opponent.', x_sopr: 'If you leave now your hero stands still and your stake is lost.', x_gemme: 'If you leave now a bot drives your hero to the end and your share goes to your teammates.', x_si: 'Leave and lose', x_no: 'Stay' }
+  };
+  Object.keys(TXS).forEach(function (l) { Object.keys(TXS[l]).forEach(function (k) { TX[l][k] = TXS[l][k]; }); });
+  (function () { var s = document.createElement('style'); s.textContent = '.rete-tasti .rete-bot{--k:#3bff8b}.rete-tasti .t3.rete-bot>span:last-child{font-size:.74em;letter-spacing:0;white-space:nowrap}.rete-qposta{color:#ffd23b!important;font-weight:800!important}.rete-qregola{opacity:.9}'; document.head.appendChild(s); })();
+  // gli errori del server (testi del cancello, dell'escrow e di _posta_in_gioco) -> il testo per il giocatore
+  function erroreSoldi(p) {
+    p = String(p || '');
+    if (/insufficient balance/.test(p)) return 'e_saldo';
+    if (/a soldi non ancora aperto/.test(p)) return 'e_presto';
+    if (/posta massima/.test(p)) return 'e_max';
+    if (/posta ancora in gioco/.test(p)) return 'e_ingioco';
+    if (/liquidazione in corso/.test(p)) return 'e_liq';
+    if (/already in a lobby/.test(p)) return 'e_gia';
+    if (/conferma 18/.test(p)) return 'e_18';
+    if (/bad tier/.test(p)) return 'e_fascia';
+    return null;
+  }
+  var tent18 = 0;
+  // la stessa conferma 18+ del menu (ui/menu_gb.js), per chi arriva dritto nella lobby a soldi del gruppo
+  function conferma18Rete(si, no) {
+    var f = el('div', 'gm-velo', null);
+    f.innerHTML = '<div class="gm-foglio"><b></b><p></p><div class="gm-ft"><button class="t3 corto" data-s="1" style="--k:#5cff8a"><span class="luce"></span><span></span></button><button class="t3 corto" data-s="0" style="--k:#ff4d5e"><span class="luce"></span><span></span></button></div></div>';
+    f.querySelector('b').textContent = '🔞 ' + (LANG === 'en' ? 'Adults only' : 'Solo maggiorenni');
+    f.querySelector('p').textContent = LANG === 'en' ? 'Playing for money is for people aged 18 or over. Do you confirm you are at least 18?' : 'Il gioco a soldi è riservato a chi ha 18 anni o più. Confermi di avere almeno 18 anni?';
+    f.querySelector('[data-s="1"] span:last-child').textContent = LANG === 'en' ? 'Yes, I am 18+' : 'Sì, ho 18 anni';
+    f.querySelector('[data-s="0"] span:last-child').textContent = 'No';
+    f.style.zIndex = 9999; document.body.appendChild(f);
+    f.querySelector('[data-s="1"]').onclick = function () { try { localStorage.setItem('gb18', '1'); } catch (e) { } suono('tasto'); f.remove(); si(); };
+    f.querySelector('[data-s="0"]').onclick = function () { suono('indietro'); f.remove(); if (no) no(); };
+  }
+  (function () {
+    var no0 = cli.on.no;
+    cli.on.no = function (m) {
+      var k = erroreSoldi(m && m.perche);
+      // la LOBBY A SOLDI del gruppo (tasto ENTRA): 18+ chiesta qui (poi si rientra), gli altri motivi detti chiari
+      if (k && !TOUR && typeof LOBBY !== 'undefined' && LOBBY && LOBBY.attesa) {
+        var lid = LOBBY.lid;
+        if (k === 'e_18') { conferma18Rete(function () { cli.c18ok = true; cli.manda({ t: 'gb18', ok: 1 }); setTimeout(function () { avviaLobby(lid); }, 250); }, function () { LOBBY = null; alMenu(); }); return; }
+        LOBBY = null;
+        tit.textContent = T('l_tit'); sub.textContent = ''; corpo.innerHTML = ''; tasti.innerHTML = '';
+        corpo.appendChild(el('p', 'rete-msg', T(k)));
+        tasti.appendChild(tasto(T('r_menu'), 'rete-ok', alMenu));
+        return;
+      }
+      if (!k || TOUR || (typeof LOBBY !== 'undefined' && LOBBY)) { no0(m); return; }
+      clearInterval(codaT);
+      // 18+ gia' data nel telefono ma il server non la conosce: la si rimanda e si riprova UNA volta
+      if (k === 'e_18' && POSTA && cli.c18ok && tent18 < 1) { tent18++; var p = POSTA; cli.manda({ t: 'gb18', ok: 1 }); setTimeout(function () { entraCoda(modo, p); }, 300); return; }
+      tent18 = 0; POSTA = '';
+      if (k === 'e_18') { try { localStorage.removeItem('gb18'); } catch (e) { } }   // il menu richiede la conferma al prossimo tocco
+      B.ui.vai(window.__menuGB ? 's-gb' : 's-home', -1);
+      setTimeout(function () { avvisa(T(k), 4200); }, 400);
+      if (window.__menuGB_saldo) window.__menuGB_saldo(true);
+    };
+  })();
+  (function () { var c1 = cli.on.coda; cli.on.coda = function (m) { if (typeof LOBBY !== 'undefined' && LOBBY && m && m.lid) POSTA = m.stake > 0 ? String(m.stake) : ''; c1(m); }; })();   // la posta della lobby del gruppo
+  cli.c18ok = (function () { try { return localStorage.getItem('gb18') === '1'; } catch (e) { return false; } })();
+  cli.on.c18 = function () { cli.c18ok = true; };
+  cli.on.ricoda = function (m) { if (m && m.posta) { POSTA_OK = false; var qp = corpo.querySelector('.rete-qposta'); if (qp) qp.textContent = T('q_blocco'); } avvisa(T('q_ricoda'), 2200); };
+  // coda a soldi scaduta (nessuno in tempo): il server ha gia' reso la posta
+  cli.on.rimborso = function () {
+    clearInterval(codaT); var p = POSTA; POSTA = '';
+    tit.textContent = T(modo); sub.textContent = ''; corpo.innerHTML = ''; tasti.innerHTML = '';
+    corpo.appendChild(el('p', 'rete-msg', T('r_scaduta')));
+    tasti.appendChild(tasto(T('r_riprova'), 'rete-ok', function () { entraCoda(modo, p); }));
+    tasti.appendChild(tasto(T('q_bot'), 'rete-bot', allenati));
+    tasti.appendChild(tasto(T('r_menu'), '', alMenu));
+    if (window.__menuGB_saldo) window.__menuGB_saldo(true);
+  };
+  // ---- la fine A SOLDI: l'esito in denaro arriva col messaggio `over` del server (dopo il pagamento verificato) ----
+  var ULTIMA = null;
+  function testoEsito(o) {
+    if (!o || o.gratis || o.practice || o.tour) return null;
+    var cut = +o.your_cut_eur || 0, posta = +o.posta_eur || 0;
+    if (o.abbandono) return { k: 'perso', t: T('f_uscito') + (posta ? ' (' + eurT(posta) + ')' : '') };
+    if (o.pari) return { k: 'pari', t: T('f_pari') };              // il pari a soldi arriva come rimborso (annullata) + pari
+    if (o.annullata) return { k: 'pari', t: T('f_annullata') };
+    if (cut > 0) return { k: 'vinto', t: T('f_vinto') + ' ' + eurT(cut) + ' (' + T('f_netto') + ')' + (o.premio_in_sospeso ? ' · ' + T('f_sospeso') : '') };
+    return { k: 'perso', t: T('f_perso') + (POSTA ? ' (' + eurT(POSTA) + ')' : '') };
+  }
+  cli.on.over = function (o) {
+    var e = testoEsito(o); if (!e) return;
+    ULTIMA = { posta: POSTA, modo: modo, esito: e.k, cut: +o.your_cut_eur || 0 };
+    // la schermata di fine la scrive gioco.js (anche DOPO questo messaggio): l'esito in denaro si rimette quando c'e'
+    var metti = function () { var mo = $('f-motivo'); if (mo && (mo.textContent || '').indexOf(e.t) < 0) mo.textContent = (mo.textContent ? mo.textContent + ' · ' : '') + e.t; };
+    metti(); [400, 1200, 2500, 4000].forEach(function (ms) { setTimeout(metti, ms); });
+    avvisa(e.t, 5200);
+    if (e.k === 'vinto') suono('trofei');
+    if (window.__menuGB_saldo) window.__menuGB_saldo(true);
+  };
+  // Duello finito SENZA il motore (l'avversario esce o va AFK): il server manda il verdetto (`fine` con x.vincitori) ma lo
+  // specchio non ha `st.fine`, e la pagina restava ferma nell'arena (anche gratis). Si scrive `st.fine` dal verdetto del server:
+  // la pagina fa la sua fine di sempre, col motivo detto chiaro.
+  TX.it.f_mot_esce = 'L’avversario ha lasciato la partita'; TX.en.f_mot_esce = 'Your opponent left the match';
+  TX.it.f_mot_afk = 'L’avversario è rimasto fermo troppo a lungo'; TX.en.f_mot_afk = 'Your opponent was idle too long';
+  (function () {
+    var fine1 = cli.on.fine;
+    cli.on.fine = function (m) {
+      fine1(m);
+      try {
+        var st = cli.st, x = (m && m.x) || {};
+        if (!st || st.fine || cli.io < 0 || cli.spettatore || !x.vincitori || !x.vincitori.length) return;
+        var w = st.eroi[x.vincitori[0]];
+        st.fine = { vinc: w ? w.sq : -1, motivo: x.motivo === 'afk' ? 'afk' : 'abbandono', t: st.t };
+        var fix = function () { var mo = $('f-motivo'); if (mo && /^mot_(abbandono|afk)/.test(mo.textContent || '')) mo.textContent = mo.textContent.replace(/^mot_abbandono/, T('f_mot_esce')).replace(/^mot_afk/, T('f_mot_afk')); };
+        [1900, 2150, 2600, 3200, 4500].forEach(function (ms) { setTimeout(fix, ms); });
+      } catch (e) { }
+    };
+  })();
+  // «Ancora» a soldi chiede di confermare la posta (niente ripartenza a soldi con un tocco solo)
+  (function () {
+    var anc0 = B.reteAncora;
+    B.reteAncora = function () {
+      if (!POSTA || TOUR || (typeof LOBBY !== 'undefined' && LOBBY)) { anc0(); return; }
+      var p = POSTA;
+      B.ui.vai('s-rete', 1); clearInterval(codaT);
+      tit.textContent = T('a_tit'); sub.textContent = T(modo) + ' · ' + T('a_sub') + ' ' + eurT(p); corpo.innerHTML = ''; tasti.innerHTML = '';
+      tasti.appendChild(tasto(T('a_gioca') + ' ' + eurT(p), 'rete-ok', function () { entraCoda(modo, p); }));
+      tasti.appendChild(tasto(T('a_cambia'), '', function () { POSTA = ''; alMenu(); }));
+    };
+  })();
+  // ESCI a soldi durante la partita: prima si dice cosa si perde (regole del contratto: duello perde, sopravvivenza fermo,
+  // 3v3 al bot con la parte ai compagni)
+  (function () {
+    var pe = $('p-esci'); if (!pe) return;
+    var pe0 = pe.onclick;
+    pe.onclick = function (ev) {
+      var P0 = B.P && B.P();
+      if (!(POSTA && P0 && P0.rete && !P0.spett && cli.fase === 'gioco' && !cli.over)) { if (pe0) pe0.call(pe, ev); return; }
+      var f = el('div', 'gm-velo', null);
+      f.innerHTML = '<div class="gm-foglio"><b></b><p></p><div class="gm-ft"><button class="t3 corto" data-s="0" style="--k:#5cff8a"><span class="luce"></span><span></span></button><button class="t3 corto" data-s="1" style="--k:#ff4d5e"><span class="luce"></span><span></span></button></div></div>';
+      f.querySelector('b').textContent = T('x_tit'); f.querySelector('p').textContent = T('x_' + modo);
+      f.querySelector('[data-s="0"] span:last-child').textContent = T('x_no'); f.querySelector('[data-s="1"] span:last-child').textContent = T('x_si');
+      f.style.zIndex = 9999; document.body.appendChild(f);
+      f.querySelector('[data-s="0"]').onclick = function () { suono('tasto'); f.remove(); };
+      f.querySelector('[data-s="1"]').onclick = function () { suono('indietro'); f.remove(); if (pe0) pe0.call(pe, ev); };
+    };
+  })();
+  window.__reteUI_soldi = function () { return { posta: POSTA, ultima: ULTIMA, gb: cli.gb, over: cli.over }; };
+
   // ---------------- ingresso: il menu principale di Gem Brawl (ui/menu_gb.js) apre la coda di un modo ----------------
-  window.__reteUI = { coda: function (m) { B.ui.vai('s-rete', 1); setTimeout(function () { entraCoda(m); }, 380); }, cli: cli,
+  window.__reteUI = { coda: function (m, posta) { B.ui.vai('s-rete', 1); setTimeout(function () { entraCoda(m, posta); }, 380); }, cli: cli,
+    // GBSOLDI_ON_2311: lo stato dei soldi dal server (si collega se serve): fn(cli.gb)
+    info: function (fn) { assicura(function () { try { fn(cli.gb); } catch (e) { } }); },
     // GBT2311: per menu_gb.js e spettatore.js
     dirette: function (fn) { if (fn && ascoltaLista.indexOf(fn) < 0) ascoltaLista.push(fn); assicura(function () { cli.dirette(); }); },
     smettiLista: function (fn) { var i = ascoltaLista.indexOf(fn); if (i >= 0) ascoltaLista.splice(i, 1); },

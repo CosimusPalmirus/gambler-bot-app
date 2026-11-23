@@ -38,12 +38,34 @@
   var stato = { modo: ls('gb_mg_modo') || 'duello', soldi: false, posta: ls('gb_mg_posta') || '1' };
   if (!MODI.some(function (m) { return m.id === stato.modo; })) stato.modo = 'duello';
   if (FASCE.indexOf(stato.posta) < 0) stato.posta = '1';
-  function soldiAperti() { var c = window.__reteUI && window.__reteUI.cli; return !!(c && c.info && c.info.soldi); }   // interruttore del server: oggi spento
+  // GBSOLDI_ON_2311: lo stato dei soldi lo dice il SERVER (hello_ok.gb): aperti, posta massima, fasce. null = non ancora saputo
+  function infoGB() { var c = window.__reteUI && window.__reteUI.cli; return (c && c.gb) || null; }
+  function soldiAperti() { var g = infoGB(); return !!(g && g.soldi); }
+  function soldiSaputo() { return !!infoGB(); }
+  // il saldo: dentro la mini app quello della mini app (stessa origine); aperta da sola dentro Telegram, dal backend
+  // (/balance con l'initData firmato, come fa la mini app); fuori da Telegram ?saldo= (prove) o «—»
+  var SALDO_URL = 'https://62-238-17-24.sslip.io/balance', saldoRete = null, saldoT = 0;
+  function parentMA() { try { var P0 = window.parent; if (P0 !== window && P0.S && typeof P0.S.cent === 'number') return P0; } catch (e) { } return null; }
   function saldo() {
     var q = Q.get('saldo'); if (q != null && q !== '') return +q;
-    try { var P0 = window.parent; if (P0 !== window && P0.S && typeof P0.S.cent === 'number' && isFinite(P0.S.cent)) return P0.S.cent / 100; } catch (e) { }   // la mini app (stessa origine)
-    return null;
+    var P0 = parentMA(); if (P0 && isFinite(P0.S.cent)) return P0.S.cent / 100;   // la mini app (stessa origine)
+    return saldoRete;
   }
+  function aggiornaSaldo(forza) {
+    if (Q.get('saldo') != null) return;
+    var P0 = parentMA();
+    if (P0) { if (forza && typeof P0.loadBalance === 'function') { try { var pr = P0.loadBalance(); if (pr && pr.then) pr.then(function () { disegna(); }, function () { }); } catch (e) { } } return; }
+    var TW = window.Telegram && Telegram.WebApp, idt = TW && TW.initData, u = TW && TW.initDataUnsafe && TW.initDataUnsafe.user;
+    if (!idt || !u || !u.id || !window.fetch) return;
+    if (!forza && Date.now() - saldoT < 15000) return;
+    saldoT = Date.now();
+    fetch(SALDO_URL + '?user_id=' + encodeURIComponent(u.id), { headers: { 'X-Telegram-Init-Data': idt, 'ngrok-skip-browser-warning': '1' } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d && typeof d.cent === 'number') { saldoRete = d.cent / 100; disegna(); } }, function () { });
+  }
+  window.__menuGB_saldo = function (forza) { aggiornaSaldo(forza); if (forza) setTimeout(function () { aggiornaSaldo(true); }, 2500); };   // dopo una partita: subito e di nuovo quando il pagamento e' atterrato
+  // i conti in CENTESIMI come il server (commissione per difetto: piatto*500//10000)
+  function netto(pc) { return pc - Math.floor(pc * 500 / 10000); }
   function eroeId() { var e = ls('gb_eroe') || (L0 && L0.eroe ? L0.eroe() : ''); var ok = L0 && L0.giocabili ? L0.giocabili() : []; return ok.indexOf(e) >= 0 ? e : (ok[0] || 'samurai'); }
   var IC_IND = '<svg viewBox="0 0 24 24"><path d="M15 4 7 12l8 8" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   var IC_TUT = '<svg viewBox="0 0 24 24" class="gm-svg"><path d="M12 3 2 8l10 5 8-4v6h2V8L12 3Zm-6 9.2V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-3.8l-6 3-6-3Z" fill="currentColor"/></svg>';
@@ -200,7 +222,8 @@
   window.__menuGB_dirette = function () { if (!sc.classList.contains('on')) window.__menuGBapri(); apriDirette(); };
   window.__menuGB_chiudiDirette = chiudiDirette;
   sc.querySelector('[data-x="live"]').onclick = function () { suono('passa'); apriDirette(); };
-  var avv = el('div', 'gm-avviso'); document.body.appendChild(avv);   // fuori dalla schermata: l'animazione d'entrata (.schermo.on > *) lo mostrava vuoto var avvT = null;
+  var avv = el('div', 'gm-avviso'); document.body.appendChild(avv);   // fuori dalla schermata: l'animazione d'entrata (.schermo.on > *) lo mostrava vuoto
+  var avvT = null;   // GBSOLDI_ON_2311: era finito dentro il commento qui sopra -> ogni avvisoBreve alzava ReferenceError
   function avvisoBreve(t) { avv.textContent = t; avv.classList.add('on'); clearTimeout(avvT); avvT = setTimeout(function () { avv.classList.remove('on'); }, 2600); }
 
   function conferma18(poi) {
@@ -242,41 +265,59 @@
   function disegna() {
     var sd = saldo(); Q$('.gm-saldo b').textContent = sd == null ? '—' : eur(sd);
     Array.prototype.forEach.call(modiEl.querySelectorAll('.gm-m[data-id]'), function (b) { b.classList.toggle('sel', b.dataset.id === stato.modo); b.classList.toggle('on', b.dataset.id === stato.modo); });   // «on» = nome di prima (pre-menu)
-    var M = MODI.filter(function (x) { return x.id === stato.modo; })[0] || MODI[0], aperti = soldiAperti();
+    var M = MODI.filter(function (x) { return x.id === stato.modo; })[0] || MODI[0], aperti = soldiAperti(), saputo = soldiSaputo();
     soldiEl.innerHTML = '';
-    var seg = el('div', 'gm-seg', '<button data-g="g"><span>' + L('GRATIS', 'FREE') + '<small>' + L('contro persone', 'vs real people') + '</small></span></button><button data-g="s"><span>' + L('A SOLDI', 'FOR MONEY') + '<small>' + (aperti ? L('vince il piatto', 'winner takes the pot') : L('presto', 'soon')) + '</small></span></button>');
+    var seg = el('div', 'gm-seg', '<button data-g="g"><span>' + L('GRATIS', 'FREE') + '<small>' + L('contro persone', 'vs real people') + '</small></span></button><button data-g="s"><span>' + L('A SOLDI', 'FOR MONEY') + '<small>' + (aperti ? L('vince il piatto', 'winner takes the pot') : saputo ? L('presto', 'soon') : '18+') + '</small></span></button>');
     seg.querySelector('[data-g="g"]').classList.toggle('on', !stato.soldi);
     seg.querySelector('[data-g="s"]').classList.toggle('on', stato.soldi);
     seg.querySelector('[data-g="g"]').onclick = function () { stato.soldi = false; suono('passa'); disegna(); };
-    seg.querySelector('[data-g="s"]').onclick = function () { var vai = function () { stato.soldi = true; suono('passa'); disegna(); }; if (ls('gb18') === '1') vai(); else conferma18(vai); };
+    // GBSOLDI_ON_2311: al tocco su A SOLDI si chiede al server se sono aperti (una connessione sola, quella della coda)
+    seg.querySelector('[data-g="s"]').onclick = function () {
+      var vai = function () { stato.soldi = true; suono('passa'); disegna(); aggiornaSaldo(false); if (window.__reteUI && window.__reteUI.info) window.__reteUI.info(function () { disegna(); }); };
+      if (ls('gb18') === '1') vai(); else conferma18(vai);
+    };
     soldiEl.appendChild(seg);
     sc.classList.toggle('a-soldi', stato.soldi);
+    var g = infoGB(), ammesse = (g && g.fasce && g.fasce.length) ? g.fasce : FASCE;
+    if (stato.soldi && aperti && ammesse.indexOf(stato.posta) < 0) stato.posta = ammesse[ammesse.length - 1];
     if (stato.soldi) {
       var fi = el('div', 'gm-fiches');
       FASCE.forEach(function (f, i) {
-        var b = el('button', 'gm-f' + (f === stato.posta ? ' on' : ''), '<b>' + (+f < 1 ? (EN ? '0.50' : '0,50') : f) + '</b>'); b.style.setProperty('--tinta', TINTA[i]);
-        b.setAttribute('aria-label', eur(f));
-        b.onclick = function () { stato.posta = f; ls('gb_mg_posta', f); suono('passa'); disegna(); };
+        var no = aperti && ammesse.indexOf(f) < 0;
+        var b = el('button', 'gm-f' + (f === stato.posta ? ' on' : '') + (no ? ' spento' : ''), '<b>' + (+f < 1 ? (EN ? '0.50' : '0,50') : f) + '</b>'); b.style.setProperty('--tinta', TINTA[i]);
+        b.setAttribute('aria-label', eur(f)); if (no) b.style.opacity = '.35';
+        b.onclick = function () { if (no) { suono('vuoto'); avvisoBreve(L('Posta massima ', 'Maximum stake ') + eur(g.posta_max)); return; } stato.posta = f; ls('gb_mg_posta', f); suono('passa'); disegna(); };
         fi.appendChild(b);
       });
       soldiEl.appendChild(fi);
-      var p = +stato.posta, piatto = p * M.n, netto = piatto * 0.95;
-      soldiEl.appendChild(el('div', 'gm-targa2', '<span class="oro"><small>' + L('posta', 'stake') + '</small>' + eur(p) + '</span><span><small>' + L('piatto', 'pot') + '</small>' + eur(piatto) + '</span><span><small>' + (M.id === 'gemme' ? L('a testa se vinci', 'each if you win') : L('se vinci', 'if you win')) + '</small>' + eur(M.id === 'gemme' ? netto / 3 : netto) + '</span>'));
+      // i conti in centesimi come il server: duello 2 poste, 3v3 6 poste divise per 3, sopravvivenza da 3 a 6 persone
+      var pc = Math.round(+stato.posta * 100), cE = function (c) { return eur(c / 100); }, pi, vi;
+      if (M.id === 'sopr') { pi = cE(pc * 3) + '–' + cE(pc * 6); vi = cE(netto(pc * 3)) + '–' + cE(netto(pc * 6)); }
+      else if (M.id === 'gemme') { pi = cE(pc * 6); vi = cE(Math.floor(netto(pc * 6) / 3)); }
+      else { pi = cE(pc * 2); vi = cE(netto(pc * 2)); }
+      soldiEl.appendChild(el('div', 'gm-targa2', '<span class="oro"><small>' + L('posta', 'stake') + '</small>' + eur(stato.posta) + '</span><span><small>' + L('piatto', 'pot') + '</small>' + pi + '</span><span><small>' + (M.id === 'gemme' ? L('a testa se vinci', 'each if you win') : L('se vinci', 'if you win')) + '</small>' + vi + '</span>'));
     }
     via.classList.toggle('spento', stato.soldi && !aperti);
-    via.querySelector('.g-l').textContent = stato.soldi ? (aperti ? L('GIOCA ', 'PLAY ') + eur(stato.posta) : L('PRESTO', 'SOON')) : L('CERCA PARTITA', 'FIND MATCH');
-    via.querySelector('small').textContent = stato.soldi ? (aperti ? L('commissione 5%', '5% fee') : L('le partite a soldi non sono ancora aperte', 'money matches are not open yet')) : M.t + ' · ' + L('gratis contro persone', 'free vs real people');
+    via.querySelector('.g-l').textContent = stato.soldi ? (aperti ? L('GIOCA ', 'PLAY ') + eur(stato.posta) : saputo ? L('PRESTO', 'SOON') : '…') : L('CERCA PARTITA', 'FIND MATCH');
+    via.querySelector('small').textContent = stato.soldi ? (aperti ? L('solo persone vere · commissione 5%', 'real people only · 5% fee') : saputo ? L('le partite a soldi non sono ancora aperte', 'money matches are not open yet') : L('controllo il server…', 'checking the server…')) : M.t + ' · ' + L('gratis contro persone', 'free vs real people');
   }
   via.onclick = function () {
-    if (stato.soldi) { suono('vuoto'); return; }   // a soldi spento (interruttore del server)
     if (window.GBTUT && GBTUT.proponi && GBTUT.proponi(function () { via.onclick(); })) return;   // al primo Gioca si propone il tutorial (una volta)
     if (!window.__reteUI) { suono('vuoto'); avvisoBreve(L('Server non collegato', 'Server not connected')); return; }
+    if (stato.soldi) {
+      // GBSOLDI_ON_2311: A SOLDI. Il server ricontrolla tutto (interruttore, posta massima, 18+, saldo, posta gia' in gioco)
+      if (!soldiAperti()) { suono('vuoto'); avvisoBreve(soldiSaputo() ? L('Le partite a soldi apriranno presto', 'Money matches open soon') : L('Controllo il server…', 'Checking the server…')); if (window.__reteUI.info) window.__reteUI.info(function () { disegna(); }); return; }
+      if (ls('gb18') !== '1') { conferma18(function () { via.onclick(); }); return; }
+      var sd = saldo();
+      if (sd != null && Math.round(sd * 100) < Math.round(+stato.posta * 100)) { suono('vuoto'); avvisoBreve(L('Saldo insufficiente: ricarica il wallet o scegli una posta più bassa', 'Not enough balance: top up your wallet or pick a lower stake')); return; }
+      suono('tasto'); window.__reteUI.coda(stato.modo, stato.posta); return;
+    }
     suono('tasto'); window.__reteUI.coda(stato.modo);
   };
 
   // ---------------- entrata / uscita: la clip vive solo col menu davanti ----------------
   function togliLobbyVideo() { var lv = document.getElementById('lv'); if (lv) lv.classList.remove('on'); }
-  function suApertura() { disegna(); montaEroe(); togliLobbyVideo(); contaDirette(); }
+  function suApertura() { disegna(); montaEroe(); togliLobbyVideo(); contaDirette(); if (stato.soldi) aggiornaSaldo(false); }   // + GBSOLDI_ON_2311
   // GBT2311: il numerino delle dirette sull'icona (una richiesta all'apertura del menu e ogni 15 s col menu davanti; solo se la rete e' gia' su)
   var contaT = null;
   function contaDirette() {

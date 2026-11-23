@@ -76,7 +76,15 @@
     cli.stacca = function () { if (ws) try { ws.close(); } catch (e) { } };   // banco: stacco della rete (si riattacca da solo)
     var RT = o.dialetto === 'rt';
     cli.dialetto = RT ? 'rt' : 'locale';
-    cli.coda = function (modo) { cli.fase = 'coda'; cli.modo = modo; cli.esito = null; cli.tour = null; cli.lid = ''; cli.riv = false; cli.spettatore = false; cli.elimGuarda = false; cli.guardaRid = null; manda(RT ? { t: 'join', game: 'gembrawl', tier: 'gratis', modo: modo } : { t: 'coda', modo: modo }); };
+    // GBSOLDI_ON_2311: `posta` = la fascia ('0.5' ... '50') per la coda A SOLDI; senza = gratis. La posta la blocca il
+    // server all'ingresso (debit) e la rende uscendo dalla coda; prima di una coda a soldi si ripete la conferma 18+
+    // gia' data nel telefono (o.c18), cosi' il server la conosce anche se il suo file e' nuovo.
+    cli.posta = ''; cli.over = null; cli.gb = null;
+    function joinCoda() {
+      if (RT && cli.posta && o.c18 && o.c18() && !(cli.gb && cli.gb.c18)) manda({ t: 'gb18', ok: 1 });
+      manda(RT ? { t: 'join', game: 'gembrawl', tier: cli.posta || 'gratis', modo: cli.modo } : { t: 'coda', modo: cli.modo, posta: cli.posta });
+    }
+    cli.coda = function (modo, posta) { cli.fase = 'coda'; cli.modo = modo; cli.posta = posta ? String(posta) : ''; cli.over = null; cli.esito = null; cli.tour = null; cli.lid = ''; cli.riv = false; cli.spettatore = false; cli.elimGuarda = false; cli.guardaRid = null; joinCoda(); };
     cli.esciCoda = function () { cli.fase = 'menu'; manda(RT ? { t: 'leave' } : { t: 'esci_coda' }); };
     cli.scegli = function (eroe, ok) { gb({ o: 'sc', e: eroe, ok: ok ? 1 : 0 }); };
     cli.pronto = function () { gb({ o: 'ok' }); };
@@ -112,6 +120,7 @@
     cli.lobby = function (lid) {
       cli.lid = String(lid || ''); cli.riv = false; cli.fase = 'coda'; cli.esito = null; cli.tour = null;
       cli.spettatore = false; cli.elimGuarda = false; cli.guardaRid = null;
+      if (RT && o.c18 && o.c18() && !(cli.gb && cli.gb.c18)) manda({ t: 'gb18', ok: 1 });   // GBSOLDI_ON_2311: la 18+ gia' data (lobby a soldi del gruppo)
       manda({ t: 'join_open', lid: cli.lid });
     };
     cli.esciLobby = function () { cli.lid = ''; cli.fase = 'menu'; manda({ t: 'leave' }); };
@@ -138,12 +147,13 @@
       // ---- dialetto RT ----
       if (m.t === 'hello_ok') {
         cli.info = m; if (m.uid) cli.uid = String(m.uid);
+        cli.gb = m.gb || { soldi: false, vecchio: 1 }; cli.info.soldi = !!(m.gb && m.gb.soldi);   // GBSOLDI_ON_2311: soldi aperti (server; un server senza `gb` = chiusi)
         // eravamo in partita (rete saltata): il RT rimanda da solo `start` alla socket nuova; se no lo si chiede
         if (cli.fase === 'scelta' || cli.fase === 'carica' || cli.fase === 'gioco' || (cli.fase === 'guarda' && cli.elimGuarda)) manda({ t: 'rientra' });
         else if (cli.fase === 'coda' && cli.tour) manda({ t: 'join_ticket', ticket: cli.tour.ticket, game: 'gembrawl' });
         else if (cli.fase === 'coda' && cli.lid && !cli.riv && tent0) manda({ t: 'join_open', lid: cli.lid });   // GBGRUPPI_2311
         else if (cli.fase === 'coda' && cli.riv && tent0) manda({ t: 'riv_chiedi', rid: cli.rivRid || '' });   // GBT2311: torneo = di nuovo il biglietto, MAI la coda gratis
-        else if (cli.fase === 'coda' && cli.modo && tent0) manda({ t: 'join', game: 'gembrawl', tier: 'gratis', modo: cli.modo });   // di nuovo in coda dopo uno scalzo
+        else if (cli.fase === 'coda' && cli.modo && tent0) { joinCoda(); emetti('ricoda', { posta: cli.posta }); }   // di nuovo in coda dopo uno scalzo (a soldi: la posta e' gia' tornata uscendo, si riblocca)
         else if (cli.fase === 'guarda' && cli.guardaRid && tent0) { cli.spNuova = true; attesaFoto = true; manda({ t: 'watch', rid: cli.guardaRid }); }   // GBT2311: spettatore dopo una rete saltata
         tent0 = 0;
         emetti('ciao', m); return;
@@ -174,12 +184,17 @@
         cli.spettatore = true; cli.fase = 'guarda'; cli.spNuova = true; attesaFoto = true;
         emetti('guardi', m); return;
       }
-      if (m.t === 'left') { emetti('smesso', m); return; }
+      if (m.t === 'left') { emetti('smesso', m); if (cli.fase === 'menu' && !cli.spettatore) emetti('lasciata', m); return; }   // + GBSOLDI_ON_2311: uscito dalla coda (a soldi: posta resa)
       // GBGRUPPI_2311
       if (m.t === 'riv_stato') { emetti('rivStato', m); return; }
       if (m.t === 'riv_offerta') { if (!m.game || m.game === 'gembrawl') emetti('rivOfferta', m); return; }
       if (m.t === 'riv_fine') { if (m.game && m.game !== 'gembrawl') return; if (cli.riv && cli.fase === 'coda') { cli.riv = false; cli.fase = 'menu'; } emetti('rivFine', m); return; }
-      if (m.t === 'refund') { if (cli.fase === 'coda' && cli.lid) { cli.fase = 'menu'; emetti('no', { perche: 'scaduta' }); } return; }
+      if (m.t === 'refund') {
+        if (cli.fase === 'coda' && cli.lid) { cli.fase = 'menu'; emetti('no', { perche: 'scaduta' }); }
+        else if (cli.fase === 'coda' && !cli.tour && !cli.riv) { cli.fase = 'menu'; emetti('rimborso', m); }   // GBSOLDI_ON_2311: coda a soldi scaduta, posta resa
+        return;
+      }
+      if (m.t === 'gb18_ok') { if (cli.gb) cli.gb.c18 = true; emetti('c18', m); return; }   // GBSOLDI_ON_2311
       if (m.t === 'watch_list') { if (m.game === 'gembrawl') { cli.ultimaLista = m.rooms || []; emetti('dirette', cli.ultimaLista); } return; }
       if (m.t === 'err') {
         emetti('errore', m);
@@ -200,6 +215,9 @@
         cli.tourEsito = m; if (m.walkover) { cli.fase = 'menu'; giocando = false; }
         emetti('torneoFine', m); return;
       }
+      // GBSOLDI_ON_2311: l'esito in DENARO della partita (lo manda il server dopo il pagamento, o subito a chi esce):
+      // your_cut_eur = quanto ti torna (gia' senza commissione), pot_eur, posta_eur, annullata/rimborsata, pari, premio_in_sospeso
+      if (m.t === 'over' && (!m.game || m.game === 'gembrawl')) { cli.over = m; emetti('over', m); return; }
       if (m.t === 'over' || m.t === 'snap' || m.t === 'presence') return;
       if (m.t === 'coda') { emetti('coda', m); return; }
       if (m.t === 'partita') { cli.rid = m.rid; cli.io = m.mio; cli.modo = m.modo; cli.fase = 'scelta'; cli.esito = null; gb({ o: 'ver', v: cli.firma }); emetti('partita', m); return; }
