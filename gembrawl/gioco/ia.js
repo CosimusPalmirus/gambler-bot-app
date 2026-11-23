@@ -5,6 +5,9 @@
 (function (root) {
   'use strict';
   var M = root.Motore || (typeof require !== 'undefined' ? require('./motore.js') : null);
+  // [F0 soldi 23/11] stessa matematica deterministica del motore (Motore.MATH): il bot gira anche dentro il verificatore
+  // (eroe di chi si e' disconnesso), quindi niente sin/cos/atan2/hypot native. Una funzione non elencata da' errore.
+  var Math = M.MATH;
 
   // goffo = probabilità di sprecare la super; vicino = quanto si espone (distanza ideale più corta)
   var LIV = {
@@ -320,15 +323,15 @@
 
     if (h.prepT > 0) return;
     // --- parata: va presa al momento giusto, si guarda a ogni passo ---
-    if (d.gad.tipo === 'parata' && h.gadUsi > 0 && h.gadCd <= 0 && minaccia(st, h) && rnd(st) < L.dodge * 0.55) { inp.gad = 1; inp.gx = 0; inp.gy = 0; return; }
+    if (d.gad.tipo === 'parata' && h.gadCd <= 0 && minaccia(st, h) && rnd(st) < L.dodge * 0.55) { inp.gad = 1; inp.gx = 0; inp.gy = 0; return; }
     // --- super ---
     if (h.sup >= 1 && pensaOra && rnd(st) < L.sup * 0.5) {
       // ogni tanto la spreca: parte subito, dove capita
       if (L.goffo && rnd(st) < L.goffo * 0.15) { inp.sup = 1; inp.sx = Math.cos(h.aim); inp.sy = Math.sin(h.aim); return; }
       if (usaSuper(st, h, m, T, tdist, inp)) return;
     }
-    // --- gadget ---
-    if (h.gadUsi > 0 && h.gadCd <= 0 && pensaOra && rnd(st) < L.sup * 0.35) {
+    // --- gadget --- (24/11: a ricarica, niente usi da risparmiare: appena e' pronto e serve, lo usa)
+    if (h.gadCd <= 0 && pensaOra && rnd(st) < L.sup * 0.35) {
       if (usaGadget(st, h, m, T, tdist, inp)) return;
     }
     // 23/11 sopravvivenza: nessun nemico addosso e una cassa a tiro → la si rompe (i medi e i difficili tengono un colpo di scorta)
@@ -383,7 +386,7 @@
       if (!M.lineaLibera(st, h.x, h.y, x, y) && a > 1.5) continue;             // non ci arrivo dritto
       best = a; _rp.x = x; _rp.y = y; ok = true;
     }
-    m.ripT = st.t; m.ripOk = ok; m.ripX = _rp.x; m.ripY = _rp.y;
+    m.ripT = st.t; m.ripOk = ok; m.ripX = ok ? _rp.x : 0; m.ripY = ok ? _rp.y : 0;   // [F0] senza riparo niente avanzi di un altro bot nello stato (ripX si legge solo con ripOk)
     return ok ? _rp : null;
   }
 
@@ -570,6 +573,8 @@
     switch (o.tipo) {
       case 'truccato': return T && tdist < gu && h.ammo >= 1 ? qui() : false;
       case 'ricarica': return T && tdist < gu && h.ammo < 0.6 ? qui() : false;
+      case 'muro_scudo':   // 24/11 Agamennone: prima l'IA non lo usava mai. Scudo verso chi tira da lontano quando arriva un colpo, o quando e' ferito e scarico
+        return T && !MISCHIA[T.d.att.tipo] && tdist < 8.5 && minaccia(st, h) ? verso(1) : false;
       case 'carica_oplita': return T && tdist < 4.5 && tdist > 1.5 && hp > 0.35 ? verso(1) : false;
       case 'pollice_verso': return T && tdist < gu + 1 && T.vita / T.vmax < 0.45 ? qui() : false;
       case 'frenesia': return T && (T.vita / T.vmax < 0.55 && tdist < 7 || hp < 0.3) ? qui() : false;
@@ -630,7 +635,7 @@
   function tdx(T, h) { return T.x - h.x; }
   function tdy(T, h) { return T.y - h.y; }
 
-  var IA = { LIV: LIV, prepara: prepara, pensa: pensa };
+  var IA = { VER: 'cd-2411', LIV: LIV, prepara: prepara, pensa: pensa };   // [F0] VER: alzarlo a ogni ritocco dei bot (entra in Motore.firma)
   root.IA = IA;
   if (typeof module !== 'undefined') module.exports = IA;
 })(typeof window !== 'undefined' ? window : globalThis);

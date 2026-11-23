@@ -4,6 +4,18 @@
 // Lo stesso file gira nel browser e in node (banco.js); domani può girare su un arbitro.
 (function (root) {
   'use strict';
+  // [F0 soldi 23/11] MATEMATICA DETERMINISTICA. Dentro il motore «Math» e' un oggetto LOCALE:
+  // sin/cos/atan2 vengono da matematica.js (fdlibm in JS puro, la stessa di GAMBLER SMASH): stesse cifre su V8 (Chrome,
+  // Android, node) e JavaScriptCore (iPhone, Safari). Le altre sono esatte per IEEE 754 (sqrt, floor, round, ...).
+  // Una funzione che NON e' qui (random, exp, pow, tan, hypot nativa...) da' errore subito: niente divergenze silenziose.
+  // Senza matematica.js (pagina vecchia) si torna alle native e Motore.MAT_DET = false: il gioco gratis va, i soldi no.
+  var DM = root.GSMAT || (typeof require === 'function' ? (function () { try { return require('./matematica.js'); } catch (e) { return null; } })() : null);
+  var MN = root.Math;
+  var Math = {
+    PI: MN.PI, floor: MN.floor, ceil: MN.ceil, round: MN.round, abs: MN.abs, min: MN.min, max: MN.max, sqrt: MN.sqrt, imul: MN.imul,
+    sin: DM ? DM.sin : MN.sin, cos: DM ? DM.cos : MN.cos, atan2: DM ? DM.atan2 : MN.atan2,
+    hypot: function (x, y) { return MN.sqrt(x * x + y * y); }
+  };
   var TICK = 30, DT = 1 / TICK;
   var MURO = 1, CESP = 2, CASSA = 3, TAVOLO = 4;
   var R = 0.38;                       // raggio del corpo di un eroe (caselle)
@@ -132,7 +144,7 @@
     var st = {
       TICK: TICK, DT: DT, t: 0, modo: o.modo, M: M, w: M.w, h: M.h,
       g: new Uint8Array(M.g), vc: new Float32Array(M.w * M.h),
-      rs: (o.seme >>> 0) || 1,
+      rs: (o.seme >>> 0) || 1, seme0: (o.seme >>> 0) || 1,
       eroi: [], inp: [], pr: [], zo: [], tu: [], ge: [], cu: [], ev: [], nev: 0,
       nsq: o.modo === 'sopravvivenza' ? o.giocatori.length : 2,
       punti: [0, 0, 0, 0, 0, 0], gemSq: [0, 0], conto: { sq: -1, t: 0, T: CONTO_GEMME }, prossimaGemma: 5, capo: [-1, -1],   // capo[sq] = chi porta piu' gemme nella squadra (-1 nessuno)
@@ -141,8 +153,7 @@
       _b: { a: 0, d: 0, x: 0, y: 0, l: 0 }, _tmp: { x: 0, y: 0 }
     };
     for (i = 0; i < st.g.length; i++) if (st.g[i] === CASSA) st.vc[i] = VITA_CASSA;
-    for (i = 0; i < MAXP; i++) st.pr.push({ vivo: 0, k: 0, ab: '', ow: 0, sq: 0, x: 0, y: 0, ox: 0, oy: 0, vx: 0, vy: 0, rest: 0, r: 0, dan: 0, pierce: 0, rimb: 0, mask: 0,
-      slF: 0, slT: 0, stun: 0, spin: 0, fl: 0, sti: '', t: 0, T: 0, sx: 0, sy: 0, tx: 0, ty: 0, area: 0, fx: 0, z: 0, eroe: '', rompe: 0, ang: 0, faccia: 0, num: 0, dist: 0, tu: -1 });
+    for (i = 0; i < MAXP; i++) st.pr.push(prVuoto({}));
     for (i = 0; i < MAXZ; i++) st.zo.push({ vivo: 0, tipo: 0, x: 0, y: 0, r: 0, t: 0, T: 0, val: 0, sq: 0, ow: 0, sl: 0, eroe: '', ab: '', sp: 0 });
     for (i = 0; i < MAXT; i++) st.tu.push({ vivo: 0, tipo: 0, x: 0, y: 0, sq: 0, ow: 0, vita: 0, vmax: 0, cd: 0, dur: 0, durMax: 0, arm: 0, danno: 0, gitt: 0, cad: 0, pv: 0, area: 0, ang: 0, eroe: '', colT: -99, lato: 0 });
     for (i = 0; i < MAXG; i++) st.ge.push({ vivo: 0, x: 0, y: 0, vx: 0, vy: 0, t: 0, o: 0 });
@@ -163,7 +174,7 @@
         // preparazione di super/gadget (runa a terra)
         prepT: 0, prepTT: 0, prepCosa: 0, prepX: 0, prepY: 0,
         // gadget
-        gadUsi: d.gad.usi || 3, gadCd: 0,
+        gadCdT: gadCdTick(d.gad), gadCd: 0,   // 24/11 RICARICA del gadget in PASSI INTERI (niente usi): gadCd = passi che mancano, gadCdT = ricarica dell'ultimo uso (per l'anello)
         // stati speciali
         sangueT: 0, sangueDps: 0, sangueDa: -1, pauraT: 0, pauraX: 0, pauraY: 0,
         trasT: 0, immT: 0, freT: 0, esecT: 0, trucN: 0, falT: 0, fortT: 0, fortSh: 0, oplT: 0, muroT: 0, muroA: 0, giroT: 0,
@@ -173,6 +184,7 @@
         tAtt: -99, tSup: -99, tGad: -99, tCol: -99, tKo: -99, tSpawn: 0
       };
       h.vmax = Math.round(d.vita * h.k * VITA_G * (st.modo === 'sopravvivenza' ? 2 : st.modo === 'duello' ? 1.25 : 1)); h.vita = h.vmax; h.vbase = h.vmax;
+      h.gadCd = h.gadCdT >> 1;   // 24/11: al via il gadget e' carico A META' (scelta in AVANZAMENTO_cooldown_gadget.md)
       st.eroi.push(h);
       st.inp.push({ mx: 0, my: 0, att: 0, ax: 0, ay: 0, sup: 0, sx: 0, sy: 0, gad: 0, gx: 0, gy: 0 });
       st.vis.push(0);
@@ -188,6 +200,10 @@
     var l = M.sp[h.sq];
     return l[h.slot % l.length];
   }
+
+  // 24/11 RICARICA DEL GADGET: d.gad.cd in secondi (interi o mezzi) -> passi interi. Niente float che si accumulano: il
+  // conto alla rovescia e' un intero che scende di 1 a ogni passo (anche da morto), uguale su ogni macchina.
+  function gadCdTick(g) { return Math.round((g && g.cd > 0 ? g.cd : 15) * TICK); }
 
   function nasci(st, h) {
     var p = puntoNascita(st, h);
@@ -494,10 +510,19 @@
   }
 
   // ---------------- proiettili ----------------
+  // [F0 soldi 23/11] un proiettile spento NON porta stato: chi lo riusa lo trova sempre azzerato (prima restavano i campi del
+  // colpo vecchio che spara/lancia non riscrivono). Cosi' salva/ripristina saltano le voci spente (1,2 ms -> pochi us).
+  // Stessa forma per tutte le voci, compresi i campi che prima nascevano dopo (ow0 rifl passa oro a1 torna).
+  function prVuoto(p) {
+    p.vivo = 0; p.k = 0; p.ab = ''; p.ow = 0; p.sq = 0; p.x = 0; p.y = 0; p.ox = 0; p.oy = 0; p.vx = 0; p.vy = 0; p.rest = 0; p.r = 0; p.dan = 0; p.pierce = 0; p.rimb = 0; p.mask = 0;
+    p.slF = 0; p.slT = 0; p.stun = 0; p.spin = 0; p.fl = 0; p.sti = ''; p.t = 0; p.T = 0; p.sx = 0; p.sy = 0; p.tx = 0; p.ty = 0; p.area = 0; p.fx = 0; p.z = 0; p.eroe = ''; p.rompe = 0; p.ang = 0; p.faccia = 0; p.num = 0; p.dist = 0; p.tu = -1;
+    p.ow0 = -1; p.rifl = 0; p.passa = 0; p.oro = 0; p.a1 = 0; p.torna = 0;
+    return p;
+  }
   function nuovoProiettile(st) {
     for (var n = 0; n < MAXP; n++) {
       var p = st.pr[(st.pcur + n) % MAXP];
-      if (!p.vivo) { st.pcur = (st.pcur + n + 1) % MAXP; return p; }
+      if (!p.vivo) { st.pcur = (st.pcur + n + 1) % MAXP; return prVuoto(p); }
     }
     return null;
   }
@@ -1217,7 +1242,7 @@
   function gadget(st, h, gx, gy) {
     var o = h.d.gad, i;
     var b = bersaglio(h, gx, gy, o.gitt || 3, st._b), ang = b.a;
-    h.gadUsi--; h.gadCd = 4; h.tGad = st.t; h.gadUsate++;
+    h.gadCdT = gadCdTick(h.cavT > 0 && o.balzo ? o.balzo : o); h.gadCd = h.gadCdT; h.tGad = st.t; h.gadUsate++;   // 24/11 ricarica (da Cavaliere quella del balzo)
     if (o.tipo !== 'sostituzione' && o.tipo !== 'frenesia') { h.riv = Math.max(h.riv, 0.5); }
     ev(st, 'gadget', h.x, h.y, h.i, ang, 0, 0);
     switch (o.tipo) {
@@ -1380,24 +1405,73 @@
     }
     return false;
   }
-  function calcolaVisibilita(st) {
-    for (var i = 0; i < st.eroi.length; i++) {
-      var h = st.eroi[i], m = 0;
-      if (h.vivo) {
-        var fumo = nelFumoAmico(st, h);
-        for (var q = 0; q < st.nsq; q++) {
-          if (q === h.sq) { m |= 1 << q; continue; }
-          if (h.immT > 0) continue;                                   // sott'acqua: invisibile
-          if (h.rivT > 0) { m |= 1 << q; continue; }                  // svelato (frenesia)
-          if (h.invT > 0 || fumo) { if (vicinoDiSquadra(st, h, q, 1.5)) m |= 1 << q; }
-          else if (h.nasc) { if (h.riv > 0 || vicinoDiSquadra(st, h, q, 2.3)) m |= 1 << q; }
-          else m |= 1 << q;
-        }
+  // [F0] la regola in una funzione sola (prima stava dentro calcolaVisibilita): bit q = la squadra q vede l'eroe h
+  function mascheraVis(st, h) {
+    var m = 0;
+    if (h.vivo) {
+      var fumo = nelFumoAmico(st, h);
+      for (var q = 0; q < st.nsq; q++) {
+        if (q === h.sq) { m |= 1 << q; continue; }
+        if (h.immT > 0) continue;                                   // sott'acqua: invisibile
+        if (h.rivT > 0) { m |= 1 << q; continue; }                  // svelato (frenesia)
+        if (h.invT > 0 || fumo) { if (vicinoDiSquadra(st, h, q, 1.5)) m |= 1 << q; }
+        else if (h.nasc) { if (h.riv > 0 || vicinoDiSquadra(st, h, q, 2.3)) m |= 1 << q; }
+        else m |= 1 << q;
       }
-      st.vis[i] = m;
     }
+    return m;
+  }
+  function calcolaVisibilita(st) {
+    for (var i = 0; i < st.eroi.length; i++) st.vis[i] = mascheraVis(st, st.eroi[i]);
   }
   function visibile(st, h, q) { return (st.vis[h.i] & (1 << q)) !== 0; }
+
+  // ---------------- [F0 soldi 23/11] VISTA DEL SERVER (fog of war) ----------------
+  // Funzione PURA (non tocca lo stato): che cosa puo' vedere il giocatore i dopo l'ultimo passo. Il server manda a ognuno
+  // solo questo. Regole = quelle che la pagina usa gia' (Motore.visibile / st.vis, calcolate alla fine di ogni passo):
+  //  · eroi: la propria squadra sempre; un nemico se il suo bit in st.vis e' acceso (cespuglio -> visto solo se ha attaccato
+  //    da poco, riv > 0, o un nemico e' entro 2,3 caselle; fumo/invisibilita' -> entro 1,5; sott'acqua -> mai; frenesia -> sempre);
+  //    un nemico a terra (KO) si vede sempre (serve per il conto alla rinascita, e la sua posizione e' quella del KO, gia' vista);
+  //  · proiettili: si vedono tutti TRANNE quelli di un nemico nascosto ancora attaccati a lui (entro 1,6 caselle dal tiratore:
+  //    pizze che gli girano attorno, colpi appena partiti) — altrimenti si vedrebbe la sua posizione attraverso il cespuglio;
+  //  · zone, torrette/mine/casse piazzate, gemme e cubi: tutti (come oggi nella pagina: mostraMina = true);
+  //  · eventi del passo: quelli che hanno come attore un eroe nemico non visto (sparo, scatto, super...) si tolgono,
+  //    tranne KO, nascita e gemme cadute (che il giocatore vede comunque).
+  // Uscita: { sq, eroi:[indici], pr:[indici in st.pr], zo, tu, ge, cu, ev:[indici in st.ev] }. out (facoltativo) si riusa.
+  // eventi in cui «a» e' l'indice di un eroe (letti dalle chiamate ev(st, ...) del motore il 23/11: un tipo nuovo va aggiunto qui)
+  var EV_ATTORE = {};
+  ('affondoLancia aggancio agguato artiglio assoScatto assoVia atterraLancio atterraLupo balzo balzoCav capriola caricaCavaliere caricaScudo ' +
+   'cartaPosata cassaPosata cecchinoMira colpo corazza corazzaCarica corazzaEsplode cordone cuboPreso cuoreCura cuoreVia cura dropOnda esecuzione ' +
+   'fendente fineScatto fioreScatta frecciaCapriola frecciaOro gadget gemmaPresa giroLancia grazia impatto lampoVia lanciaPiantata lanciaVia ' +
+   'lunaPiena manata mano manoFerma marcaFine marcato muretto ombra ondaBassi pala parata parataVia parato pioggiaQuadri pizzaGigante pizzaPara ' +
+   'pizzeScudo portiere prep presa protetto puntaAsso raggioCristallo rastrello rete ricercato riemerge riflesso rimbalzoCordone ritirata romboRosso ' +
+   'romboScoppia saltoPala scagnozzo scala scambio scaraventa scattoRombo schiantoCav scudo scudoAssorbe scudoGiu scudoSu sigillo siepe siepePunge ' +
+   'slot sostituzione spallata sparo stoccata super superpronta tagliaVia tagliato tamburoColpo taroccoVia torretta treSette trafitto trascinato tuffo')
+    .split(' ').forEach(function (t) { EV_ATTORE[t] = 1; });
+  function vedeEroe(st, h, q) { return h.sq === q || !h.vivo || (st.vis[h.i] & (1 << q)) !== 0; }
+  function vista(st, i, out) {
+    var me = st.eroi[i], q = me.sq, k, n;
+    out = out || { sq: 0, eroi: [], pr: [], zo: [], tu: [], ge: [], cu: [], ev: [] };
+    out.sq = q; out.eroi.length = out.pr.length = out.zo.length = out.tu.length = out.ge.length = out.cu.length = out.ev.length = 0;
+    for (k = 0; k < st.eroi.length; k++) if (vedeEroe(st, st.eroi[k], q)) out.eroi.push(k);
+    for (k = 0; k < MAXP; k++) {
+      var p = st.pr[k]; if (!p.vivo) continue;
+      var ow = (p.fl & F_TOR) ? null : st.eroi[p.ow];   // i colpi delle torrette partono dalla torretta (visibile)
+      if (ow && p.sq !== q && !vedeEroe(st, ow, q)) { var dx = p.x - ow.x, dy = p.y - ow.y; if (dx * dx + dy * dy <= 1.6 * 1.6) continue; }
+      out.pr.push(k);
+    }
+    for (k = 0; k < MAXZ; k++) if (st.zo[k].vivo) out.zo.push(k);
+    for (k = 0; k < MAXT; k++) if (st.tu[k].vivo) out.tu.push(k);
+    for (k = 0; k < MAXG; k++) if (st.ge[k].vivo) out.ge.push(k);
+    for (k = 0; k < MAXC; k++) if (st.cu[k].vivo) out.cu.push(k);
+    for (k = 0, n = st.nev; k < n; k++) {
+      var e = st.ev[k], a = e.a;
+      // ('colpo' e 'cura': a = chi lo riceve; colpito un nemico nascosto -> come oggi nella pagina, il numero non si vede)
+      if (EV_ATTORE[e.tipo] && a >= 0 && a < st.eroi.length && !vedeEroe(st, st.eroi[a], q)) continue;
+      out.ev.push(k);
+    }
+    return out;
+  }
 
   // ---------------- passo ----------------
   function passo(st) {
@@ -1410,6 +1484,7 @@
       h.ox = h.x; h.oy = h.y;
       if (!h.vivo) {
         if (h.rt > 0) { h.rt -= DT; if (h.rt <= 0) { nasci(st, h); ev(st, 'nascita', h.x, h.y, h.i, 0, 0, 0); } }
+        if (h.gadCd > 0) h.gadCd--;   // 24/11: la ricarica del gadget va avanti anche da morto
         inp.att = 0; inp.sup = 0; inp.gad = 0;   // [fable] un comando premuto da morto non parte da solo alla rinascita
         continue;
       }
@@ -1427,7 +1502,7 @@
       if (h.riv > 0) h.riv -= DT;
       if (h.rivT > 0) h.rivT -= DT;
       if (h.prot > 0) h.prot -= DT;
-      if (h.gadCd > 0) h.gadCd -= DT;
+      if (h.gadCd > 0) h.gadCd--;   // 24/11: un passo intero alla volta
       if (h.pauraT > 0) h.pauraT -= DT;
       if (h.trasT > 0) h.trasT -= DT;
       if (h.freT > 0) h.freT -= DT;
@@ -1460,31 +1535,7 @@
         if (h.salT <= 0) { h.z = 0; h.x = h.salTx; h.y = h.salTy; risolvi(st, h); if (h.salTipo) atterra(st, h); }
       } else if (h.dashD > 0) {
         aggiornaScatto(st, h); if (cordoni(st, h)) h.dashD = 0;
-      } else {
-        var mx = inp.mx, my = inp.my;
-        if (!(mx === mx) || !(my === my)) { mx = 0; my = 0; }   // [fable] comando non valido (NaN): fermo, mai una posizione NaN
-        var ml = Math.sqrt(mx * mx + my * my);
-        if (ml > 1) { mx /= ml; my /= ml; ml = 1; }
-        if (h.pauraT > 0) { var fx = h.x - h.pauraX, fy = h.y - h.pauraY, fl = Math.sqrt(fx * fx + fy * fy) || 1; mx = fx / fl; my = fy / fl; ml = 1; }
-        if (h.stun > 0 || h.radiceT > 0) { mx = 0; my = 0; ml = 0; }
-        var vel = h.cavT > 0 ? h.d.corazza.vel : h.d.vel;
-        if (h.slowT > 0) vel *= 1 - h.slowF;
-        if (h.trasT > 0) vel *= h.d.sup.vel || 1;
-        if (h.freT > 0) vel *= 1.35;
-        if (h.immT > 0) vel *= 1.7;
-        if (h.prepT > 0) vel *= 0.35;
-        if (h.muroT > 0) vel *= (h.d.gad && h.d.gad.lento) || 0.5;
-        // accelerazione breve: subito il 48% della velocità, quasi piena in 3 passi (100 ms); si frena più svelti
-        var acc = 1;   // scattante: piena velocita' al primo passo, ferma subito (convenzione del genere, 30/10)
-        h.vx += (mx * vel - h.vx) * acc; h.vy += (my * vel - h.vy) * acc;
-        if (Math.abs(h.vx) < 0.02) h.vx = 0; if (Math.abs(h.vy) < 0.02) h.vy = 0;
-        muovi(st, h, (h.vx + h.kx) * DT, (h.vy + h.ky) * DT);
-        h.kx *= 0.82; h.ky *= 0.82;
-        if (Math.abs(h.kx) < 0.05) h.kx = 0;
-        if (Math.abs(h.ky) < 0.05) h.ky = 0;
-        cordoni(st, h);
-        if (ml > 0.1) { h.mosso = 1; if (Math.abs(mx) > 0.15 && st.t - h.tAtt > 8) h.fac = mx > 0 ? 1 : -1; if (st.t - h.tAtt > 8) h.aim = Math.atan2(my, mx); }
-      }
+      } else muoviLibero(st, h, inp, false);
       h.nasc = tile(st, Math.floor(h.x), Math.floor(h.y)) === CESP;
 
       // --- immersione: riemerge a contatto o a tempo scaduto ---
@@ -1524,7 +1575,7 @@
       // --- comandi: attacco, super, gadget ---
       var libero = h.stun <= 0 && h.salT <= 0 && h.dashD <= 0 && h.tirT <= 0 && h.pauraT <= 0 && h.immT <= 0 && h.prepT <= 0 && h.ventN <= 0 && h.cecT <= 0;
       if (libero && inp.sup && h.sup >= 1) avviaPrep(st, h, 1, inp.sx, inp.sy, h.d.sup.prep || 0.25);
-      else if (libero && inp.gad && h.gadUsi > 0 && h.gadCd <= 0) avviaPrep(st, h, 2, inp.gx, inp.gy, (h.cavT > 0 && h.d.gad.balzo ? h.d.gad.balzo.prep : h.d.gad.prep) || 0.12);   // 23/11: da Cavaliere l'accovacciata del balzo
+      else if (libero && inp.gad && h.gadCd <= 0) avviaPrep(st, h, 2, inp.gx, inp.gy, (h.cavT > 0 && h.d.gad.balzo ? h.d.gad.balzo.prep : h.d.gad.prep) || 0.12);   // 23/11: da Cavaliere l'accovacciata del balzo
       else if (libero && inp.att && h.ammo >= 1 && h.cd <= 0 && h.seqN === 0 && h.muroT <= 0) attacca(st, h, inp.ax, inp.ay);
       inp.att = 0; inp.sup = 0; inp.gad = 0;
       if (h.seqN > 0) aggiornaSequenza(st, h);
@@ -1564,6 +1615,36 @@
     if (st.modo === 'gemme') aggiornaGemme(st);
     if (st.modo === 'sopravvivenza') aggiornaCubi(st);
     regole(st, tempo);
+  }
+
+  // [F1 rete 23/11] IL MOVIMENTO LIBERO di un eroe in un passo (levetta -> velocita' -> spostamento con i muri), tolto di peso da
+  // passo() senza cambiare un'operazione: lo usano il motore E la previsione del proprio eroe nel client di rete (rete.js), cosi'
+  // la previsione fa gli STESSI conti del server. prev = true (solo previsione): niente cordoni/siepi, che danno eventi e danni
+  // (li decide il server; la riconciliazione corregge il raro urto).
+  function muoviLibero(st, h, inp, prev) {
+    var mx = inp.mx, my = inp.my;
+    if (!(mx === mx) || !(my === my)) { mx = 0; my = 0; }   // [fable] comando non valido (NaN): fermo, mai una posizione NaN
+    var ml = Math.sqrt(mx * mx + my * my);
+    if (ml > 1) { mx /= ml; my /= ml; ml = 1; }
+    if (h.pauraT > 0) { var fx = h.x - h.pauraX, fy = h.y - h.pauraY, fl = Math.sqrt(fx * fx + fy * fy) || 1; mx = fx / fl; my = fy / fl; ml = 1; }
+    if (h.stun > 0 || h.radiceT > 0) { mx = 0; my = 0; ml = 0; }
+    var vel = h.cavT > 0 ? h.d.corazza.vel : h.d.vel;
+    if (h.slowT > 0) vel *= 1 - h.slowF;
+    if (h.trasT > 0) vel *= h.d.sup.vel || 1;
+    if (h.freT > 0) vel *= 1.35;
+    if (h.immT > 0) vel *= 1.7;
+    if (h.prepT > 0) vel *= 0.35;
+    if (h.muroT > 0) vel *= (h.d.gad && h.d.gad.lento) || 0.5;
+    // accelerazione breve: subito il 48% della velocità, quasi piena in 3 passi (100 ms); si frena più svelti
+    var acc = 1;   // scattante: piena velocita' al primo passo, ferma subito (convenzione del genere, 30/10)
+    h.vx += (mx * vel - h.vx) * acc; h.vy += (my * vel - h.vy) * acc;
+    if (Math.abs(h.vx) < 0.02) h.vx = 0; if (Math.abs(h.vy) < 0.02) h.vy = 0;
+    muovi(st, h, (h.vx + h.kx) * DT, (h.vy + h.ky) * DT);
+    h.kx *= 0.82; h.ky *= 0.82;
+    if (Math.abs(h.kx) < 0.05) h.kx = 0;
+    if (Math.abs(h.ky) < 0.05) h.ky = 0;
+    if (!prev) cordoni(st, h);
+    if (ml > 0.1) { h.mosso = 1; if (Math.abs(mx) > 0.15 && st.t - h.tAtt > 8) h.fac = mx > 0 ? 1 : -1; if (st.t - h.tAtt > 8) h.aim = Math.atan2(my, mx); }
   }
 
   function avviaPrep(st, h, cosa, x, y, durata) {
@@ -1992,6 +2073,56 @@
     return s;
   }
 
+  // [F0 soldi 23/11] chi vince la Sopravvivenza senza un ultimo in piedi.
+  // koOra = tutti a terra: concorrono solo gli eroi andati KO in QUESTO passo (vita 0 per tutti: decidono i danni).
+  // Criteri in fila: vita in % (vita/vmax) piu' alta -> piu' danni inflitti (h.dan) -> pari (vinc -1, pari = squadre).
+  function sopravvissuto(st, koOra, motivo) {
+    var cand = [], i, h;
+    for (i = 0; i < st.eroi.length; i++) { h = st.eroi[i]; if (koOra ? (!h.vivo && h.tKo === st.t) : h.vivo) cand.push(h); }
+    if (!cand.length) return { vinc: -1, motivo: motivo, crit: 'pari', pari: [] };
+    var bv = -1, bd = -1, crit = 'unico';
+    for (i = 0; i < cand.length; i++) { h = cand[i]; var v = koOra ? 0 : h.vita / h.vmax; if (v > bv) bv = v; }
+    var c2 = [];
+    for (i = 0; i < cand.length; i++) { h = cand[i]; if ((koOra ? 0 : h.vita / h.vmax) === bv) c2.push(h); }
+    if (c2.length < cand.length) crit = 'vita';
+    for (i = 0; i < c2.length; i++) if (c2[i].dan > bd) bd = c2[i].dan;
+    var c3 = [];
+    for (i = 0; i < c2.length; i++) if (c2[i].dan === bd) c3.push(c2[i]);
+    if (c3.length < c2.length) crit = 'danni';
+    if (c3.length === 1) return { vinc: c3[0].sq, motivo: motivo, crit: crit };
+    return { vinc: -1, motivo: motivo, crit: 'pari', pari: c3.map(function (x) { return x.sq; }) };
+  }
+
+  // [F0 soldi 23/11] esito per il server (soldi, tornei). Non cambia lo stato.
+  //   { fine, vinc, motivo, pari:[squadre], torneo } — in torneo il pari non esiste: punti, vita %, danni, poi sorte dal seme
+  //   (hash del seme di partenza, non st.rs: nessun numero casuale consumato).
+  function esito(st, torneo) {
+    if (!st.fine) return { fine: false, vinc: null, motivo: '', pari: [] };
+    var f = st.fine, vinc = f.vinc, pari = f.pari ? f.pari.slice() : [];
+    if (vinc < 0 && !pari.length) {
+      if (st.modo === 'sopravvivenza') { for (var i = 0; i < st.eroi.length; i++) if (!st.eroi[i].vivo && st.eroi[i].tKo === st.t) pari.push(st.eroi[i].sq); }
+      else pari = [0, 1];
+    }
+    var o = { fine: true, vinc: vinc, motivo: f.motivo, crit: f.crit || '', pari: vinc < 0 ? pari : [], spareggio: '' };
+    if (torneo && vinc < 0 && pari.length) {
+      var sc = pari.map(function (q) {
+        var pv = 0, dn = 0;
+        for (var j = 0; j < st.eroi.length; j++) { var h = st.eroi[j]; if (h.sq === q) { pv += h.vivo ? h.vita / h.vmax : 0; dn += h.dan; } }
+        return { q: q, p: st.modo === 'duello' ? st.punti[q] : st.modo === 'gemme' ? st.gemSq[q] : 0, v: pv, d: dn };
+      });
+      var best = sc[0], perche = 'sorte';
+      for (var k = 1; k < sc.length; k++) {
+        var a = sc[k], b = best, c = a.p !== b.p ? a.p - b.p : a.v !== b.v ? a.v - b.v : a.d - b.d;
+        if (c > 0) best = a;
+      }
+      var pari2 = sc.filter(function (x) { return x.p === best.p && x.v === best.v && x.d === best.d; });
+      if (pari2.length === 1) perche = sc.some(function (x) { return x.p !== best.p; }) ? 'punti' : sc.some(function (x) { return x.v !== best.v; }) ? 'vita' : 'danni';
+      else { var hs = (Math.imul(st.seme0 ^ 0x9E3779B9, 0x85EBCA6B) ^ st.t) >>> 0; best = pari2[hs % pari2.length]; }
+      o.vinc = best.q; o.pari = []; o.spareggio = perche;
+    }
+    return o;
+  }
+
   function avviaSupplementari(st, tempo) {
     st.supp = true; st.suppT = tempo;
     st.gas.on = true; st.gas.t0 = tempo;
@@ -2033,12 +2164,12 @@
     } else {
       var vivi = 0, ultimo = -1;
       for (var i = 0; i < st.eroi.length; i++) if (st.eroi[i].vivo) { vivi++; ultimo = st.eroi[i].sq; }
-      if (vivi <= 1) { if (ultimo >= 0) st.ordine.push(ultimo); st.fine = { vinc: ultimo, motivo: 'ultimo' }; return; }
-      if (tempo >= lim) {
-        var best = -1, bv = -1;
-        for (var k = 0; k < st.eroi.length; k++) { var h = st.eroi[k]; if (h.vivo && h.vita / h.vmax > bv) { bv = h.vita / h.vmax; best = h.sq; } }
-        st.fine = { vinc: best, motivo: 'tempo_vita' }; return;
-      }
+      if (vivi === 1) { st.ordine.push(ultimo); st.fine = { vinc: ultimo, motivo: 'ultimo' }; return; }
+      // [F0 soldi 23/11] pareggi giusti (PIANO_SOLDI §5): prima vinceva il seggio con l'indice piu' basso (tempo scaduto)
+      // o nessuno (gli ultimi KO nello stesso passo). Ora: vita in % piu' alta, poi piu' danni inflitti; se resta pari
+      // vinc = -1 e fine.pari = le squadre pari (a soldi: piatto diviso fra loro, o poste rese: lo decide il server).
+      if (vivi === 0) { st.fine = sopravvissuto(st, true, 'ultimo'); return; }
+      if (tempo >= lim) { st.fine = sopravvissuto(st, false, 'tempo_vita'); return; }
     }
     if (st.supp && tempo >= st.suppT + SUPPL[st.modo]) {
       var p0 = percVita(st, 0), p1 = percVita(st, 1);
@@ -2061,14 +2192,162 @@
     return s >>> 0;
   }
 
+  // =====================================================================================================
+  // [F0 soldi 23/11] PEZZI PER IL SERVER E PER IL ROLLBACK (non cambiano niente nel gioco gratis)
+  // =====================================================================================================
+  var VER_MOTORE = 'cd-2411';   // alzarlo a OGNI ritocco di codice del motore o dell'IA: entra nella firma (Motore.firma). f1-2311: muoviLibero estratto (stessi conti). cd-2411: gadget a RICARICA in passi interi (niente piu' 3 usi)
+
+  // ---- salva / ripristina: copia COMPLETA dello stato (eroi, proiettili, zone, torrette, gemme, cubi, griglia, casse,
+  // generatori casuali st.rs e st.ria, stato dei bot st.ia). Restano condivisi (non si copiano): le schede degli eroi (d),
+  // la mappa di partenza (M), i livelli dei bot (L), l'osservatore del disegno (osserva). Gli eventi del passo (ev) non si
+  // copiano: dopo un ripristino st.nev = 0 (si rigenerano rigiocando).
+  //   var c = Motore.salva(st);            -> copia nuova
+  //   Motore.salva(st, c);                 -> riusa la copia c (niente spazzatura: per l'anello del rollback)
+  //   Motore.ripristina(st, c);            -> st torna com'era, sul posto (chi tiene st, st.eroi[i]... resta valido)
+  var CONDIVISI = { d: 1, M: 1, L: 1, osserva: 1 }, SALTA = { ev: 1 };
+  // riserva dei proiettili (pr): una voce spenta si segna solo come spenta (il resto non conta: prVuoto la azzera al riuso)
+  function copiaVal(v, pr) {
+    if (v === null || typeof v !== 'object') return v;
+    if (ArrayBuffer.isView(v)) return v.slice();
+    var i, o;
+    if (Array.isArray(v)) { o = new Array(v.length); for (i = 0; i < v.length; i++) o[i] = pr && !v[i].vivo ? prVuoto({}) : copiaVal(v[i]); return o; }
+    o = {};
+    var ks = Object.keys(v);
+    for (i = 0; i < ks.length; i++) { var k = ks[i]; if (SALTA[k]) continue; o[k] = CONDIVISI[k] ? v[k] : copiaVal(v[k], k === 'pr'); }
+    return o;
+  }
+  function assegnaArr(d, s, pr) {
+    if (d.length !== s.length) d.length = s.length;
+    for (var i = 0; i < s.length; i++) {
+      var v = s[i], w = d[i];
+      if (pr && w && !v.vivo) { w.vivo = 0; continue; }
+      if (v !== null && typeof v === 'object' && w !== null && typeof w === 'object' && !ArrayBuffer.isView(v) && !Array.isArray(v) && !Array.isArray(w) && !ArrayBuffer.isView(w)) assegnaObj(w, v);
+      else d[i] = copiaVal(v);
+    }
+  }
+  function assegnaObj(d, s) {
+    var ks = Object.keys(d), i, k;
+    for (i = 0; i < ks.length; i++) { k = ks[i]; if (!SALTA[k] && !CONDIVISI[k] && !(k in s)) delete d[k]; }
+    ks = Object.keys(s);
+    for (i = 0; i < ks.length; i++) {
+      k = ks[i];
+      if (SALTA[k]) continue;
+      var v = s[k];
+      if (CONDIVISI[k] || v === null || typeof v !== 'object') { d[k] = v; continue; }
+      var w = d[k];
+      if (ArrayBuffer.isView(v)) { if (w && w.constructor === v.constructor && w.length === v.length) w.set(v); else d[k] = v.slice(); }
+      else if (Array.isArray(v)) { if (Array.isArray(w)) assegnaArr(w, v, k === 'pr'); else d[k] = copiaVal(v, k === 'pr'); }
+      else if (w !== null && typeof w === 'object' && !Array.isArray(w) && !ArrayBuffer.isView(w)) assegnaObj(w, v);
+      else d[k] = copiaVal(v);
+    }
+  }
+  function salva(st, dove) { if (dove) { assegnaObj(dove, st); return dove; } return copiaVal(st); }
+  function ripristina(st, c) { assegnaObj(st, c); st.nev = 0; return st; }
+
+  // ---- impronta COMPLETA dello stato (32 bit, FNV-1a sui bit veri dei numeri): uguale su ogni piattaforma solo se lo
+  // stato e' uguale bit per bit. Chiavi in ordine alfabetico (l'ordine di inserimento cambia dopo un ripristino).
+  // Le voci spente delle riserve (proiettili, zone, torrette, gemme, cubi con vivo = 0) non entrano; eventi e schede no.
+  var POOL = { pr: 1, zo: 1, tu: 1, ge: 1, cu: 1 };
+  var HF = new Float64Array(1), HU = new Uint32Array(HF.buffer);
+  var hh = 0;
+  function hmix(x) { hh = Math.imul(hh ^ (x | 0), 16777619); }
+  function hstr(s) { hmix(s.length); for (var i = 0; i < s.length; i++) hmix(s.charCodeAt(i)); }
+  function hnum(v) { if (v !== v) { hmix(0x7ff80000); hmix(0); return; } HF[0] = v; hmix(HU[0]); hmix(HU[1]); }
+  var hLeggero = false;
+  function hval(v, pool) {
+    var t = typeof v, i;
+    if (t === 'number') { hmix(1); hnum(v); return; }
+    if (t === 'boolean') { hmix(v ? 2 : 3); return; }
+    if (t === 'string') { hmix(4); hstr(v); return; }
+    if (v === null || t === 'undefined') { hmix(5); return; }
+    if (t !== 'object') { hmix(6); return; }
+    if (ArrayBuffer.isView(v)) { hmix(7); hmix(v.length); if (hLeggero && v.length > 64) return; for (i = 0; i < v.length; i++) hnum(v[i]); return; }
+    if (Array.isArray(v)) {
+      hmix(8); hmix(v.length);
+      for (i = 0; i < v.length; i++) { if (pool && !v[i].vivo) { hmix(9); continue; } hval(v[i], false); }
+      return;
+    }
+    var ks = Object.keys(v).sort();
+    hmix(10); hmix(ks.length);
+    for (i = 0; i < ks.length; i++) {
+      var k = ks[i];
+      if (SALTA[k] || CONDIVISI[k] || k === 'nev') continue;
+      hstr(k); hval(v[k], POOL[k] === 1);
+    }
+  }
+  // leggero = true: salta le tabelle lunghe (griglia, vita delle casse, campi di distanza dei bot), per l'impronta di ogni
+  // passo; quella completa (leggero falso) va ogni 30 passi e alla fine
+  function hashStato(st, leggero) { hh = 0x811c9dc5 | 0; hLeggero = !!leggero; hval(st, false); hLeggero = false; return hh >>> 0; }
+
+  // ---- INPUT A 32 BIT (un intero per giocatore per passo; uguale in pagina, sul server e nel verificatore) ----
+  //  bit 0-6   mx  levetta orizzontale, intero con segno -63..63  (mx = q/63)
+  //  bit 7-13  my  levetta verticale,   intero con segno -63..63
+  //  bit 14-15 azione: 0 niente, 1 attacco, 2 super, 3 gadget (una sola per passo, come la pagina)
+  //  bit 16-23 dx  mira, intero con segno -127..127 (componente/127; lunghezza 0..1 = frazione della gittata)
+  //  bit 24-31 dy
+  //  0 = fermo. INP_BOT (mx = -64, valore che una levetta non da' mai) = «questo seggio lo guida il bot del motore».
+  var INP_BOT = 0x40;
+  function q7(v) { v = +v; if (!(v === v)) v = 0; v = Math.round(v * 63); return v > 63 ? 63 : v < -63 ? -63 : v; }
+  function q8(v) { v = +v; if (!(v === v)) v = 0; v = Math.round(v * 127); return v > 127 ? 127 : v < -127 ? -127 : v; }
+  function codificaInput(inp) {
+    var mx = +inp.mx || 0, my = +inp.my || 0, l = Math.sqrt(mx * mx + my * my);
+    if (l > 1) { mx /= l; my /= l; }
+    var az = 0, ax = 0, ay = 0;
+    if (inp.sup) { az = 2; ax = inp.sx; ay = inp.sy; } else if (inp.gad) { az = 3; ax = inp.gx; ay = inp.gy; } else if (inp.att) { az = 1; ax = inp.ax; ay = inp.ay; }
+    ax = +ax || 0; ay = +ay || 0;
+    var la = Math.sqrt(ax * ax + ay * ay);
+    if (la > 1) { ax /= la; ay /= la; }
+    if (!az) { ax = 0; ay = 0; }
+    var m = dentro(q7(mx), q7(my), 63), m0 = m[0], m1 = m[1], a = dentro(q8(ax), q8(ay), 127);
+    return ((m0 & 127) | ((m1 & 127) << 7) | (az << 14) | ((a[0] & 255) << 16) | ((a[1] & 255) << 24)) >>> 0;
+  }
+  // dopo l'arrotondamento il vettore intero non supera mai la lunghezza 1 (si accorcia di 1 la componente piu' grande):
+  // cosi' un input decodificato, ricodificato, da' lo STESSO intero (niente seconda normalizzazione)
+  var _dq = [0, 0];
+  function dentro(x, y, R) {
+    while (x * x + y * y > R * R) { if ((x < 0 ? -x : x) >= (y < 0 ? -y : y)) x += x > 0 ? -1 : 1; else y += y > 0 ? -1 : 1; }
+    _dq[0] = x; _dq[1] = y; return _dq;
+  }
+  // scrive in inp TUTTI i campi (stessi numeri ovunque: interi divisi per 63 o 127, divisione IEEE esatta)
+  function decodificaInput(c, inp) {
+    c = c | 0;
+    var mx = (c << 25) >> 25, my = (c << 18) >> 25, az = (c >>> 14) & 3, ax = (c << 8) >> 24, ay = c >> 24;
+    inp.mx = mx / 63; inp.my = my / 63;
+    inp.att = 0; inp.ax = 0; inp.ay = 0; inp.sup = 0; inp.sx = 0; inp.sy = 0; inp.gad = 0; inp.gx = 0; inp.gy = 0;
+    if (az === 1) { inp.att = 1; inp.ax = ax / 127; inp.ay = ay / 127; }
+    else if (az === 2) { inp.sup = 1; inp.sx = ax / 127; inp.sy = ay / 127; }
+    else if (az === 3) { inp.gad = 1; inp.gx = ax / 127; inp.gy = ay / 127; }
+    return inp;
+  }
+  function quantizzaInput(inp) { return decodificaInput(codificaInput(inp), inp); }
+  function inputValido(c) { c = c >>> 0; if (c === INP_BOT) return true; var mx = (c << 25) >> 25, my = (c << 18) >> 25; return mx !== -64 && my !== -64 && (((c >>> 14) & 3) !== 0 || (c >>> 16) === 0) && ((c << 8) >> 24) !== -128 && (c >> 24) !== -128; }
+
+  // ---- FIRMA delle regole: cambia se cambia il codice (VER_MOTORE + VER dell'IA), un numero degli eroi, la taratura o una
+  // mappa. Il server rifiuta una pagina con firma diversa da quella del suo verificatore (come il «cancello» di Smash).
+  function firma(tab, tara, mappe, verIA) {
+    hh = 0x811c9dc5 | 0;
+    hstr(VER_MOTORE); hstr(String(verIA || '')); hmix(DM ? 1 : 0); hmix(FILA3 ? 1 : 0);
+    hstr(JSON.stringify(tab || null)); hstr(JSON.stringify(tara || null));
+    var ids = [];
+    if (mappe) for (var k in mappe) if (mappe[k] && mappe[k].g) ids.push(k);
+    ids.sort();
+    for (var i = 0; i < ids.length; i++) { var m = mappe[ids[i]]; hstr(ids[i]); hmix(m.w); hmix(m.h); for (var j = 0; j < m.g.length; j++) hmix(m.g[j]); hstr(JSON.stringify([m.sp, m.ffa, m.gem, m.gas || null])); }
+    return ('00000000' + (hh >>> 0).toString(16)).slice(-8);
+  }
+
   var Motore = {
+    VER: VER_MOTORE, MAT_DET: !!DM, MATH: Math, INP_BOT: INP_BOT,
+    salva: salva, ripristina: ripristina, hashStato: hashStato, vista: vista, mascheraVis: mascheraVis, esito: esito,
+    codificaInput: codificaInput, decodificaInput: decodificaInput, quantizzaInput: quantizzaInput, inputValido: inputValido, firma: firma,
+    get FILA3() { return FILA3; },
     TICK: TICK, DT: DT, R: R, MURO: MURO, CESP: CESP, CASSA: CASSA, TAVOLO: TAVOLO, VITA_CASSA: VITA_CASSA,
     VITA_G: VITA_G, MAXP: MAXP, MAXZ: MAXZ, MAXT: MAXT, MAXG: MAXG, F_SUP: F_SUP, LIMITE: LIMITE, TIPI: TIPI,
-    TU_TORRETTA: TU_TORRETTA, TU_MINA: TU_MINA, TU_BARILE: TU_BARILE, TU_SCAGNOZZO: TU_SCAGNOZZO, TU_ESCA: TU_ESCA, TU_CORDONE: TU_CORDONE, TU_LANCIA: TU_LANCIA, TU_CASSA: TU_CASSA, TU_FIORE: TU_FIORE, TU_SIEPE: TU_SIEPE, MAXC: MAXC,
+    TU_TORRETTA: TU_TORRETTA, TU_MINA: TU_MINA, TU_BARILE: TU_BARILE, TU_SCAGNOZZO: TU_SCAGNOZZO, TU_ESCA: TU_ESCA, TU_CORDONE: TU_CORDONE, TU_LANCIA: TU_LANCIA, TU_CASSA: TU_CASSA, TU_FIORE: TU_FIORE, TU_SIEPE: TU_SIEPE, MAXC: MAXC, gadCdTick: gadCdTick,
     Z_MALE: Z_MALE, Z_CURA: Z_CURA, Z_SCOPPIO: Z_SCOPPIO, Z_FUMO: Z_FUMO,
     GEMME_VITTORIA: GEMME_VITTORIA, CONTO_GEMME: CONTO_GEMME, OGNI_GEMMA: OGNI_GEMMA,
     crea: crea, passo: passo, tile: tile, bloccaPasso: bloccaPasso, bloccaColpo: bloccaColpo, lineaLibera: lineaLibera,
-    visibile: visibile, fuoriGas: fuoriGas, tempoRimasto: tempoRimasto, rnd: rnd, impronta: impronta, intoccabile: intoccabile
+    visibile: visibile, fuoriGas: fuoriGas, tempoRimasto: tempoRimasto, rnd: rnd, impronta: impronta, intoccabile: intoccabile,
+    muoviLibero: muoviLibero, EV_ATTORE: EV_ATTORE   // [F1 rete 23/11] previsione del proprio eroe (rete.js) e banco della vista
   };
   root.Motore = Motore;
   if (typeof module !== 'undefined') module.exports = Motore;

@@ -20,7 +20,7 @@
       m_duello: 'Duello', m_duello_d: 'Uno contro uno. Chi arriva per primo a 3 KO vince. A tempo scaduto in parità: supplementari, il prossimo KO decide.',
       m_sopr: 'Sopravvivenza', m_sopr_d: 'Sei in sei, ognuno per sé, nessuna rinascita. Il gas stringe l’arena: resta in piedi per ultimo.',
       doppio: 'DOPPIO KO!', triplo: 'TRIPLO KO!', inarrestabile: 'INARRESTABILE!',
-      gadget: 'Gadget', vita: 'Vita', danno: 'Danno', gittata: 'Gittata', velocita: 'Velocità', attacco: 'Attacco', super: 'Super',
+      gadget: 'Gadget', ricGad: 'Ricarica', vita: 'Vita', danno: 'Danno', gittata: 'Gittata', velocita: 'Velocità', attacco: 'Attacco', super: 'Super',
       tu: 'TU', vittoria: 'Vittoria!', sconfitta: 'Sconfitta', pareggio: 'Pareggio', posto: '° posto',
       mot_gemme: 'Gemme tenute fino alla fine del conto', mot_tempo_gemme: 'Tempo scaduto: più gemme', mot_supp_ko: 'Supplementari: KO decisivo', mot_supp_vita: 'Supplementari: più vita rimasta',
       mot_ko: '3 KO', mot_tempo_ko: 'Tempo scaduto: più KO', mot_ultimo: 'Ultimo in piedi', mot_tempo_vita: 'Tempo scaduto: più vita',
@@ -42,7 +42,7 @@
       m_duello: 'Duel', m_duello_d: 'One on one. First to 3 KOs wins. Tied at the buzzer: overtime, next KO decides.',
       m_sopr: 'Survival', m_sopr_d: 'Six players, every one for themselves, no respawns. The gas closes in on the arena: be the last one standing.',
       doppio: 'DOUBLE KO!', triplo: 'TRIPLE KO!', inarrestabile: 'UNSTOPPABLE!',
-      gadget: 'Gadget', vita: 'Health', danno: 'Damage', gittata: 'Range', velocita: 'Speed', attacco: 'Attack', super: 'Super',
+      gadget: 'Gadget', ricGad: 'Cooldown', vita: 'Health', danno: 'Damage', gittata: 'Range', velocita: 'Speed', attacco: 'Attack', super: 'Super',
       tu: 'YOU', vittoria: 'Victory!', sconfitta: 'Defeat', pareggio: 'Draw', posto: ' place',
       mot_gemme: 'Held the gems through the countdown', mot_tempo_gemme: 'Time up: more gems', mot_supp_ko: 'Overtime: decisive KO', mot_supp_vita: 'Overtime: more health left',
       mot_ko: '3 KOs', mot_tempo_ko: 'Time up: more KOs', mot_ultimo: 'Last one standing', mot_tempo_vita: 'Time up: more health',
@@ -57,7 +57,11 @@
       comandi_nota: 'Phone: left stick to move, aim and shoot on the right. PC: WASD + mouse, E super, Q gadget, Esc pause. Gamepad: sticks, RT shoots, Y/LT super, LB gadget.'
     }
   };
-  function T(k) { return (TX[LANG] && TX[LANG][k]) || TX.it[k] || k; }
+  function T(k) {
+    // GBT2311: da SPETTATORE online l'eroe «IO» e' quello che si segue: niente «tu» / «SEI KO» (non e' il tuo eroe)
+    if (P && P.spett && P.st && P.st.eroi[IO]) { if (k === 'tu') return nomeCorto(P.st.eroi[IO].id); if (k === 'sei_ko') return 'KO'; }
+    return (TX[LANG] && TX[LANG][k]) || TX.it[k] || k;
+  }
   document.documentElement.lang = LANG;
   Array.prototype.forEach.call(document.querySelectorAll('[data-t]'), function (el) { el.textContent = T(el.getAttribute('data-t')); });
 
@@ -284,7 +288,19 @@
   var ROLE_TX = { tank: { it: 'Tank', en: 'Tank' }, tiratore: { it: 'Tiratore', en: 'Sharpshooter' }, lanciatore: { it: 'Lanciatore', en: 'Thrower' }, assassino: { it: 'Assassino', en: 'Assassin' }, supporto: { it: 'Supporto', en: 'Support' }, controllo: { it: 'Controllo', en: 'Controller' } };
   function ruoloDi(id) { return (E[id] && E[id].ruolo) || info(id).ruolo || 'tiratore'; }
   function ruoloTx(r) { return ((E.RUOLI && E.RUOLI[r]) || ROLE_TX[r] || { it: r, en: r })[LANG]; }
-  function badgeRuolo(el, id) { var r = ruoloDi(id); el.textContent = ruoloTx(r); el.style.setProperty('--kr', COLRUOLO[r] || '#888'); }
+  // 24/11: il SECONDO ruolo, di sola presentazione (il Fante si trasforma nel Cavaliere: duellista agile E tank). Sta qui e non in
+  // eroi.js perche' la tabella degli eroi entra nella firma delle regole (Motore.firma): cosi' motore, server e firma non cambiano.
+  var RUOLO2 = { fante: 'tank' };
+  function ruoliDi(id) { var r = [ruoloDi(id)]; if (RUOLO2[id] && RUOLO2[id] !== r[0]) r.push(RUOLO2[id]); return r; }
+  function badgeRuolo(el, id) {
+    var rr = ruoliDi(id); el.textContent = ruoloTx(rr[0]); el.style.setProperty('--kr', COLRUOLO[rr[0]] || '#888');
+    el.classList.toggle('doppio', rr.length > 1);
+    if (rr[1]) { var b2 = document.createElement('i'); b2.className = 'ruolo2'; b2.textContent = ruoloTx(rr[1]); b2.style.setProperty('--kr2', COLRUOLO[rr[1]] || '#888'); el.appendChild(b2); }
+  }
+  function icoClassi(id) { var rr = ruoliDi(id), k1 = CLASSE[rr[0]] || CLASSE.tiratore, h = k1.ico; if (rr[1] && CLASSE[rr[1]]) h += '<span class="cl2" style="--kc2:' + CLASSE[rr[1]].col + '">' + CLASSE[rr[1]].ico + '</span>'; return h; }
+  B.ruoli = function (id) { return ruoliDi(id).map(function (r) { return { id: r, tx: ruoloTx(r), col: COLRUOLO[r] || '#888' }; }); };   // per il menu (ui/menu_gb.js)
+  B.icoClassi = function (id) { return { html: icoClassi(id), col: (CLASSE[ruoloDi(id)] || CLASSE.tiratore).col }; };
+  B.nomeCorto = function (id) { return nomeCorto(id); };
   var MODI = [
     { id: 'gemme', tag: '3v3', n: 'm_gemme', d: 'm_gemme_d', arte: 'ui/modo_gemme.webp?v=c2211', k: '#b44dff',
       ico: '<svg class="m-ico" viewBox="0 0 24 24"><path d="M7 3h10l4 6-9 12L3 9l4-6Zm-1.2 6h12.4M9 3l3 6 3-6M12 9v12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>' },
@@ -327,7 +343,7 @@
     $('s-home').style.setProperty('--kh', c.colore);
     vetrina($('h-vetrina'), id, true);
     asset(id).pronto.then(function (a) { $('h-eroi-img').src = a.busto; });
-    var kc = CLASSE[ruoloDi(id)] || CLASSE.tiratore; $('h-cl').innerHTML = kc.ico; $('h-cl').style.setProperty('--kc', kc.col);
+    var kc = CLASSE[ruoloDi(id)] || CLASSE.tiratore; $('h-cl').innerHTML = icoClassi(id); $('h-cl').style.setProperty('--kc', kc.col);
     $('h-fiche').textContent = PROG.fiche || 0;
     $('h-nome-gioc').textContent = NOME_GIOC;
     polvere();
@@ -433,7 +449,9 @@
       c.style.animationDelay = (i * 0.035) + 's';
       var img = document.createElement('img'); img.alt = nome(id); img.draggable = false;
       asset(id).pronto.then(function (a) { img.src = a.busto; });
-      c.innerHTML = '<span class="c-classe">' + kc.ico + '</span><span class="c-trofei"><img src="ui/ico_trofeo.webp" alt=""><b>' + trofeiDi(id) + '</b></span>';
+      c.innerHTML = '<span class="c-classe">' + icoClassi(id) + '</span><span class="c-trofei"><img src="ui/ico_trofeo.webp" alt=""><b>' + trofeiDi(id) + '</b></span>' +
+        '<span class="c-ruoli">' + ruoliDi(id).map(function (r) { return '<i style="--kr:' + (COLRUOLO[r] || '#888') + '">' + ruoloTx(r) + '</i>'; }).join('') + '</span>';
+      c.style.setProperty('--kr', COLRUOLO[ruoloDi(id)] || '#888');
       c.insertBefore(img, c.firstChild);
       var nm = document.createElement('span'); nm.className = 'c-nome'; nm.textContent = nomeCorto(id); c.appendChild(nm);
       if (id === APP.eroe) { var sc = document.createElement('span'); sc.className = 'c-scelto'; sc.textContent = T('scelto').toUpperCase(); c.appendChild(sc); }
@@ -464,8 +482,9 @@
       var s = statEroe(id);
       var riga = function (lab, v, max, txt, col) { return '<div class="stat">' + lab + '<i><b style="width:' + Math.max(4, Math.min(100, Math.round(v / max * 100))) + '%;--kb:' + col + '"></b></i><span>' + txt + '</span></div>'; };
       $('d-stat').innerHTML = riga(T('vita'), s.vita, 10000, s.vita, '#3bff8b') + riga(T('danno'), s.danno, 2400, s.danno, '#ff6a12') + riga(T('gittata'), s.gitt, 10.5, s.gitt.toFixed(1), '#1ad7ff') + riga(T('velocita'), s.vel - 1.9, 1.1, s.vel.toFixed(2), '#ffd23b');
-      var ab = function (k, col, tit, o, extra) { return '<div class="abil" style="--ka:' + col + '"><span class="a-ico">' + ICO[k] + '</span><div><b><small>' + tit.toUpperCase() + (extra || '') + '</small>' + (LANG === 'en' ? o.nome_en : o.nome_it) + '</b><p>' + (LANG === 'en' ? o.desc_en : o.desc_it) + '</p></div></div>'; };
-      $('d-kit').innerHTML = ab('att', '#ff9f1c', T('attacco'), d.att) + ab('sup', '#ffd23b', T('super'), d.sup) + ab('gad', '#3bff8b', T('gadget'), d.gad, ' ×' + (d.gad.usi || 3));
+      var icoAbil = function (k) { return k === 'att' ? ICO[k] : '<img class="a-img" alt="" draggable="false" src="ui/icone_abilita/' + id + '_' + (k === 'sup' ? 'ulti' : 'gadget') + '.webp?v=2411">'; };
+      var ab = function (k, col, tit, o, extra) { return '<div class="abil' + (k === 'att' ? '' : ' con-ico') + '" style="--ka:' + col + '"><span class="a-ico">' + icoAbil(k) + '</span><div><b><small>' + tit.toUpperCase() + (extra || '') + '</small>' + (LANG === 'en' ? o.nome_en : o.nome_it) + '</b><p>' + (LANG === 'en' ? o.desc_en : o.desc_it) + '</p></div></div>'; };
+      $('d-kit').innerHTML = ab('att', '#ff9f1c', T('attacco'), d.att) + ab('sup', '#ffd23b', T('super'), d.sup) + ab('gad', '#3bff8b', T('gadget'), d.gad, ' · ' + T('ricGad') + ': ' + String(d.gad.cd).replace('.', LANG === 'en' ? '.' : ',') + ' s');   // 24/11: ricarica al posto dei 3 usi
       if (window.ABILITA) ABILITA.mostra($('d-kit'), id, LANG);   // 21/11: sezione ABILITÀ con i mini video (ui/abilita.js)
     } else {
       $('d-stat').innerHTML = '';
@@ -489,7 +508,7 @@
 
   // ---------------- opzioni e fogli ----------------
   var VIB = true; try { VIB = localStorage.getItem('gb_vib') !== '0'; } catch (e) { }
-  function vibra(ms) { if (VIB && !AUTO && navigator.vibrate) try { navigator.vibrate(ms); } catch (e) { } }
+  function vibra(ms) { if (VIB && !AUTO && !(P && P.spett) && navigator.vibrate) try { navigator.vibrate(ms); } catch (e) { } }   // GBT2311: lo spettatore non vibra
   var FOGLIO = '';
   function foglio(id, on) {
     if (on) { FOGLIO = id; interruttori(); $(id).classList.add('on'); }
@@ -512,6 +531,7 @@
 
   // ---------------- partita: preparazione e versus ----------------
   var P = null; // partita corrente
+  var IO = 0;   // F1 rete 23/11: l'eroe di chi gioca. Offline sempre 0 (come prima); online il seggio dato dal server (rete.js)
   // ?seme=N rende ripetibile la partita (squadre, mappa e motore): serve alle misure
   var QSEME = +Q.get('seme') || 0, rsq = QSEME;
   function caso() { if (!QSEME) return Math.random(); rsq = (rsq * 1103515245 + 12345) & 0x7fffffff; return rsq / 0x80000000; }
@@ -541,6 +561,7 @@
   };
   function preparaPartita() {
     if (B.fase === 'carica') return;
+    B.ultimaRete = false; IO = 0;   // F1 rete: contro i bot si torna sempre all'eroe 0
     B.fase = 'carica';
     if (AUTO || APP.schermo === '') costruisciPartita(); else sipario(costruisciPartita, 1);
   }
@@ -548,6 +569,7 @@
     var modo = APP.modo, mappe = MAPPE.perModo(modo), mappa = mappe[Math.floor(caso() * mappe.length)];
     var me = APP.eroe, giocatori = [{ eroe: me, squadra: 0, bot: AUTO ? 3 : 0 }], altri;
     var pre = APP.preset; APP.preset = null;   // lobby video (lobby_video.js): squadre già scelte nel matchmaking
+    var TUTc = APP.tutCfg; APP.tutCfg = null;   // TUTORIAL 24/11 (ui/tutorial.js): arena di prova privata, tu contro un bersaglio-bot
     if (pre && modo !== 'sopravvivenza') {
       pre.alleati.forEach(function (id) { giocatori.push({ eroe: id, squadra: 0, bot: APP.liv }); });
       pre.nemici.forEach(function (id) { giocatori.push({ eroe: id, squadra: 1, bot: APP.liv }); });
@@ -563,6 +585,7 @@
       altri = pesca(POOL, [me], 5);
       for (var j = 0; j < 5; j++) giocatori.push({ eroe: altri[j], squadra: j + 1, bot: APP.liv });
     }
+    if (TUTc) { modo = 'gemme'; mappa = TUTc.mappa; giocatori = TUTc.giocatori; }   // TUTORIAL 24/11
     // SPETTATORE 23/11: ?replay= rigioca una partita registrata (stessa mappa, stessi eroi, stesso seme: replay.js)
     var RPd = window.SPETT && SPETT.prendiReplay ? SPETT.prendiReplay() : null, RPc = null;
     if (RPd) { RPc = REPLAY.configura(RPd, MAPPE); modo = APP.modo = RPc.modo; mappa = RPc.mappa; giocatori = RPc.giocatori; sopr = modo === 'sopravvivenza'; }
@@ -572,20 +595,21 @@
     var modelli = window.R3 ? R3.precarica(st.eroi.map(function (h) { return h.id; })) : null;
     IA.prepara(st, seme);
     P = { modelli: modelli, st: st, seme: seme, acc: 0, freeze: 0, finito: 0, lento: 0, banner: [], feed: [], vignetta: 0, passoT: 0, ultimoConto: -1, superBtnPulse: 0, superVuoto: 0, tFine: 0, conto: 0, contoN: 0 };
+    if (TUTc) P.gbtut = TUTc.ctrl;   // TUTORIAL 24/11
     // SPETTATORE 23/11: ogni partita si registra (seme + input del giocatore: base dei replay e degli spettatori esterni)
     if (window.REPLAY) { if (RPd) P.rep = REPLAY.lettore(RPd); else P.rec = REPLAY.registratore({ mappa: mappa, modo: modo, giocatori: giocatori, seme: seme, auto: AUTO, quando: Date.now() }); }
     APP.st = B.st = st;
-    D.prepara(st, 0);
+    D.prepara(st, IO);
     st.eroi.forEach(function (h) { asset(h.id); });
     // versus: le due squadre a confronto
     var blu = $('c-blu'), ros = $('c-rossi'), sopr = modo === 'sopravvivenza';
     blu.innerHTML = ''; ros.innerHTML = '';
     $('s-carica').classList.toggle('vs-sopr', sopr);
     st.eroi.forEach(function (h, k) {
-      var f = document.createElement('div'); f.className = 'vs-carta' + (k === 0 ? ' io' : '');
+      var f = document.createElement('div'); f.className = 'vs-carta' + (k === IO ? ' io' : '');
       f.dataset.tu = T('vs_tu');
       f.style.setProperty('--kh', info(h.id).colore);
-      var dentro = (sopr ? k === 0 : h.sq === st.eroi[0].sq);
+      var dentro = (sopr ? k === IO : h.sq === st.eroi[IO].sq);
       f.style.animationDelay = (0.18 + (dentro ? k : k - (sopr ? 1 : 3)) * 0.08) + 's';
       var fig = document.createElement('div'); fig.className = 'vc-fig';
       var img = document.createElement('img'); img.alt = ''; img.draggable = false;
@@ -623,9 +647,11 @@
     var nomeModo = T(modoDi(APP.modo).n).toUpperCase();
     banner(nomeModo, T(APP.modo === 'gemme' ? 'regola_gemme' : APP.modo === 'duello' ? 'regola_duello' : 'regola_sopr'), '#ffd23b', 1.35, 1);
     var fatto = false; try { fatto = localStorage.getItem('gb_tutorial') === '1'; } catch (e) { }
-    P.tut = !P.rep && ((!fatto && !AUTO && !Q.get('notut')) || Q.get('tutorial') === '1') ? { passo: 0, t: 0, x0: P.st.eroi[0].x, y0: P.st.eroi[0].y, spari: 0 } : null;
+    P.tut = null;   // TUTORIAL 24/11: il mini tutorial di 3 passi (riquadro al centro, sopra l'eroe) è sostituito da ui/tutorial.js
+    if (P.gbtut) { P.rec = null; P.gbtut.inizia(P); }   // TUTORIAL 24/11: l'arena di prova non si registra
     if (P.tut) P.rec = null;   // SPETTATORE 23/11: il tutorial ferma i bot e regala la super: quella partita non si può rigiocare
-    if (window.SPETT) SPETT.inizia(P);
+    if (window.SPETT) SPETT.inizia(P);   // GBT2311: anche online (KO, eliminato, spettatore)
+    if (P.rete && P.viaT) { var rim = Math.max(0, (P.viaT - performance.now()) / 1000); P.intro = Math.min(1.5, rim * 0.45); P.conto = Math.max(0, rim - P.intro); if (window.R3) R3.intro(P.intro); }   // F1 rete: il 3, 2, 1 finisce quando parte il server
   }
   // conto alla rovescia dopo il volo d'apertura: 3, 2, 1 (0,62 s l'uno) e BRAWL! — il motore parte con BRAWL!
   var CONTO = { passo: 0.62, durata: 0.62 * 3 };
@@ -707,8 +733,8 @@
   // misure del feel: tempi fra l'input e il primo fotogramma che lo mostra (?misura=1)
   var MIS = B.misure = { mov: [], sparo: [], rot: [], movT: 0, movX: 0, movY: 0, sparoT: 0, sparoAtt: 0, sparoMov: 0, rotT: 0, rotA: 0 };
   function misuraFotogramma() {
-    if (!P || !window.R3 || !R3.eroi[0]) return;
-    var e = R3.eroi[0], h = P.st.eroi[0], ora = performance.now();
+    if (!P || !window.R3 || !R3.eroi[IO]) return;
+    var e = R3.eroi[IO], h = P.st.eroi[IO], ora = performance.now();
     if (MIS.movT && (Math.abs(e.x - MIS.movX) > 0.005 || Math.abs(e.y - MIS.movY) > 0.005)) { MIS.mov.push(ora - MIS.movT); MIS.movT = 0; }
     if (MIS.sparoT && (h.tAtt !== MIS.sparoAtt || e.movT !== MIS.sparoMov)) { MIS.sparo.push(ora - MIS.sparoT); MIS.sparoT = 0; }
     if (MIS.rotT) { var voluto = Math.atan2(Math.cos(MIS.rotA), Math.sin(MIS.rotA)), d = voluto - e.rot; while (d > Math.PI) d -= 6.283; while (d < -Math.PI) d += 6.283; if (Math.abs(d) < 0.26) { MIS.rot.push(ora - MIS.rotT); MIS.rotT = 0; } }
@@ -740,7 +766,7 @@
       return;
     }
     if (x < W * 0.5) {
-      if (IN.mov.id < 0) { IN.mov.id = e.pointerId; IN.mov.bx = x; IN.mov.by = y; IN.mov.x = x; IN.mov.y = y; if (window.R3 && R3.eroi[0]) { MIS.movT = 0; MIS.movArm = 1; } }
+      if (IN.mov.id < 0) { IN.mov.id = e.pointerId; IN.mov.bx = x; IN.mov.by = y; IN.mov.x = x; IN.mov.y = y; if (window.R3 && R3.eroi[IO]) { MIS.movT = 0; MIS.movArm = 1; } }
     } else if (IN.mira.id < 0) {
       IN.mira.id = e.pointerId; IN.mira.bx = x; IN.mira.by = y; IN.mira.x = x; IN.mira.y = y; IN.mira.uscito = false; IN.mira.sup = false; IN.mira.t0 = performance.now();
     }
@@ -749,7 +775,7 @@
     if (e.pointerType === 'mouse') { IN.mouse.x = e.clientX; IN.mouse.y = e.clientY; IN.mouse.dentro = true; return; }
     if (e.pointerId === IN.mov.id) {
       IN.mov.x = e.clientX; IN.mov.y = e.clientY;
-      if (MIS.movArm && Math.hypot(IN.mov.x - IN.mov.bx, IN.mov.y - IN.mov.by) > UI.R * 0.2 && window.R3 && R3.eroi[0]) { MIS.movArm = 0; MIS.movT = performance.now(); MIS.movX = R3.eroi[0].x; MIS.movY = R3.eroi[0].y; }
+      if (MIS.movArm && Math.hypot(IN.mov.x - IN.mov.bx, IN.mov.y - IN.mov.by) > UI.R * 0.2 && window.R3 && R3.eroi[IO]) { MIS.movArm = 0; MIS.movT = performance.now(); MIS.movX = R3.eroi[IO].x; MIS.movY = R3.eroi[IO].y; }
       // la base segue il dito se si allontana troppo
       var dx = IN.mov.x - IN.mov.bx, dy = IN.mov.y - IN.mov.by, d = Math.sqrt(dx * dx + dy * dy), lim = UI.R * 1.25;
       if (d > lim) { IN.mov.bx += dx / d * (d - lim); IN.mov.by += dy / d * (d - lim); }
@@ -772,7 +798,7 @@
       var v = vettoreMira(), m = IN.mira;
       m.id = -1;
       if (!inPartita()) return;
-      if (!m.sup && P.st.eroi[0].ammo >= 1 && window.R3 && R3.eroi[0]) { MIS.sparoT = performance.now(); MIS.sparoAtt = P.st.eroi[0].tAtt; MIS.sparoMov = R3.eroi[0].movT; }
+      if (!m.sup && P.st.eroi[IO].ammo >= 1 && window.R3 && R3.eroi[IO]) { MIS.sparoT = performance.now(); MIS.sparoAtt = P.st.eroi[IO].tAtt; MIS.sparoMov = R3.eroi[IO].movT; }
       if (!m.uscito) spara(!m.sup && AUTOMIRA ? miraAssistita() : { x: 0, y: 0 }, m.sup);           // tocco breve: dove guarda l'eroe (o, se accesa, verso il nemico visibile più vicino a tiro)
       else if (v.l > DEAD_MIRA) spara({ x: v.x, y: v.y }, m.sup); // trascina e rilascia
       // altrimenti: riportato al centro = annullato
@@ -802,8 +828,8 @@
   // Di norma SPENTA (regola della casa: niente mira automatica). Si accende con ?automira=1 o localStorage gb_automira=1.
   var AUTOMIRA = Q.get('automira') === '1' || (Q.get('automira') !== '0' && (function () { try { return localStorage.getItem('gb_automira') === '1'; } catch (e) { return false; } })());
   function miraAssistita() {
-    var st = P.st, h = st.eroi[0], a = h.d.att, g = (a.gitt || 4) * 1.05, best = null, bd = 1e9;
-    for (var i = 1; i < st.eroi.length; i++) {
+    var st = P.st, h = st.eroi[IO], a = h.d.att, g = (a.gitt || 4) * 1.05, best = null, bd = 1e9;
+    for (var i = 0; i < st.eroi.length; i++) {
       var e = st.eroi[i];
       if (!e.vivo || e.sq === h.sq || !M.visibile(st, e, h.sq)) continue;
       var dx = e.x - h.x, dy = e.y - h.y, d = Math.sqrt(dx * dx + dy * dy);
@@ -828,7 +854,7 @@
   var _q0 = { x: 0, y: 0 }, _q1 = { x: 0, y: 0 }, _q2 = { x: 0, y: 0 };
   function aggiornaBase(st) {
     if (!window.R3 || !R3.cam || !R3.proietta) return;
-    var h = st.eroi[0];
+    var h = st.eroi[IO];
     R3.proietta(h.x, h.y, 0, _q0); R3.proietta(h.x + 1, h.y, 0, _q1); R3.proietta(h.x, h.y + 1, 0, _q2);
     var ex = _q1.x - _q0.x, ey = _q1.y - _q0.y, fx = _q2.x - _q0.x, fy = _q2.y - _q0.y, det = ex * fy - fx * ey;
     if (!isFinite(det) || Math.abs(det) < 1e-6) return;
@@ -843,7 +869,7 @@
   }
   function vMondo(v) { return v.mondo ? v : mondo(v.x, v.y); }
   function vettoreMouse(sup) {
-    var st = P.st, h = st.eroi[0], v = D.eroiV[0];
+    var st = P.st, h = st.eroi[IO], v = D.eroiV[IO];
     var px = D.px2(v.x, v.y), py = D.py2() - D.S * 0.4;
     var o = sup === 'gad' ? h.d.gad : sup ? h.d.sup : h.d.att, g = o.gitt || o.dist || o.raggio || 4;
     var x = (IN.mouse.x - px) / (g * D.S), y = (IN.mouse.y - py) / (g * D.S), l = Math.sqrt(x * x + y * y);
@@ -852,11 +878,12 @@
     return { x: x, y: y };
   }
   function spara(v, sup) {
-    var st = P.st, h = st.eroi[0];
+    if (P.spett) return;   // GBT2311: niente comandi da spettatore
+    var st = P.st, h = st.eroi[IO];
     v = vMondo(v);
     if (!h.vivo) return;
     if (sup === 'gad') {
-      if (h.gadUsi <= 0 || h.gadCd > 0) { S.vuoto(); P.gadVuoto = 0.3; return; }
+      if (h.gadCd > 0) { S.vuoto(); P.gadVuoto = 0.3; return; }   // 24/11: in ricarica
       IN.bufGad = st.t + 6; IN.gx = v.x; IN.gy = v.y;
     } else if (sup) {
       if (h.sup < 1) { S.vuoto(); P.superVuoto = 0.3; return; }
@@ -866,8 +893,8 @@
       else if (h.cd <= 0 && h.seqN === 0 && h.stun <= 0 && h.prepT <= 0 && h.dashD <= 0 && window.R3) {
         // risposta nello stesso fotogramma del rilascio; il motore spara al passo dopo e non la ripete
         var aP = Math.hypot(v.x, v.y) > 0.05 ? Math.atan2(v.y, v.x) : h.aim;
-        if ({ slot: 1, tamburo: 1, tridente: 1, shuriken_ombra: 1, palla_rotolante: 1, carta_servita: 1 }[h.d.att.tipo]) R3.vampata(0, aP, 0xffe9a8);
-        else if (FEEL && R3.feelVampata) R3.feelVampata(0, aP);   // FEEL 21/11: lampo nello stesso fotogramma del rilascio per TUTTI i tiratori (prima solo 6 tipi)
+        if ({ slot: 1, tamburo: 1, tridente: 1, shuriken_ombra: 1, palla_rotolante: 1, carta_servita: 1 }[h.d.att.tipo]) R3.vampata(IO, aP, 0xffe9a8);
+        else if (FEEL && R3.feelVampata) R3.feelVampata(IO, aP);   // FEEL 21/11: lampo nello stesso fotogramma del rilascio per TUTTI i tiratori (prima solo 6 tipi)
         S.sparo(h.d.att.stile, true); D.calcio(Math.cos(aP), Math.sin(aP), 3); P.previsto = performance.now();
       }
       IN.bufAtt = st.t + 6; IN.ax = v.x; IN.ay = v.y; // memoria del colpo: parte appena può
@@ -876,7 +903,7 @@
 
   // la levetta si legge anche fra un passo e l'altro: la previsione del disegno usa l'input di QUESTO fotogramma
   function scriviInputMovimento(st) {
-    var inp = st.inp[0], mx = 0, my = 0;
+    var inp = st.inp[IO], mx = 0, my = 0;
     if (IN.mov.id >= 0) { var x = (IN.mov.x - IN.mov.bx) / UI.R, y = (IN.mov.y - IN.mov.by) / UI.R, l = Math.sqrt(x * x + y * y); if (l > 0.14) { var s = Math.min(1, (l - 0.14) / 0.72) / l; mx = x * s; my = y * s; } }
     var t = IN.tasti;
     if (t.a || t.arrowleft) mx -= 1; if (t.d || t.arrowright) mx += 1; if (t.w || t.arrowup) my -= 1; if (t.s || t.arrowdown) my += 1;
@@ -884,8 +911,8 @@
     var wm = mondo(mx, my); inp.mx = wm.x; inp.my = wm.y;
   }
   function scriviInput(st) {
-    var inp = st.inp[0], h = st.eroi[0];
-    if (AUTO) { IA.pensa(st, 0); return; }
+    var inp = st.inp[IO], h = st.eroi[IO];
+    if (AUTO) { IA.pensa(st, IO); return; }
     var mx = 0, my = 0;
     if (IN.mov.id >= 0) {
       var x = (IN.mov.x - IN.mov.bx) / UI.R, y = (IN.mov.y - IN.mov.by) / UI.R, l = Math.sqrt(x * x + y * y);
@@ -975,7 +1002,7 @@
     if (on) S.indietro(); else S.passa();
   }
   $('p-riprendi').onclick = function (e) { premi($('p-riprendi'), e, function () { pausa(false); }, 60); };
-  $('p-esci').onclick = function () { S.indietro(); pausa(false); P = null; B.fase = 'menu'; vai('s-home', -1); };
+  $('p-esci').onclick = function () { S.indietro(); pausa(false); var dove = 's-home'; if (P && P.rete && B.reteEsci) { B.reteEsci(); if (B.reteDove) dove = B.reteDove(); } if (window.SPETT && SPETT.nascondi) SPETT.nascondi(); P = null; IO = 0; B.fase = 'menu'; if (window.R3) R3.segui = null; vai(dove, -1); };   // GBT2311: online si torna al menu di Gem Brawl (o al torneo)
 
   // ---------------- eventi del motore → sensazioni ----------------
   var COL = D.COL;
@@ -988,18 +1015,18 @@
     for (var i = 0; i < VOLI.length; i++) if (!VOLI[i].on) { var g = VOLI[i]; g.on = 1; g.x = q.x; g.y = q.y; g.t = 0; g.nostra = nostra; return; }
   }
   function R3col(id) { return window.R3 ? R3.colore(id) : '#ffffff'; }
-  function colSquadra(st, h) { return h.i === 0 ? COL.io : (h.sq === st.eroi[0].sq ? COL.blu : COL.rosso); }
+  function colSquadra(st, h) { return h.i === IO ? COL.io : (h.sq === st.eroi[IO].sq ? COL.blu : COL.rosso); }
   function suSchermo(x, y) { var X = D.wx(x), Y = D.wy(y); return X > -60 && X < W + 60 && Y > -60 && Y < H + 60; }
 
   function gestisciEventi(st) {
-    var me = st.eroi[0];
+    var me = st.eroi[IO];
     for (var n = 0; n < st.nev; n++) {
       var e = st.ev[n], h, v;
       switch (e.tipo) {
         case 'sparo': {
           h = st.eroi[e.a]; v = D.eroiV[e.a];
           v.rinculo = 1;
-          var c = Math.cos(e.b), s = Math.sin(e.b), sti = h.d.att.stile, mio = e.a === 0;
+          var c = Math.cos(e.b), s = Math.sin(e.b), sti = h.d.att.stile, mio = e.a === IO;
           var visto = M.visibile(st, h, me.sq);
           var adist = { slot: 1, tamburo: 1, tridente: 1, shuriken_ombra: 1, palla_rotolante: 1, carta_servita: 1 };
           var pilota = window.R3 && R3.vfxPilota && R3.vfxPilota(h.id);   // 21/11: pilota VFX (Bot, Pistolero): niente lampi e scintille 2D, li fa vfx_ai.js
@@ -1020,16 +1047,16 @@
           v = D.eroiV[e.a]; v.fend = -(v.fend || 1);
           if (h.d.att.tipo === 'azzannata') D.effetto('fauci', e.x, e.y, e.b, e.c, 0, 0, 0.25, '#ffffff');
           else D.effetto('fendente', e.x, e.y, e.b, e.c, e.d, v.fend, 0.2, R3col(h.id));
-          if (suSchermo(e.x, e.y)) S.sparo(h.d.att.stile, e.a === 0);
+          if (suSchermo(e.x, e.y)) S.sparo(h.d.att.stile, e.a === IO);
           break;
         }
         case 'affondo': D.effetto('lancia', e.x, e.y, e.b, e.c, 0, 0, 0.22, '#fff6c8'); break;
-        case 'prep': if (window.R3) R3.runa(e.a, e.c); if (e.a === 0 || suSchermo(e.x, e.y)) S.carica(e.b === 1, e.c); break;
-        case 'gadget': if (e.a === 0) { S.tasto(); var gadNome = st.eroi[e.a].d.gad; if (st.eroi[e.a].cavT > 0 && gadNome.balzo && gadNome.balzo.nome_it) gadNome = gadNome.balzo;   /* 23/11: da Cavaliere il gadget è il Balzo del Cavaliere */ banner((LANG === 'en' ? gadNome.nome_en : gadNome.nome_it).toUpperCase(), '', '#5cff8a', 0.8, 0.7); } break;
+        case 'prep': if (window.R3) R3.runa(e.a, e.c); if (e.a === IO || suSchermo(e.x, e.y)) S.carica(e.b === 1, e.c); break;
+        case 'gadget': if (e.a === IO) { S.tasto(); var gadNome = st.eroi[e.a].d.gad; if (st.eroi[e.a].cavT > 0 && gadNome.balzo && gadNome.balzo.nome_it) gadNome = gadNome.balzo;   /* 23/11: da Cavaliere il gadget è il Balzo del Cavaliere */ banner((LANG === 'en' ? gadNome.nome_en : gadNome.nome_it).toUpperCase(), '', '#5cff8a', 0.8, 0.7); } break;
         case 'slot': {
           var SIMB = ['🍒', '🔔', 'BAR', '7'], s0 = e.b & 3, s1 = (e.b >> 2) & 3, s2 = (e.b >> 4) & 3;
           D.numero(e.x, e.y - 0.4, SIMB[s0] + ' ' + SIMB[s1] + ' ' + SIMB[s2], '#ffd23f', 0);
-          if (s0 === 3 && s1 === 3 && s2 === 3) { if (suSchermo(e.x, e.y)) { if (S.jackpot) S.jackpot(); else S.superPronta(); D.scuoti(0.2); } if (e.a === 0) banner('JACKPOT!', '7 7 7', '#ffd23f', 1, 1); }
+          if (s0 === 3 && s1 === 3 && s2 === 3) { if (suSchermo(e.x, e.y)) { if (S.jackpot) S.jackpot(); else S.superPronta(); D.scuoti(0.2); } if (e.a === IO) banner('JACKPOT!', '7 7 7', '#ffd23f', 1, 1); }
           break;
         }
         case 'dado': {
@@ -1039,14 +1066,14 @@
           if (suSchermo(e.x, e.y)) { S.esplo(e.c >= 5); D.scuoti(e.c >= 5 ? 0.35 : 0.15); }
           break;
         }
-        case 'ombra': D.fumo(e.x, e.y, 8, '#3a2f52', 0.45); D.fumo(e.b, e.c, 8, '#ff2e88', 0.35); if (suSchermo(e.x, e.y)) S.sparo('shuriken', e.a === 0); break;
+        case 'ombra': D.fumo(e.x, e.y, 8, '#3a2f52', 0.45); D.fumo(e.b, e.c, 8, '#ff2e88', 0.35); if (suSchermo(e.x, e.y)) S.sparo('shuriken', e.a === IO); break;
         case 'tuffo': D.anello(e.x, e.y, 1.4, '#7fd8ff', 0.5); D.fumo(e.x, e.y, 10, '#bfefff', 0.45); if (suSchermo(e.x, e.y)) S.esplo(false); break;
         case 'riemerge': D.anello(e.x, e.y, e.b, '#7fd8ff', 0.5); D.anello(e.x, e.y, e.b * 0.6, '#ffffff', 0.4); D.fumo(e.x, e.y, 16, '#bfefff', 0.55); D.scintille(e.x, e.y, -1.57, 14, '#bfefff', 9); if (suSchermo(e.x, e.y)) { D.scuoti(0.5); S.esplo(true); } if (e.a === 0) P.freeze = Math.max(P.freeze, 0.07); break;
         case 'esecuzione': D.numero(e.x, e.y - 0.6, '×2', '#ff2e4d', 1); break;
         case 'scudoAssorbe': D.scintille(e.x, e.y, -1.57, 4, '#ffb36b', 5); break;
-        case 'parato': D.scintille(e.x, e.y, e.b + Math.PI, 8, '#ffe9a8', 8); D.lampo(e.x, e.y, 0.4, '#fff'); if (suSchermo(e.x, e.y)) { if (e.c === 1 && S.nuovo) S.fx('paratoScudo', e, e.a === 0); else S.muro(); } break;   /* audio 22/11: scudo di Agamennone */
+        case 'parato': D.scintille(e.x, e.y, e.b + Math.PI, 8, '#ffe9a8', 8); D.lampo(e.x, e.y, 0.4, '#fff'); if (suSchermo(e.x, e.y)) { if (e.c === 1 && S.nuovo) S.fx('paratoScudo', e, e.a === IO); else S.muro(); } break;   /* audio 22/11: scudo di Agamennone */
         case 'muretto': D.fiches(e.x, e.y, 10, 0.7); D.anello(e.x, e.y, 0.8, '#ffd23f', 0.3); if (suSchermo(e.x, e.y)) S.cassa(); break;
-        case 'sostituzione': D.fumo(e.x, e.y, 14, '#c8c8d8', 0.55); if (suSchermo(e.x, e.y)) S.sparo('carta', e.a === 0); break;
+        case 'sostituzione': D.fumo(e.x, e.y, 14, '#c8c8d8', 0.55); if (suSchermo(e.x, e.y)) S.sparo('carta', e.a === IO); break;
         case 'scagnozzo': D.fumo(e.x, e.y, 6, '#ffffff', 0.35); D.anello(e.x, e.y, 0.8, '#ffc93a', 0.35); break;
         case 'barile': D.fumo(e.x, e.y, 3, '#c9a27a', 0.25); break;
         case 'pilaPosata': D.fiches(e.x, e.y, 4, 0.4); break;
@@ -1066,44 +1093,44 @@
           var ang = src ? Math.atan2(h.y - src.y, h.x - src.x) : -Math.PI / 2;
           var spin = pesante ? 1 : 0.55;
           v.shx += Math.cos(ang) * spin; v.shy += Math.sin(ang) * spin;
-          if (e.a === 0 && src) { v.dirCol = ang + Math.PI; v.tDir = D.tempo; }
+          if (e.a === IO && src) { v.dirCol = ang + Math.PI; v.tDir = D.tempo; }
           if (window.R3) R3.colpito(e.a, ang, pesante ? 1 : 0.5);
-          if ((M.visibile(st, h, me.sq) || e.a === 0) && !(src && window.R3 && R3.vfxPilota && R3.vfxPilota(src.id))) {
+          if ((M.visibile(st, h, me.sq) || e.a === IO) && !(src && window.R3 && R3.vfxPilota && R3.vfxPilota(src.id))) {
             D.scintille(h.x, h.y, ang, pesante ? 9 : 5, pesante ? '#fff3b0' : '#ffffff', pesante ? 9 : 6);
             if (pesante) D.lampo(h.x, h.y, 0.45, '#fff');
           }
           numeroColpo(e, src, me, pesante);
-          if (e.a === 0) {
+          if (e.a === IO) {
             P.vignetta = Math.min(0.75, P.vignetta + 0.25 + e.b / h.vmax);
             D.scuoti(Math.min(0.5, 0.12 + e.b / h.vmax * 1.2));
             S.colpo(pesante, true, e.b, src && src.id);
             fermoColpo(pesante ? 0.05 : 0.02); if (pesante) vibra(45);   // hit-stop anche sui colpi leggeri (GAMEPLAY 31/10)
-          } else if (e.c === 0) {
+          } else if (e.c === IO) {
             S.colpo(pesante, false, e.b, src && src.id);
             fermoColpo(pesante ? 0.045 : 0.03); if (pesante) { D.scuoti(0.16); vibra(20); }
           } else if (suSchermo(h.x, h.y) && (e.b >= 600)) S.colpo(false, false, e.b, src && src.id);
           break;
         }
         case 'cura':
-          if (e.b >= 60 && (M.visibile(st, st.eroi[e.a], me.sq))) { D.numero(e.x, e.y, '+' + e.b, '#5cff8a', e.a === 0 ? 1 : 0); for (var k = 0; k < 3; k++) D.particella(7, e.x + (Math.random() - 0.5) * 0.6, e.y, 0.5, 0, 0, 1.5, 0.6, 0.2, '#5cff8a'); }
-          if (e.a === 0 && e.b >= 300) S.cura();
+          if (e.b >= 60 && (M.visibile(st, st.eroi[e.a], me.sq))) { D.numero(e.x, e.y, '+' + e.b, '#5cff8a', e.a === IO ? 1 : 0); for (var k = 0; k < 3; k++) D.particella(7, e.x + (Math.random() - 0.5) * 0.6, e.y, 0.5, 0, 0, 1.5, 0.6, 0.2, '#5cff8a'); }
+          if (e.a === IO && e.b >= 300) S.cura();
           break;
         case 'ko': {
           h = st.eroi[e.a];
           var killer = e.b >= 0 ? st.eroi[e.b] : null;
           D.fiches(h.x, h.y, 26, 1.3); D.fumo(h.x, h.y, 10, '#fff', 0.45); D.anello(h.x, h.y, 2.2, colSquadra(st, h), 0.5); D.lampo(h.x, h.y, 0.9, '#fff');
-          if (suSchermo(h.x, h.y)) { D.scuoti(0.5); S.ko(e.a === 0 || e.b === 0, e.b === 0 && e.a !== 0, e.a === 0); }
+          if (suSchermo(h.x, h.y)) { D.scuoti(0.5); S.ko(e.a === IO || e.b === IO, e.b === IO && e.a !== IO, e.a === IO); }
           if (suSchermo(h.x, h.y)) P.lento = Math.max(P.lento || 0, 0.2);
-          if (killer) D.numero(h.x, h.y - 0.3, (killer.i === 0 ? T('tu') : nome(killer.id)) + ' KO!', colSquadra(st, killer), 1);
+          if (killer) D.numero(h.x, h.y - 0.3, (killer.i === IO ? T('tu') : nome(killer.id)) + ' KO!', colSquadra(st, killer), 1);
           if (killer && killer !== h) {
             // serie di KO: un altro entro 4 s
             var ser = SERIE[killer.i] || (SERIE[killer.i] = { n: 0, t: -99 });
             ser.n = st.t - ser.t < 120 ? ser.n + 1 : 1; ser.t = st.t;
-            if (ser.n >= 2) { var nomeS = ser.n === 2 ? T('doppio') : ser.n === 3 ? T('triplo') : T('inarrestabile'); if (killer.i === 0) { banner(nomeS, '', COL.oro, 1.4, 1.4); S.serie(ser.n); } else cronaca(nome(killer.id), nomeS, colSquadra(st, killer), '#ffd23f', killer.id, null, 1); }
+            if (ser.n >= 2) { var nomeS = ser.n === 2 ? T('doppio') : ser.n === 3 ? T('triplo') : T('inarrestabile'); if (killer.i === IO) { banner(nomeS, '', COL.oro, 1.4, 1.4); S.serie(ser.n); } else cronaca(nome(killer.id), nomeS, colSquadra(st, killer), '#ffd23f', killer.id, null, 1); }
           }
-          if (e.b === 0 && e.a !== 0) { P.freeze = Math.max(P.freeze, 0.11); P.lento = 0.3; D.zoomPugno(0.05); banner('KO!', nome(h.id).toUpperCase(), COL.io, 1.1, 1.3); vibra(60); }
-          if (e.a === 0) { if (window.R3 && killer && killer !== h) { R3.segui = killer.i; P.seguiT = 2.6; } vibra([40, 40, 80]); P.freeze = Math.max(P.freeze, 0.14); banner(T('sei_ko'), killer ? nome(killer.id).toUpperCase() : '', COL.rosso, 1.5, 1.1); D.effetto('lampoSchermo', 0, 0, 0.35, 0, 0, 0, 0.3, '#ff2244'); }
-          cronaca(killer ? (killer.i === 0 ? T('tu') : nome(killer.id)) : '☠', h.i === 0 ? T('tu') : nome(h.id), killer ? colSquadra(st, killer) : '#aaa', colSquadra(st, h), killer ? killer.id : null, h.id);
+          if (e.b === IO && e.a !== IO) { P.freeze = Math.max(P.freeze, 0.11); P.lento = 0.3; D.zoomPugno(0.05); banner('KO!', nome(h.id).toUpperCase(), COL.io, 1.1, 1.3); vibra(60); }
+          if (e.a === IO) { if (window.R3 && killer && killer !== h) { R3.segui = killer.i; P.seguiT = 2.6; } vibra([40, 40, 80]); P.freeze = Math.max(P.freeze, 0.14); banner(T('sei_ko'), killer ? nome(killer.id).toUpperCase() : '', COL.rosso, 1.5, 1.1); D.effetto('lampoSchermo', 0, 0, 0.35, 0, 0, 0, 0.3, '#ff2244'); }
+          cronaca(killer ? (killer.i === IO ? T('tu') : nome(killer.id)) : '☠', h.i === IO ? T('tu') : nome(h.id), killer ? colSquadra(st, killer) : '#aaa', colSquadra(st, h), killer ? killer.id : null, h.id);
           break;
         }
         case 'cassacolpo': {
@@ -1129,17 +1156,17 @@
         case 'muro':
           var pilM = window.R3 && R3.vfxPilota && st.eroi[e.a] && R3.vfxPilota(st.eroi[e.a].id);   // 21/11: col pilota VFX il colpo sul muro lo fa vfx_ai.js
           if (window.R3 && suSchermo(e.x, e.y) && !pilM) R3.impattoMuro(e.x, e.y, e.b + Math.PI);
-          if (suSchermo(e.x, e.y)) { if (!pilM) { D.scintille(e.x, e.y, e.a + Math.PI, 3, '#ffffff', 4); D.fumo(e.x, e.y, 1, '#bbb', 0.18); } if (e.a === 0) S.muro(); }
+          if (suSchermo(e.x, e.y)) { if (!pilM) { D.scintille(e.x, e.y, e.a + Math.PI, 3, '#ffffff', 4); D.fumo(e.x, e.y, 1, '#bbb', 0.18); } if (e.a === IO) S.muro(); }
           break;
         case 'svanito': D.fumo(e.x, e.y, 1, '#ddd', 0.15); break;
         case 'rimbalzo': D.scintille(e.x, e.y, 0, 4, '#ffffff', 5); if (suSchermo(e.x, e.y)) S.muro(); break;
         case 'superpronta':
-          if (e.a === 0) { S.superPronta(); banner(T('sup_pronta'), '', COL.oro, 1.1, 0.8); P.superBtnPulse = 1; }
+          if (e.a === IO) { S.superPronta(); banner(T('sup_pronta'), '', COL.oro, 1.1, 0.8); P.superBtnPulse = 1; }
           break;
         case 'super': {
           h = st.eroi[e.a]; v = D.eroiV[e.a]; v.supT = D.tempo;
           // l'anello e il lampo generici li fa ora fx_eroi.js nel colore dell'eroe
-          if (e.a === 0) {
+          if (e.a === IO) {
             D.zoomPugno(0.09); D.scuoti(0.3); S.superGrido(h.d.ruolo === 'tank', h.cavT > 0 && h.id === 'fante' ? 'cavaliere' : h.id, true); P.freeze = Math.max(P.freeze, 0.07);   // 22/11 notte: da Cavaliere parla con la voce cupa
             var supNome = h.cavT > 0 && h.d.sup.cav && h.d.sup.cav.nome_it ? h.d.sup.cav : h.d.sup;   /* 23/11: da Cavaliere la super è la Carica del Cavaliere */ banner((LANG === 'en' ? supNome.nome_en : supNome.nome_it).toUpperCase() + '!', '', COL.oro, 0.85, 0.85);
           } else if (suSchermo(h.x, h.y)) { S.superGrido(h.d.ruolo === 'tank', h.cavT > 0 && h.id === 'fante' ? 'cavaliere' : h.id, false); D.scuoti(0.12); }
@@ -1148,11 +1175,11 @@
         case 'atterra':
           D.anello(e.x, e.y, e.b, '#fff', 0.45); D.anello(e.x, e.y, e.b * 0.6, info(st.eroi[e.a].id).colore, 0.35);
           D.fumo(e.x, e.y, 14, '#d8cbb0', 0.5); D.fiches(e.x, e.y, 8, 1);
-          if (suSchermo(e.x, e.y)) { D.scuoti(0.5); S.esplo(true); if (e.a === 0) P.freeze = Math.max(P.freeze, 0.07); }
+          if (suSchermo(e.x, e.y)) { D.scuoti(0.5); S.esplo(true); if (e.a === IO) P.freeze = Math.max(P.freeze, 0.07); }
           break;
         case 'impatto': { var trv = st.eroi[e.a], cavI = trv && trv.id === 'fante' && trv.cavT > 0 && trv.dashTipo === 'oplita';   // 23/11: chi viene travolto dal Cavaliere ha il suo suono (fan_travolto)
-          D.lampo(e.x, e.y, 0.6, '#fff'); D.scintille(e.x, e.y, 0, 12, '#fff3b0', 9); if (suSchermo(e.x, e.y)) { D.scuoti(0.35); if (cavI) S.fx('travolto', e, e.a === 0); else S.colpo(true, false); } if (e.a === 0) P.freeze = Math.max(P.freeze, 0.06); break; }
-        case 'aggancio': D.anello(e.x, e.y, 0.9, '#c9a227', 0.3); if (suSchermo(e.x, e.y)) S.colpo(true, e.a === 0); break;
+          D.lampo(e.x, e.y, 0.6, '#fff'); D.scintille(e.x, e.y, 0, 12, '#fff3b0', 9); if (suSchermo(e.x, e.y)) { D.scuoti(0.35); if (cavI) S.fx('travolto', e, e.a === IO); else S.colpo(true, false); } if (e.a === IO) P.freeze = Math.max(P.freeze, 0.06); break; }
+        case 'aggancio': D.anello(e.x, e.y, 0.9, '#c9a227', 0.3); if (suSchermo(e.x, e.y)) S.colpo(true, e.a === IO); break;
         case 'rete': D.anello(e.x, e.y, 0.8, '#e8d5a3', 0.4); break;
         case 'scudo': D.anello(e.x, e.y, e.b, COL.oro, 0.6); D.anello(e.x, e.y, e.b * 0.6, '#fff', 0.4); break;
         case 'serenata': D.anello(e.x, e.y, e.b, '#5cff8a', 0.6); for (var q = 0; q < 10; q++) { var aa = q / 10 * 6.28; D.particella(7, e.x + Math.cos(aa) * e.b * 0.7, e.y + Math.sin(aa) * e.b * 0.5, 0.3, 0, 0, 1.4, 0.8, 0.25, '#5cff8a'); } break;
@@ -1168,8 +1195,8 @@
           for (var gp = 0; gp < 7; gp++) D.particella(7, e.x, e.y, 0.5, (Math.random() - 0.5) * 2.5, (Math.random() - 0.5) * 2, 2.5, 0.5, 0.2, '#e3b5ff');
           h = st.eroi[e.a];
           if (h.sq === me.sq) S.gemma(h.gem);
-          if (h.sq === me.sq || e.a === 0) volaGemma(e.x, e.y, h.sq === me.sq);
-          if (e.a === 0) D.numero(e.x, e.y - 0.3, '+1', '#e3b5ff', 1);
+          if (h.sq === me.sq || e.a === IO) volaGemma(e.x, e.y, h.sq === me.sq);
+          if (e.a === IO) D.numero(e.x, e.y - 0.3, '+1', '#e3b5ff', 1);
           break;
         }
         // GEMME 22/11: avvisi chiari (chi sta vincendo, perché il conto si è fermato) — contoVia a=squadra b=durata c=chi contava prima
@@ -1184,9 +1211,9 @@
           var nGc = Math.min(14, 4 + e.b * 2);
           for (var gc = 0; gc < nGc; gc++) { var aGc = gc / nGc * 6.283; D.particella(7, e.x, e.y, 0.5, Math.cos(aGc) * 3, Math.sin(aGc) * 2.2, 1.2, 0.55, 0.22, '#e3b5ff'); }
           D.anello(e.x, e.y, 0.9 + 0.28 * Math.sqrt(e.b), '#d77bff', 0.45);
-          if (suSchermo(e.x, e.y) || e.a === 0) D.numero(e.x, e.y - 0.4, '-' + e.b, '#e3b5ff', e.b >= 5 ? 1 : 0);
-          if (e.a === 0 && e.b >= 2) banner(T('gemme_perse'), '-' + e.b, '#d77bff', 1.3, 0.7);
-          if (S.gemmeCadute && (suSchermo(e.x, e.y) || e.a === 0 || e.d === me.sq)) S.gemmeCadute(e.b, e.d === me.sq, suSchermo(e.x, e.y) || e.a === 0);
+          if (suSchermo(e.x, e.y) || e.a === IO) D.numero(e.x, e.y - 0.4, '-' + e.b, '#e3b5ff', e.b >= 5 ? 1 : 0);
+          if (e.a === IO && e.b >= 2) banner(T('gemme_perse'), '-' + e.b, '#d77bff', 1.3, 0.7);
+          if (S.gemmeCadute && (suSchermo(e.x, e.y) || e.a === IO || e.d === me.sq)) S.gemmeCadute(e.b, e.d === me.sq, suSchermo(e.x, e.y) || e.a === IO);
           break;
         }
         case 'contoTic': if (S.contoTic) S.contoTic(e.b, e.a === me.sq); else S.tic(e.b <= 5); if (e.b % 2 === 0) S.sirena(e.a === me.sq); P.contoPop = 1; break;
@@ -1209,26 +1236,26 @@
         case 'stoccata': case 'puntaAsso': case 'assoVia': case 'marcato': case 'assoScatto': case 'trafitto': case 'ritirata': case 'cuoreVia': case 'cuoreCura': case 'grazia':   // 22/11 carte
         case 'affondoRombo': case 'romboRosso': case 'romboScoppia': case 'scattoRombo': case 'pioggiaQuadri': case 'corazza': case 'corazzaEsplode': case 'mazzata': case 'caricaCavaliere': case 'spallata': case 'boomerang': case 'cuoreCade': case 'balzoCav': case 'schiantoCav':   // 23/11 balzo del Cavaliere
         case 'sigillo': case 'taroccoVia': case 'scambio': case 'protetto': case 'parataVia': case 'tagliaVia': case 'portiere': {
-          var mioFx = e.a === 0;
+          var mioFx = e.a === IO;
           if (mioFx || suSchermo(e.x, e.y)) S.fx(e.tipo === 'boomerang' && st.eroi[e.a] && st.eroi[e.a].id === 'regina' ? 'cuoreTorna' : e.tipo, e, mioFx);   // 22/11 notte: il cuore della Regina che torna ha il suo suono
           if (e.tipo === 'atterraLancio' && e.b === 1 && suSchermo(e.x, e.y)) D.scuoti(0.3);
-          if (e.tipo === 'parata' && e.a === 0) vibra(20);
+          if (e.tipo === 'parata' && e.a === IO) vibra(20);
           if ((e.tipo === 'corazzaEsplode' || e.tipo === 'trafitto' || e.tipo === 'caricaCavaliere') && suSchermo(e.x, e.y)) D.scuoti(e.tipo === 'caricaCavaliere' ? 0.15 : 0.3);   // 22/11 carte
-          if (e.tipo === 'corazza' && e.a === 0) { vibra(35); D.scuoti(0.2); }
-          if (e.tipo === 'schiantoCav' && suSchermo(e.x, e.y)) { D.scuoti(e.a === 0 ? 0.28 : 0.18); if (e.a === 0) vibra(30); }   // 23/11 schianto del Cavaliere: piccola scossa
+          if (e.tipo === 'corazza' && e.a === IO) { vibra(35); D.scuoti(0.2); }
+          if (e.tipo === 'schiantoCav' && suSchermo(e.x, e.y)) { D.scuoti(e.a === IO ? 0.28 : 0.18); if (e.a === IO) vibra(30); }   // 23/11 schianto del Cavaliere: piccola scossa
           break;
         }
-        case 'cuboPreso': { var chi = st.eroi[e.a]; if (e.a === 0 || suSchermo(e.x, e.y)) S.fx('cuboPreso', e, e.a === 0); if (e.a === 0) { P.popCubo = 1; D.numero(e.x, e.y - 0.3, '+10%', '#3bff8b', 1); vibra(15); } break; }
-        case 'pizzaGira': case 'pizzaAtterra': case 'colonnaCristallo': case 'cassaPulsa': case 'cartaArmata': { var own = e.tipo === 'cassaPulsa' || e.tipo === 'cartaArmata' ? e.a : e.b; if (own === 0 || suSchermo(e.x, e.y)) S.fx(e.tipo, e, own === 0); if (e.tipo === 'pizzaAtterra' && own === 0) D.scuoti(0.08); break; }
-        case 'sette': case 'cartaScoppia': if (e.b === 0 || suSchermo(e.x, e.y)) S.fx(e.tipo, e, e.b === 0); if (e.tipo === 'sette' && e.c >= 3 && suSchermo(e.x, e.y)) D.scuoti(0.25); break;
+        case 'cuboPreso': { var chi = st.eroi[e.a]; if (e.a === IO || suSchermo(e.x, e.y)) S.fx('cuboPreso', e, e.a === IO); if (e.a === IO) { P.popCubo = 1; D.numero(e.x, e.y - 0.3, '+10%', '#3bff8b', 1); vibra(15); } break; }
+        case 'pizzaGira': case 'pizzaAtterra': case 'colonnaCristallo': case 'cassaPulsa': case 'cartaArmata': { var own = e.tipo === 'cassaPulsa' || e.tipo === 'cartaArmata' ? e.a : e.b; if (own === IO || suSchermo(e.x, e.y)) S.fx(e.tipo, e, own === IO); if (e.tipo === 'pizzaAtterra' && own === IO) D.scuoti(0.08); break; }
+        case 'sette': case 'cartaScoppia': if (e.b === IO || suSchermo(e.x, e.y)) S.fx(e.tipo, e, e.b === IO); if (e.tipo === 'sette' && e.c >= 3 && suSchermo(e.x, e.y)) D.scuoti(0.25); break;
         // DAMA 22/11: gli effetti li disegna src3d/vfx_dama.js; qui suono, scossa e vibrazione. Proprietaria: b (scoppio, giardino, fiore), a (siepe), c (puntura)
         case 'rovoScoppia': case 'giardino': case 'fioreScatta': case 'siepe': case 'siepePunge': case 'siepeRotta': {
           var ownD = (e.tipo === 'siepe' || e.tipo === 'siepeRotta') ? e.a : e.tipo === 'siepePunge' ? e.c : e.b;
-          var mioD = ownD === 0 || ((e.tipo === 'fioreScatta' || e.tipo === 'siepePunge') && e.a === 0);
+          var mioD = ownD === IO || ((e.tipo === 'fioreScatta' || e.tipo === 'siepePunge') && e.a === IO);
           if (mioD || suSchermo(e.x, e.y)) S.fx(e.tipo, e, mioD);
-          if (e.tipo === 'fioreScatta' && mioD) { D.scuoti(0.16); vibra(e.a === 0 ? 50 : 20); }
-          if (e.tipo === 'rovoScoppia' && ownD === 0) D.scuoti(0.05);
-          if (e.tipo === 'giardino' && ownD === 0) D.scuoti(0.12);
+          if (e.tipo === 'fioreScatta' && mioD) { D.scuoti(0.16); vibra(e.a === IO ? 50 : 20); }
+          if (e.tipo === 'rovoScoppia' && ownD === IO) D.scuoti(0.05);
+          if (e.tipo === 'giardino' && ownD === IO) D.scuoti(0.12);
           break;
         }
       }
@@ -1243,11 +1270,11 @@
   }
   function numeroColpo(e, src, me, pesante) {
     var col, big = 0;
-    if (e.a === 0) { col = '#ff5a6a'; big = 1; }
-    else if (e.c === 0) { col = pesante ? '#ffd23f' : '#ffffff'; big = 1; }
+    if (e.a === IO) { col = '#ff5a6a'; big = 1; }
+    else if (e.c === IO) { col = pesante ? '#ffd23f' : '#ffffff'; big = 1; }
     else if (src && src.sq === me.sq) col = '#cfe8ff';
     else col = '#ffb0b8';
-    if (e.a !== 0 && e.c !== 0 && e.a >= 0 && !M.visibile(P.st, P.st.eroi[e.a], me.sq)) return;
+    if (e.a !== IO && e.c !== IO && e.a >= 0 && !M.visibile(P.st, P.st.eroi[e.a], me.sq)) return;
     D.numero(e.x, e.y, e.b, col, big, e.a, e.c);
   }
 
@@ -1382,13 +1409,13 @@
       if (tg < 0.12) { g.globalAlpha = (1 - tg / 0.12) * 0.3; g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H); }
       g.globalAlpha = 1;
       TXT(g, T('game'), cx, cy, fsG, '#ffffff', '#1ad7ff', true, null, scG * 0.85);
-      var vinto = P.st.fine && P.st.fine.vinc === P.st.eroi[0].sq, par = P.st.fine && P.st.fine.vinc < 0;
+      var vinto = P.st.fine && P.st.fine.vinc === P.st.eroi[IO].sq, par = P.st.fine && P.st.fine.vinc < 0;
       if (tg > 0.45) TXT(g, (par ? T('pareggio') : vinto ? T('vittoria') : T('sconfitta')).toUpperCase(), cx, cy + fsG * 0.85, fsG * 0.38, '#ffffff', par ? '#ffffff' : vinto ? '#ffd23b' : '#ff4d5e', true, null, Math.min(1, (tg - 0.45) * 6));
     }
   }
 
   function disegnaHUD(dt) {
-    var g = D.ctx, st = P.st, me = st.eroi[0], k = scala(), HUDC = Math.min(W, H) < 600 && Q.get('cam') !== 'vecchia', top = SA.t + (HUDC ? 4 : 8);   // MOBILE 23/11: barra in alto compatta sul telefono (render3d.js zonaUtile la conosce)
+    var g = D.ctx, st = P.st, me = st.eroi[IO], k = scala(), HUDC = Math.min(W, H) < 600 && Q.get('cam') !== 'vecchia', top = SA.t + (HUDC ? 4 : 8);   // MOBILE 23/11: barra in alto compatta sul telefono (render3d.js zonaUtile la conosce)
     var cx = W / 2;
     g.setTransform(DPR, 0, 0, DPR, 0, 0);
     D.vignettaRossa(P.vignetta);
@@ -1401,7 +1428,7 @@
       g.fillRect(0, 0, W, 6 * k); g.fillRect(0, H - 6 * k, W, 6 * k); g.fillRect(0, 0, 6 * k, H); g.fillRect(W - 6 * k, 0, 6 * k, H); g.globalAlpha = 1;
     }
     var tr = M.tempoRimasto(st), ph = Math.round((HUDC ? 38 : 42) * k), tw = Math.round(70 * k);
-    var tempoTxt = mmss(tr), tempoCol = st.supp ? COL.oro : (tr <= 60 ? '#ff6b7a' : '#ffffff');
+    var tempoTxt = P.gbtut ? '∞' : mmss(tr), tempoCol = st.supp ? COL.oro : (tr <= 60 ? '#ff6b7a' : '#ffffff');
     // ultimo minuto e ultimi 10 secondi: banner, suono, tic a ogni secondo
     if (!st.supp && !AUTO && P.conto <= 0) {
       if (tr <= 60 && tr > 50 && !P.um) { P.um = 1; banner(T('ultimo_minuto'), '', '#ff4d5e', 1.6, 1.1); S.ultimoMinuto(); }
@@ -1466,7 +1493,7 @@
         }
       }
     } else if (st.modo === 'duello') {
-      var pw2 = Math.round(100 * k), gap2 = tw / 2 + 6 * k, nem = st.eroi[1], fd = ph - 10 * k;
+      var pw2 = Math.round(100 * k), gap2 = tw / 2 + 6 * k, nem = st.eroi[IO === 0 ? 1 : 0], fd = ph - 10 * k;   // GBT2311: online si puo' essere il seggio 1
       disegnaPannello(g, cx - gap2 - pw2, top, pw2, ph, '#3fb3ff', 10);
       disegnaPannello(g, cx + gap2, top, pw2, ph, '#ff4d5e', 10);
       disegnaPannello(g, cx - tw / 2, top + 4 * k, tw, ph - 8 * k, st.supp ? '#ffd23b' : '#ffffff', 9);
@@ -1552,8 +1579,8 @@
   // [fable gioco 17/11] indicatori al bordo: compagni, nemici VISIBILI e miniera delle gemme quando sono fuori schermo
   // (in verticale la vista non copre tutta l'arena). Faccina + punta verso di loro + gemme in tasca. Niente per chi è nascosto.
   function disegnaIndicatori(g, st, me, k, yAlto) {
-    if (!D.eroiV || !D.eroiV[0] || P.intro > 0) return;
-    var v0 = D.eroiV[0], ox = D.px2(v0.x, v0.y), oy = D.py2() - 14 * k, m = 20 * k, x0 = m, x1 = W - m, y0 = yAlto + m * 0.4, y1 = H - m - SA.b;
+    if (!D.eroiV || !D.eroiV[IO] || P.intro > 0) return;
+    var v0 = D.eroiV[IO], ox = D.px2(v0.x, v0.y), oy = D.py2() - 14 * k, m = 20 * k, x0 = m, x1 = W - m, y0 = yAlto + m * 0.4, y1 = H - m - SA.b;
     function punta(tx, ty, disegna) {
       if (tx >= x0 - m && tx <= x1 + m && ty >= y0 - m && ty <= y1 + m) return false;
       var dx = tx - ox, dy = ty - oy, f = 1e9;
@@ -1567,9 +1594,9 @@
       g.save(); g.translate(x, y); g.rotate(a); g.beginPath(); g.moveTo(r + 9 * k, 0); g.lineTo(r + 1 * k, -6 * k); g.lineTo(r + 1 * k, 6 * k); g.closePath();
       g.fillStyle = col; g.fill(); g.lineWidth = 1.5 * k; g.strokeStyle = '#170d26'; g.stroke(); g.restore();
     }
-    for (var i = 1; i < st.eroi.length; i++) {
+    for (var i = 0; i < st.eroi.length; i++) {
       var h = st.eroi[i], v = D.eroiV[i];
-      if (!h.vivo || !v) continue;
+      if (i === IO || !h.vivo || !v) continue;
       var amico = h.sq === me.sq;
       if (!amico && !M.visibile(st, h, me.sq)) continue;
       var tx = D.px2(v.x, v.y), ty = D.py2() - 14 * k;
@@ -1589,7 +1616,7 @@
       punta(gx, gy, function (x, y, a) { var gs = 22 * k; g.globalAlpha = 0.9; freccia(x, y, a, gs / 2, '#c76bff'); g.drawImage(D.spr.gemma, x - gs / 2, y - gs / 2, gs, gs); g.globalAlpha = 1; });
     }
     // «TU» sopra il mio eroe: all'inizio e a ogni rinascita (il mio eroe si trova subito)
-    if (me.vivo && !AUTO) {
+    if (me.vivo && !AUTO && !P.spett) {   // GBT2311: niente «TU» da spettatore
       var eta = (st.t - me.tSpawn) / 30, durTu = me.tSpawn === 0 ? 4.5 : 2.2;
       if (eta < durTu) {
         var al = eta > durTu - 0.4 ? (durTu - eta) / 0.4 : 1, sal = Math.abs(Math.sin(D.tempo * 5.5)) * 7 * k, X = D.px2(v0.x, v0.y), Y = D.py2() - 74 * k - sal;
@@ -1698,6 +1725,46 @@
     if (r === undefined) { r = ICO_AB[k] = { im: null }; var im = new Image(); im.onload = function () { r.im = im; }; im.src = 'ui/icone/abilita/' + k + '.webp'; }
     return r.im;
   }
+  // 24/11 icone ULTI/GADGET per eroe: ui/icone_abilita/<eroe>_<ulti|gadget>.webp (256 px, disco col fondo: oro = super, verde = gadget).
+  // Il Fante da Cavaliere (cavT > 0) usa cavaliere_*: la chiave si sceglie a ogni fotogramma, quindi torna da sola fante_* a fine corazza.
+  var ICO_UG = {};
+  function eroeIco(me) {
+    if (!me) return '';
+    if (me.id === 'fante' && ICO_UG.cavaliere_ulti === undefined) { icoUG('cavaliere', 'ulti'); icoUG('cavaliere', 'gadget'); }   // pronte prima della trasformazione (che carica il modello 3D)
+    return me.id === 'fante' && me.cavT > 0 ? 'cavaliere' : me.id;
+  }
+  function icoUG(id, tipo) {
+    if (!id) return null;
+    var k = id + '_' + tipo, r = ICO_UG[k];
+    if (r === undefined) { r = ICO_UG[k] = { im: null }; var im = new Image(); im.onload = function () { r.im = im; }; im.onerror = function () { r.im = null; }; im.src = 'ui/icone_abilita/' + k + '.webp?v=2411'; }
+    return r.im;
+  }
+  // il disco nell'immagine e' il 94% del lato: lo si disegna in modo che il disco copra il tasto (raggio R)
+  function discoIco(g, im, x, y, R) { var D = R * 2 / 0.94; g.drawImage(im, x - D / 2, y - D / 2, D, D); }
+  function disegnaIcoSuper(g, im, x, y, rr, liv, pronta, T0) {
+    var R = rr + 1;
+    g.save(); g.beginPath(); g.arc(x, y, R, 0, 6.283); g.clip();
+    discoIco(g, im, x, y, R);
+    if (!pronta) {
+      var top = y + R - liv * R * 2;
+      g.fillStyle = 'rgba(12,5,26,0.62)'; g.fillRect(x - R, y - R, R * 2, Math.max(0, top - (y - R)));
+      if (liv > 0.01) { g.strokeStyle = '#ffd23b'; g.lineWidth = 3; g.beginPath(); for (var s = 0; s <= 12; s++) { var xx = x - R + s * R / 6, yy = top + Math.sin(T0 * 5 + s * 0.9) * 2.5; if (s) g.lineTo(xx, yy); else g.moveTo(xx, yy); } g.stroke(); }
+    } else {
+      var sw = ((T0 * 0.8) % 1.6) - 0.3; g.globalAlpha = 0.4; g.fillStyle = '#ffffff';
+      g.beginPath(); g.moveTo(x - R + sw * R * 2, y - R); g.lineTo(x - R + sw * R * 2 + 10, y - R); g.lineTo(x - R + sw * R * 2 - 8, y + R); g.lineTo(x - R + sw * R * 2 - 18, y + R); g.closePath(); g.fill(); g.globalAlpha = 1;
+    }
+    g.restore();
+  }
+  function disegnaIcoGadget(g, im, x, y, r, me, ok) {
+    var R = r + 1;
+    g.save(); g.beginPath(); g.arc(x, y, R, 0, 6.283); g.clip();
+    discoIco(g, im, x, y, R);
+    if (!ok) {   // 24/11 in ricarica: la parte che manca resta scura e si apre in senso orario
+      var p = gadPronto(me), a0 = -Math.PI / 2 + 6.283 * p;
+      g.fillStyle = 'rgba(12,5,26,0.62)'; g.beginPath(); g.moveTo(x, y); g.arc(x, y, R + 1, a0, -Math.PI / 2 + 6.283); g.closePath(); g.fill();
+    }
+    g.restore();
+  }
   function disegnaTastoSuper(g, me, k, x, y, attivo) {
     var r = UI.sup.r, pronta = me.sup >= 1, dv = P.superVuoto, T0 = D.tempo;
     if (dv > 0) { x += Math.sin(T0 * 70) * 4 * dv / 0.3; P.superVuoto = Math.max(0, dv - 1 / 60); }
@@ -1726,8 +1793,9 @@
     if (P.anelloLampo > 0 && !pronta) { g.globalAlpha = P.anelloLampo; g.strokeStyle = '#fff'; g.lineWidth = 5; g.beginPath(); g.arc(x, y, r * (1 + 0.25 * (1 - P.anelloLampo)), 0, 6.283); g.stroke(); g.globalAlpha = 1; P.anelloLampo = Math.max(0, P.anelloLampo - 1 / 25); }
     if (pronta && P.superBtnPulse > 0) { g.globalAlpha = P.superBtnPulse; g.strokeStyle = '#ffd23b'; g.lineWidth = 4; g.beginPath(); g.arc(x, y, r * (1 + (1 - P.superBtnPulse) * 0.9), 0, 6.283); g.stroke(); g.globalAlpha = 1; P.superBtnPulse = Math.max(0, P.superBtnPulse - 1 / 50); if (P.superBtnPulse === 0 && pronta) P.superBtnPulse = 0.999; }
     // icona: teschio-fulmine
-    var icS = icoAb(me.id, 'super');
-    if (icS) { var dS = rr * 1.5; g.drawImage(icS, x - dS / 2, y - dS / 2, dS, dS); }
+    var icU = icoUG(eroeIco(me), 'ulti'), icS = icU ? null : icoAb(me.id, 'super');   // 24/11 icona ulti dell'eroe
+    if (icU) disegnaIcoSuper(g, icU, x, y, rr, liv, pronta, T0);
+    else if (icS) { var dS = rr * 1.5; g.drawImage(icS, x - dS / 2, y - dS / 2, dS, dS); }
     else {
       g.fillStyle = pronta || liv > 0.55 ? '#3a1d00' : '#ffd23b'; g.strokeStyle = '#12081f'; g.lineWidth = 2;
       g.beginPath(); g.moveTo(x + 4, y - 15); g.lineTo(x - 8, y + 2); g.lineTo(x - 1, y + 2); g.lineTo(x - 5, y + 15); g.lineTo(x + 8, y - 3); g.lineTo(x + 1, y - 3); g.closePath(); g.stroke(); g.fill();
@@ -1735,26 +1803,35 @@
     if (!pronta) TXT(g, Math.floor(me.sup * 100) + '%', x, y + rr + 10, 10, '#ffd23b');
     else TXT(g, 'SUPER', x, y + rr + 11, 11, '#ffffff', '#ffd23b', true);
   }
-  // tasto del gadget: pieno e verde quando c'è, spicchio che si ricarica, pallini degli usi
+  // 24/11 quanto e' carico il gadget (0..1): gadCd = passi che mancano, gadCdT = ricarica intera (interi del motore)
+  function gadPronto(me) { var T0 = me.gadCdT || 1; return Math.max(0, Math.min(1, 1 - (me.gadCd > 0 ? me.gadCd : 0) / T0)); }
+  // tasto del gadget: pieno e verde quando e' pronto; in ricarica anello che si chiude e i secondi che mancano (24/11: al posto dei pallini degli usi)
   function disegnaTastoGadget(g, me, x, y) {
-    var r = UI.gad.r, ok = me.gadUsi > 0 && me.gadCd <= 0;
+    var r = UI.gad.r, ok = !(me.gadCd > 0);
     if (P.gadVuoto > 0) { x += Math.sin(D.tempo * 70) * 4 * P.gadVuoto / 0.3; P.gadVuoto = Math.max(0, P.gadVuoto - 1 / 60); }
     if (ok) { g.save(); g.globalAlpha = 0.35 + 0.15 * Math.sin(D.tempo * 5); g.shadowColor = '#3bff8b'; g.shadowBlur = 16; g.fillStyle = '#3bff8b'; g.beginPath(); g.arc(x, y, r + 2, 0, 6.283); g.fill(); g.restore(); }
-    disegnaTondo(g, x, y, r, '#3bff8b', ok, '', me.gadUsi > 0 ? 1 : 0.5);
-    if (me.gadCd > 0 && me.gadUsi > 0) { g.fillStyle = 'rgba(92,255,138,0.45)'; g.beginPath(); g.moveTo(x, y); g.arc(x, y, r - 3, -Math.PI / 2, -Math.PI / 2 + 6.283 * (1 - me.gadCd / 4)); g.closePath(); g.fill(); }
-    var icG = icoAb(me.id, 'gadget');
-    if (icG) { var dG = r * 1.5; g.globalAlpha = me.gadUsi > 0 ? 1 : 0.55; g.drawImage(icG, x - dG / 2, y - dG / 2, dG, dG); g.globalAlpha = 1; }
+    disegnaTondo(g, x, y, r, '#3bff8b', ok, '', ok ? 1 : 0.75);
+    if (!ok) { g.fillStyle = 'rgba(92,255,138,0.32)'; g.beginPath(); g.moveTo(x, y); g.arc(x, y, r - 3, -Math.PI / 2, -Math.PI / 2 + 6.283 * gadPronto(me)); g.closePath(); g.fill(); }
+    var icUG = icoUG(eroeIco(me), 'gadget'), icG = icUG ? null : icoAb(me.id, 'gadget');   // 24/11 icona gadget dell'eroe
+    if (icUG) disegnaIcoGadget(g, icUG, x, y, r, me, ok);
+    else if (icG) { var dG = r * 1.5; g.globalAlpha = ok ? 1 : 0.55; g.drawImage(icG, x - dG / 2, y - dG / 2, dG, dG); g.globalAlpha = 1; }
     else {
       g.strokeStyle = ok ? '#0b3a1d' : '#5cff8a'; g.lineWidth = 3; g.beginPath(); g.arc(x, y, r * 0.36, 0, 6.283); g.stroke();
       for (var i = 0; i < 6; i++) { var a = i * 1.047 + D.tempo * (ok ? 0.6 : 0); g.beginPath(); g.moveTo(x + Math.cos(a) * r * 0.36, y + Math.sin(a) * r * 0.36); g.lineTo(x + Math.cos(a) * r * 0.58, y + Math.sin(a) * r * 0.58); g.stroke(); }
     }
-    for (var u = 0; u < 3; u++) { g.fillStyle = u < me.gadUsi ? '#5cff8a' : '#3a2f52'; g.strokeStyle = '#12081f'; g.lineWidth = 1.5; g.beginPath(); g.arc(x - 9 + u * 9, y + r + 8, 3.6, 0, 6.283); g.fill(); g.stroke(); }
+    // anello di ricarica attorno al tasto + secondi che mancano al centro (sopra l'icona)
+    if (!ok) {
+      var pr = gadPronto(me);
+      g.lineCap = 'round'; g.lineWidth = 4; g.strokeStyle = 'rgba(18,8,31,0.85)'; g.beginPath(); g.arc(x, y, r + 4, 0, 6.283); g.stroke();
+      g.strokeStyle = '#5cff8a'; g.beginPath(); g.arc(x, y, r + 4, -Math.PI / 2, -Math.PI / 2 + 6.283 * pr); g.stroke(); g.lineCap = 'butt';
+      TXT(g, String(Math.ceil(me.gadCd / 30)), x, y + 1, Math.round(r * 0.72), '#ffffff', '#0b3a1d', true);
+    } else TXT(g, 'GADGET', x, y + r + 11, 10, '#ffffff', '#3bff8b', true);
   }
 
   // ---------------- fine partita ----------------
   function punteggio(h, st) { return h.dan / 100 + h.ko * 12 + h.gemTot * 6 + h.cure / 120 - h.morti * 3; }
   function chiudiPartita() {
-    var st = P.st, f = st.fine, me = st.eroi[0], esito, col, vinto;
+    var st = P.st, f = st.fine, me = st.eroi[IO], esito, col, vinto;
     if (st.modo === 'sopravvivenza') {
       var pos = st.ordine.length - st.ordine.lastIndexOf(me.sq);
       if (st.ordine.indexOf(me.sq) < 0) pos = 1;
@@ -1774,8 +1851,8 @@
     var mvp = cand.slice().sort(function (a, b) { return punteggio(b, st) - punteggio(a, st); })[0];
     vetrina($('f-vetrina'), mvp.id, true);
     // 17/11: niente striscia «vittoria» del modello 3D (ritratti/*_vittoria): l'MVP entra con la sua clip Seedance o l'arte 2D
-    if (S.mvp) S.mvp(mvp.i === 0);
-    $('f-mvp-nome').textContent = (mvp.i === 0 ? T('tu') + ' · ' : '') + nome(mvp.id);
+    if (S.mvp) S.mvp(mvp.i === IO);
+    $('f-mvp-nome').textContent = (mvp.i === IO ? T('tu') + ' · ' : '') + nome(mvp.id);
     $('f-mvp-dati').textContent = mvp.ko + ' KO · ' + Math.round(mvp.dan) + ' ' + T('danni').toLowerCase() + (st.modo === 'gemme' ? ' · ' + mvp.gemTot + ' ' + T('gemme').toLowerCase() : '');
     // le squadre: una riga per squadra (in sopravvivenza tutti in fila per arrivo)
     var box = $('f-squadre'); box.innerHTML = '';
@@ -1784,12 +1861,12 @@
     file.forEach(function (fila, fi) {
       var r = document.createElement('div'); r.className = 'fs-riga';
       fila.sort(function (a, b) { return punteggio(b, st) - punteggio(a, st); }).forEach(function (h) {
-        var c = document.createElement('div'); c.className = 'fs-g' + (h.i === 0 ? ' io' : '');
-        c.style.setProperty('--kh', info(h.id).colore); c.style.setProperty('--ks', st.modo === 'sopravvivenza' ? (h.i === 0 ? COL.blu : COL.rosso) : (fi === 0 ? COL.blu : COL.rosso));
+        var c = document.createElement('div'); c.className = 'fs-g' + (h.i === IO ? ' io' : '');
+        c.style.setProperty('--kh', info(h.id).colore); c.style.setProperty('--ks', st.modo === 'sopravvivenza' ? (h.i === IO ? COL.blu : COL.rosso) : (fi === 0 ? COL.blu : COL.rosso));
         c.style.animationDelay = (0.25 + nn++ * 0.05) + 's';
         var im = document.createElement('img'); im.alt = ''; asset(h.id).pronto.then(function (a) { im.src = a.busto; });
         var tx = document.createElement('div');
-        tx.innerHTML = (h.i === 0 ? T('tu') : nomeCorto(h.id)) + '<em>' + h.ko + ' KO · ' + (Math.round(h.dan / 100) / 10) + 'k' + (st.modo === 'gemme' ? ' · ' + h.gemTot + '◆' : '') + '</em>';
+        tx.innerHTML = (h.i === IO ? T('tu') : nomeCorto(h.id)) + '<em>' + h.ko + ' KO · ' + (Math.round(h.dan / 100) / 10) + 'k' + (st.modo === 'gemme' ? ' · ' + h.gemTot + '◆' : '') + '</em>';
         c.appendChild(im); c.appendChild(tx);
         if (h === mvp) { var s = document.createElement('span'); s.className = 'fs-mvp'; s.textContent = '★'; c.appendChild(s); }
         r.appendChild(c);
@@ -1841,7 +1918,7 @@
     }, 900);
     if (dT > 0) setTimeout(function () { S.trofei(); }, 600);
   }
-  tasto('f-ancora', function () { preparaPartita(); }, 60);
+  tasto('f-ancora', function () { if (B.ultimaRete && B.reteAncora) { B.reteAncora(); return; } preparaPartita(); }, 60);   // F1 rete: «Ancora» online = di nuovo in coda
   tasto('f-eroe', function () { P = null; B.fase = 'menu'; vai('s-eroi', 1); });
   tasto('f-home', function () { P = null; B.fase = 'menu'; vai('s-home', -1); });
 
@@ -2011,7 +2088,8 @@
     var st = P.st;
     aggiornaBase(st);
     var dtv = dt;
-    if (!APP.pausa) {
+    if (P.rete) { dtv = passoRete(dt, st); if (dtv < 0) return; }   // F1 rete: la partita la fa il server, qui si riproduce
+    else if (!APP.pausa) {
       if (P.intro > 0) { P.intro -= dt; }
       else if (P.conto > 0) { contoPasso(dt); }
       else if (P.freeze > 0) { P.freeze -= dt; dtv = dt * 0.08; }
@@ -2023,7 +2101,8 @@
         while (P.acc >= DT && n < 4 && !st.fine) {
           if (P.rep && !P.rep.puo()) { P.acc = 0; break; }   // SPETTATORE 23/11: diretta in attesa dei pezzi / registrazione finita
           if (P.rep) P.rep.input(st, IA); else scriviInput(st);   // SPETTATORE 23/11: nel replay l'input viene dalla registrazione
-          if (P.tut) { for (var ib = 1; ib < st.eroi.length; ib++) { var ii = st.inp[ib]; ii.mx = ii.my = 0; ii.att = ii.sup = ii.gad = 0; } aggiornaTutorial(DT); }
+          if (P.gbtut) P.gbtut.passo(st, IA);   // TUTORIAL 24/11
+          else if (P.tut) { for (var ib = 1; ib < st.eroi.length; ib++) { var ii = st.inp[ib]; ii.mx = ii.my = 0; ii.att = ii.sup = ii.gad = 0; } aggiornaTutorial(DT); }
           else for (var i = 1; i < st.eroi.length; i++) IA.pensa(st, i);
           if (P.rec) P.rec.passo(st);
           M.passo(st);
@@ -2044,7 +2123,7 @@
         if (st.fine && B.fase === 'partita') {
           if (window.SPETT) SPETT.fine(P, st);
           B.fase = 'finale'; P.tFine = 0;
-          var vinto = st.modo === 'sopravvivenza' ? st.fine.vinc === st.eroi[0].sq : st.fine.vinc === st.eroi[0].sq;
+          var vinto = st.modo === 'sopravvivenza' ? st.fine.vinc === st.eroi[IO].sq : st.fine.vinc === st.eroi[IO].sq;
           P.gameT = 0.001; S.game(vinto); S.musicaFile(null);
           D.zoomPugno(0.08);
         }
@@ -2052,15 +2131,15 @@
       if (B.fase === 'finale') { P.tFine += dt; if (P.tFine > 1.7) { chiudiPartita(); return; } }
     } else dtv = 0;
     B.tutorial = P.tut ? P.tut.passo : -1;
-    if (P.seguiT > 0) { P.seguiT -= dt; if (P.seguiT <= 0 || st.eroi[0].vivo) { P.seguiT = 0; if (window.R3) R3.segui = null; } }
-    if (window.SPETT) SPETT.passo(st, dt, P);   // SPETTATORE 23/11: da KO / eliminato / replay la camera segue un altro eroe
-    var quarto = Math.floor(st.eroi[0].sup * 4 + 1e-6);
+    if (P.seguiT > 0) { P.seguiT -= dt; if (P.seguiT <= 0 || st.eroi[IO].vivo) { P.seguiT = 0; if (window.R3) R3.segui = null; } }
+    if (window.SPETT) SPETT.passo(st, dt, P);   // GBT2311: anche online (KO, eliminato, spettatore)   // SPETTATORE 23/11: da KO / eliminato / replay la camera segue un altro eroe
+    var quarto = Math.floor(st.eroi[IO].sup * 4 + 1e-6);
     if (P.quarto !== undefined && quarto > P.quarto && quarto < 4 && !AUTO) { S.caricaNota(quarto - 1); P.anelloLampo = 1; }
     P.quarto = quarto;
-    var alpha = Math.min(1, P.acc / DT);
+    var alpha = P.rete ? P.alphaR : Math.min(1, P.acc / DT);
     // camera: guarda un po' verso dove miri
-    var me = st.eroi[0], gx = 0, gy = 0, mira = null;
-    if (!AUTO && me.vivo) {
+    var me = st.eroi[IO], gx = 0, gy = 0, mira = null;
+    if (!AUTO && me.vivo && !P.spett) {   // GBT2311: lo spettatore non mira
       if (IN.mira.id >= 0 && IN.mira.uscito) {
         var v = vMondo(vettoreMira()), sup = IN.mira.sup;
         mira = formaMira(me, sup, v.x, v.y, true);
@@ -2077,15 +2156,143 @@
         gx = vm.x * 1.6; gy = vm.y * 1.6;
       }
     }
-    if (window.R3 && !AUTO) { var hp0 = st.eroi[0], ip = st.inp[0], vl = hp0.d.vel * (hp0.slowT > 0 ? 1 - hp0.slowF : 1) * (hp0.trasT > 0 ? hp0.d.sup.vel || 1 : 1) * (hp0.freT > 0 ? 1.35 : 1) * (hp0.cavT > 0 && hp0.d.corazza ? hp0.d.corazza.vel / hp0.d.vel : 1), il = Math.hypot(ip.mx, ip.my) || 1, kk = il > 1 ? 1 / il : 1; var ac = 1; R3.prev = hp0.stun > 0 || hp0.radiceT > 0 || hp0.prepT > 0 || hp0.pauraT > 0 ? null : { vx: hp0.vx + (ip.mx * kk * vl - hp0.vx) * ac, vy: hp0.vy + (ip.my * kk * vl - hp0.vy) * ac }; }
-    if (window.R3 && !AUTO && !P.rep) { scriviInputMovimento(st); }
+    if (window.R3 && P.spett) R3.prev = null;   // GBT2311: l'eroe seguito non si muove con la levetta di chi guarda
+    else if (window.R3 && !AUTO) { var hp0 = st.eroi[IO], ip = st.inp[IO], vl = hp0.d.vel * (hp0.slowT > 0 ? 1 - hp0.slowF : 1) * (hp0.trasT > 0 ? hp0.d.sup.vel || 1 : 1) * (hp0.freT > 0 ? 1.35 : 1) * (hp0.cavT > 0 && hp0.d.corazza ? hp0.d.corazza.vel / hp0.d.vel : 1), il = Math.hypot(ip.mx, ip.my) || 1, kk = il > 1 ? 1 / il : 1; var ac = 1; R3.prev = hp0.stun > 0 || hp0.radiceT > 0 || hp0.prepT > 0 || hp0.pauraT > 0 ? null : { vx: hp0.vx + (ip.mx * kk * vl - hp0.vx) * ac, vy: hp0.vy + (ip.my * kk * vl - hp0.vy) * ac }; }
+    if (window.R3 && !AUTO && !P.rep && !P.spett) { scriviInputMovimento(st); }
+    var sovr = P.rete ? P.rete.sovrapponi() : false;   // F1 rete: il proprio eroe nel disegno = quello previsto (si toglie dopo il disegno)
     D.miraOn = !!mira && (IN.mira.id >= 0 || IN.mouse.sx || IN.mouse.dx || IN.eTenuto || (IN.desktop && IN.mouse.dentro) || (IN.pad.on && IN.pad.rl > 0.25));
     if (mira) D.miraAng = mira.ang;
     D.aggiornaCamera(dt, gx, gy, !!mira);
-    D.frame(alpha, dtv, mira);
+    D.frame(alpha, dtv, mira); if (P.rete) P.disegnato = true;
     if (!(D.salta && D.salta.hud)) { disegnaHUD(dt); disegnaTutorial(D.ctx, scala()); }
+    if (P && P.gbtut) P.gbtut.frame(dt, D.ctx);   // TUTORIAL 24/11: riquadro, freccia e segni, mai sopra eroe/nemici/comandi
+    if (sovr) P.rete.ripristina();
     misuraFotogramma();
   }
+
+  // ---------------- F1 rete 23/11: partita online (server autoritativo, rete.js) ----------------
+  // Offline non passa mai di qui. I passi li fa il server: qui si riproducono quelli confermati (eventi -> suoni ed effetti),
+  // il proprio eroe e' previsto da rete.js. Hit-stop e rallenty restano solo effetti del disegno (il server non si ferma).
+  function passoRete(dt, st) {
+    var dtv = dt;
+    if (P.intro > 0) P.intro -= dt; else if (P.conto > 0) contoPasso(dt);
+    if (P.freeze > 0) { P.freeze -= dt; dtv = dt * 0.08; } else if (P.lento > 0) P.lento -= dt;
+    P.nPassi = 0; P.alphaR = P.rete.avanza(dt, passoConfermato);
+    if (st.fine && B.fase === 'partita') {
+      B.fase = 'finale'; P.tFine = 0;
+      var vinto = P.spett ? true : st.fine.vinc === st.eroi[IO].sq;   // GBT2311: lo spettatore sente la festa
+      P.gameT = 0.001; S.game(vinto); S.musicaFile(null);
+      D.zoomPugno(0.08);
+    }
+    if (B.fase === 'finale') {
+      P.tFine += dt;
+      if (P.tFine > 1.7) {
+        // GBT2311: lo spettatore esterno ha la sua schermata di fine (spettatore.js); l'eliminato che guardava torna se stesso
+        if (P.spett && P.rete.io < 0 && window.SPETT && SPETT.fineRete) { B.fase = 'fine'; SPETT.fineRete(P, st); return -1; }
+        if (P.spett) { seguiEroe(P.rete.io, true); P.spett = false; }
+        chiudiPartita(); return -1;
+      }
+    }
+    return dtv;
+  }
+  // GBT2311: lo SPETTATORE online segue un eroe: per la pagina diventa «IO» (camera, HUD, suoni «miei», colori di squadra),
+  // senza comandi. Si cambia con le frecce di spettatore.js. render3d legge R3.io (camera, anello) a ogni fotogramma.
+  function seguiEroe(i, forza) {
+    if (!P || !P.st || !P.st.eroi[i] || (!P.spett && !forza)) return false;
+    IO = i; D.io = i; if (window.R3) { R3.io = i; R3.segui = null; R3.prev = null; }
+    P.tacche = Math.floor(P.st.eroi[i].ammo); P.quarto = undefined; P.seguiT = 0;
+    return true;
+  }
+  B.seguiEroe = seguiEroe;
+  B.io = function () { return IO; };
+  function passoConfermato(st) {
+    var me = st.eroi[IO], tacche = Math.floor(me.ammo);
+    // GBT2311: lo spettatore che arriva riceve la storia dalla foto in un colpo (fino a 12 passi per fotogramma): effetti e suoni
+    // solo dal primo fotogramma disegnato e al massimo per 4 passi a fotogramma (niente valanga, niente pool 3D non ancora pronti)
+    if (P.spett && (!P.disegnato || ++P.nPassi > 4)) { P.tacche = tacche; return; }
+    if (tacche > P.tacche && me.vivo && !AUTO && !P.spett) { S.ricarica(); D._ammoLampo = D.tempo; }   // GBT2311: niente clic di ricarica da spettatore
+    P.tacche = tacche;
+    gestisciEventi(st);
+  }
+  // l'input di un passo per la rete (lo chiede rete.js 30 volte al secondo). Un tasto parte UNA volta: il server lo tiene
+  // valido 6 passi finche' non parte davvero (come il buffer offline), quindi qui il buffer si svuota appena mandato.
+  var RETE_AUTO = Q.get('reteauto') === '1';
+  B.inputRete = function () {
+    if (!P || !P.rete || B.fase !== 'partita' || P.intro > 0 || P.conto > 0 || P.rete.spettatore || P.spett) return null;
+    var st = P.st;
+    if (RETE_AUTO) { IA.pensa(st, IO); return st.inp[IO]; }   // prove in Chrome: gioca l'IA del motore su cio' che il telefono vede
+    scriviInput(st);
+    var inp = st.inp[IO];
+    if (!AUTO) { if (inp.gad) IN.bufGad = 0; else if (inp.sup) IN.bufSup = 0; else if (inp.att) IN.bufAtt = 0; }
+    return inp;
+  };
+  // la cfg e' arrivata dal server: stato, versus, modelli. Poi «pronto» al server e si aspetta il via.
+  B.avviaRete = function (cli) {
+    var st = cli.st, sopr = st.modo === 'sopravvivenza';
+    if (cli.spettatore) return avviaSpettatore(cli);   // GBT2311
+    IO = cli.io >= 0 ? cli.io : 0;
+    APP.modo = st.modo; B.ultimaRete = true;
+    var modelli = window.R3 ? R3.precarica(st.eroi.map(function (h) { return h.id; })) : null;
+    if (AUTO || RETE_AUTO) IA.prepara(st, 1);
+    P = { modelli: modelli, st: st, seme: 0, acc: 0, freeze: 0, finito: 0, lento: 0, banner: [], feed: [], vignetta: 0, passoT: 0, ultimoConto: -1, superBtnPulse: 0, superVuoto: 0, tFine: 0, conto: 0, contoN: 0, rete: cli, alphaR: 0 };
+    APP.st = B.st = st;
+    D.prepara(st, IO);
+    st.eroi.forEach(function (h) { asset(h.id); });
+    var blu = $('c-blu'), ros = $('c-rossi');
+    blu.innerHTML = ''; ros.innerHTML = '';
+    $('s-carica').classList.toggle('vs-sopr', sopr);
+    st.eroi.forEach(function (h, k) {
+      var f = document.createElement('div'); f.className = 'vs-carta' + (k === IO ? ' io' : '');
+      f.dataset.tu = T('vs_tu');
+      f.style.setProperty('--kh', info(h.id).colore);
+      var dentro = (sopr ? k === IO : h.sq === st.eroi[IO].sq);
+      f.style.animationDelay = (0.18 + k * 0.06) + 's';
+      var fig = document.createElement('div'); fig.className = 'vc-fig';
+      var img = document.createElement('img'); img.alt = ''; img.draggable = false;
+      asset(h.id).pronto.then(function (a) { img.src = a.busto; });
+      fig.appendChild(img);
+      var cap = document.createElement('div'); cap.className = 'vc-nome'; cap.textContent = (h.nome && h.nome !== 'BOT' ? h.nome : nomeCorto(h.id));
+      f.appendChild(fig); f.appendChild(cap);
+      (dentro ? blu : ros).appendChild(f);
+    });
+    var mappa = st.M;
+    $('c-modo').textContent = sopr ? T('tutti') : T(modoDi(st.modo).n);
+    $('c-mappa').textContent = (LANG === 'en' ? mappa.nome_en : mappa.nome_it) + ' · ' + modoDi(st.modo).tag;
+    $('c-regola').textContent = T(st.modo === 'gemme' ? 'regola_gemme' : st.modo === 'duello' ? 'regola_duello' : 'regola_sopr');
+    B.fase = 'carica';
+    mostra('s-carica'); S.musicaFile(null); if (S.annunciaModo) S.annunciaModo(sopr ? 'tutti' : st.modo);
+    S.vsEntra(); setTimeout(function () { if (APP.schermo === 's-carica') { S.vsColpo(); vibra(25); } }, 430);
+    $('s-carica').onclick = null;
+    var fatto = false, ok = function () { if (!fatto) { fatto = true; cli.pronto(); } };
+    if (modelli && modelli.then) modelli.then(ok, ok); else ok();
+    setTimeout(ok, 8000);
+    return P;
+  };
+  // GBT2311: SPETTATORE (esterno, o eliminato con la pagina ricaricata): niente versus, niente «pronto»; l'arena si apre
+  // sotto il sipario quando arriva il via (subito dopo la foto). Segue il primo eroe vivo (o il proprio, se ricaricato).
+  function avviaSpettatore(cli) {
+    var st = cli.st, i0 = cli.io >= 0 ? cli.io : 0, prima = P && P.spett && P.rete === cli && P.st && P.st.eroi.length === st.eroi.length ? IO : -1;   // rientro dopo una rete saltata: si resta sullo stesso eroe
+    if (prima >= 0) i0 = prima; else if (!(cli.io >= 0)) for (var k = 0; k < st.eroi.length; k++) if (st.eroi[k].vivo) { i0 = k; break; }
+    IO = i0; APP.modo = st.modo; B.ultimaRete = true;
+    if (APP.pausa) pausa(false);
+    var modelli = window.R3 ? R3.precarica(st.eroi.map(function (h) { return h.id; })) : null;
+    P = { modelli: modelli, st: st, seme: 0, acc: 0, freeze: 0, finito: 0, lento: 0, banner: [], feed: [], vignetta: 0, passoT: 0, ultimoConto: -1, superBtnPulse: 0, superVuoto: 0, tFine: 0, conto: 0, contoN: 0, rete: cli, alphaR: 0, spett: true };
+    APP.st = B.st = st;
+    D.prepara(st, IO);
+    st.eroi.forEach(function (h) { asset(h.id); });
+    B.fase = 'carica';
+    return P;
+  }
+  // GBT2311: l'eliminato ha scelto «Guarda» e il server ha detto si' (gok): da qui e' uno spettatore della stessa partita
+  B.spettatoreRete = function () { if (!P || !P.rete) return false; P.spett = true; IN.mov.id = -1; IN.mira.id = -1; return true; };
+  // il server da' il via (fra `tra` ms parte il passo 1): volo d'apertura e 3, 2, 1 finiscono li'
+  B.viaRete = function (tra) {
+    if (!P || !P.rete || B.fase !== 'carica') return;
+    P.viaT = performance.now() + (tra || 0);
+    B.fase = 'via'; if (AUTO) avvia(); else sipario(avvia, 1);
+  };
+  B.P = function () { return P; };
+  B.esciRete = function () { if (P && P.rete) { P = null; } IO = 0; B.fase = 'menu'; };
 
   // ---------------- via ----------------
   misura();
@@ -2113,7 +2320,17 @@
   B.ponteSpett = {
     P: function () { return P; }, lang: function () { return LANG; }, nome: nome, nomeCorto: nomeCorto, colore: function (id) { return info(id).colore; }, busto: function (id) { return asset(id).busto; },
     salta: function () { if (P && !P.st.fine) P.salta = true; },
+    io: function () { return IO; }, segui: function (i) { return seguiEroe(i); }, mostra: mostra, vai: vai,   // GBT2311
     esci: function () { if (APP.pausa) pausa(false); P = null; B.fase = 'menu'; if (window.R3) R3.segui = null; vai('s-home', -1); }
+  };
+  // TUTORIAL 24/11 (ui/tutorial.js): ponte — legge stato, comandi e misure; avvia ed esce dall'arena di prova
+  B.ponteTut = {
+    P: function () { return P; }, W: function () { return W; }, H: function () { return H; }, SA: SA, UI: UI, IN: IN,
+    lang: function () { return LANG; }, pausa: function () { return APP.pausa; }, eroe: function () { return APP.eroe; },
+    hudBasso: function () { var k = scala(), c = Math.min(W, H) < 600 && Q.get('cam') !== 'vecchia'; return SA.t + (c ? 4 : 8) + Math.round((c ? 38 : 42) * k); },
+    avvia: function (cfg) { if (P || B.fase === 'carica' || B.fase === 'via') return false; var prima = APP.modo; APP.modo = 'gemme'; APP.tutCfg = cfg; S.sblocca(); preparaPartita(); return prima; },
+    esci: function () { if (APP.pausa) pausa(false); P = null; B.fase = 'menu'; if (window.R3) R3.segui = null; },
+    modo: function (m) { if (m) APP.modo = m; }, vai: vai
   };
   B.avvia = function (modo, eroe) { APP.modo = modo || APP.modo; APP.eroe = eroe || APP.eroe; preparaPartita(); };
 })();

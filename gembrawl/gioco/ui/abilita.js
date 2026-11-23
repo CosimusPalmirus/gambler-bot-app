@@ -17,11 +17,18 @@
   ICO.kat = ICO.att; ICO.ksu = ICO.sup; ICO.kga = ICO.gad;
   ICO.ktr = '<svg viewBox="0 0 24 24"><path d="M12 1.5 21 12l-9 10.5L3 12 12 1.5Z" fill="currentColor"/><path d="M12 6.5 16.5 12 12 17.5 7.5 12 12 6.5Z" fill="#120824" opacity=".35"/></svg>';
   var CAVK = ['kat', 'ksu', 'kga', 'ktr'];
+  // 24/11: icona vera dell'eroe per super e gadget (anche del Cavaliere): ui/icone_abilita/<eroe>_<ulti|gadget>.webp
+  var UG = { sup: 'ulti', gad: 'gadget', ksu: 'ulti', kga: 'gadget' };
+  function icoK(id, k) {
+    if (!UG[k]) return ICO[k];
+    var e = (k === 'ksu' || k === 'kga') ? 'cavaliere' : id;
+    return '<img class="ab-ug" src="ui/icone_abilita/' + e + '_' + UG[k] + '.webp?v=2411" alt="" draggable="false">';
+  }
   var TX = {
-    it: { titolo: 'Abilità', att: 'Attacco', sup: 'Super', gad: 'Gadget', pas: 'Passiva', danno: 'Danno', gitt: 'Gittata', ric: 'Ricarica', carica: 'Carica', dur: 'Durata', usi: 'Usi', area: 'Area', arrivo: 'Video in arrivo', mischia: 'mischia', colpi: 'attacchi', sempre: 'sempre attiva',
+    it: { titolo: 'Abilità', att: 'Attacco', sup: 'Super', gad: 'Gadget', pas: 'Passiva', danno: 'Danno', gitt: 'Gittata', ric: 'Ricarica', carica: 'Carica', dur: 'Durata', usi: 'Ricarica', area: 'Area', arrivo: 'Video in arrivo', mischia: 'mischia', colpi: 'attacchi', sempre: 'sempre attiva',
       agguato_n: 'Agguato', agguato_d: 'Se attacca uscendo da un cespuglio, il primo colpo fa il 25% in più.',
       cav: 'Cavaliere', kat: 'Attacco', ksu: 'Super', kga: 'Gadget', ktr: 'Corazza', stun: 'Stordisce', corazza: 'Corazza', scoppio: 'Scoppio' },
-    en: { titolo: 'Abilities', att: 'Attack', sup: 'Super', gad: 'Gadget', pas: 'Passive', danno: 'Damage', gitt: 'Range', ric: 'Reload', carica: 'Charge', dur: 'Duration', usi: 'Uses', area: 'Area', arrivo: 'Video coming soon', mischia: 'melee', colpi: 'attacks', sempre: 'always on',
+    en: { titolo: 'Abilities', att: 'Attack', sup: 'Super', gad: 'Gadget', pas: 'Passive', danno: 'Damage', gitt: 'Range', ric: 'Reload', carica: 'Charge', dur: 'Duration', usi: 'Cooldown', area: 'Area', arrivo: 'Video coming soon', mischia: 'melee', colpi: 'attacks', sempre: 'always on',
       agguato_n: 'Ambush', agguato_d: 'Attacking right out of a bush, the first hit deals 25% more.',
       cav: 'Knight', kat: 'Attack', ksu: 'Super', kga: 'Gadget', ktr: 'Armor', stun: 'Stun', corazza: 'Armor', scoppio: 'Blast' }
   };
@@ -45,7 +52,7 @@
     // 23/11 forma Cavaliere del Fante
     if (k === 'kat') return [[t.danno, n10(cz.mazzata.danno * kk)], [t.gitt, num(cz.mazzata.gitt) + ' · ' + t.mischia], [t.ric, num(cz.mazzata.ric) + ' s']];
     if (k === 'ksu') return [[t.danno, n10(d.sup.cav.danno * kk)], [t.gitt, num(d.sup.cav.dist)], [t.stun, num(d.sup.cav.stun) + ' s']];
-    if (k === 'kga') return [[t.danno, n10(d.gad.balzo.danno * kk)], [t.gitt, num(d.gad.balzo.gitt)], [t.stun, num(d.gad.balzo.stun) + ' s'], [t.usi, '×' + (d.gad.usi || 3)]];   // 23/11: Balzo del Cavaliere (prima Spallata)
+    if (k === 'kga') return [[t.danno, n10(d.gad.balzo.danno * kk)], [t.gitt, num(d.gad.balzo.gitt)], [t.stun, num(d.gad.balzo.stun) + ' s'], [t.usi, num(d.gad.balzo.cd) + ' s']];   // 23/11: Balzo del Cavaliere (prima Spallata); 24/11: ricarica sua al posto degli usi
     if (k === 'ktr') return [[t.corazza, n10(cz.scudo * kk)], [t.dur, num(cz.dur) + ' s'], [t.scoppio, n10(cz.esplode.danno * kk)]];
     if (k === 'pas') { if (d.passiva_it && d.portiere) return [[t.ric, num(d.portiere.cd) + ' s'], [t.sempre, '']]; if (d.agguato > 1) return [['Bonus', '+' + Math.round((d.agguato - 1) * 100) + '%'], [t.sempre, '']]; if (d.pollice) return [[t.dur, '×' + d.pollice], [t.sempre, '']]; return [[t.sempre, '']]; }
     var dn = o.danno;
@@ -57,7 +64,7 @@
     if (k === 'att' && o.ric) out.push([t.ric, num(o.ric) + ' s']);
     if (k === 'sup' && o.carica) out.push([t.carica, num(o.carica) + ' ' + t.colpi]);
     if (o.dur && k !== 'att') out.push([t.dur, num(o.dur) + ' s']);
-    if (k === 'gad') out.push([t.usi, '×' + (o.usi || 3)]);
+    if (k === 'gad') out.push([t.usi, num(o.cd) + ' s']);   // 24/11: «Ricarica: N s» al posto di «Usi ×3»
     return out.slice(0, 4);
   }
   // le abilità dell'eroe: attacco, super, gadget e (se c'è) la passiva
@@ -91,7 +98,7 @@
     var base = lista.filter(function (a) { return !a.cav; }), cav = lista.filter(function (a) { return a.cav; });
     var tasto = function (a) {
       return '<button class="ab-t' + (a.k === stato.k ? ' on' : '') + '" role="tab" data-nav data-k="' + a.k + '" style="--ka:' + COL[a.k] + '" aria-selected="' + (a.k === stato.k) + '">' +
-        '<span class="ab-ti">' + ICO[a.k] + '</span><span class="ab-tl">' + t[a.k] + '</span></button>';
+        '<span class="ab-ti' + (UG[a.k] ? ' ab-tug' : '') + '">' + icoK(id, a.k) + '</span><span class="ab-tl">' + t[a.k] + '</span></button>';
     };
     var h = '<div class="ab-sez"><div class="ab-tit">' + t.titolo + '</div><div class="ab-tab q' + base.length + '" role="tablist">' + base.map(tasto).join('') + '</div>';
     // 23/11: seconda fila «CAVALIERE» (forma trasformata del Fante)
@@ -110,8 +117,8 @@
     var a = lista.filter(function (x) { return x.k === stato.k; })[0], t = TX[L], box = el.querySelector('.ab-scena'), nome = d.id + '_' + a.k;
     var nums = numeri(d, a.k, L).map(function (x) { return '<span class="ab-n"><small>' + x[0] + '</small>' + x[1] + '</span>'; }).join('');
     box.style.setProperty('--ka', COL[a.k]);
-    box.innerHTML = '<div class="ab-vid"><div class="ab-vuoto"><span class="ab-vi">' + ICO[a.k] + '</span><span class="ab-vl">' + t.arrivo + '</span></div></div>' +
-      '<div class="ab-testo"><b><small>' + (a.cav ? t.cav + ' · ' : '') + t[a.k] + (a.k === 'gad' ? ' ×' + (d.gad.usi || 3) : '') + '</small>' + a.nome + '</b><p>' + a.desc + '</p><div class="ab-nums">' + nums + '</div></div>';
+    box.innerHTML = '<div class="ab-vid"><div class="ab-vuoto"><span class="ab-vi' + (UG[a.k] ? ' ab-tug' : '') + '">' + icoK(d.id, a.k) + '</span><span class="ab-vl">' + t.arrivo + '</span></div></div>' +
+      '<div class="ab-testo"><b><small>' + (a.cav ? t.cav + ' · ' : '') + t[a.k] + (a.k === 'gad' || a.k === 'kga' ? ' · ' + t.usi + ': ' + num(a.k === 'kga' ? d.gad.balzo.cd : d.gad.cd) + ' s' : '') + '</small>' + a.nome + '</b><p>' + a.desc + '</p><div class="ab-nums">' + nums + '</div></div>';
     caricaIndice(function (ind) {
       var c = ind.clip && ind.clip[nome];
       if (!c || stato.el !== el || stato.id !== d.id || stato.k !== a.k) return;

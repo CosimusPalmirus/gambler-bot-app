@@ -11,14 +11,22 @@
   var TXT = {
     it: { guardi: 'Stai guardando', rinasci: 'Rinasci tra', elim: 'ELIMINATO', posto: '° posto', guarda: 'Guarda', esci: 'Esci', salta: 'Salta',
       replay: 'REPLAY', diretta: 'IN DIRETTA', tu: 'tu', fineReg: 'Fine della registrazione', ok: 'Replay identico', no: 'Replay diverso', prec: 'Eroe precedente', succ: 'Eroe successivo',
-      ancora: 'La partita continua senza di te', nessuno: 'Nessuno da guardare' },
+      ancora: 'La partita continua senza di te', nessuno: 'Nessuno da guardare',
+      // GBT2311: spettatore online
+      ritardo: '5 s di ritardo', fineP: 'FINE PARTITA', vince: 'Vince', vincono: 'Vincono', pari: 'PAREGGIO', torna: 'Torna', torneo: 'Torna al torneo', altra: 'Guarda un’altra',
+      condividi: 'Condividi', attesaOk: 'Aspetto il server…', noGuarda: 'Non si può guardare adesso' },
     en: { guardi: 'Watching', rinasci: 'Respawn in', elim: 'ELIMINATED', posto: '', guarda: 'Watch', esci: 'Leave', salta: 'Skip',
       replay: 'REPLAY', diretta: 'LIVE', tu: 'you', fineReg: 'End of recording', ok: 'Replay identical', no: 'Replay differs', prec: 'Previous hero', succ: 'Next hero',
-      ancora: 'The match goes on without you', nessuno: 'Nobody to watch' }
+      ancora: 'The match goes on without you', nessuno: 'Nobody to watch',
+      ritardo: '5 s delay', fineP: 'MATCH OVER', vince: 'Winner', vincono: 'Winners', pari: 'DRAW', torna: 'Back', torneo: 'Back to the tournament', altra: 'Watch another',
+      condividi: 'Share', attesaOk: 'Waiting for the server…', noGuarda: 'You cannot watch right now' }
   };
   function ordinale(n, en) { return en ? n + (n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th') + ' place' : n + '° posto'; }
   function APP_PAUSA() { var f = document.getElementById('pausa'); return !!(f && f.classList.contains('on')); }
   function ponte() { return window.__brawl && window.__brawl.ponteSpett; }
+  // GBT2311: l'eroe di chi gioca (online e' il seggio dato dal server, offline sempre 0); lo spettatore online lo cambia
+  function IOi() { var p = ponte(); return p && p.io ? p.io() : 0; }
+  function RUI() { return window.__reteUI || null; }
   function L() { var p = ponte(); return TXT[p && p.lang() === 'en' ? 'en' : 'it']; }
 
   // ---------------- interfaccia (DOM sopra la tela) ----------------
@@ -40,6 +48,26 @@
     crea('span', 'luce', el.salta); el.saltaT = crea('span', '', el.salta);
     el.esciB = crea('button', 't3 corto sp-esci', el.azioni); el.esciB.type = 'button'; el.esciB.style.setProperty('--k', '#ff4d5e');
     crea('span', 'luce', el.esciB); el.esciBT = crea('span', '', el.esciB);
+    // GBT2311: spettatore online: «Condividi» la diretta
+    el.condB = crea('button', 't3 corto sp-cond', el.azioni); el.condB.type = 'button'; el.condB.style.setProperty('--k', '#1ad7ff'); el.condB.hidden = true;
+    crea('span', 'luce', el.condB); el.condBT = crea('span', '', el.condB);
+    el.condB.onclick = function () { var r = RUI(); if (r && r.condividi) r.condividi(); suono('tasto'); };
+    // GBT2311: fine partita dello spettatore (chi ha vinto + Torna / Guarda un'altra)
+    var fi = el.fine = crea('div', 'sp-scelta sp-fine', document.body); fi.hidden = true;
+    var fb = crea('div', 'sp-box', fi);
+    el.fEti = crea('p', 'sp-sub sp-fine-eti', fb);
+    el.fTit = crea('h2', 'cromo sp-tit', fb);
+    el.fFacce = crea('div', 'sp-fine-facce', fb);
+    el.fSub = crea('p', 'sp-sub', fb);
+    var fr = crea('div', 'sp-riga', fb);
+    el.fTorna = crea('button', 't3 corto', fr); el.fTorna.type = 'button'; el.fTorna.style.setProperty('--k', '#ffd23b'); crea('span', 'luce', el.fTorna); el.fTornaT = crea('span', '', el.fTorna);
+    el.fAltra = crea('button', 't3 corto', fr); el.fAltra.type = 'button'; el.fAltra.style.setProperty('--k', '#1ad7ff'); crea('span', 'luce', el.fAltra); el.fAltraT = crea('span', '', el.fAltra);
+    el.fTorna.onclick = function () { suono('indietro'); el.fine.hidden = true; var r = RUI(); if (r && r.esciSpett) r.esciSpett('torna'); };
+    el.fAltra.onclick = function () { suono('tasto'); el.fine.hidden = true; var r = RUI(); if (r && r.esciSpett) r.esciSpett('altra'); };
+    [fi].forEach(function (n) { ['pointerdown', 'pointerup', 'touchstart', 'touchend'].forEach(function (ev) { n.addEventListener(ev, function (e) { e.stopPropagation(); }, { passive: true }); }); });
+    var stl = document.createElement('style');
+    stl.textContent = '.sp-fine-facce{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:2px 0}.sp-fine-facce i{width:54px;height:54px;border-radius:14px;background:#0b0614 center 18%/cover no-repeat;box-shadow:0 0 0 2px #120420,0 0 0 4px var(--kh,#ffd23b),0 0 14px color-mix(in srgb,var(--kh,#ffd23b) 60%,transparent)}.sp-fine-facce i b{display:block;margin-top:58px;font:800 10px/1.1 system-ui,sans-serif;color:#fff;text-transform:uppercase;white-space:nowrap;text-shadow:0 1px 2px #000}.sp-fine .sp-box{box-shadow:0 0 0 2px #120420,0 0 24px rgba(255,210,59,.45),0 16px 40px rgba(0,0,0,.6)}.sp-fine .sp-fine-facce{min-height:72px}';
+    document.head.appendChild(stl);
     el.tag = crea('div', 'sp-tag', document.body); el.tag.hidden = true;
     // scelta da eliminato (sopravvivenza)
     var sc = el.scelta = crea('div', 'sp-scelta', document.body); sc.hidden = true;
@@ -56,8 +84,14 @@
     el.succ.onclick = function () { cambia(1); };
     el.salta.onclick = function () { salta(); };
     el.esciB.onclick = function () { esci(); };
-    el.sGuarda.onclick = function () { S.scelta = 'guarda'; el.scelta.hidden = true; suono('tasto'); };
-    el.sEsci.onclick = function () { esci(true); };
+    el.sGuarda.onclick = function () {
+      suono('tasto');
+      // GBT2311: online «Guarda» = la strada spettatore del server (5 s di ritardo, tutta l'arena, fine compresa)
+      var P = ponte() && ponte().P(), r = RUI();
+      if (P && P.rete && r && r.guardaElim) { S.scelta = 'attesa'; S.attesaT = performance.now(); el.sSub.textContent = L().attesaOk; r.guardaElim(); return; }
+      S.scelta = 'guarda'; el.scelta.hidden = true;
+    };
+    el.sEsci.onclick = function () { var P = ponte() && ponte().P(), r = RUI(); if (P && P.rete && r && r.esciPartita) { nascondi(); r.esciPartita(); return; } esci(true); };
   }
   function suono(n) { try { if (window.Suoni && Suoni[n]) Suoni[n](); } catch (e) { } }
 
@@ -79,6 +113,10 @@
     },
     versioni: versioni,
     passo: passo, fine: fine, cambia: cambia, salta: salta,
+    // GBT2311: online
+    fineRete: fineRete, nascondi: function () { nascondi(); if (el.fine) el.fine.hidden = true; },
+    gok: function () { S.scelta = 'guarda'; S.on = false; if (el.scelta) el.scelta.hidden = true; },
+    gno: function () { if (S.elim) { S.scelta = 'guarda'; if (el.scelta) el.scelta.hidden = true; } },   // rifiuto: si guarda con la propria vista
     stato: function () { return { on: S.on, modo: S.modo, bersaglio: S.bersaglio, elim: S.elim, scelta: S.scelta, nome: el.nome ? el.nome.textContent : '', conto: el.conto ? el.conto.textContent : '', barra: el.bar ? !el.bar.hidden : false, sceltaVis: el.scelta ? !el.scelta.hidden : false }; },
     // scarica l'ultima registrazione come file .json (per i replay da file e per le prove)
     scarica: function () {
@@ -90,10 +128,11 @@
 
   // chi si può guardare: vivi, prima gli alleati (in ordine), poi tutti gli altri. Nel replay anche il giocatore 0.
   function lista(st) {
-    var me = st.eroi[0], al = [], al2 = [];
+    var io = IOi(), me = st.eroi[io], al = [], al2 = [];
+    if (S.modo === 'rete') { for (var j = 0; j < st.eroi.length; j++) if (st.eroi[j].vivo || st.eroi[j].rt > 0) al.push(j); return al; }   // GBT2311: spettatore online, tutti in ordine (anche chi sta per rinascere)
     for (var i = 0; i < st.eroi.length; i++) {
       var h = st.eroi[i]; if (!h.vivo) continue;
-      if (i === 0) { if (S.modo === 'replay') al.unshift(0); continue; }
+      if (i === io) { if (S.modo === 'replay') al.unshift(io); continue; }
       if (st.modo !== 'sopravvivenza' && h.sq === me.sq) al.push(i); else al2.push(i);
     }
     return al.concat(al2);
@@ -101,14 +140,17 @@
   function cambia(d) {
     var P = ponte() && ponte().P(); if (!P || !SPETT.attivo) return;
     var l = lista(P.st); if (!l.length) return;
+    if (S.modo === 'rete') S.bersaglio = IOi();   // GBT2311: online l'eroe seguito diventa «IO» (camera, HUD, suoni)
     var k = l.indexOf(S.bersaglio);
     S.bersaglio = l[((k < 0 ? (d > 0 ? -1 : 0) : k) + d + l.length) % l.length];
+    if (S.modo === 'rete') { ponte().segui(S.bersaglio); S.killer = -1; S.mortoT = null; }
     S.killT = 0; suono('tasto');
     if (el.nome) { el.bar.classList.remove('sp-cambio'); void el.bar.offsetWidth; el.bar.classList.add('sp-cambio'); }
   }
   function salta() { var p = ponte(); if (p) { p.salta(); suono('tasto'); } }
   function esci(fineSubito) {
     var p = ponte(), P = p && p.P();
+    if (P && P.rete && RUI()) { nascondi(); if (P.spett) RUI().esciSpett('torna'); else RUI().esciPartita(); return; }   // GBT2311: online
     nascondi();
     if (!P) return;
     // in sopravvivenza da eliminato il posto è già deciso: si va ai risultati (il resto si gioca in un attimo)
@@ -118,14 +160,15 @@
   function nascondi() {
     SPETT.attivo = SPETT.senzaComandi = false;
     if (!costruita) return;
-    el.bar.hidden = true; el.azioni.hidden = true; el.scelta.hidden = true; el.tag.hidden = true;
+    el.bar.hidden = true; el.azioni.hidden = true; el.scelta.hidden = true; el.tag.hidden = true; if (el.condB) el.condB.hidden = true;
     if (window.R3) R3.segui = null;
   }
 
   function passo(st, dt, P) {
     S.visto = performance.now();
-    var me = st.eroi[0], B = window.__brawl;
+    var me = st.eroi[IOi()], B = window.__brawl;
     if (B.fase === 'finale' || st.fine) { if (S.on || SPETT.attivo) { el.bar.hidden = true; el.azioni.hidden = true; el.scelta.hidden = true; } return; }
+    if (P.rete && P.spett) { passoRete(st, dt, P, me); return; }   // GBT2311: spettatore online (esterno o eliminato che guarda)
     if (P.rep) { if (!S.on) { S.on = true; S.modo = 'replay'; if (S.bersaglio < 0) S.bersaglio = 0; } }
     else {
       if (me.vivo) { if (S.on) { S.on = false; nascondi(); } return; }
@@ -158,8 +201,74 @@
     disegna(st, me, P, dt);
   }
 
+  // GBT2311: SPETTATORE ONLINE. L'eroe seguito e' «IO» per la pagina (gioco.js seguiEroe): camera, HUD e suoni sono i suoi.
+  // Fuori per sempre (sopravvivenza): dopo la killcam si passa a chi l'ha eliminato (se vivo) o al primo vivo.
+  // Nel 3v3 e nel Duello si resta sull'eroe (rinasce); il conto della rinascita sta nella barra.
+  function passoRete(st, dt, P, me) {
+    if (!S.on || S.modo !== 'rete') { S.on = true; S.modo = 'rete'; S.elim = false; S.scelta = 'guarda'; S.killer = -1; S.mortoT = null; el.scelta.hidden = true; if (el.fine) el.fine.hidden = true; }
+    SPETT.attivo = true; SPETT.senzaComandi = true;
+    S.bersaglio = IOi();
+    if (window.R3 && R3.segui != null && R3.segui !== S.bersaglio) S.killer = R3.segui;
+    if (!me.vivo && !(me.rt > 0)) {
+      if (S.mortoT == null) S.mortoT = 2.6;
+      S.mortoT -= dt;
+      if (S.mortoT <= 0) {
+        var l = lista(st), k = S.killer >= 0 && st.eroi[S.killer] && st.eroi[S.killer].vivo ? S.killer : (l.length ? l[0] : -1);
+        if (k >= 0) { ponte().segui(k); S.bersaglio = k; me = st.eroi[k]; el.bar.classList.remove('sp-cambio'); void el.bar.offsetWidth; el.bar.classList.add('sp-cambio'); }
+        S.mortoT = null; S.killer = -1;
+      }
+    } else S.mortoT = null;
+    leggiPad();
+    disegnaRete(st, me, P);
+  }
+  function nomeGioc(P, i) {
+    var c = P.rete, h = P.st.eroi[i];
+    var n = (c && c.nomiSeggi && c.nomiSeggi[i]) || (h && h.nome && h.nome !== 'BOT' ? h.nome : '');
+    return n ? String(n) : '';
+  }
+  function disegnaRete(st, me, P) {
+    var t = L(), p = ponte(), h = me, i = IOi();
+    el.bar.hidden = false;
+    el.eti.textContent = t.diretta + ' · ' + t.ritardo;
+    var ng = nomeGioc(P, i), nm = h ? (ng ? ng + ' · ' + p.nomeCorto(h.id) : p.nome(h.id)) : t.nessuno;
+    if (el.nome.textContent !== nm) el.nome.textContent = nm;
+    el.bar.style.setProperty('--kh', h ? p.colore(h.id) : '#888');
+    el.bar.style.setProperty('--ks', '#3fb3ff');
+    if (h && el.faccia.dataset.id !== h.id) { el.faccia.dataset.id = h.id; el.faccia.style.backgroundImage = 'url("' + (p.busto ? p.busto(h.id) : 'ui/icone/' + h.id + '.webp') + '")'; }
+    if (h && !h.vivo && h.rt > 0) { var c = String(Math.ceil(h.rt)); el.conto.hidden = false; if (el.conto.textContent !== c) { el.conto.textContent = c; el.conto.classList.remove('batti'); void el.conto.offsetWidth; el.conto.classList.add('batti'); } el.conto.dataset.eti = t.rinasci; }
+    else el.conto.hidden = true;
+    el.prec.title = t.prec; el.succ.title = t.succ; el.prec.setAttribute('aria-label', t.prec); el.succ.setAttribute('aria-label', t.succ);
+    el.azioni.hidden = false; el.salta.hidden = true; el.esciB.hidden = false; el.esciBT.textContent = t.esci;
+    var esterno = P.rete.io < 0;
+    el.condB.hidden = !esterno; el.condBT.textContent = t.condividi;
+    el.tag.hidden = true;
+  }
+  // GBT2311: fine della partita guardata da spettatore esterno: chi ha vinto + «Torna» / «Guarda un'altra»
+  function fineRete(P, st) {
+    costruisci();
+    var t = L(), p = ponte(), f = st.fine || {}, vinc = [], i;
+    for (i = 0; i < st.eroi.length; i++) if (f.vinc != null && f.vinc >= 0 && st.eroi[i].sq === f.vinc) vinc.push(i);
+    el.bar.hidden = true; el.azioni.hidden = true; el.scelta.hidden = true; el.tag.hidden = true;
+    SPETT.attivo = SPETT.senzaComandi = false; S.on = false;
+    el.fEti.textContent = t.fineP;
+    el.fTit.textContent = vinc.length ? (vinc.length > 1 ? t.vincono : t.vince) : t.pari;
+    el.fFacce.innerHTML = '';
+    vinc.forEach(function (k) {
+      var h = st.eroi[k], d = document.createElement('i'), b = document.createElement('b'), ng = nomeGioc(P, k);
+      d.style.setProperty('--kh', p.colore(h.id)); d.style.backgroundImage = 'url("' + (p.busto ? p.busto(h.id) : 'ui/icone/' + h.id + '.webp') + '")';
+      b.textContent = ng || p.nomeCorto(h.id); d.appendChild(b); el.fFacce.appendChild(d);
+    });
+    var rr = RUI(), tid = rr && rr.tid ? rr.tid() : '';
+    el.fSub.textContent = vinc.length ? vinc.map(function (k) { var ng = nomeGioc(P, k); return (ng ? ng + ' · ' : '') + p.nome(st.eroi[k].id); }).join(', ') : '';
+    el.fTornaT.textContent = tid ? t.torneo : t.torna; el.fAltraT.textContent = t.altra;
+    el.fine.hidden = false;
+    if (window.Suoni && Suoni.fine) try { Suoni.fine(true, !vinc.length); } catch (e) { }
+  }
+
   function disegna(st, me, P, dt) {
     var t = L(), p = ponte(), en = p.lang() === 'en';
+    // GBT2311: online, nessuna risposta al «Guarda» in 6 s (rete saltata): si guarda con la propria vista
+    if (S.scelta === 'attesa' && performance.now() - S.attesaT > 6000) { S.scelta = 'guarda'; el.scelta.hidden = true; }
     // scelta da eliminato
     if (S.elim && !S.scelta && !P.rep) {
       S.sceltaT -= dt;
@@ -174,9 +283,9 @@
     var dir = !!(P.rep && P.rep.diretta);
     el.eti.textContent = (S.modo === 'replay' ? (dir ? t.diretta : t.replay) + ' · ' : '') + t.guardi;
     var stretto = innerWidth < 480 && S.modo === 'ko' && me.rt > 0;   // telefono in verticale col conto accanto: nome corto (FANTE, non FANTE DI QU…)
-    var nm = h ? (stretto ? p.nomeCorto(h.id) : p.nome(h.id)) + (h.i === 0 ? ' (' + t.tu + ')' : '') : t.nessuno;
+    var nm = h ? (stretto ? p.nomeCorto(h.id) : p.nome(h.id)) + (h.i === IOi() ? ' (' + t.tu + ')' : '') : t.nessuno;
     if (el.nome.textContent !== nm) el.nome.textContent = nm;
-    var amico = h && (S.modo === 'replay' ? h.i === 0 || (st.modo !== 'sopravvivenza' && h.sq === me.sq) : (st.modo !== 'sopravvivenza' && h.sq === me.sq));
+    var amico = h && (S.modo === 'replay' ? h.i === IOi() || (st.modo !== 'sopravvivenza' && h.sq === me.sq) : (st.modo !== 'sopravvivenza' && h.sq === me.sq));
     el.bar.style.setProperty('--kh', h ? p.colore(h.id) : '#888');
     el.bar.style.setProperty('--ks', amico ? '#3fb3ff' : '#ff4d5e');
     if (h && el.faccia.dataset.id !== h.id) { el.faccia.dataset.id = h.id; el.faccia.style.backgroundImage = 'url("' + (p.busto ? p.busto(h.id) : 'ui/icone/' + h.id + '.webp') + '")'; }
@@ -185,10 +294,10 @@
     else el.conto.hidden = true;
     el.prec.title = t.prec; el.succ.title = t.succ; el.prec.setAttribute('aria-label', t.prec); el.succ.setAttribute('aria-label', t.succ);
     // azioni: Salta (eliminato o replay) ed Esci (replay)
-    var vediSalta = (S.elim && S.scelta === 'guarda') || (S.modo === 'replay' && !dir), vediEsci = S.modo === 'replay' || (S.elim && S.scelta === 'guarda');
+    var vediSalta = !P.rete && ((S.elim && S.scelta === 'guarda') || (S.modo === 'replay' && !dir)), vediEsci = S.modo === 'replay' || (S.elim && S.scelta === 'guarda');   // GBT2311: online niente «Salta»
     el.azioni.hidden = !(vediSalta || vediEsci);
     el.salta.hidden = !vediSalta; el.esciB.hidden = !vediEsci;
-    el.saltaT.textContent = t.salta; el.esciBT.textContent = t.esci;
+    el.saltaT.textContent = t.salta; el.esciBT.textContent = t.esci; el.condB.hidden = true;
     // fine della registrazione senza fine partita (replay interrotto)
     if (P.rep && P.rep.finito() && !st.fine && (!P.rep.diretta || P.rep.chiuso)) {
       el.tag.hidden = false; el.tag.textContent = t.fineReg;

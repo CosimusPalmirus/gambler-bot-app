@@ -44,7 +44,8 @@
   }
   var JSON_ = {};
   function cartella(id) { return 'menu_video/' + id + '/' + (KIT[id].dir || 'v2') + '/final/'; }
-  function url(id, k) { var K = KIT[id], v = k === 'intro' ? K.vi : K.v; return cartella(id) + id + '_' + k + '_alfa.mp4' + (v ? '?v=' + v : ''); }
+  // q = '' clip piena, '_m' telefono (24/11: il menu di Gem Brawl, come la lobby video), '_s' piccola
+  function url(id, k, q) { var K = KIT[id], v = k === 'intro' ? K.vi : K.v; return cartella(id) + id + '_' + k + '_alfa' + (q || '') + '.mp4' + (v ? '?v=' + v : ''); }
   function leggi(id) {
     if (!JSON_[id]) JSON_[id] = fetch(cartella(id) + 'clip.json', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
     return JSON_[id];
@@ -89,7 +90,7 @@
     }
     function suona(k) {
       if (!ctl.vivo) return;
-      var src = url(id, k); prepara(src);
+      var src = url(id, k, opz.q); prepara(src);
       var r = riserva(), vecchio = att, n = ++giro;
       r.onended = function () { if (n === giro) suona(prossima(k)); };
       var p = r.play(); if (p && p.catch) p.catch(function () { });
@@ -106,6 +107,7 @@
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, att);
       gl.viewport(0, 0, cv.width, cv.height); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
       gl.uniform1f(upx, 0.5 / (att.videoWidth || 1440)); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      if (!ctl.primo) { ctl.primo = true; if (opz.pronto) try { opz.pronto(); } catch (e) { } }   // 24/11: primo fotogramma (il menu toglie l'arte 2D)
     })();
     azioni(id).then(function (l) { lista = l; });
     // 22/11 MVP di fine partita (#f-vetrina): parte con la clip di VITTORIA (<id>_vittoria_alfa.mp4) se clip.json ha "vittoria": true,
@@ -117,7 +119,7 @@
     ctl.ferma = function () {
       ctl.vivo = false; giro++;
       V.forEach(function (v) { v.pause(); v.onended = null; v.removeAttribute('src'); v.load(); });
-      try { var e = gl.getExtension('WEBGL_lose_context'); if (e) e.loseContext(); } catch (x) { }
+      try { var e = gl.getExtension('WEBGL_lose_context'); if (e && !gl.isContextLost()) e.loseContext(); } catch (x) { }   // 24/11: WebKit a volte l'ha gia' perso da solo (avviso in console)
       if (cv.parentNode) cv.parentNode.removeChild(cv);
     };
     return ctl;
