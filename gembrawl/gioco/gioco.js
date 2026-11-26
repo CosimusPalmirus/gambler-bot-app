@@ -144,7 +144,16 @@
 
   // ---------------- errori visibili (per il banco) ----------------
   var B = window.__brawl = { fase: 'menu', partite: 0, errori: [], st: null, roster: GBRx && GBRx.tre ? '3d' : (GBRx && !GBRx.stub ? 'vero' : 'ripiego'), esiti: [] };
-  window.addEventListener('error', function (e) { B.errori.push(String(e.message)); var el = $('errore'); el.style.display = 'block'; el.textContent = 'ERRORE: ' + e.message + ' @' + (e.filename || '').split('/').pop() + ':' + e.lineno; });
+  B.giri = 0; var ERR_T = [];
+  window.addEventListener('error', function (e) {
+    B.errori.push(String(e.message));
+    var testo = 'ERRORE: ' + e.message + ' @' + (e.filename || '').split('/').pop() + ':' + e.lineno, ora = performance.now(), giri0 = B.giri;
+    var mostraErr = function () { var el = $('errore'); if (el) { el.style.display = 'block'; el.textContent = testo; } };
+    ERR_T.push(ora); while (ERR_T.length && ora - ERR_T[0] > 2000) ERR_T.shift();
+    if (Q.get('diag') === '1' || ERR_T.length >= 20) { mostraErr(); return; }   // a ogni fotogramma: il gioco e' bloccato
+    // un errore isolato (un timer, una promessa) non ferma niente: si scrive solo nel diario; se il ciclo si e' fermato, si mostra
+    setTimeout(function () { if (!document.hidden && B.giri === giri0) mostraErr(); }, 2500);
+  });
 
   try { if (window.Telegram && Telegram.WebApp) { Telegram.WebApp.ready(); Telegram.WebApp.expand(); if (Telegram.WebApp.disableVerticalSwipes) Telegram.WebApp.disableVerticalSwipes(); } } catch (e) { }
   // 24/11 SCHERMO INTERO sul telefono quando la pagina e' aperta da sola (/gembrawl): Bot API 8.0. Dentro la mini app lo chiede la
@@ -570,6 +579,54 @@
       S.sblocca(); preparaPartita(); return true;
     }
   };
+  // ---- 26/11 TUTTO CARICATO PRIMA DEL VIA (come Smash) ----
+  // Sotto la schermata VS: modelli 3D degli eroi di QUESTA partita scaricati e montati, texture sulla GPU, shader compilati e
+  // pronti (R3.prontoPartita), arte 2D dei ritratti, poi le voci in coda. Il via (contro i bot) o il «pronto» al server (online:
+  // il server aspetta fino a 20 s) solo a caricamento finito. Dopo il tetto si parte lo stesso: chi manca resta segnaposto e si
+  // monta quando arriva, come prima. Niente da compilare o scaricare a partita iniziata.
+  var PRONTO_MIN = AUTO ? 600 : 2900, PRONTO_TETTO_BOT = 15000, PRONTO_TETTO_RETE = 17000;
+  (function () {
+    var css = document.createElement('style');
+    css.textContent = '.vs-barra{position:relative;width:min(62vw,300px);height:12px;margin:8px auto 0;border-radius:8px;background:#120420;box-shadow:inset 0 0 0 2px rgba(255,255,255,.16),0 0 0 2px #000;overflow:hidden;transition:opacity .25s}' +
+      '.vs-barra i{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:8px;background:linear-gradient(180deg,#ffe27a,var(--oro,#ffc21a) 55%,#c98a00);box-shadow:0 0 10px var(--oro,#ffc21a);transition:width .18s ease-out}' +
+      '.vs-barra b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:900 8.5px/1 var(--R,system-ui);letter-spacing:1px;color:#fff;text-shadow:0 1px 0 #000,0 0 3px #000}' +
+      '.vs-barra.ok{opacity:.0}';
+    document.head.appendChild(css);
+  })();
+  function barraCarica(v) {
+    var box = document.querySelector('#s-carica .vs-info'); if (!box) return;
+    var b = box.querySelector('.vs-barra');
+    if (!b) { b = document.createElement('div'); b.className = 'vs-barra'; b.innerHTML = '<i></i><b></b>'; box.appendChild(b); }
+    var p = Math.round(Math.max(0, Math.min(1, v)) * 100);
+    b.classList.toggle('ok', p >= 100);
+    b.firstChild.style.width = p + '%';
+    b.lastChild.textContent = (LANG === 'en' ? 'LOADING ' : 'CARICAMENTO ') + p + '%';
+  }
+  // promessa che si risolve SEMPRE (al piu' al tetto) con { ok, mancano, ms }
+  function preparaTutto(st, tetto) {
+    var t0 = performance.now(), ids = [], v3 = 0, v2 = 0, fatto = false;
+    st.eroi.forEach(function (h) { if (ids.indexOf(h.id) < 0) ids.push(h.id); });
+    var tre = !!(window.R3 && R3.prontoPartita && !R3.spento && window.Disegno && Disegno.tre !== false);
+    var aggiorna = function () { if (!fatto) barraCarica(tre ? v3 * 0.85 + v2 * 0.15 : v2); };
+    barraCarica(0);
+    // arte 2D (ritratti del VS e dell'HUD): immagini decodificate
+    var n2 = 0, arte = Promise.all(ids.map(function (id) {
+      return asset(id).pronto.then(function (a) {
+        return new Promise(function (ok) { var im = new Image(); im.onload = im.onerror = function () { ok(); }; im.src = a.busto; if (im.decode) im.decode().then(ok, ok); });
+      }).then(function () { n2++; v2 = n2 / ids.length; aggiorna(); }, function () { n2++; v2 = n2 / ids.length; aggiorna(); });
+    }));
+    var r3 = tre ? R3.prontoPartita(ids, function (v) { v3 = v; aggiorna(); }, Math.max(2000, tetto - 1500)) : Promise.resolve({ ok: true, mancano: 0 });
+    var tutto = Promise.all([r3, arte]).then(function (x) { return x[0] || { ok: true, mancano: 0 }; }, function () { return { ok: false, mancano: -1 }; });
+    var tempo = new Promise(function (ok) { setTimeout(function () { ok({ ok: false, mancano: -1, tetto: true }); }, tetto); });
+    return Promise.race([tutto, tempo]).then(function (r) {
+      fatto = true; r.ms = Math.round(performance.now() - t0); barraCarica(1);
+      // voci ed effetti sonori degli eroi in campo: in coda adesso (prima del via), il mio per primo
+      try { if (S.caricaEroe) { var mio = st.eroi[IO] && st.eroi[IO].id; if (mio) S.caricaEroe(mio, true); ids.forEach(function (id) { S.caricaEroe(id); }); } } catch (e) { }
+      B.carico = r; if (r.tetto || !r.ok) try { if (window.GBDIAG) GBDIAG.nota('carico prima del via: ' + JSON.stringify(r)); } catch (e) { }
+      return r;
+    });
+  }
+  B.preparaTutto = preparaTutto;
   function preparaPartita() {
     if (B.fase === 'carica') return;
     B.ultimaRete = false; IO = 0;   // F1 rete: contro i bot si torna sempre all'eroe 0
@@ -641,13 +698,16 @@
       S.vsEntra(); setTimeout(function () { if (APP.schermo === 's-carica') { S.vsColpo(); vibra(25); } }, AUTO ? 0 : 430);
     };
     entra();
-    var via = function () { if (APP.schermo !== 's-carica' || B.fase !== 'carica') return; B.fase = 'via'; if (AUTO) avvia(); else sipario(avvia, 1); };
-    $('s-carica').onclick = function () { if (performance.now() - t0 > 600) via(); };
-    setTimeout(via, AUTO ? 600 : 2900);
+    var via = function () { if (APP.schermo !== 's-carica' || B.fase !== 'carica' || !P || P.st !== st) return; B.fase = 'via'; if (AUTO) avvia(); else sipario(avvia, 1); };
+    var minimo = false, pronto = false, Pq = P, prova = function () { if (minimo && pronto && P === Pq) via(); };
+    $('s-carica').onclick = function () { if (pronto && performance.now() - t0 > 600) via(); };
+    preparaTutto(st, PRONTO_TETTO_BOT).then(function () { pronto = true; Pq.prontoFatto = true; prova(); });
+    setTimeout(function () { minimo = true; prova(); }, PRONTO_MIN);
   }
   function avvia() {
     mostra('');
     B.fase = 'partita';
+    levAzzera();
     P.t0 = performance.now();
     S.musicaFile(APP.modo === 'duello' ? 'duello' : 'partita'); if (S.impostaEroe) S.impostaEroe(APP.eroe);   /* audio 21/11: voci dell'eroe */
     S.musicaVia(false);
@@ -740,6 +800,7 @@
     mouse: { x: 0, y: 0, dentro: false, sx: false, dx: false },
     bufAtt: 0, ax: 0, ay: 0, bufSup: 0, sx: 0, sy: 0, bufGad: 0, gx: 0, gy: 0, eTenuto: false, qTenuto: false
   };
+  B.IN = IN;   // 26/11: per le prove dei tocchi (sola lettura)
   var DEAD_MIRA = 0.22;
   // misure del feel: tempi fra l'input e il primo fotogramma che lo mostra (?misura=1)
   var MIS = B.misure = { mov: [], sparo: [], rot: [], movT: 0, movX: 0, movY: 0, sparoT: 0, sparoAtt: 0, sparoMov: 0, rotT: 0, rotA: 0 };
@@ -753,59 +814,80 @@
   function inPartita() { return P && B.fase === 'partita' && !APP.pausa; }
   function vicino(x, y, c, r) { var dx = x - c.x, dy = y - c.y; return dx * dx + dy * dy <= r * r; }
 
-  cv.addEventListener('pointerdown', function (e) {
-    S.sblocca();
-    if (!inPartita()) return;
-    e.preventDefault();
-    var x = e.clientX, y = e.clientY;
+  // ---- tocchi (26/11, come Smash 23/10) ----
+  // Su iPhone (iOS 18.7 / Telegram 9.6) Touch.identifier è NEGATIVO (-186491700) e il pointerId che ne deriva pure:
+  // con «-1 = nessun dito» e i controlli «id >= 0» la levetta presa non veniva MAI letta (non si muoveva).
+  // Ogni id del browser passa da pid(): sempre >= 1, il -1 resta solo «nessun dito».
+  // Su iPhone/iPad (anche iPad in modalità desktop) si seguono i Touch Events nativi: in WKWebView il flusso
+  // dei PointerEvent può interrompersi. Altrove (Android, PC) i pointer come prima. Una sola famiglia alla volta.
+  function pid(n) { return (n >>> 0) + 1; }
+  var IOS_TOCCO = /iPad|iPhone|iPod/.test(navigator.userAgent || '') || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  B.iosTocco = IOS_TOCCO;
+  // diario leggero per la conferma dal telefono vero (solo iPhone/iPad, una riga a partita): id grezzi min/max e spinta massima
+  var LEV = B.lev = { n: 0, idMin: null, idMax: null, maxD: 0, mosse: 0, fam: IOS_TOCCO ? 'touch' : 'pointer' };
+  function levId(raw) { if (LEV.idMin === null || raw < LEV.idMin) LEV.idMin = raw; if (LEV.idMax === null || raw > LEV.idMax) LEV.idMax = raw; LEV.n++; }
+  function levAzzera() { LEV.n = 0; LEV.idMin = null; LEV.idMax = null; LEV.maxD = 0; LEV.mosse = 0; }
+  function levManda(perche) {
+    if (!IOS_TOCCO || !LEV.n) return;
+    var tg = window.Telegram && Telegram.WebApp, ua = navigator.userAgent || '', ios = (ua.match(/OS (\d+[_\d]*)/) || [])[1] || '?';
+    var nota = 'ios=true v=lev2611 ' + perche + ' iOS=' + ios.replace(/_/g, '.') + ' tg=' + ((tg && tg.version) || '-') + ' pf=' + ((tg && tg.platform) || '-') +
+      ' fam=' + LEV.fam + ' n=' + LEV.n + ' idmin=' + LEV.idMin + ' idmax=' + LEV.idMax + ' maxD=' + Math.round(LEV.maxD) + ' mosse=' + LEV.mosse +
+      ' rete=' + (P && P.rete ? 1 : 0) + ' ' + (innerWidth > innerHeight ? 'oriz' : 'vert');
+    levAzzera();
+    try {
+      if (window.parent !== window && typeof parent.tonUiDiario === 'function') { parent.tonUiDiario('gb-lev', nota); return; }
+    } catch (e) { }
+    try {
+      var idt = tg && tg.initData; if (!idt || !window.fetch) return;
+      fetch('https://62-238-17-24.sslip.io/ton/connect/log', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': idt, 'ngrok-skip-browser-warning': '1' }, body: JSON.stringify({ passo: 'gb-lev', nota: nota.slice(0, 300) }) })['catch'](function () { });
+    } catch (e) { }
+  }
+  B.levManda = levManda;
+
+  // libera levetta e mira SENZA sparare (dito sparito, blur, rotazione, app in secondo piano)
+  function liberaTocchi() { IN.mov.id = -1; IN.mira.id = -1; }
+  function giu(e) {
+    var x = e.clientX, y = e.clientY, id = e.id;
     if (vicino(x, y, UI.pausa, UI.pausa.r + 12)) { pausa(true); return; }
     if (P.tut && x >= SALTA.x && x <= SALTA.x + SALTA.w && y >= SALTA.y && y <= SALTA.y + SALTA.h) { finisciTutorial(); return; }
-    if (e.pointerType === 'mouse') {
-      IN.desktop = true;
-      IN.mouse.x = x; IN.mouse.y = y; IN.mouse.dentro = true;
-      if (e.button === 2) { IN.mouse.dx = true; } else { IN.mouse.sx = true; spara(vettoreMouse(false), false); }
-      return;
-    }
     IN.desktop = false;
-    try { cv.setPointerCapture(e.pointerId); } catch (er) { }
+    // un rilascio perso (iOS) lasciava levetta o mira a un dito che non c'è più: le dita appoggiate le dice il tocco
+    if (e.vivi) { if (IN.mov.id >= 0 && !e.vivi[IN.mov.id]) IN.mov.id = -1; if (IN.mira.id >= 0 && !e.vivi[IN.mira.id]) IN.mira.id = -1; }
     if (IN.mira.id < 0 && vicino(x, y, UI.gad, UI.gad.r + 10)) {
-      IN.mira.id = e.pointerId; IN.mira.bx = UI.gad.x; IN.mira.by = UI.gad.y; IN.mira.x = x; IN.mira.y = y; IN.mira.uscito = false; IN.mira.sup = 'gad'; IN.mira.t0 = performance.now();
+      IN.mira.id = id; IN.mira.bx = UI.gad.x; IN.mira.by = UI.gad.y; IN.mira.x = x; IN.mira.y = y; IN.mira.uscito = false; IN.mira.sup = 'gad'; IN.mira.t0 = performance.now();
       return;
     }
     if (IN.mira.id < 0 && vicino(x, y, UI.sup, UI.sup.r + 16)) {
-      IN.mira.id = e.pointerId; IN.mira.bx = UI.sup.x; IN.mira.by = UI.sup.y; IN.mira.x = x; IN.mira.y = y; IN.mira.uscito = false; IN.mira.sup = true; IN.mira.t0 = performance.now();
+      IN.mira.id = id; IN.mira.bx = UI.sup.x; IN.mira.by = UI.sup.y; IN.mira.x = x; IN.mira.y = y; IN.mira.uscito = false; IN.mira.sup = true; IN.mira.t0 = performance.now();
       return;
     }
     if (x < W * 0.5) {
-      if (IN.mov.id < 0) { IN.mov.id = e.pointerId; IN.mov.bx = x; IN.mov.by = y; IN.mov.x = x; IN.mov.y = y; if (window.R3 && R3.eroi[IO]) { MIS.movT = 0; MIS.movArm = 1; } }
+      if (IN.mov.id < 0) { IN.mov.id = id; IN.mov.bx = x; IN.mov.by = y; IN.mov.x = x; IN.mov.y = y; if (window.R3 && R3.eroi[IO]) { MIS.movT = 0; MIS.movArm = 1; } }
     } else if (IN.mira.id < 0) {
-      IN.mira.id = e.pointerId; IN.mira.bx = x; IN.mira.by = y; IN.mira.x = x; IN.mira.y = y; IN.mira.uscito = false; IN.mira.sup = false; IN.mira.t0 = performance.now();
+      IN.mira.id = id; IN.mira.bx = x; IN.mira.by = y; IN.mira.x = x; IN.mira.y = y; IN.mira.uscito = false; IN.mira.sup = false; IN.mira.t0 = performance.now();
     }
-  }, { passive: false });
-  cv.addEventListener('pointermove', function (e) {
-    if (e.pointerType === 'mouse') { IN.mouse.x = e.clientX; IN.mouse.y = e.clientY; IN.mouse.dentro = true; return; }
-    if (e.pointerId === IN.mov.id) {
+  }
+  function muovi(e) {
+    var id = e.id;
+    if (id === IN.mov.id) {
       IN.mov.x = e.clientX; IN.mov.y = e.clientY;
       if (MIS.movArm && Math.hypot(IN.mov.x - IN.mov.bx, IN.mov.y - IN.mov.by) > UI.R * 0.2 && window.R3 && R3.eroi[IO]) { MIS.movArm = 0; MIS.movT = performance.now(); MIS.movX = R3.eroi[IO].x; MIS.movY = R3.eroi[IO].y; }
       // la base segue il dito se si allontana troppo
       var dx = IN.mov.x - IN.mov.bx, dy = IN.mov.y - IN.mov.by, d = Math.sqrt(dx * dx + dy * dy), lim = UI.R * 1.25;
+      if (IOS_TOCCO) { LEV.mosse++; if (d > LEV.maxD) LEV.maxD = Math.min(d, lim); }
       if (d > lim) { IN.mov.bx += dx / d * (d - lim); IN.mov.by += dy / d * (d - lim); }
     }
-    if (e.pointerId === IN.mira.id) {
+    if (id === IN.mira.id) {
       IN.mira.x = e.clientX; IN.mira.y = e.clientY;
       var v = vettoreMira();
       if (v.l > DEAD_MIRA && !IN.mira.uscito && window.R3) { MIS.rotT = performance.now(); MIS.rotA = Math.atan2(v.y, v.x); }
       if (v.l > DEAD_MIRA) IN.mira.uscito = true;
     }
-  });
-  function rilascia(e) {
-    if (e.pointerType === 'mouse') {
-      if (e.button === 2) { if (IN.mouse.dx) { IN.mouse.dx = false; spara(vettoreMouse(true), true); } }
-      else IN.mouse.sx = false;
-      return;
-    }
-    if (e.pointerId === IN.mov.id) IN.mov.id = -1;
-    if (e.pointerId === IN.mira.id) {
+  }
+  function su(e) {
+    var id = e.id;
+    if (id === IN.mov.id) IN.mov.id = -1;
+    if (id === IN.mira.id) {
       var v = vettoreMira(), m = IN.mira;
       m.id = -1;
       if (!inPartita()) return;
@@ -815,10 +897,77 @@
       // altrimenti: riportato al centro = annullato
     }
   }
-  cv.addEventListener('pointerup', rilascia);
-  cv.addEventListener('pointercancel', function (e) { if (e.pointerId === IN.mov.id) IN.mov.id = -1; if (e.pointerId === IN.mira.id) IN.mira.id = -1; });
+  function annulla(e) { if (e.id === IN.mov.id) IN.mov.id = -1; if (e.id === IN.mira.id) IN.mira.id = -1; }
+
+  // ---- pointer: mouse ovunque; tocco e penna fuori da iOS (Android, PC touch) come prima ----
+  cv.addEventListener('pointerdown', function (e) {
+    S.sblocca();
+    if (!inPartita()) return;
+    if (e.pointerType === 'mouse') {
+      e.preventDefault();
+      var x = e.clientX, y = e.clientY;
+      if (vicino(x, y, UI.pausa, UI.pausa.r + 12)) { pausa(true); return; }
+      if (P.tut && x >= SALTA.x && x <= SALTA.x + SALTA.w && y >= SALTA.y && y <= SALTA.y + SALTA.h) { finisciTutorial(); return; }
+      IN.desktop = true;
+      IN.mouse.x = x; IN.mouse.y = y; IN.mouse.dentro = true;
+      if (e.button === 2) { IN.mouse.dx = true; } else { IN.mouse.sx = true; spara(vettoreMouse(false), false); }
+      return;
+    }
+    if (IOS_TOCCO) return;                 // su iPhone/iPad il dito lo segue il touchstart
+    e.preventDefault();
+    try { cv.setPointerCapture(e.pointerId); } catch (er) { }
+    giu({ id: pid(e.pointerId), clientX: e.clientX, clientY: e.clientY });
+  }, { passive: false });
+  cv.addEventListener('pointermove', function (e) {
+    if (e.pointerType === 'mouse') { IN.mouse.x = e.clientX; IN.mouse.y = e.clientY; IN.mouse.dentro = true; return; }
+    if (IOS_TOCCO) return;
+    muovi({ id: pid(e.pointerId), clientX: e.clientX, clientY: e.clientY });
+  });
+  cv.addEventListener('pointerup', function (e) {
+    if (e.pointerType === 'mouse') {
+      if (e.button === 2) { if (IN.mouse.dx) { IN.mouse.dx = false; spara(vettoreMouse(true), true); } }
+      else IN.mouse.sx = false;
+      return;
+    }
+    if (IOS_TOCCO) return;
+    su({ id: pid(e.pointerId) });
+  });
+  cv.addEventListener('pointercancel', function (e) { if (e.pointerType === 'mouse' || IOS_TOCCO) return; annulla({ id: pid(e.pointerId) }); });
   cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
   cv.addEventListener('pointerleave', function (e) { if (e.pointerType === 'mouse') IN.mouse.dentro = false; });
+
+  // ---- Touch Events nativi su iPhone/iPad ----
+  if (IOS_TOCCO) {
+    var tocchi = function (fn, inizio) {
+      return function (e) {
+        if (e.__gb) return; e.__gb = 1;        // sentito da tela e window: passa una volta sola
+        if (inizio) { S.sblocca(); if (!inPartita()) return; }
+        else if (IN.mov.id < 0 && IN.mira.id < 0) return;   // nessun dito nostro: menu e DOM restano come sono
+        if (e.cancelable) e.preventDefault();
+        var vivi = {}, i, t;
+        for (i = 0; i < e.touches.length; i++) vivi[pid(e.touches[i].identifier)] = 1;
+        for (i = 0; i < e.changedTouches.length; i++) {
+          t = e.changedTouches[i];
+          if (inizio) levId(t.identifier);
+          fn({ id: pid(t.identifier), clientX: t.clientX, clientY: t.clientY, vivi: vivi });
+          if (inizio && !inPartita()) break;   // pausa o «salta» appena toccati
+        }
+      };
+    };
+    var tGiu = tocchi(giu, true), tMuovi = tocchi(muovi), tSu = tocchi(su), tAnn = tocchi(annulla);
+    cv.addEventListener('touchstart', tGiu, { passive: false });
+    [cv, window].forEach(function (t) {
+      t.addEventListener('touchmove', tMuovi, { passive: false, capture: true });
+      t.addEventListener('touchend', tSu, { passive: false, capture: true });
+      t.addEventListener('touchcancel', tAnn, { passive: false, capture: true });
+    });
+    cv.style.touchAction = 'none';
+    document.addEventListener('gesturestart', function (e) { if (inPartita()) e.preventDefault(); }, { passive: false });
+  }
+  // dita perse: app in secondo piano, finestra che perde il fuoco, rotazione
+  window.addEventListener('blur', liberaTocchi);
+  document.addEventListener('visibilitychange', function () { if (document.hidden) liberaTocchi(); });
+  window.addEventListener('orientationchange', liberaTocchi);
   window.addEventListener('keydown', function (e) {
     var k = e.key.toLowerCase();
     IN.tasti[k] = true;
@@ -1013,7 +1162,7 @@
     if (on) S.indietro(); else S.passa();
   }
   $('p-riprendi').onclick = function (e) { premi($('p-riprendi'), e, function () { pausa(false); }, 60); };
-  $('p-esci').onclick = function () { S.indietro(); pausa(false); var dove = 's-home'; if (P && P.rete && B.reteEsci) { B.reteEsci(); if (B.reteDove) dove = B.reteDove(); } if (window.SPETT && SPETT.nascondi) SPETT.nascondi(); P = null; IO = 0; B.fase = 'menu'; if (window.R3) R3.segui = null; vai(dove, -1); };   // GBT2311: online si torna al menu di Gem Brawl (o al torneo)
+  $('p-esci').onclick = function () { levManda('esci'); S.indietro(); pausa(false); var dove = 's-home'; if (P && P.rete && B.reteEsci) { B.reteEsci(); if (B.reteDove) dove = B.reteDove(); } if (window.SPETT && SPETT.nascondi) SPETT.nascondi(); P = null; IO = 0; B.fase = 'menu'; if (window.R3) R3.segui = null; vai(dove, -1); };   // GBT2311: online si torna al menu di Gem Brawl (o al torneo)
 
   // ---------------- eventi del motore → sensazioni ----------------
   var COL = D.COL;
@@ -1895,7 +2044,7 @@
     var livPrima = PROG.liv, xpPrima = PROG.xp;
     if (!NOPROG) { PROG.trofei[me.id] = t0 + dT; PROG.xp += dX; while (PROG.xp >= xpServe(PROG.liv)) { PROG.xp -= xpServe(PROG.liv); PROG.liv++; } salvaProg(); }
     premi_(dT, t0 + dT, livPrima, xpPrima, dX, me.id);
-    B.fase = 'fine'; B.partite++; B.esiti.push({ modo: st.modo, eroe: me.id, esito: esito, motivo: f.motivo, t: +(st.t / 30).toFixed(1) });
+    levManda('fine'); B.fase = 'fine'; B.partite++; B.esiti.push({ modo: st.modo, eroe: me.id, esito: esito, motivo: f.motivo, t: +(st.t / 30).toFixed(1) });
     var dopo = function () { mostra('s-fine'); S.musicaFile(vinto ? 'vittoria' : null); };
     if (AUTO) dopo(); else sipario(dopo, 1);
     if (AUTO) setTimeout(function () { if (B.fase === 'fine') { APP.eroe = POOL[Math.floor(Math.random() * POOL.length)]; if (Q.get('modo') === 'tutti') APP.modo = ['gemme', 'duello', 'sopravvivenza'][B.partite % 3]; preparaPartita(); } }, 1500);
@@ -2072,6 +2221,7 @@
   var ultimo = performance.now(), perfAcc = { n: 0, ms: 0, max: 0, t0: performance.now(), fps: 0, msm: 0, maxm: 0 };
   function ciclo(ora) {
     requestAnimationFrame(ciclo);
+    B.giri++;
     var dt = Math.min(0.1, (ora - ultimo) / 1000); ultimo = ora;
     var t0 = performance.now();
     leggiPad(dt);
@@ -2286,9 +2436,9 @@
     mostra('s-carica'); S.musicaFile(null); if (S.annunciaModo) S.annunciaModo(sopr ? 'tutti' : st.modo);
     S.vsEntra(); setTimeout(function () { if (APP.schermo === 's-carica') { S.vsColpo(); vibra(25); } }, 430);
     $('s-carica').onclick = null;
-    var fatto = false, ok = function () { if (!fatto) { fatto = true; cli.pronto(); } };
-    if (modelli && modelli.then) modelli.then(ok, ok); else ok();
-    setTimeout(ok, 8000);
+    var fatto = false, Pq = P, ok = function () { if (!fatto) { fatto = true; Pq.prontoFatto = true; cli.pronto(); } };
+    preparaTutto(st, PRONTO_TETTO_RETE).then(ok, ok);
+    setTimeout(ok, PRONTO_TETTO_RETE + 500);
     return P;
   };
   // GBT2311: SPETTATORE (esterno, o eliminato con la pagina ricaricata): niente versus, niente «pronto»; l'arena si apre
@@ -2304,6 +2454,7 @@
     D.prepara(st, IO);
     st.eroi.forEach(function (h) { asset(h.id); });
     B.fase = 'carica';
+    var Pq = P; Pq.prontoP = preparaTutto(st, 6000).then(function (r) { Pq.prontoFatto = true; return r; });
     return P;
   }
   // GBT2311: l'eliminato ha scelto «Guarda» e il server ha detto si' (gok): da qui e' uno spettatore della stessa partita
@@ -2312,7 +2463,9 @@
   B.viaRete = function (tra) {
     if (!P || !P.rete || B.fase !== 'carica') return;
     P.viaT = performance.now() + (tra || 0);
-    B.fase = 'via'; if (AUTO) avvia(); else sipario(avvia, 1);
+    B.fase = 'via';
+    var Pq = P, parti = function () { if (P !== Pq || B.fase !== 'via') return; if (AUTO) avvia(); else sipario(avvia, 1); };
+    if (P.spett && !P.prontoFatto && P.prontoP) P.prontoP.then(parti, parti); else parti();
   };
   B.P = function () { return P; };
   B.esciRete = function () { if (P && P.rete) { P = null; } IO = 0; B.fase = 'menu'; };
